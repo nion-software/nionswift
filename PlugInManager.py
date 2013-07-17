@@ -13,7 +13,7 @@ def loadPlugIns():
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
     localpath = os.path.dirname(os.path.realpath(__file__))
     if sys.platform == "win32":
-        plugins_dir = os.path.abspath(os.path.join(os.path.join(os.path.join(localpath, ".."), ".."), "PlugIns"))
+        plugins_dir = os.path.abspath(os.path.join(os.path.join(os.path.join(os.path.join(os.path.join(localpath, ".."), ".."), ".."), ".."), "PlugIns"))
     else:
         plugins_dir = os.path.abspath(os.path.join(os.path.join(os.path.join(os.path.join(localpath, ".."), ".."), ".."), "PlugIns"))
     sys.path.append(plugins_dir)
