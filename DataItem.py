@@ -1,0 +1,407 @@
+# standard libraries
+import collections
+import copy
+import gettext
+import logging
+import threading
+import uuid
+import weakref
+
+# third party libraries
+import numpy
+
+# local libraries
+import Image
+import Storage
+
+_ = gettext.gettext
+
+
+# Calibration notes:
+#   The user wants calibrations to persist during pixel-by-pixel processing
+#   The user expects operations to handle calibrations and perhaps other metadata
+#   The user expects that calibrating a processed item adjust source calibration
+
+class Calibration(Storage.StorageBase):
+    def __init__(self, origin=None, scale=None, units=None):
+        super(Calibration, self).__init__()
+        # TODO: add optional saving for these items
+        self.storage_properties += ["origin", "scale", "units"]
+        self.storage_type = "calibration"
+        self.description = [
+            {"name": _("Origin"), "property": "origin", "type": "float-field"},
+            {"name": _("Scale"), "property": "scale", "type": "float-field"},
+            {"name": _("Units"), "property": "units", "type": "string-field"}
+        ]
+        self.__origin = origin  # the calibrated value at the origin
+        self.__scale = scale  # the calibrated value at location 1.0
+        self.__units = units  # the units of the calibrated value
+
+    @classmethod
+    def build(cls, storage_reader, item_node):
+        origin = storage_reader.get_property(item_node, "origin", None)
+        scale = storage_reader.get_property(item_node, "scale", None)
+        units = storage_reader.get_property(item_node, "units", None)
+        return cls(origin, scale, units)
+
+    def copy(self):
+        return Calibration(origin=self.__origin, scale=self.__scale, units=self.__units)
+
+    def __get_is_calibrated(self):
+        return self.__origin is not None or self.__scale is not None or self.__units is not None
+    is_calibrated = property(__get_is_calibrated)
+
+    def clear(self):
+        self.__origin = None
+        self.__scale = None
+        self.__units = None
+
+    def __get_origin(self):
+        return self.__origin if self.__origin else 0.0
+    def __set_origin(self, value):
+        self.__origin = value
+        self.notify_set_property("origin", value)
+    origin = property(__get_origin, __set_origin)
+
+    def __get_scale(self):
+        return self.__scale if self.__scale else 1.0
+    def __set_scale(self, value):
+        self.__scale = value
+        self.notify_set_property("scale", value)
+    scale = property(__get_scale, __set_scale)
+
+    def __get_units(self):
+        return self.__units if self.__units else ""
+    def __set_units(self, value):
+        self.__units = value
+        self.notify_set_property("units", value)
+    units = property(__get_units, __set_units)
+
+    def convert_to_calibrated(self, value):
+        return self.origin + value * self.scale
+    def convert_from_calibrated(self, value):
+        return (value - self.origin) / self.scale
+    def convert_to_calibrated_str(self, value):
+        result = '{0:.1f}'.format(self.convert_to_calibrated(value)) + ((" " + self.units) if self.__units else "")
+        return result
+
+
+# data items top level items that are displayed
+# thumbnails need to be available for all data items
+# thumbnails are miniaturized presentations
+# this implies that all data items need an associated presentation
+# graphic items are stored in presentations
+# calibrations are stored in data sources
+# data items have data sources
+# data sources can point to other data sources and roi's
+
+
+class DataItem(Storage.StorageBase):
+
+    def __init__(self):
+        super(DataItem, self).__init__()
+        self.storage_properties += ["title", "param"]
+        self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
+        self.storage_data_keys += ["master_data"]
+        #self.storage_items += ["data_source"]
+        self.storage_type = "data-item"
+        self.description = [
+            {"name": _("Parameter"), "property": "param", "type": "scalar", "default": 0.5},
+            {"name": _("Calibrations"), "property": "calibrations", "type": "fixed-array"},
+        ]
+        self.__title = None
+        self.__param = 0.5
+        self.__display_limits = (0, 1)
+        self.calibrations = Storage.MutableRelationship(self, "calibrations")
+        self.graphics = Storage.MutableRelationship(self, "graphics")
+        self.data_items = Storage.MutableRelationship(self, "data_items")
+        self.operations = Storage.MutableRelationship(self, "operations")
+        self.__data_mutex = threading.RLock()  # access to the image
+        self.__cached_data = None
+        self.__master_data = None
+        self.__data_source = None
+        self.thumbnail_data = None
+        self.thumbnail_data_valid = False
+        self.__live_data = False
+        self.__counted_data_items = collections.Counter()
+
+    def __str__(self):
+        return self.title if self.title else _("Untitled")
+
+    @classmethod
+    def build(cls, storage_reader, item_node):
+        title = storage_reader.get_property(item_node, "title")
+        param = storage_reader.get_property(item_node, "param")
+        calibrations = storage_reader.get_items(item_node, "calibrations")
+        graphics = storage_reader.get_items(item_node, "graphics")
+        operations = storage_reader.get_items(item_node, "operations")
+        data_items = storage_reader.get_items(item_node, "data_items")
+        master_data = storage_reader.get_data(item_node, "master_data") if storage_reader.has_data(item_node, "master_data") else None
+        data_item = cls()
+        data_item.title = title
+        data_item.param = param
+        data_item.master_data = master_data
+        data_item.data_items.extend(data_items)
+        data_item.operations.extend(operations)
+        # setting master data may add calibrations automatically. remove them here to start from clean slate.
+        while len(data_item.calibrations):
+            data_item.calibrations.pop()
+        data_item.calibrations.extend(calibrations)
+        data_item.graphics.extend(graphics)
+        return data_item
+
+    # This gets called when reference count goes to 0, but before deletion.
+    def about_to_delete(self):
+        self.data_source = None
+        self.master_data = None
+        for data_item in copy.copy(self.data_items):
+            self.data_items.remove(data_item)
+        for calibration in copy.copy(self.calibrations):
+            self.calibrations.remove(calibration)
+        for graphic in copy.copy(self.graphics):
+            self.graphics.remove(graphic)
+        for operation in copy.copy(self.operations):
+            self.operations.remove(operation)
+        super(DataItem, self).about_to_delete()
+
+    def __get_live_data(self):
+        return self.__live_data
+    def __set_live_data(self, live_data):
+        if self.__live_data != live_data:
+            self.__live_data = live_data
+            if not self.__live_data:
+                self.notify_set_data("master_data", self.__master_data)
+    live_data = property(__get_live_data, __set_live_data)
+
+    # call this when the listeners need to be updated
+    # (via data_item_changed). Calling this method will send the data_item_changed
+    # method to each listener.
+    def notify_data_item_changed(self, info):
+        # clear the thumbnail too
+        self.thumbnail_data = None
+        self.thumbnail_data_valid = False
+        self.__cached_data = None
+        self.notify_listeners("data_item_changed", self, info)
+
+    # compatibility
+    def __get_image(self):
+        return self.data
+    image = property(__get_image)
+
+    def __get_display_limits(self):
+        return self.__display_limits
+    def __set_display_limits(self, display_limits):
+        self.__display_limits = display_limits
+        self.notify_data_item_changed({"property": "display"})
+    display_limits = property(__get_display_limits, __set_display_limits)
+
+    # call this when data changes. this makes sure that the right number
+    # of calibrations exist in this object. it also propogates the calibrations
+    # to the dependent items.
+    def sync_calibrations(self, ndim):
+        while len(self.calibrations) < ndim:
+            self.calibrations.append(Calibration(0.0, 1.0, None))
+        while len(self.calibrations) > ndim:
+            self.calibrations.remove(self.calibrations[ndim])
+
+    def __get_calculated_calibrations(self):
+        calibrations = self.calibrations
+        if not calibrations:
+            calibrations = self.data_source.calculated_calibrations
+        data = self.root_data
+        data_shape = data.shape
+        data_type = data.dtype
+        for operation in self.operations:
+            if operation.enabled:
+                calibrations = operation.get_processed_calibrations(data_shape, data_type, calibrations)
+                data_shape, data_type = operation.get_processed_data_shape_and_type(data_shape, data_type)
+        return calibrations
+    calculated_calibrations = property(__get_calculated_calibrations)
+
+    # call this when operations change or data souce changes
+    # this allows operations to update their defaut values
+    def sync_operations(self):
+        data = self.root_data
+        if data is not None:
+            data_shape = data.shape
+            data_type = data.dtype
+            for operation in self.operations:
+                operation.update_data_shape_and_type(data_shape, data_type)
+                if operation.enabled:
+                    data_shape, data_type = operation.get_processed_data_shape_and_type(data_shape, data_type)
+
+    # smart groups don't participate in the storage model directly. so allow
+    # listeners an alternative way of hearing about data items being inserted
+    # or removed via data_item_inserted and data_item_removed messages.
+
+    def notify_insert_item(self, key, value, before_index):
+        super(DataItem, self).notify_insert_item(key, value, before_index)
+        if key == "operations":
+            self.sync_operations()
+            self.notify_data_item_changed({"property": "operation"})
+        elif key == "data_items":
+            self.notify_listeners("data_item_inserted", self, value, before_index)  # see note about smart groups
+            value.data_source = self
+            self.notify_data_item_changed({"property": "data_item"})
+            self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
+        elif key == "calibrations":
+            self.notify_data_item_changed({"property": "calibration"})
+        elif key == "graphics":
+            self.notify_data_item_changed({"property": "display"})
+
+    def notify_remove_item(self, key, value, index):
+        super(DataItem, self).notify_remove_item(key, value, index)
+        if key == "operations":
+            self.sync_operations()
+            self.notify_data_item_changed({"property": "operation"})
+        elif key == "data_items":
+            self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
+            self.notify_listeners("data_item_removed", self, value, index)  # see note about smart groups
+            value.data_source = None
+            self.notify_data_item_changed({"property": "data_item"})
+        elif key == "calibrations":
+            self.notify_data_item_changed({"property": "calibration"})
+        elif key == "graphics":
+            self.notify_data_item_changed({"property": "display"})
+
+    def __get_counted_data_items(self):
+        return self.__counted_data_items
+    counted_data_items = property(__get_counted_data_items)
+
+    def update_counted_data_items(self, counted_data_items):
+        self.__counted_data_items.update(counted_data_items)
+        self.notify_parents("update_counted_data_items", counted_data_items)
+    def subtract_counted_data_items(self, counted_data_items):
+        self.__counted_data_items.subtract(counted_data_items)
+        self.__counted_data_items += collections.Counter()  # strip empty items
+        self.notify_parents("subtract_counted_data_items", counted_data_items)
+
+    # title
+    def __get_title(self):
+        return self.__title
+    def __set_title(self, value):
+        self.__title = value
+        self.notify_set_property("title", value)
+    title = property(__get_title, __set_title)
+
+    # param (for testing)
+    def __get_param(self):
+        return self.__param
+    def __set_param(self, value):
+        self.__param = value
+        self.notify_set_property("param", self.__param)
+    param = property(__get_param, __set_param)
+
+    # comes from data_source and operations to indicate that parameters have
+    # changed. the connection is established in operation.add_observer.
+    def property_changed(self, operation, property, value):
+        self.__cached_data = None
+        self.notify_data_item_changed({"property": "data"})
+
+    # data_item_changed comes from data sources to indicate that data
+    # has changed. the connection is established in __set_data_source.
+    def data_item_changed(self, data_source, info):
+        assert data_source == self.data_source
+        self.__cached_data = None
+        self.notify_data_item_changed(info)
+
+    # use a property here to correct add_ref/remove_ref
+    # also manage connection to data source.
+    # data_source is a caching value only. it is not part of the model.
+    def __get_data_source(self):
+        return self.__data_source
+    def __set_data_source(self, data_source):
+        assert data_source is None or self.__master_data is None  # can't have master data and image source
+        if self.__data_source:
+            with self.__data_mutex:
+                self.__data_source.remove_listener(self)
+                self.__data_source.remove_observer(self)
+                self.__data_source.remove_ref()
+                self.__data_source = None
+                self.sync_operations()
+        if data_source:
+            with self.__data_mutex:
+                assert isinstance(data_source, DataItem)
+                self.__data_source = data_source
+                # we will receive data_item_changed from data_source
+                self.__data_source.add_listener(self)
+                self.__data_source.add_observer(self)
+                self.__data_source.add_ref()
+                self.sync_operations()
+            self.data_item_changed(self.__data_source, {"property": "source"})
+    data_source = property(__get_data_source, __set_data_source)
+
+    def __get_master_data(self):
+        return self.__master_data
+    def __set_master_data(self, data):
+        assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
+        assert data is None or self.__data_source is None  # can't have master data and image source
+        with self.__data_mutex:
+            self.__master_data = data
+            self.sync_calibrations(numpy.ndim(data))
+        if not self.live_data:
+            self.notify_set_data("master_data", self.__master_data)
+        self.notify_data_item_changed({"property": "data"})
+    master_data = property(__get_master_data, __set_master_data)
+
+    # root data property. read only. root data is data before operations have been applied.
+    def __get_root_data(self):
+        with self.__data_mutex:
+            data = self.master_data
+            if data is None:
+                if self.data_source is not None:
+                    data = self.data_source.data
+            return data
+    root_data = property(__get_root_data)
+
+    # data property. read only.
+    def __get_data(self):
+        with self.__data_mutex:
+            if self.__cached_data is None:
+                data = self.root_data
+                # apply operations
+                if data is not None:
+                    for operation in reversed(self.operations):
+                        data = operation.process_data(data)
+                self.__cached_data = data
+            return self.__cached_data
+    data = property(__get_data)
+
+    # returns a 2 dimension uint32 array, interpreted as RGBA pixels
+    def get_thumbnail_data(self, height, width):
+        if not self.thumbnail_data_valid:
+            image = self.data
+            if image is not None: # convert image to scalar if we have one
+                image = Image.scalarFromArray(image)
+                thumbnail_image = Image.scaled(image, (128, 128), 'nearest')
+                if numpy.ndim(thumbnail_image) == 2:
+                    self.thumbnail_data = Image.createRGBAImageFromArray(thumbnail_image)
+                    self.thumbnail_data_valid = True
+                elif numpy.ndim(thumbnail_image) == 3:
+                    data = thumbnail_image
+                    if thumbnail_image.shape[2] == 4:
+                        self.thumbnail_data = data.view(numpy.uint32).reshape(data.shape[:-1])
+                        self.thumbnail_data_valid = True
+                    elif thumbnail_image.shape[2] == 3:
+                        rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                        rgba[:,:,0:3] = data
+                        rgba[:,:,3] = 255
+                        self.thumbnail_data = rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+                        self.thumbnail_data_valid = True
+        return self.thumbnail_data
+
+    def copy(self):
+        data_item = DataItem()
+        data_item.title = self.title
+        data_item.param = self.param
+        for calibration in self.calibrations:
+            data_item.calibrations.append(calibration)
+        for operation in self.operations:
+            data_item.operations.append(operation)
+        for graphic in self.graphics:
+            data_item.graphics.append(graphic)
+        for data_item in self.data_items:
+            data_item.data_items.append(data_item)
+        data_item.master_data = self.master_data
+        data_item.data_source = self.data_source
+        return data_item
