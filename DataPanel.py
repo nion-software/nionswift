@@ -180,7 +180,7 @@ class DataPanel(Panel.Panel):
         def data_item_removed(self, container, data_item, index):
             self.__update_item_count(container)
 
-        def itemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
+        def item_key_press(self, text, modifiers, index, parent_row, parent_id):
             data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
             if data_group and len(data_group.data_items) == 0 and len(data_group.data_groups) == 0:
                 if len(text) == 1 and ord(text[0]) == 127:
@@ -191,14 +191,24 @@ class DataPanel(Panel.Panel):
                         self.document_controller.data_groups.remove(data_group)
             return False
 
-        def itemSetData(self, index, parent_row, parent_id, data):
+        def item_set_data(self, data, index, parent_row, parent_id):
             data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
             if data_group:
                 data_group.title = data
                 return True
             return False
 
-        def itemDropFiles(self, index, parent_row, parent_id, file_paths):
+        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                return False
+            if mime_data.has_file_paths:
+                self.item_receive_files(mime_data.file_paths, row, parent_row, parent_id)
+                return True
+            if mime_data.has_format("text/data_item_uuid"):
+                return False
+            return False
+
+        def item_receive_files(self, file_paths, index, parent_row, parent_id):
             if index >= 0:
                 return False;
             parent_item = self.itemFromId(parent_id)
@@ -218,7 +228,7 @@ class DataPanel(Panel.Panel):
             self.__block_image_panel_update = block
             return old_block_image_panel_update
 
-        def itemChanged(self, index, parent_row, parent_id):
+        def item_changed(self, index, parent_row, parent_id):
             # record the change
             self._index = index
             self._parent_row = parent_row
@@ -229,11 +239,13 @@ class DataPanel(Panel.Panel):
                 if image_panel:
                     image_panel.data_panel_selection = self.data_panel_selection
 
-        def itemClicked(self, index, parent_row, parent_id):
-            return False
+        def __get_supported_drop_actions(self):
+            return self.DRAG | self.DROP
+        supported_drop_actions = property(__get_supported_drop_actions)
 
-        def itemDoubleClicked(self, index, parent_row, parent_id):
-            return False
+        def __get_mime_types(self):
+            return ["text/uri-list", "text/data_item_uuid"]
+        mime_types = property(__get_mime_types)
 
     # a list model of the data items. data items are actually hierarchical in nature,
     # but we don't use a tree view since the hierarchy is always visible and represented

@@ -19,7 +19,7 @@ Rectangle {
     DropArea {
         anchors.fill: parent
 
-        keys: ["text/uri-list", "data_item_uuid"]
+        keys: ["text/uri-list", "text/data_item_uuid"]
 
         property variant lastItem
 
@@ -47,14 +47,14 @@ Rectangle {
                 app.invokePyMethod(panel, "receiveUrls", [dropIndex, drop.urls])
                 drop.accept(Qt.CopyAction)
             }
-            else if (drop.formats.indexOf("data_item_uuid") >= 0) {
+            else if (drop.formats.indexOf("text/data_item_uuid") >= 0) {
                 // for some reason, source needs source.source rather than just source. could be a bug in Qt.
                 var sourceIndex = drop.source.source.sourceIndex
                 drop.accepted = true;
                 if (drop.source.source.parent.parent == view) {
                     // moving within a single view (i.e. same window)
                     if (drop.proposedAction == Qt.MoveAction || drop.proposedAction == Qt.CopyAction) {
-                        app.invokePyMethod(panel, "copyItem", [drop.getDataAsString("data_item_uuid"), sourceIndex, dropIndex])
+                        app.invokePyMethod(panel, "copyItem", [drop.getDataAsString("text/data_item_uuid"), sourceIndex, dropIndex])
                         drop.acceptProposedAction()
                     }
                 }
@@ -124,7 +124,7 @@ Rectangle {
                 Drag.active: mouseArea.drag.active
                 Drag.hotSpot.x: 0
                 Drag.hotSpot.y: 0
-                // DND: Drag.mimeData: { "data_item_uuid": uuid }
+                // DND: Drag.mimeData: { "text/data_item_uuid": uuid }
                 Drag.source: background  // use in onDropped
                 x: background.x
                 y: background.y

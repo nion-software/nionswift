@@ -63,7 +63,40 @@ class QtKeyboardModifiers(object):
     only_keypad = property(__get_only_keypad)
 
 
+class QtMimeData(object):
+    def __init__(self, ui, mime_data):
+        self.ui = ui
+        self.__mime_data = mime_data
+    def __get_formats(self):
+        return self.ui.MimeData_formats(self.__mime_data)
+    formats = property(__get_formats)
+    def has_format(self, format):
+        return format in self.formats
+    def __get_has_urls(self):
+        return "text/uri-list" in self.formats
+    has_urls = property(__get_has_urls)
+    has_file_paths = property(__get_has_urls)
+    def __get_urls(self):
+        raw_urls = self.data_as_string("text/uri-list")
+        return raw_urls.splitlines() if raw_urls and len(raw_urls) > 0 else []
+    urls = property(__get_urls)
+    def __get_file_paths(self):
+        urls = self.urls
+        file_paths = []
+        for url in urls:
+            file_path = self.ui.Core_URLToPath(url)
+            if file_path and len(file_path) > 0 and os.path.isfile(file_path) and os.path.exists(file_path):
+                file_paths.append(file_path)
+        return file_paths
+    file_paths = property(__get_file_paths)
+    def data_as_string(self, format):
+        return self.ui.MimeData_dataAsString(self.__mime_data, format)
+
+
 class ItemModel(object):
+
+    DRAG = 1
+    DROP = 2
 
     class Item(object):
         def __init__(self, data=None):
@@ -160,6 +193,46 @@ class ItemModel(object):
         if role in child.data:
             return child.data[role]
         return None
+
+    def itemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
+        if hasattr(self, "item_key_press"):
+            return self.item_key_press(text, QtKeyboardModifiers(raw_modifiers), index, parent_row, parent_id)
+        return False
+
+    def itemSetData(self, index, parent_row, parent_id, data):
+        if hasattr(self, "item_set_data"):
+            return self.item_set_data(data, index, parent_row, parent_id)
+        return False
+
+    def itemChanged(self, index, parent_row, parent_id):
+        if hasattr(self, "item_changed"):
+            self.item_changed(index, parent_row, parent_id)
+
+    def itemClicked(self, index, parent_row, parent_id):
+        if hasattr(self, "item_clicked"):
+            return self.item_clicked(index, parent_row, parent_id)
+        return False
+
+    def itemDoubleClicked(self, index, parent_row, parent_id):
+        if hasattr(self, "item_double_clicked"):
+            return self.item_double_clicked(index, parent_row, parent_id)
+        return False
+
+    def itemDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
+        if hasattr(self, "item_drop_mime_data"):
+            return self.item_drop_mime_data(QtMimeData(self.ui, raw_mime_data), action, row, parent_row, parent_id)
+        return False
+
+    def supportedDropActions(self):
+        if hasattr(self, "supported_drop_actions"):
+            return self.supported_drop_actions
+        return 0
+
+    def mimeTypes(self):
+        if hasattr(self, "mime_types"):
+            return self.mime_types
+        return []
+
 
 #abc (None, 0)
 #    def (abc, 0)
@@ -578,6 +651,14 @@ class QtUserInterface(object):
 
     def ImageDisplayController_sendImage(self, controller_id, rgba_image):
         NionLib.ImageDisplayController_sendImage(__main__.idc, controller_id, rgba_image)
+
+    # Mime data
+
+    def MimeData_formats(self, mime_data):
+        return NionLib.MimeData_formats(mime_data)
+
+    def MimeData_dataAsString(self, mime_data, format):
+        return NionLib.MimeData_dataAsString(mime_data, format)
 
     # PyControl is used to manage a parameter for an operation
 
