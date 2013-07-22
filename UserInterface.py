@@ -236,6 +236,11 @@ class ItemModel(object):
             return mime_data.raw_mime_data if mime_data else None
         return None
 
+    def removeRows(self, row, count, parent_row, parent_id):
+        if hasattr(self, "remove_rows"):
+            return self.remove_rows(row, count, parent_row, parent_id)
+        return False
+
     def supportedDropActions(self):
         if hasattr(self, "supported_drop_actions"):
             return self.supported_drop_actions

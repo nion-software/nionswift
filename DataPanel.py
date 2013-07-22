@@ -203,8 +203,6 @@ class DataPanel(Panel.Panel):
             return parent_item.data["data_group"] if "data_group" in parent_item.data else None
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            logging.debug("row %s parent_row %s parent_id %s", row, parent_row, parent_id)
-            logging.debug("formats %s", mime_data.formats)
             data_group = self.__get_data_group_of_parent(parent_row, parent_id)
             container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
             if data_group and mime_data.has_file_paths:
@@ -226,16 +224,15 @@ class DataPanel(Panel.Panel):
                     return action
                 return self.NONE
             if mime_data.has_format("text/data_group_uuid"):
-                logging.debug("HERE")
                 data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
                 data_group = self.document_controller.get_data_group_by_uuid(data_group_uuid)
-                logging.debug(data_group)
                 if data_group:
                     data_group_copy = data_group.copy()
                     if row >= 0:
                         container.data_groups.insert(row, data_group_copy)
                     else:
                         container.data_groups.append(data_group_copy)
+                    return action
             return self.NONE
 
         def item_mime_data(self, row, parent_row, parent_id):
@@ -246,6 +243,13 @@ class DataPanel(Panel.Panel):
                 mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
                 return mime_data
             return None
+
+        def remove_rows(self, row, count, parent_row, parent_id):
+            data_group = self.__get_data_group_of_parent(parent_row, parent_id)
+            container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
+            for i in range(count):
+                del container.data_groups[row]
+            return True
 
         def __get_data_panel_selection(self):
             parent_item = self.itemFromId(self._parent_id)
