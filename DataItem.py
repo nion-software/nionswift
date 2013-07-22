@@ -391,17 +391,17 @@ class DataItem(Storage.StorageBase):
         return self.thumbnail_data
 
     def copy(self):
-        data_item = DataItem()
-        data_item.title = self.title
-        data_item.param = self.param
+        data_item_copy = DataItem()
+        data_item_copy.title = self.title
+        data_item_copy.param = self.param
         for calibration in self.calibrations:
-            data_item.calibrations.append(calibration)
+            data_item_copy.calibrations.append(calibration.copy())
         for operation in self.operations:
-            data_item.operations.append(operation)
+            data_item_copy.operations.append(operation.copy())
         for graphic in self.graphics:
-            data_item.graphics.append(graphic)
+            data_item_copy.graphics.append(graphic.copy())
         for data_item in self.data_items:
-            data_item.data_items.append(data_item)
-        data_item.master_data = self.master_data
-        data_item.data_source = self.data_source
-        return data_item
+            data_item_copy.data_items.append(data_item.copy())
+        data_item_copy.master_data = numpy.copy(self.master_data) if self.master_data is not None else None
+        #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
+        return data_item_copy

@@ -92,6 +92,24 @@ class TestDataGroupClass(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_copy(self):
+        data_group = DocumentController.DataGroup()
+        data_group.add_ref()
+        data_item1 = DataItem.DataItem()
+        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_group.data_items.append(data_item1)
+        data_group2 = DocumentController.DataGroup()
+        data_group.data_groups.append(data_group2)
+        data_group_copy = data_group.copy()
+        data_group_copy.add_ref()
+        # make sure data_items are not shared
+        self.assertNotEqual(data_group.data_items[0], data_group_copy.data_items[0])
+        # make sure data_groups are not shared
+        self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
+        # clean up
+        data_group_copy.remove_ref()
+        data_group.remove_ref()
+
     def test_counted_data_items(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)

@@ -195,13 +195,13 @@ class DataGroup(Storage.StorageBase):
                 data_group.adjust_data_item_for_filter(data_item, property, value)
 
     def copy(self):
-        data_group = DataGroup()
-        data_group.title = self.title
+        data_group_copy = DataGroup()
+        data_group_copy.title = self.title
         for data_group in self.data_groups:
-            data_group.data_groups.append(data_group)
+            data_group_copy.data_groups.append(data_group.copy())
         for data_item in self.data_items:
-            data_item.data_items.append(data_item)
-        return data_group
+            data_group_copy.data_items.append(data_item.copy())
+        return data_group_copy
 
 
 class SmartDataGroup(Storage.StorageBase):
