@@ -198,24 +198,54 @@ class DataPanel(Panel.Panel):
                 return True
             return False
 
-        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                return False
-            if mime_data.has_file_paths:
-                self.item_receive_files(mime_data.file_paths, row, parent_row, parent_id)
-                return True
-            if mime_data.has_format("text/data_item_uuid"):
-                return False
-            return False
-
-        def item_receive_files(self, file_paths, index, parent_row, parent_id):
-            if index >= 0:
-                return False;
+        def __get_data_group_of_parent(self, parent_row, parent_id):
             parent_item = self.itemFromId(parent_id)
-            if "data_group" in parent_item.data:
-                data_group = parent_item.data["data_group"]
-                return self.data_panel.receiveFiles(data_group, len(data_group.data_items), file_paths)
-            return True
+            return parent_item.data["data_group"] if "data_group" in parent_item.data else None
+
+        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+            logging.debug("row %s parent_row %s parent_id %s", row, parent_row, parent_id)
+            logging.debug("formats %s", mime_data.formats)
+            data_group = self.__get_data_group_of_parent(parent_row, parent_id)
+            container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
+            if data_group and mime_data.has_file_paths:
+                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                    return self.NONE
+                if self.data_panel.receiveFiles(data_group, len(data_group.data_items), file_paths):
+                    return self.COPY
+            if data_group and mime_data.has_format("text/data_item_uuid"):
+                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                    return self.NONE
+                # if the data item exists in this document, then it is copied to the
+                # target group. if it doesn't exist in this document, then it is coming
+                # from another document and can't be handled here.
+                data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+                data_item = self.document_controller.get_data_item_by_key(data_item_uuid)
+                if data_item:
+                    data_item_copy = data_item.copy()
+                    data_group.data_items.append(data_item_copy)
+                    return action
+                return self.NONE
+            if mime_data.has_format("text/data_group_uuid"):
+                logging.debug("HERE")
+                data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
+                data_group = self.document_controller.get_data_group_by_uuid(data_group_uuid)
+                logging.debug(data_group)
+                if data_group:
+                    data_group_copy = data_group.copy()
+                    if row >= 0:
+                        container.data_groups.insert(row, data_group_copy)
+                    else:
+                        container.data_groups.append(data_group_copy)
+            return self.NONE
+
+        def item_mime_data(self, row, parent_row, parent_id):
+            parent_item = self.itemFromId(self._parent_id)
+            data_group = self.itemValue("data_group", None, self.itemId(self._index, self._parent_id))
+            if data_group:
+                mime_data = self.ui.create_mime_data()
+                mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
+                return mime_data
+            return None
 
         def __get_data_panel_selection(self):
             parent_item = self.itemFromId(self._parent_id)
@@ -243,9 +273,9 @@ class DataPanel(Panel.Panel):
             return self.DRAG | self.DROP
         supported_drop_actions = property(__get_supported_drop_actions)
 
-        def __get_mime_types(self):
-            return ["text/uri-list", "text/data_item_uuid"]
-        mime_types = property(__get_mime_types)
+        def __get_mime_types_for_drop(self):
+            return ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
+        mime_types_for_drop = property(__get_mime_types_for_drop)
 
     # a list model of the data items. data items are actually hierarchical in nature,
     # but we don't use a tree view since the hierarchy is always visible and represented

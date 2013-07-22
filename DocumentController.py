@@ -554,6 +554,14 @@ class DocumentController(Storage.StorageBase):
     def get_data_item_count(self):
         return len(list(self.get_data_items()))
 
+    def get_data_groups(self):
+        return get_groups_in_group(self, walk=True)
+
+    def get_data_group_by_uuid(self, uuid):
+        for data_group in self.get_data_groups():
+            if data_group.uuid == uuid:
+                return data_group
+        return None
 
     # access data item by key (title, uuid, index)
     def get_data_item_by_key(self, key):

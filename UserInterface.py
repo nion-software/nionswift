@@ -66,9 +66,9 @@ class QtKeyboardModifiers(object):
 class QtMimeData(object):
     def __init__(self, ui, mime_data):
         self.ui = ui
-        self.__mime_data = mime_data
+        self.raw_mime_data = mime_data
     def __get_formats(self):
-        return self.ui.MimeData_formats(self.__mime_data)
+        return self.ui.MimeData_formats(self.raw_mime_data)
     formats = property(__get_formats)
     def has_format(self, format):
         return format in self.formats
@@ -90,10 +90,17 @@ class QtMimeData(object):
         return file_paths
     file_paths = property(__get_file_paths)
     def data_as_string(self, format):
-        return self.ui.MimeData_dataAsString(self.__mime_data, format)
+        return self.ui.MimeData_dataAsString(self.raw_mime_data, format)
+    def set_data_as_string(self, format, text):
+        self.ui.MimeData_setDataAsString(self.raw_mime_data, format, text)
 
 
 class ItemModel(object):
+
+    NONE = 0
+    COPY = 1
+    MOVE = 2
+    LINK = 4
 
     DRAG = 1
     DROP = 2
@@ -223,14 +230,20 @@ class ItemModel(object):
             return self.item_drop_mime_data(QtMimeData(self.ui, raw_mime_data), action, row, parent_row, parent_id)
         return False
 
+    def itemMimeData(self, row, parent_row, parent_id):
+        if hasattr(self, "item_mime_data"):
+            mime_data = self.item_mime_data(row, parent_row, parent_id)
+            return mime_data.raw_mime_data if mime_data else None
+        return None
+
     def supportedDropActions(self):
         if hasattr(self, "supported_drop_actions"):
             return self.supported_drop_actions
         return 0
 
-    def mimeTypes(self):
-        if hasattr(self, "mime_types"):
-            return self.mime_types
+    def mimeTypesForDrop(self):
+        if hasattr(self, "mime_types_for_drop"):
+            return self.mime_types_for_drop
         return []
 
 
@@ -561,6 +574,9 @@ class QtUserInterface(object):
     def create_image_view(self, image_panel):
         return QtImageView(image_panel)
 
+    def create_mime_data(self):
+        return QtMimeData(self, self.MimeData_create())
+
     # Actions sub-module for menus and actions
 
     def Actions_enableAction(self, qt_action_manager, action_id):
@@ -654,11 +670,17 @@ class QtUserInterface(object):
 
     # Mime data
 
+    def MimeData_create(self):
+        return NionLib.MimeData_create()
+
     def MimeData_formats(self, mime_data):
         return NionLib.MimeData_formats(mime_data)
 
     def MimeData_dataAsString(self, mime_data, format):
         return NionLib.MimeData_dataAsString(mime_data, format)
+
+    def MimeData_setDataAsString(self, mime_data, format, text):
+        return NionLib.MimeData_setDataAsString(mime_data, format, text)
 
     # PyControl is used to manage a parameter for an operation
 

@@ -63,6 +63,26 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = None
         self.assertIsNone(weak_data_item())
 
+    def test_flat_data_groups(self):
+        storage_writer = Storage.DictStorageWriter()
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        data_group1 = DocumentController.DataGroup()
+        document_controller.data_groups.append(data_group1)
+        data_group1a = DocumentController.DataGroup()
+        data_group1.data_groups.append(data_group1a)
+        data_group1b = DocumentController.DataGroup()
+        data_group1.data_groups.append(data_group1b)
+        data_group2 = DocumentController.DataGroup()
+        document_controller.data_groups.append(data_group2)
+        data_group2a = DocumentController.DataGroup()
+        data_group2.data_groups.append(data_group2a)
+        data_group2b = DocumentController.DataGroup()
+        data_group2.data_groups.append(data_group2b)
+        data_group2b1 = DocumentController.DataGroup()
+        data_group2b.data_groups.append(data_group2b1)
+        self.assertEqual(len(list(DocumentController.get_groups_in_group(document_controller, walk=True))), 7)
+        self.assertEqual(len(list(document_controller.get_data_groups())), 7)
+
 
 class TestDataGroupClass(unittest.TestCase):
 
