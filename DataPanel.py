@@ -208,7 +208,7 @@ class DataPanel(Panel.Panel):
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                     return self.NONE
-                if self.data_panel.receiveFiles(data_group, len(data_group.data_items), file_paths):
+                if self.data_panel.receiveFiles(data_group, len(data_group.data_items), mime_data.file_paths):
                     return self.COPY
             if data_group and mime_data.has_format("text/data_item_uuid"):
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
