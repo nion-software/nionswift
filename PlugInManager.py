@@ -6,18 +6,28 @@ import os
 import sys
 import unittest
 
-
 _testSuites = []
+
 
 def loadPlugIns():
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
-    localpath = os.path.dirname(os.path.realpath(__file__))
-    if sys.platform == "win32":
-        plugins_dir = os.path.abspath(os.path.join(os.path.join(os.path.join(os.path.join(os.path.join(localpath, ".."), ".."), ".."), ".."), "PlugIns"))
-    else:
-        plugins_dir = os.path.abspath(os.path.join(os.path.join(os.path.join(os.path.join(localpath, ".."), ".."), ".."), "PlugIns"))
+    # we'll let command line arguments overwrite the plugin folder location
+    plugins_dir = None
+
+    for flag, arg in zip(sys.argv, sys.argv[1:]):
+        if flag.lower() == "-pluginpath":
+            plugins_dir = os.path.abspath(arg)
+
+    if not plugins_dir:
+        plugins_dir = os.path.dirname(os.path.realpath(__file__))
+        path_ascend_count = 3 if sys.platform == "win32" else 3
+        for i in range(path_ascend_count):
+            plugins_dir = os.path.dirname(plugins_dir)
+        plugins_dir = os.path.abspath(os.path.join(plugins_dir, "PlugIns"))
+
+    logging.info("Loading plug-ins from %s", plugins_dir)
     sys.path.append(plugins_dir)
-    logging.debug(plugins_dir)
+
     plugin_dirs = [d for d in os.listdir(plugins_dir) if os.path.isdir(os.path.join(plugins_dir, d))]
     for plugin_dir in sorted(plugin_dirs):
         try:
