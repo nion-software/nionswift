@@ -68,7 +68,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.processing_invert()
         image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
         document_controller.processing_crop()
-        image_panel.data_panel_selection = DataPanel.DataPanelSelection(None, data_item2)
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item2)
         self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()

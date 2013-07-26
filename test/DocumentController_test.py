@@ -53,11 +53,13 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_image_panel_releases_data_item(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller.create_default_data_groups()
+        default_data_group = document_controller.data_groups[0]
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         weak_data_item = weakref.ref(data_item)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
-        image_panel.data_panel_selection = DataPanel.DataPanelSelection(None, data_item)
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(default_data_group, data_item)
         self.assertIsNotNone(weak_data_item())
         image_panel.close()
         data_item = None

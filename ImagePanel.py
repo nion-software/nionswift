@@ -173,6 +173,9 @@ class ImagePanel(Panel.Panel):
         return self.__data_panel_selection
     def __set_data_panel_selection(self, data_panel_selection):
         assert data_panel_selection is not None
+        # assert that either data_group is not None or both are None. it is acceptable
+        # to not have a data_item, but not acceptable to have a data_item without a container
+        assert data_panel_selection.data_group is not None or data_panel_selection.data_item is None
         assert isinstance(data_panel_selection, DataPanel.DataPanelSelection)
         # track data item in this class to report changes
         if self.data_item:
