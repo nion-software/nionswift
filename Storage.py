@@ -264,6 +264,7 @@ class StorageBase(object):
                 observer.property_changed(self, key, value)
 
     def notify_set_item(self, key, item):
+        assert item is not None
         if self.storage_writer:
             item.storage_writer = self.storage_writer
             self.storage_writer.set_item(self, key, item)
@@ -402,8 +403,11 @@ class DictStorageWriter(object):
             self.__node_map[uuid] = node
             return node
 
-    def find_node(self, parent):
-        return self.__node_map[parent.uuid]
+    def find_node_or_none(self, item):
+        return self.__node_map[item.uuid] if item.uuid in self.__node_map else None
+
+    def find_node(self, item):
+        return self.__node_map[item.uuid]
 
     def __add_node_ref(self, uuid):
         self.__node_map[uuid]["ref-count"] += 1
@@ -545,6 +549,7 @@ class DictStorageReader(object):
                 "invert-operation": Operation.InvertOperation,
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
                 "resample-operation": Operation.ResampleOperation,
+                "crop-operation": Operation.CropOperation,
             }
             type = node["type"]
             if type in build_map:
@@ -606,6 +611,7 @@ class DbStorageWriter(object):
         self.disconnected = False
         if create:
             self.create()
+        self.migrate()
 
     def close(self):
         pass
@@ -660,7 +666,27 @@ class DbStorageWriter(object):
             self.execute(c, "CREATE TABLE properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
+            self.execute(c, "CREATE TABLE items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.conn.commit()
+
+    def migrate(self):
+        # do this whether disconnected or not
+        c = self.conn.cursor()
+        self.execute(c, "SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
+        if c.fetchone() is None:
+            self.execute(c, "CREATE TABLE items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
+        self.conn.commit()
+
+    # keep. used for testing
+    def find_node_or_none(self, item):
+        return self.find_node(item)
+
+    # keep. used for testing
+    def find_node(self, item):
+        c = self.conn.cursor()
+        self.execute(c, "SELECT * FROM nodes WHERE uuid = ?", (str(item.uuid), ))
+        node = c.fetchone()
+        return node
 
     def __make_node(self, uuid):
         c = self.conn.cursor()
@@ -709,27 +735,22 @@ class DbStorageWriter(object):
             self.conn.commit()
 
     def set_item(self, parent, key, item):
-        if False:  # not implemented yet
-            # make a node in storage
+        if not self.disconnected:
+            c = self.conn.cursor()
             node = self.__make_node(item.uuid)
-            # write item to the new node
             item.write()
-            # get the parent node
-            parent_node = self.find_node(parent)
-            # insert new node in parent
-            items = parent_node.setdefault("items", {})
-            items[key] = item.uuid
+            self.execute(c, "INSERT INTO items (parent_uuid, key, item_uuid) VALUES (?, ?, ?)", (str(parent.uuid), key, str(item.uuid), ))
             self.__add_node_ref(item.uuid)
+            self.conn.commit()
 
     def clear_item(self, parent, key):
-        if False:  # not implemented yet
-            # get the parent node
-            parent_node = self.find_node(parent)
-            # find the node we will remove
-            items = parent_node["items"]
-            item_uuid = items[key]
-            del items[key]
+        if not self.disconnected:
+            c = self.conn.cursor()
+            self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=? AND key=?", (str(parent.uuid), key, ))
+            item_uuid = uuid.UUID(c.fetchone()[0])
+            self.execute(c, "DELETE FROM items WHERE parent_uuid=? AND key=?", (str(parent.uuid), key, ))
             self.__remove_node_ref(item_uuid)
+            self.conn.commit()
 
     def insert_item(self, parent, key, item, before):
         if not self.disconnected:
@@ -893,6 +914,7 @@ class DbStorageReader(object):
                 "invert-operation": Operation.InvertOperation,
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
                 "resample-operation": Operation.ResampleOperation,
+                "crop-operation": Operation.CropOperation,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
@@ -924,11 +946,10 @@ class DbStorageReader(object):
         return c.fetchone()[0] > 0
 
     def get_item(self, parent_node, key, default_value=None):
-        items = parent_node["items"]
-        if key in items:
-            return self.build_item(items[key])
-        else:
-            return default_value
+        c = self.conn.cursor()
+        c.execute("SELECT item_uuid FROM items WHERE parent_uuid=? AND key=?", (str(parent_node), key, ))
+        item = self.build_item(c.fetchone()[0])
+        return item
 
     def get_items(self, parent_node, key):
         c = self.conn.cursor()

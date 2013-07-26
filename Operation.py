@@ -16,6 +16,7 @@ from scipy import ndimage
 # local libraries
 import Image
 import DataItem
+import Graphics
 import Storage
 
 _ = gettext.gettext
@@ -166,6 +167,50 @@ class GaussianBlurOperation(Operation):
 
     def process_data_in_place(self, data_array_copy):
         return ndimage.gaussian_filter(data_array_copy, sigma=10*self.sigma)
+
+
+class CropOperation(Operation):
+    def __init__(self):
+        description = []
+        super(CropOperation, self).__init__(_("Crop"), description)
+        self.__graphic = None
+        self.storage_items += ["graphic"]
+        self.storage_type = "crop-operation"
+
+    @classmethod
+    def build(cls, storage_reader, item_node):
+        crop_operation = super(CropOperation, cls).build(storage_reader, item_node)
+        graphic = storage_reader.get_item(item_node, "graphic")
+        crop_operation.graphic = graphic
+        return crop_operation
+
+    def __get_graphic(self):
+        return self.__graphic
+    def __set_graphic(self, graphic):
+        if self.__graphic:
+            self.notify_clear_item("graphic")
+            self.__graphic.remove_observer(self)
+            self.__graphic.remove_ref()
+        self.__graphic = graphic
+        if graphic:
+            assert isinstance(graphic, Graphics.RectangleGraphic)
+        if self.__graphic:
+            self.__graphic.add_observer(self)
+            self.__graphic.add_ref()
+            self.notify_set_item("graphic", graphic)
+    graphic = property(__get_graphic, __set_graphic)
+
+    def property_changed(self, graphic, key, value):
+        if key == "bounds":
+            self.notify_listeners("operation_changed", self)
+
+    def process_data_copy(self, data_array_copy):
+        graphic = self.graphic
+        shape = data_array_copy.shape
+        assert isinstance(graphic, Graphics.RectangleGraphic)
+        bounds = graphic.bounds
+        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        return data_array_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
 
 
 class ResampleOperation(Operation):

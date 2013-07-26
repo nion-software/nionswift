@@ -103,7 +103,6 @@ class DataItem(Storage.StorageBase):
         self.storage_properties += ["title", "param"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
-        #self.storage_items += ["data_source"]
         self.storage_type = "data-item"
         self.description = [
             {"name": _("Parameter"), "property": "param", "type": "scalar", "default": 0.5},
@@ -237,6 +236,7 @@ class DataItem(Storage.StorageBase):
     def notify_insert_item(self, key, value, before_index):
         super(DataItem, self).notify_insert_item(key, value, before_index)
         if key == "operations":
+            value.add_listener(self)
             self.sync_operations()
             self.notify_data_item_changed({"property": "operation"})
         elif key == "data_items":
@@ -252,6 +252,7 @@ class DataItem(Storage.StorageBase):
     def notify_remove_item(self, key, value, index):
         super(DataItem, self).notify_remove_item(key, value, index)
         if key == "operations":
+            value.remove_listener(self)
             self.sync_operations()
             self.notify_data_item_changed({"property": "operation"})
         elif key == "data_items":
@@ -295,6 +296,12 @@ class DataItem(Storage.StorageBase):
     # comes from data_source and operations to indicate that parameters have
     # changed. the connection is established in operation.add_observer.
     def property_changed(self, operation, property, value):
+        self.__cached_data = None
+        self.notify_data_item_changed({"property": "data"})
+
+    # this message comes from the operation. the connection is established
+    # using add_listener.
+    def operation_changed(self, operation):
         self.__cached_data = None
         self.notify_data_item_changed({"property": "data"})
 

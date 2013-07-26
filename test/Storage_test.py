@@ -13,7 +13,9 @@ from nion.swift import Application
 from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
+from nion.swift import Graphics
 from nion.swift import ImagePanel
+from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Test
 
@@ -53,14 +55,19 @@ class TestStorageClass(unittest.TestCase):
         data_item2.data_items.append(data_item2b)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
         document_controller.selected_image_panel = image_panel
-        image_panel.data_panel_selection = DataPanel.DataPanelSelection(None, data_item)
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
         self.assertEqual(document_controller.selected_data_item, data_item)
         document_controller.add_line_graphic()
         document_controller.add_rectangle_graphic()
         document_controller.add_ellipse_graphic()
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
         document_controller.processing_gaussian_blur()
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
         document_controller.processing_resample()
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
         document_controller.processing_invert()
+        image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_group, data_item)
+        document_controller.processing_crop()
         image_panel.data_panel_selection = DataPanel.DataPanelSelection(None, data_item2)
         self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
@@ -224,3 +231,71 @@ class TestStorageClass(unittest.TestCase):
         data_group2_copy = data_group2.copy()
         data_group2_copy.add_ref()
         data_group2_copy.remove_ref()
+
+    def verify_and_test_set_item(self, document_controller):
+        # check that the graphic associated with the operation was read back
+        graphic = document_controller.data_groups[0].data_items[0].graphics[3]
+        crop_operation = document_controller.data_groups[0].data_items[0].data_items[3].operations[0]
+        self.assertIsInstance(crop_operation, Operation.CropOperation)
+        self.assertEqual(graphic, crop_operation.graphic)
+        # test setting original graphic to None. the graphic is still referenced by the data item
+        # so it should not be None
+        old_graphic = crop_operation.graphic
+        self.assertIsNotNone(document_controller.storage_writer.find_node_or_none(old_graphic))
+        old_graphic.add_ref()
+        crop_operation.graphic = None
+        self.assertIsNotNone(document_controller.storage_writer.find_node_or_none(old_graphic))
+        old_graphic.remove_ref()
+        # test replacing the graphic
+        graphic1 = Graphics.RectangleGraphic()
+        graphic1.add_ref()
+        graphic1.bounds = ((0.25,0.25), (0.5,0.5))
+        crop_operation.graphic = graphic1
+        self.assertIsNotNone(document_controller.storage_writer.find_node_or_none(graphic1))
+        graphic2 = Graphics.RectangleGraphic()
+        graphic2.add_ref()
+        graphic2.bounds = ((0.25,0.25), (0.5,0.5))
+        crop_operation.graphic = graphic2
+        self.assertIsNone(document_controller.storage_writer.find_node_or_none(graphic1))
+        self.assertIsNotNone(document_controller.storage_writer.find_node_or_none(graphic2))
+        crop_operation.graphic = None
+        self.assertIsNone(document_controller.storage_writer.find_node_or_none(graphic2))
+        # finally test setting it to None
+        graphic1.remove_ref()
+        graphic2.remove_ref()
+
+    def test_dict_storage_set_item(self):
+        # write to storage
+        storage_writer = Storage.DictStorageWriter()
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        self.save_document(document_controller)
+        document_controller.close()
+        # read it back
+        node_map_copy = copy.deepcopy(storage_writer.node_map)
+        storage_writer = Storage.DictStorageWriter()
+        storage_reader = Storage.DictStorageReader(node_map_copy)
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, storage_reader)
+        document_controller.rewrite()
+        # check that the graphic associated with the operation was read back
+        self.verify_and_test_set_item(document_controller)
+        # clean up
+        document_controller.close()
+
+    def test_db_storage_set_item(self):
+        # write to storage
+        db_name = ":memory:"
+        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        self.save_document(document_controller)
+        storage_str = storage_writer.to_string()
+        document_controller.close()
+        # read it back
+        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader.from_string(storage_str)
+        document_controller.read(storage_reader)
+        # check that the graphic associated with the operation was read back
+        self.verify_and_test_set_item(document_controller)
+        # clean up
+        document_controller.close()

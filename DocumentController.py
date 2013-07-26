@@ -811,6 +811,17 @@ class DocumentController(Storage.StorageBase):
     def processing_resample(self):
         self.add_processing_operation(Operation.ResampleOperation(), prefix=_("Resample of "))
 
+    def processing_crop(self):
+        data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
+        data_item = data_panel_selection.data_item if data_panel_selection else None
+        if data_item:
+            operation = Operation.CropOperation()
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            data_item.graphics.append(graphic)
+            operation.graphic = graphic
+            self.add_processing_operation(operation, prefix=_("Crop of "))
+
     def processing_invert(self):
         self.add_processing_operation(Operation.InvertOperation(), suffix=_(" Inverted"))
 
