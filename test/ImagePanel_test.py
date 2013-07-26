@@ -41,7 +41,7 @@ class TestImagePanelClass(unittest.TestCase):
         default_data_group = self.document_controller.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_panel_selection = DataPanel.DataPanelSelection(default_data_group, self.data_item)
+        self.image_panel.data_panel_selection = DataPanel.DataItemSpecifier(default_data_group, self.data_item)
 
     def tearDown(self):
         self.image_panel.close()
@@ -59,6 +59,22 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.mouse_position_changed(Graphics.midpoint(p1, p2), modifiers)
         self.image_panel.mouse_position_changed(p2, modifiers)
         self.image_panel.mouse_released(p2, modifiers)
+
+    # user deletes data item that is displayed. make sure we remove the display.
+    def test_disappearing_data(self):
+        self.assertEqual(self.image_panel.data_panel_selection.data_group, self.document_controller.data_groups[0])
+        self.assertEqual(self.image_panel.data_panel_selection.data_item, self.document_controller.data_groups[0].data_items[0])
+        self.document_controller.processing_invert()
+        data_group = self.document_controller.data_groups[0]
+        data_item_container = data_group.data_items[0]
+        data_item = data_item_container.data_items[0]
+        self.assertEqual(self.image_panel.data_panel_selection.data_group, data_group)
+        self.assertEqual(self.image_panel.data_panel_selection.data_item_container, data_item_container)
+        self.assertEqual(self.image_panel.data_panel_selection.data_item, data_item)
+        data_item_container.data_items.remove(data_item)
+        self.assertEqual(self.image_panel.data_panel_selection.data_group, data_group)
+        self.assertIsNone(self.image_panel.data_panel_selection.data_item_container)
+        self.assertIsNone(self.image_panel.data_panel_selection.data_item)
 
     def test_select_multiple(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).

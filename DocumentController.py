@@ -797,7 +797,7 @@ class DocumentController(Storage.StorageBase):
                 new_data_item.title = (prefix if prefix else "") + str(data_item) + (suffix if suffix else "")
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
-                self.selected_image_panel.data_panel_selection = DataPanel.DataPanelSelection(data_panel_selection.data_group, new_data_item)
+                self.selected_image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
 
     def processing_fft(self):
         self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "))

@@ -124,7 +124,7 @@ class ImagePanel(Panel.Panel):
 
         self.last_mouse = None
 
-        self.__data_panel_selection = DataPanel.DataPanelSelection()
+        self.__data_panel_selection = DataPanel.DataItemSpecifier()
 
         self.__weak_listeners = []
 
@@ -142,7 +142,7 @@ class ImagePanel(Panel.Panel):
         self.document_controller.unregister_image_panel(self)
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
-        self.data_panel_selection = DataPanel.DataPanelSelection()  # required before destructing display thread
+        self.data_panel_selection = DataPanel.DataItemSpecifier()  # required before destructing display thread
         self.view.close()
         super(ImagePanel, self).close()
 
@@ -169,6 +169,10 @@ class ImagePanel(Panel.Panel):
         return self.__data_panel_selection.data_item
     data_item = property(__get_data_item)
 
+    def __get_data_item_container(self):
+        return self.__data_panel_selection.data_item_container
+    data_item_container = property(__get_data_item_container)
+
     def __get_data_panel_selection(self):
         return self.__data_panel_selection
     def __set_data_panel_selection(self, data_panel_selection):
@@ -176,16 +180,23 @@ class ImagePanel(Panel.Panel):
         # assert that either data_group is not None or both are None. it is acceptable
         # to not have a data_item, but not acceptable to have a data_item without a container
         assert data_panel_selection.data_group is not None or data_panel_selection.data_item is None
-        assert isinstance(data_panel_selection, DataPanel.DataPanelSelection)
+        assert isinstance(data_panel_selection, DataPanel.DataItemSpecifier)
         # track data item in this class to report changes
+        if self.data_item_container:
+            self.data_item_container.remove_listener(self)
+            self.data_item_container.remove_ref()
         if self.data_item:
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
         self.__data_panel_selection = data_panel_selection
         data_item = self.data_item
+        data_item_container = self.data_item_container
         if data_item:
             data_item.add_ref()
             data_item.add_listener(self)
+        if data_item_container:
+            data_item_container.add_ref()
+            data_item_container.add_listener(self)
         for weak_listener in self.__weak_listeners:
             listener = weak_listener()
             listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
@@ -195,6 +206,11 @@ class ImagePanel(Panel.Panel):
         # doesn't flash
         self.view.data_item = self.data_item
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
+
+    def data_item_removed(self, container, data_item, index):
+        # if our item gets deleted, clear the selection
+        if container == self.data_item_container and data_item == self.data_item:
+            self.data_panel_selection = DataPanel.DataItemSpecifier(self.__data_panel_selection.data_group)
 
     # tell our listeners the we changed.
     def notify_image_panel_data_item_changed(self, info):

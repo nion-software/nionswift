@@ -25,7 +25,7 @@ class TestOperationClass(unittest.TestCase):
         default_data_group = self.document_controller.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_panel_selection = DataPanel.DataPanelSelection(default_data_group, self.data_item)
+        self.image_panel.data_panel_selection = DataPanel.DataItemSpecifier(default_data_group, self.data_item)
 
     def tearDown(self):
         self.image_panel.close()
