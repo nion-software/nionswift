@@ -535,13 +535,13 @@ class DocumentController(Storage.StorageBase):
 
     # TODO: get rid of this
     @queue_main_thread
-    def add_data_item_on_main_thread(self, data_item):
-        self.default_data_group.data_items.append(data_item)
+    def add_data_item_on_main_thread(self, data_group, data_item):
+        data_group.data_items.append(data_item)
 
     # TODO: get rid of this
     @queue_main_thread
-    def remove_data_item_on_main_thread(self, data_item):
-        self.default_data_group.data_items.remove(data_item)
+    def remove_data_item_on_main_thread(self, data_group, data_item):
+        data_group.data_items.remove(data_item)
 
     def get_data_items(self):
         """

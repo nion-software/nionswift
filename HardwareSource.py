@@ -311,11 +311,7 @@ class LiveHWPortToImageSourceManager(object):
         logging.debug("Creating: %s", wanted_name)
         new_data_item = DataItem.DataItem()
         new_data_item.title = wanted_name
-        # what is the difference between document_controller.default_data_group.data_items.append
-        # and document_controller.add_data_item[_on_main_thread]??
-        # self.document_controller.add_data_item_on_main_thread(new_data_item)
-        # the following appears to be thread-safe -- is it?
-        self.data_group.data_items.append(new_data_item)
+        self.document_controller.add_data_item_on_main_thread(data_group, new_data_item)
 
     def on_new_images(self, images):
         """
