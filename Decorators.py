@@ -1,4 +1,5 @@
 # standard libraries
+import functools
 import logging
 import threading
 import time
@@ -9,11 +10,6 @@ import os
 
 # local libraries
 # None
-
-# useful imports to copy and past into other files
-# from Decorators import singleton
-# from Decorators import timeit
-from functools import wraps
 
 def singleton(cls):
     instances = {}
@@ -66,12 +62,31 @@ def ensure_main_thread(f):
 # classes which use this decorator on a method are required
 # to define a property: delay_queue.
 def queue_main_thread(f):
-    @wraps(f)
+    @functools.wraps(f)
     def new_function(self, *args, **kw):
         # using wraps we still get useful info about the function we're calling
         # eg the name
-        to_add=wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-        self.delay_queue.put(to_add)
+        wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
+        self.delay_queue.put(wrapped_f)
+    return new_function
+
+
+# classes which use this decorator on a method are required
+# to define a property: delay_queue. methods wrapped with this
+# decorator MUST be called from a thread or else they will hang.
+def queue_main_thread_sync(f):
+    @functools.wraps(f)
+    def new_function(self, *args, **kw):
+        # using wraps we still get useful info about the function we're calling
+        # eg the name
+        e = threading.Event()
+        def sync_f(f, event):
+            f()
+            event.set()
+        wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
+        synced_f = functools.partial(sync_f, wrapped_f, e)
+        self.delay_queue.put(synced_f)
+        e.wait()
     return new_function
 
 

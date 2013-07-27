@@ -311,7 +311,10 @@ class LiveHWPortToImageSourceManager(object):
         logging.debug("Creating: %s", wanted_name)
         new_data_item = DataItem.DataItem()
         new_data_item.title = wanted_name
-        self.document_controller.add_data_item_on_main_thread(data_group, new_data_item)
+        # the following function call needs to happen on the main thread,
+        # but it also needs to be synchronized to finish before returning
+        # from this method. add_data_item_on_main_thread does that.
+        self.document_controller.add_data_item_on_main_thread(self.data_group, new_data_item)
 
     def on_new_images(self, images):
         """
