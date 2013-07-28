@@ -45,7 +45,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = None
         self.assertIsNotNone(weak_data_item())
         display_thread.data_item = None
-        display_thread.join()
+        display_thread.close()
         display_thread = None
         self.assertIsNone(weak_data_item())
         self.assertIsNone(weak_display_thread())

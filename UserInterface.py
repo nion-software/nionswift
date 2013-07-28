@@ -2,6 +2,7 @@
 import logging
 import math
 import os
+import Queue
 import threading
 import uuid
 import weakref
@@ -334,10 +335,16 @@ class QtImageViewDisplayThread(object):
     def __init__(self, ui, uuid):
         self.controller_id = str(uuid)
         self.ui = ui
-        self.__thread = None
-        self.__threadVarLock = threading.Lock()  # Control access to the thread variable
-        self.__processLock = threading.RLock()
         self.__data_item = None
+        self.__thread_break = False
+        self.__thread_ended_event = threading.Event()
+        self.display_process_queue = Queue.Queue()
+        self.display_thread = threading.Thread(target=self._display_process_thread)
+        self.display_thread.start()
+
+    def close(self):
+        self.__thread_break = True
+        self.__thread_ended_event.wait()
 
     def __get_data_item(self):
         return self.__data_item
@@ -353,60 +360,40 @@ class QtImageViewDisplayThread(object):
         self.data_item_changed(self.__data_item, {"property": "source"})
     data_item = property(__get_data_item, __set_data_item)
 
-    # Wait for the thread, if any, to finish.
-    def join(self):
-        thread = None
-        # Use lock to get access to thread instance variable.
-        with self.__threadVarLock:
-            thread = self.__thread
-        if thread:
-            thread.join()
-
-    def process(self, blocking=True):
-        # Create the thread. Use lock to get access to thread instance variable.
-        with self.__threadVarLock:
-            data_item = self.data_item
-            weak_data_item = weakref.ref(self.data_item) if data_item else None
-            # Pass weak pointer to allow deletion. Data item may be null, so pass
-            # None for weak data item in that case.
-            self.__thread = threading.Thread(target=self.__processRun, args=[weak_data_item])
-            self.__thread.start()
-        if blocking:
-            self.join()
+    def process(self):
+        if self.data_item is not None:
+            # TODO: How to deal with overrun?
+            # if self.display_process_queue.qsize() < 2:
+            self.display_process_queue.put(weakref.ref(self.data_item))
 
     def data_item_changed(self, data_item, info):
         if data_item == self.data_item:  # TODO: until threading issues are worked out
             assert data_item == self.data_item
-            self.process(False)  # Do not block.
+            self.process()
 
-    def __processRun(self, weak_data_item):
-
-        # This method can potentially be (relatively) long running
-        # resulting in out of order results if processLock is not used.
-        # The way it happens is a slow running version starts and a
-        # fast running version starts afterwards. This results in the
-        # fast running version finishing before the slow running version
-        # even though it was requested later. processLock serializes
-        # this process, since only one item can be displayed at once
-        # anyway.
-
-        with self.__processLock:  # Force processing to be serialized.
-            data_item = weak_data_item() if weak_data_item else None
-            # grab the image if there is one
-            image = None
-            if data_item:
-                image = data_item.image
-            # make an rgb image and send it
-            rgba_image = None
-            if image is not None:
-                image_data = Image.scalarFromArray(image)
-                rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
-            else:
-                rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
-            self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
-            # Update the thread instance variable. Use lock to get access.
-            with self.__threadVarLock:
-                self.__thread = None
+    def _display_process_thread(self):
+        while True:
+            if self.__thread_break:
+                break
+            try:
+                weak_data_item = self.display_process_queue.get(0.05)
+                data_item = weak_data_item() if weak_data_item else None
+                # grab the image if there is one
+                image = None
+                if data_item:
+                    image = data_item.image
+                # make an rgb image and send it
+                rgba_image = None
+                if image is not None:
+                    image_data = Image.scalarFromArray(image)
+                    rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
+                else:
+                    rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
+                self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
+                self.display_process_queue.task_done()
+            except Empty as e:
+                pass
+        self.__thread_ended_event.set()
 
 
 class DrawingContext(object):
@@ -465,7 +452,7 @@ class QtImageView(object):
         self.display_thread.process()
 
     def close(self):
-        self.display_thread.join()  # required before destructing display thread
+        self.display_thread.close()  # required before destructing display thread
         self.display_thread = None
 
     # uuid property. read only.
