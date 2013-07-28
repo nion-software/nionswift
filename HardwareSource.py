@@ -271,7 +271,7 @@ class LiveHWPortToImageSourceManager(object):
             # we create a new group
             self.data_group = DataGroup()
             self.data_group.title = self.data_group_name
-            self.document_controller.data_groups.append(self.data_group)
+            self.document_controller.data_groups.insert(0, self.data_group)
 
     def start(self):
         if self.hardware_port is None:
