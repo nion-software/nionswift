@@ -67,6 +67,16 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = None
         self.assertIsNone(weak_data_item())
 
+    def test_main_thread_sync(self):
+        storage_writer = Storage.DictStorageWriter()
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        data_group = DocumentController.DataGroup()
+        document_controller.data_groups.append(data_group)
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        # make sure this works on the main thread
+        document_controller.add_data_item_on_main_thread(data_group, data_item)
+
     def test_flat_data_groups(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)

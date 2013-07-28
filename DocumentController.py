@@ -540,7 +540,7 @@ class DocumentController(Storage.StorageBase):
         data_group.data_items.append(data_item)
 
     # TODO: get rid of this
-    @queue_main_thread
+    @queue_main_thread_sync
     def remove_data_item_on_main_thread(self, data_group, data_item):
         data_group.data_items.remove(data_item)
 

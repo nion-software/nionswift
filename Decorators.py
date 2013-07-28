@@ -72,8 +72,7 @@ def queue_main_thread(f):
 
 
 # classes which use this decorator on a method are required
-# to define a property: delay_queue. methods wrapped with this
-# decorator MUST be called from a thread or else they will hang.
+# to define a property: delay_queue.
 def queue_main_thread_sync(f):
     @functools.wraps(f)
     def new_function(self, *args, **kw):
@@ -86,7 +85,8 @@ def queue_main_thread_sync(f):
         wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
         synced_f = functools.partial(sync_f, wrapped_f, e)
         self.delay_queue.put(synced_f)
-        e.wait()
+        if threading.current_thread() != threading.enumerate()[0]:
+            e.wait(5)
     return new_function
 
 
