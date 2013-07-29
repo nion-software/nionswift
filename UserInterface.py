@@ -361,10 +361,9 @@ class QtImageViewDisplayThread(object):
     data_item = property(__get_data_item, __set_data_item)
 
     def process(self):
-        if self.data_item is not None:
-            # TODO: How to deal with overrun?
-            # if self.display_process_queue.qsize() < 2:
-            self.display_process_queue.put(weakref.ref(self.data_item))
+        data_item = self.data_item
+        weak_data_item = weakref.ref(data_item) if data_item else None
+        self.display_process_queue.put(weak_data_item)
 
     def data_item_changed(self, data_item, info):
         if data_item == self.data_item:  # TODO: until threading issues are worked out
