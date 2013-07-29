@@ -547,13 +547,14 @@ class QtImageView(object):
         if image_size:
             widget_width = self.ui.Widget_getWidgetProperty(self.widget, "imageWidth")
             widget_height = self.ui.Widget_getWidgetProperty(self.widget, "imageHeight")
-            widget_aspect = float(widget_width) / float(widget_height)
-            image_aspect = float(image_size[1]) / float(image_size[0])
-            # scale maps from widget to image size
-            scale = image_size[0] / widget_height if widget_aspect > image_aspect else image_size[1] / widget_width
-            image_y = (p[0] - widget_height * 0.5) * scale + 0.5 * image_size[0]
-            image_x = (p[1] - widget_width * 0.5) * scale + 0.5 * image_size[1]
-            return (image_y, image_x) # c-indexing
+            if widget_height > 0 and widget_width > 0:
+                widget_aspect = float(widget_width) / float(widget_height)
+                image_aspect = float(image_size[1]) / float(image_size[0])
+                # scale maps from widget to image size
+                scale = image_size[0] / widget_height if widget_aspect > image_aspect else image_size[1] / widget_width
+                image_y = (p[0] - widget_height * 0.5) * scale + 0.5 * image_size[0]
+                image_x = (p[1] - widget_width * 0.5) * scale + 0.5 * image_size[1]
+                return (image_y, image_x) # c-indexing
         return None
 
 
