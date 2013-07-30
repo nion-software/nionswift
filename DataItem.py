@@ -380,7 +380,12 @@ class DataItem(Storage.StorageBase):
             image = self.data
             if image is not None: # convert image to scalar if we have one
                 image = Image.scalarFromArray(image)
-                thumbnail_image = Image.scaled(image, (128, 128), 'nearest')
+                image_height = image.shape[0]
+                image_width = image.shape[1]
+                assert image_height > 0 and image_width > 0
+                scaled_height = 128 if image_height > image_width else 128 * image_height / image_width
+                scaled_width = 128 if image_width > image_height else 128 * image_width / image_height
+                thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
                 if numpy.ndim(thumbnail_image) == 2:
                     self.thumbnail_data = Image.createRGBAImageFromArray(thumbnail_image)
                     self.thumbnail_data_valid = True
