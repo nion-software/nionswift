@@ -13,6 +13,7 @@ Item {
     property real imageWidth: 0
     property real imageHeight: 0
     property string overlay
+    property string imageSource
 
     Item {
         id: item
@@ -50,6 +51,7 @@ Item {
                 Image {
                     // the size of the image is image.sourceSize.width, image.sourceSize.height
                     id: image
+                    source: imageSource
                     fillMode: Image.PreserveAspectFit
                     //smooth: true
                     transform: [
@@ -131,23 +133,10 @@ Item {
 
     } // Item
 
-    Component.onCompleted: {
-        app.idc.imageUpdated.connect(updateImage)
-    }
-
     onZoomChanged: app.invokePyMethod(panel, "display_changed", [])
     onTranslateXChanged: app.invokePyMethod(panel, "display_changed", [])
     onTranslateYChanged: app.invokePyMethod(panel, "display_changed", [])
 
     onOverlayChanged: canvas.requestPaint()
-
-    function updateImage(controller_id, url) {
-        // Compare the controller_id to the uuid from the Python view object to see if this
-        // message is coming from the display controller associated with this Qml item.
-        var uuid_str = app.invokePyMethod(panel, "get_uuid_str", [])
-        if (controller_id == uuid_str) {
-            image.source = url
-        }
-    }
 
 } // Item

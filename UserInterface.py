@@ -4,6 +4,7 @@ import math
 import os
 import Queue
 import threading
+import time
 import uuid
 import weakref
 
@@ -332,19 +333,32 @@ class ListModel(object):
 
 
 class QtImageViewDisplayThread(object):
-    def __init__(self, ui, uuid):
-        self.controller_id = str(uuid)
+    def __init__(self, ui, image_view, uuid):
         self.ui = ui
+        self.__image_view_weakref = weakref.ref(image_view)
+        self.controller_id = str(uuid)
         self.__data_item = None
         self.__thread_break = False
         self.__thread_ended_event = threading.Event()
-        self.display_process_queue = Queue.Queue()
+        self.__has_data_item = False
+        self.__weak_data_item = None
+        self.__has_data_item_lock = threading.Lock()
         self.display_thread = threading.Thread(target=self._display_process_thread)
         self.display_thread.start()
 
     def close(self):
         self.__thread_break = True
         self.__thread_ended_event.wait()
+
+    def __get_image_view(self):
+        return self.__image_view_weakref()
+    image_view = property(__get_image_view)
+
+    delay_queue = property(lambda self: self.image_view.document_controller.delay_queue)
+
+    @queue_main_thread
+    def __set_image_source(self, url):
+        self.ui.Widget_setWidgetProperty(self.image_view.widget, "imageSource", url)
 
     def __get_data_item(self):
         return self.__data_item
@@ -363,7 +377,9 @@ class QtImageViewDisplayThread(object):
     def process(self):
         data_item = self.data_item
         weak_data_item = weakref.ref(data_item) if data_item else None
-        self.display_process_queue.put(weak_data_item)
+        with self.__has_data_item_lock:
+            self.__has_data_item = True
+            self.__weak_data_item = weak_data_item
 
     def data_item_changed(self, data_item, info):
         if data_item == self.data_item:  # TODO: until threading issues are worked out
@@ -375,23 +391,31 @@ class QtImageViewDisplayThread(object):
             if self.__thread_break:
                 break
             try:
-                weak_data_item = self.display_process_queue.get(0.05)
-                data_item = weak_data_item() if weak_data_item else None
-                # grab the image if there is one
-                image = None
-                if data_item:
-                    image = data_item.image
-                # make an rgb image and send it
-                rgba_image = None
-                if image is not None:
-                    image_data = Image.scalarFromArray(image)
-                    rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
+                has_data_item = False
+                weak_data_item = None
+                with self.__has_data_item_lock:
+                    has_data_item = self.__has_data_item
+                    weak_data_item = self.__weak_data_item
+                    self.__has_data_item = False
+                if has_data_item:
+                    data_item = weak_data_item() if weak_data_item else None
+                    # grab the image if there is one
+                    image = None
+                    if data_item:
+                        image = data_item.image
+                    # make an rgb image and send it
+                    rgba_image = None
+                    if image is not None:
+                        image_data = Image.scalarFromArray(image)
+                        rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
+                    else:
+                        rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
+                    image_id = self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
+                    self.__set_image_source("image://idc/"+self.controller_id+"/"+str(image_id))
                 else:
-                    rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
-                self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
-                self.display_process_queue.task_done()
-            except Empty as e:
-                pass
+                    time.sleep(0.01)
+            except Exception as e:
+                logging.debug("Display thread exception %s", e)
         self.__thread_ended_event.set()
 
 
@@ -447,7 +471,7 @@ class QtImageView(object):
         self.__uuid = uuid.uuid4()
         self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
         self.rect = ((0, 0), (0, 0))
-        self.display_thread = QtImageViewDisplayThread(self.ui, self.uuid)
+        self.display_thread = QtImageViewDisplayThread(self.ui, self, self.uuid)
         self.display_thread.process()
 
     def close(self):
@@ -657,7 +681,7 @@ class QtUserInterface(object):
     # Send images to an image display
 
     def ImageDisplayController_sendImage(self, controller_id, rgba_image):
-        NionLib.ImageDisplayController_sendImage(NionLib.idc, controller_id, rgba_image)
+        return NionLib.ImageDisplayController_sendImage(NionLib.idc, controller_id, rgba_image)
 
     # Mime data
 

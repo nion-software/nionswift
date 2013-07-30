@@ -39,7 +39,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         weak_data_item = weakref.ref(data_item)
-        display_thread = UserInterface.QtImageViewDisplayThread(Application.app.ui, "uuid")
+        image_panel = None
+        image_view = Application.app.ui.create_image_view(image_panel)
+        display_thread = UserInterface.QtImageViewDisplayThread(Application.app.ui, image_view, "uuid")
         display_thread.data_item = data_item
         weak_display_thread = weakref.ref(display_thread)
         data_item = None

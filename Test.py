@@ -115,7 +115,7 @@ class UserInterface:
     def Histogram_setDelegate(self, histogram, delegate):
         pass
     def ImageDisplayController_sendImage(self, controller_id, rgba_image):
-        pass
+        return 0
     def Output_out(self, widget, message):
         pass  # print message
     def readImageToPyArray(self, filename):
