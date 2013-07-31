@@ -534,10 +534,16 @@ class DocumentController(Storage.StorageBase):
         def keys(self):
             return self.uuid_keys()
 
-    # TODO: get rid of this
+    # TODO: get rid of this. it is used in HardwareSource.py and this functionality
+    # should be thread safe by default.
     @queue_main_thread_sync
     def add_data_item_on_main_thread(self, data_group, data_item):
         data_group.data_items.append(data_item)
+
+    @queue_main_thread
+    def select_data_item(self, data_group, data_item):
+        logging.debug("select_data_item")
+        self.selected_image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
 
     # TODO: get rid of this
     @queue_main_thread_sync
