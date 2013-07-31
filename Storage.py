@@ -794,14 +794,17 @@ class DbStorageWriterProxy(object):
     def __init__(self, filename, create=False):
         self.storage_writer = None
         self.queue = Queue.Queue()
+        self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[filename, create])
         self.__thread.start()
+        self.__started_event.wait()
 
     def close(self):
         self.queue.put(None)
 
     def __run(self, filename, create):
-        self.storage_writer = DbStorageWriterImpl(filename, create)
+        self.storage_writer = DbStorageWriter(filename, create)
+        self.__started_event.set()
         while True:
             action = self.queue.get()
             item = action[0]
@@ -822,43 +825,75 @@ class DbStorageWriterProxy(object):
             if not item:
                 break
 
+    def __get_disconnected(self):
+        return self.storage_writer.disconnected
+    def __set_disconnected(self, disconnected):
+        self.storage_writer.disconnected = disconnected
+    disconnected = property(__get_disconnected, __set_disconnected)
+
     def to_string(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.to_string, self.storage_writer), event, "to_string"))
+        self.queue.put((functools.partial(DbStorageWriter.to_string, self.storage_writer), event, "to_string"))
         event.wait()
         str = self.storage_writer.last_to_string
         self.storage_writer.last_to_string = None
         return str
 
+    def create(self):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.create, self.storage_writer), event, "create"))
+        #event.wait()
+
+    def begin_rewrite(self):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite, self.storage_writer), event, "begin_rewrite"))
+        #event.wait()
+
+    def end_rewrite(self):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.end_rewrite, self.storage_writer), event, "end_rewrite"))
+        #event.wait()
+
     def set_root(self, root):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.set_root, self.storage_writer, root), event, "set_root"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.set_root, self.storage_writer, root), event, "set_root"))
+        #event.wait()
 
     def set_type(self, item, type):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.set_type, self.storage_writer, item, type), event, "set_type"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.set_type, self.storage_writer, item, type), event, "set_type"))
+        #event.wait()
+
+    def set_item(self, parent, key, item):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.set_item, self.storage_writer, parent, key, item), event, "set_item"))
+        #event.wait()
+
+    def clear_item(self, parent, key):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.clear_item, self.storage_writer, parent, key), event, "clear_item"))
+        #event.wait()
 
     def insert_item(self, parent, key, item, before):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.insert_item, self.storage_writer, parent, key, item, before), event, "insert_item"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.insert_item, self.storage_writer, parent, key, item, before), event, "insert_item"))
+        #event.wait()
 
     def remove_item(self, parent, key, index):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.remove_item, self.storage_writer, parent, key, index), event, "remove_item"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.remove_item, self.storage_writer, parent, key, index), event, "remove_item"))
+        #event.wait()
 
     def set_property(self, item, key, value):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.set_property, self.storage_writer, item, key, value), event, "set_property"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.set_property, self.storage_writer, item, key, value), event, "set_property"))
+        #event.wait()
 
     def set_data(self, parent, key, data):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriterImpl.set_data, self.storage_writer, parent, key, data), event, "set_data"))
-        event.wait()
+        self.queue.put((functools.partial(DbStorageWriter.set_data, self.storage_writer, parent, key, data), event, "set_data"))
+        #event.wait()
+
 
 class DbStorageReader(object):
 
