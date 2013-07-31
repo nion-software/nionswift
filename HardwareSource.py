@@ -305,20 +305,24 @@ class LiveHWPortToImageSourceManager(object):
         If not found, creates a new one and adds it to the data_group found earlier
         """
         wanted_name = "%s.%s" % (str(self.hardware_source), index)
+        ret = None
         for data_item in get_dataitems_in_group(self.data_group):
             if str(data_item) == wanted_name:
-                if index == 0:
-                    self.document_controller.select_data_item(self.data_group, data_item)
-                return data_item
-        logging.debug("Creating: %s", wanted_name)
-        new_data_item = DataItem.DataItem()
-        new_data_item.title = wanted_name
-        # the following function call needs to happen on the main thread,
-        # but it also needs to be synchronized to finish before returning
-        # from this method. add_data_item_on_main_thread does that.
-        self.document_controller.add_data_item_on_main_thread(self.data_group, new_data_item)
+                ret = data_item
+                break
+        if not ret:
+            logging.debug("Creating: %s", wanted_name)
+            ret = DataItem.DataItem()
+            ret.title = wanted_name
+            # the following function call needs to happen on the main thread,
+            # but it also needs to be synchronized to finish before returning
+            # from this method. add_data_item_on_main_thread does that.
+            self.document_controller.add_data_item_on_main_thread(self.data_group, ret)
+
         if index == 0:
-            self.document_controller.select_data_item(self.data_group, new_data_item)
+            self.document_controller.select_data_item(self.data_group, ret)
+
+        return ret
 
     def on_new_images(self, images):
         """
