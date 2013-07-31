@@ -486,14 +486,14 @@ class DataPanel(Panel.Panel):
 
         self.data_group_widget = self.loadIntrinsicWidget("pytree")
         self.ui.PyTreeWidget_setModel(self.data_group_widget, self.data_group_model.py_item_model)
-        self.ui.Widget_setWidgetProperty(self.data_group_widget, "height", 96)
-        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "border: none; background-color: '#EEEEEE'");
+        self.ui.Widget_setWidgetProperty(self.data_group_widget, "min-height", 80)
+        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "border: none; background-color: '#EEEEEE'")
 
         # set up the qml view
         context_properties = { "browser_model": self.data_item_model.py_list_model }
         qml_filename = relative_file(__file__, "DataListView.qml")
         self.data_item_widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
-        self.ui.Widget_setWidgetProperty(self.data_item_widget, "height", 300)
+        self.ui.Widget_setWidgetProperty(self.data_item_widget, "min-height", 240)
 
         self.__block_current_item_changed = False
 
