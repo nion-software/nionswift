@@ -487,6 +487,7 @@ class DataPanel(Panel.Panel):
         self.data_group_widget = self.loadIntrinsicWidget("pytree")
         self.ui.PyTreeWidget_setModel(self.data_group_widget, self.data_group_model.py_item_model)
         self.ui.Widget_setWidgetProperty(self.data_group_widget, "height", 96)
+        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "border: none; background-color: '#EEEEEE'");
 
         # set up the qml view
         context_properties = { "browser_model": self.data_item_model.py_list_model }
@@ -499,6 +500,8 @@ class DataPanel(Panel.Panel):
         self.widget = self.ui.Widget_loadIntrinsicWidget("column")
         self.ui.Widget_addWidget(self.widget, self.data_group_widget)
         self.ui.Widget_addWidget(self.widget, self.data_item_widget)
+        self.ui.Widget_setWidgetProperty(self.widget, "spacing", 2)
+        self.ui.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
         # connect self as listener. this will result in calls to selected_image_panel_changed
         self.document_controller.add_listener(self)

@@ -8,7 +8,7 @@ Rectangle {
     property alias currentIndex: view.currentIndex
     property variant lastEvent
 
-    color: "white"
+    color: "#EEEEEE"
 
     // handle clicks on empty area
     MouseArea {
