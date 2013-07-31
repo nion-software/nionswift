@@ -340,15 +340,23 @@ class LiveHWPortToImageSourceManager(object):
                 self.data_items.append(None)
 
             if image is None:
-                if self.data_items[index]:
-                    self.data_items[index].live_data = False
+                data_item = self.data_items[index]
+                if data_item:
+                    data_item.live_data = False
+                    data_item.remove_ref()
+                    self.data_items[index] = None
             else:
                 if not self.data_items[index]:
-                    self.data_items[index] = self._get_or_create_dataitem(index)
+                    data_item = self._get_or_create_dataitem(index)
+                    data_item.add_ref()
+                    self.data_items[index] = data_item
                 if self.data_items[index]:
                     self.data_items[index].master_data = image
                     self.data_items[index].live_data = True
 
-        for over in self.data_items[index+1:]:
-            if over:
-                over.live_data = False
+        for over_index in range(index+1, len(self.data_items)):
+            data_item = self.data_items[over_index]
+            if data_item:
+                data_item.live_data = False
+                data_item.remove_ref()
+                self.data_items[over_index] = None
