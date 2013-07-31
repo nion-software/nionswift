@@ -637,8 +637,8 @@ class QtUserInterface(object):
 
     # General document window commands
 
-    def DocumentWindow_addDockWidget(self, document_window, widget, title, positions, position):
-        return NionLib.DocumentWindow_addDockWidget(document_window, widget, title, positions, position)
+    def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
+        return NionLib.DocumentWindow_addDockWidget(document_window, widget, identifier, title, positions, position)
 
     def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
         return NionLib.DocumentWindow_loadQmlWidget(document_window, filename, panel, context_properties)

@@ -380,7 +380,7 @@ class Workspace(object):
                 self.ui.Widget_setWidgetProperty(panel.widget, key, properties[key])
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-        panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget, title, positions, position)
+        panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget, panel_id, title, positions, position)
         self.panels.append(panel)
         panel.add_ref()
 

@@ -92,8 +92,8 @@ class UserInterface:
         return (path)
     def Core_URLToPath(self, url):
         return (url)
-    def DocumentWindow_addDockWidget(self, document_window, widget, title, positions, position):
-        return (document_window, widget, title, positions, position)
+    def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
+        return (document_window, widget, identifier, title, positions, position)
     def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
         return (document_window, filename, panel, context_properties)
     def DocumentWindow_registerThumbnailProvider(self, document_window, uuid_str, data_item):
