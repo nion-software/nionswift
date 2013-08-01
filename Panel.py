@@ -132,10 +132,7 @@ class ConsolePanel(Panel):
                 self.error = (self.error if self.error else "") + str(data)
         locals = {'__name__': None, '__console__': None, '__doc__': None, 'dc': document_controller}
         self.console = Console(locals)
-        lines = ["import DocumentController",
-                 "import DataItem",
-                 "import Image",
-                 "import Menu",
+        lines = ["from nion.swift import DocumentController, DataItme, Image, Menu",
                  "import logging",
                  "import numpy as np",
                  "import numpy as numpy",
