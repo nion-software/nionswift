@@ -497,16 +497,27 @@ class DataPanel(Panel.Panel):
 
         self.__block_current_item_changed = False
 
-        self.widget = self.ui.Widget_loadIntrinsicWidget("column")
-        self.ui.Widget_addWidget(self.widget, self.data_group_widget)
+        #label = self.ui.Widget_loadIntrinsicWidget("label")
+        #self.ui.Widget_setWidgetProperty(label, "min-height", 240)
+
+        column = self.ui.Widget_loadIntrinsicWidget("column")
+        self.ui.Widget_setWidgetProperty(column, "stylesheet", "background-color: '#EEEEEE'")
+        self.ui.Widget_addSpacing(column, 32)
+        self.ui.Widget_addWidget(column, self.data_group_widget)
+
+        self.widget = self.ui.Widget_loadIntrinsicWidget("splitter")
+        self.ui.Widget_addWidget(self.widget, column)
         self.ui.Widget_addWidget(self.widget, self.data_item_widget)
-        self.ui.Widget_setWidgetProperty(self.widget, "spacing", 2)
+        #self.ui.Widget_addWidget(self.widget, label)
         self.ui.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+
+        self.ui.Splitter_restoreState(self.widget, "window/v1/data_panel_splitter")
 
         # connect self as listener. this will result in calls to selected_image_panel_changed
         self.document_controller.add_listener(self)
 
     def close(self):
+        self.ui.Splitter_saveState(self.widget, "window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataItemSpecifier())
         # clear browser model from the qml view
         self.setContextProperty("browser_model", None)
@@ -562,6 +573,8 @@ class DataPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_image_panel_changed(self, image_panel):
+        # HACK! to save the splitter state until 'close' gets connected
+        self.ui.Splitter_saveState(self.widget, "window/v1/data_panel_splitter")
         data_panel_selection = image_panel.data_panel_selection if image_panel else DataItemSpecifier()
         self.update_data_panel_selection(data_panel_selection)
 

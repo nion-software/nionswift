@@ -168,7 +168,13 @@ class UserInterface:
         pass
     def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
         return (document_window, filename, panel, context_properties)
+    def Splitter_restoreState(self, splitter, identifier):
+        pass
+    def Splitter_saveState(self, splitter, identifier):
+        pass
     def Widget_addOverlay(self, widget, overlay):
+        pass
+    def Widget_addSpacing(self, container, spacing):
         pass
     def Widget_addStretch(self, container):
         pass

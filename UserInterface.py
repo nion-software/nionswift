@@ -793,6 +793,14 @@ class QtUserInterface(object):
     def PyTreeWidget_setModel(self, widget, py_item_model):
         NionLib.PyTreeWidget_setModel(widget, py_item_model)
 
+    # Splitter
+
+    def Splitter_restoreState(self, splitter, identifier):
+        NionLib.Splitter_restoreState(splitter, identifier)
+
+    def Splitter_saveState(self, splitter, identifier):
+        NionLib.Splitter_saveState(splitter, identifier)
+
     # TabWidget to present tabs
 
     def TabWidget_addTab(self, tab_widget, widget, tab_label):
@@ -802,6 +810,9 @@ class QtUserInterface(object):
 
     def Widget_addOverlay(self, widget, overlay):
         NionLib.Widget_addOverlay(widget, overlay)
+
+    def Widget_addSpacing(self, container, spacing):
+        NionLib.Widget_addSpacing(container, spacing)
 
     def Widget_addStretch(self, container):
         NionLib.Widget_addStretch(container)
