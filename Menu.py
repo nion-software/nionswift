@@ -107,11 +107,14 @@ class Menu(object):
         self.qt_action_manager = None
         self.__qt_menu = None
         self.action_ids = []
-        self.__action_dicts = {}  # map from id to menu item dict
+        self.__action_map = {}
+        self.__build_items = []  # used to delay building menus
 
     def __create(self):
         if self.__qt_menu is None:
-            self.__qt_menu = self.ui.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
+            self.__qt_menu = self.ui.Actions_findMenu(self.qt_action_manager, self.menu_id)
+            if not self.__qt_menu:
+                self.__qt_menu = self.ui.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
 
     def get_qt_menu(self):
         self.__create()
@@ -119,43 +122,46 @@ class Menu(object):
     qt_menu = property(get_qt_menu)
 
     def createActions(self):
-        for action_id in self.action_ids:
-            action_dict = self.__action_dicts[action_id]
-            action = action_dict["action"]
-            action.qt_action_manager = self.qt_action_manager
-            qt_action = action.qt_action  # need to set action.qt_action_manager before this call
-            insert_before_action_id = action_dict["insert"]
-            self.ui.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
-            action.configure()
+        for build_item in self.__build_items:
+            insert_before_action_id = build_item["insert"] if "insert" in build_item else None
+            if "action" in build_item:
+                action = build_item["action"]
+                action.qt_action_manager = self.qt_action_manager
+                qt_action = action.qt_action  # need to set action.qt_action_manager before this call
+                self.ui.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
+                action.configure()
+            else:
+                self.ui.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, insert_before_action_id)
 
     def insertAction(self, action, before_action_id):
         action_id = action.action_id
         assert action_id not in self.action_ids
         self.action_ids.append(action_id)
-        self.__action_dicts[action_id] = { "action": action, "insert": before_action_id }
+        self.__build_items.append({ "action": action, "insert": before_action_id })
+        self.__action_map[action_id] = action
         if self.__qt_menu:
             action.qt_action_manager = self.qt_action_manager
             qt_action = action.qt_action  # need to set action.qt_action_manager before this call
             self.ui.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, before_action_id)
 
+    def insertSeparator(self, before_action_id):
+        self.__build_items.append({ "separator": True, "insert": before_action_id })
+        if self.__qt_menu:
+            action.qt_action_manager = self.qt_action_manager
+            self.ui.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, before_action_id)
+
     def adjustApplicationActions(self):
         for action_id in self.action_ids:
-            action_dict = self.__action_dicts[action_id]
-            action = action_dict["action"]
+            action = self.__action_map[action_id]
             action.adjustApplicationAction()
 
     def adjustDocumentActions(self, document_controller):
         for action_id in self.action_ids:
-            action_dict = self.__action_dicts[action_id]
-            action = action_dict["action"]
+            action = self.__action_map[action_id]
             action.adjustDocumentAction(document_controller)
 
     def findAction(self, action_id):
-        if action_id in self.__action_dicts:
-            action_dict = self.__action_dicts[action_id]
-            action = action_dict["action"]
-            return action
-        return None
+        return self.__action_map[action_id] if action_id in self.__action_map else None
 
 
 class MenuManager(object):
@@ -166,6 +172,14 @@ class MenuManager(object):
         self.__menu_dicts = {}  # map from id to menu dict
         self.qt_menu_bar = None
         self.qt_action_manager = None
+
+        self.insertMenu("help", _("Help"), None)
+
+        self.insertMenu("window", _("Window"), "help")
+
+        self.insertMenu("file", _("File"), "window")
+
+        self.insertMenu("edit", _("Edit"), "window")
 
         self.insertMenu("processing-menu", _("Processing"), "window")
         self.addDocumentAction("processing-menu", "processingFFT", _("FFT"), callback=lambda dc: dc.processing_fft(), key_sequence="Ctrl+F")
@@ -178,9 +192,10 @@ class MenuManager(object):
         self.addDocumentAction("processing-menu", "processingSnapshot", _("Snapshot"), callback=lambda dc: dc.processing_snapshot(), key_sequence="Ctrl+Shift+S")
 
         # put these in processing menu until it is possible to add them to the File menu
-        self.addDocumentAction("processing-menu", "file-add-smart-group", _("Add Smart Group"), callback=lambda dc: dc.add_smart_group(), key_sequence="Ctrl+Alt+N")
-        self.addDocumentAction("processing-menu", "file-add-group", _("Add Group"), callback=lambda dc: dc.add_group(), key_sequence="Ctrl+Shift+N")
-        self.addDocumentAction("processing-menu", "file-add-green", _("Add Green"), callback=lambda dc: dc.add_green_data_item(), key_sequence="Ctrl+Shift+G")
+        self.insertDocumentAction("file", "file-add-smart-group", "print", _("Add Smart Group"), callback=lambda dc: dc.add_smart_group(), key_sequence="Ctrl+Alt+N")
+        self.insertDocumentAction("file", "file-add-group", "print", _("Add Group"), callback=lambda dc: dc.add_group(), key_sequence="Ctrl+Shift+N")
+        self.insertDocumentAction("file", "file-add-green", "print", _("Add Green"), callback=lambda dc: dc.add_green_data_item(), key_sequence="Ctrl+Shift+G")
+        self.insertSeparator("file", "print")
 
         self.insertMenu("layout-menu", _("Layout"), "window")
         self.addDocumentAction("layout-menu", "layoutAdd", _("Layout Add"), callback=lambda dc: dc.layoutAdd(), key_sequence="Ctrl+2")
@@ -229,12 +244,33 @@ class MenuManager(object):
     def addMenu(self, menu_id, title):
         self.insertMenu(menu_id, title, None)
 
+    def insertSeparator(self, menu_id, before_action_id):
+        assert menu_id in self.__menu_dicts
+        menu_dict = self.__menu_dicts[menu_id]
+        menu = menu_dict["menu"]
+        assert menu is not None
+        menu.insertSeparator(before_action_id)
+
     def insertAction(self, menu_id, action, before_action_id):
         assert menu_id in self.__menu_dicts
         menu_dict = self.__menu_dicts[menu_id]
         menu = menu_dict["menu"]
         assert menu is not None
         menu.insertAction(action, before_action_id)
+
+    def insertApplicationAction(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None):
+        action = self.findAction(action_id)
+        assert action is None, "action already exists"
+        action = ApplicationAction(self.ui, action_id, title, callback)
+        action.key_sequence = key_sequence
+        self.insertAction(menu_id, action, before_action_id)
+
+    def insertDocumentAction(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
+        action = self.findAction(action_id)
+        assert action is None, "action already exists"
+        action = DocumentAction(self.ui, action_id, title, callback)
+        action.key_sequence = key_sequence
+        self.insertAction(menu_id, action, before_action_id)
 
     def addAction(self, menu_id, action):
         assert not self.findAction(action.action_id)

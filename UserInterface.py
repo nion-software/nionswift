@@ -596,17 +596,26 @@ class QtUserInterface(object):
 
     # Actions sub-module for menus and actions
 
-    def Actions_enableAction(self, qt_action_manager, action_id):
-        NionLib.Actions_enableAction(qt_action_manager, action_id)
-
     def Actions_createApplicationAction(self, qt_action_manager, action_id, title, is_application):
         return NionLib.Actions_createApplicationAction(qt_action_manager, action_id, title, is_application)
 
     def Actions_createMenu(self, qt_action_manager, menu_id, title):
         return NionLib.Actions_createMenu(qt_action_manager, menu_id, title)
 
+    def Actions_enableAction(self, qt_action_manager, action_id):
+        NionLib.Actions_enableAction(qt_action_manager, action_id)
+
+    def Actions_findAction(self, qt_action_manager, action_id):
+        return NionLib.Actions_findAction(qt_action_manager, action_id)
+
+    def Actions_findMenu(self, qt_action_manager, menu_id):
+        return NionLib.Actions_findMenu(qt_action_manager, menu_id)
+
     def Actions_insertAction(self, qt_action_manager, qt_menu, qt_action, insert_before_action_id):
         NionLib.Actions_insertAction(qt_action_manager, qt_menu, qt_action, insert_before_action_id)
+
+    def Actions_insertSeparator(self, qt_action_manager, qt_menu, insert_before_action_id):
+        NionLib.Actions_insertSeparator(qt_action_manager, qt_menu, insert_before_action_id)
 
     def Actions_insertMenu(self, action_manager, qt_menu_bar, qt_menu, insert_before_id):
         NionLib.Actions_insertMenu(action_manager, qt_menu_bar, qt_menu, insert_before_id)
