@@ -355,7 +355,7 @@ class ImagePanel(Panel.Panel):
 
     # ths message comes fro Qml
     def key_pressed(self, text, key, modifiers):
-        #logging.debug("text=%s key=%d mod=%d", text, key, modifiers)
+        #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
         if key == 0x1000012:  # left arrow
             zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
             self.setWidgetProperty("translateX", self.getWidgetProperty("translateX") - zoom)
@@ -369,13 +369,13 @@ class ImagePanel(Panel.Panel):
         if key == 0x1000015:  # down arrow
             zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
             self.setWidgetProperty("translateY", self.getWidgetProperty("translateY") + zoom)
-        if key == ord('-'):
+        if text == "-":
             zoom = self.getWidgetProperty("zoom")
             self.setWidgetProperty("zoom", zoom / 1.05)
-        if key == ord('+'):
+        if text == "+":
             zoom = self.getWidgetProperty("zoom")
             self.setWidgetProperty("zoom", zoom * 1.05)
-        if key == ord('0'):
+        if text == "0":
             self.setWidgetProperty("zoom", 1.0)
             self.setWidgetProperty("translateX", 0.0)
             self.setWidgetProperty("translateY", 0.0)

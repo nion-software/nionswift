@@ -20,6 +20,8 @@ import Image
 class QtKeyboardModifiers(object):
     def __init__(self, raw_modifiers):
         self.raw_modifiers = raw_modifiers
+    def __str__(self):
+        return str(self.raw_modifiers)
     # shift
     def __get_shift(self):
         return (self.raw_modifiers & 0x02000000) == 0x02000000
