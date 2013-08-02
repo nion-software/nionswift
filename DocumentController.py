@@ -299,45 +299,41 @@ class SmartDataGroup(Storage.StorageBase):
         return data_group
 
 
-def get_groups_in_group(grp, walk=False):
-    """
-    Returns a generator over the list of groups in the
-    data_group, or documentcontroller, grp.
-    If walk is True, also includes all subgroups.
-    """
-    for g in grp.data_groups:
-        yield g
-        if walk:
-            for sub_g in get_groups_in_group(g, walk=True):
-                yield sub_g
+# return a generator for all data groups and child data groups in container
+def get_flat_data_group_generator_in_container(container):
+    for data_group in container.data_groups:
+        yield data_group
+        for child_data_group in get_flat_data_group_generator_in_container(data_group):
+            yield child_data_group
 
 
-def get_dataitems_in_group(grp, walk=False):
-    """
-    Returns all the dataitems in the group grp.
-    If walk is true, walks through any child groups
-    and child items with sub_items
-    """
-    for di in grp.data_items:
-        yield di
-    if walk:
-        for g in grp.data_groups:
-            for di in get_dataitems_in_group(g, walk=True):
-                yield di
-        for parent_dataitem in grp.data_items:
-            for di in get_subitems_in_item(parent_dataitem):
-                yield di
+# return a generator for all data items, child data items, and data items in child groups in container
+def get_flat_data_item_generator_in_container(container):
+    if hasattr(container, "data_items"):
+        for data_item in container.data_items:
+            yield data_item
+            for child_data_item in get_flat_data_item_generator_in_container(data_item):
+                yield child_data_item
+    if hasattr(container, "data_groups"):
+        for data_group in container.data_groups:
+            for data_item in get_flat_data_item_generator_in_container(data_group):
+                yield data_item
 
+# Return the data_group matching name that is the descendent of the container.
+# Use the document_controller as the container if container is None.
+def get_data_group_in_container_by_title(container, data_group_title):
+    for data_group in container.data_groups:
+        if data_group.title == data_group_title:
+            return data_group
+    return None
 
-def get_subitems_in_item(dit):
-    """
-    Returns all the subitems for the dataitems dit. includes
-    any subitems of those items too
-    """
-    for di in dit.data_items:
-        yield di
-        for sub_di in get_subitems_in_item(di):
-            yield sub_di
+# Return the data_item matching name that is the descendent of the container.
+# Use the document_controller as the container if container is None.
+def get_data_item_in_container_by_title(container, data_item_title):
+    for data_item in container.data_items:
+        if data_item.title == data_item_title:
+            return data_item
+    return None
 
 
 class DocumentController(Storage.StorageBase):
@@ -526,7 +522,7 @@ class DocumentController(Storage.StorageBase):
             if data_item:
                 self.document_controller.all_data_items.remove(data_item)
         def __iter__(self):
-            return DocumentController._DataAccessorIter(self.document_controller.get_data_items())
+            return DocumentController._DataAccessorIter(self.document_controller.get_flat_data_item_generator())
         def uuid_keys(self):
             return [data_item.uuid for data_item in self.document_controller.data_items_by_key]
         def title_keys(self):
@@ -550,30 +546,27 @@ class DocumentController(Storage.StorageBase):
     def remove_data_item_on_main_thread(self, data_group, data_item):
         data_group.data_items.remove(data_item)
 
-    def get_data_items(self):
-        """
-        returns an iterator over all current data items
-        """
-        for g in self.data_groups:
-            for di in get_dataitems_in_group(g, walk=True):
-                yield di
+    # Return a generator over all data items
+    def get_flat_data_item_generator(self):
+        return get_flat_data_item_generator_in_container(self)
 
-    def get_data_item_count(self):
-        return len(list(self.get_data_items()))
-
-    def get_data_groups(self):
-        return get_groups_in_group(self, walk=True)
+    # Return a generator over all data groups
+    def get_flat_data_group_generator(self):
+        return get_flat_data_group_generator_in_container(self)
 
     def get_data_group_by_uuid(self, uuid):
-        for data_group in self.get_data_groups():
+        for data_group in get_flat_data_group_generator_in_container(self):
             if data_group.uuid == uuid:
                 return data_group
         return None
 
+    def get_data_item_count(self):
+        return len(list(self.get_flat_data_item_generator()))
+
     # access data item by key (title, uuid, index)
     def get_data_item_by_key(self, key):
         if isinstance(key, numbers.Integral):
-            return self.get_data_items()[key]
+            return list(self.get_flat_data_item_generator())[key]
         if isinstance(key, uuid.UUID):
             return self.get_data_item_by_uuid(key)
         return self.get_data_item_by_title(str(key))
@@ -597,7 +590,7 @@ class DocumentController(Storage.StorageBase):
 
     # access data items by title
     def get_data_item_by_title(self, title):
-        for data_item in self.get_data_items():
+        for data_item in self.get_flat_data_item_generator():
             if str(data_item) == title:
                 return data_item
         return None
@@ -617,7 +610,7 @@ class DocumentController(Storage.StorageBase):
 
     # access data items by index
     def get_data_item_by_index(self, index):
-        return self.get_data_items()[index]
+        return list(self.get_flat_data_item_generator())[index]
     def get_data_by_index(self, index):
         data_item = self.get_data_item_by_index(index)
         return data_item.image if data_item else None
@@ -628,11 +621,11 @@ class DocumentController(Storage.StorageBase):
         else:
             raise IndexError
     def get_index_for_data_item(self, data_item):
-        return self.get_data_items().index(data_item)
+        return list(self.get_flat_data_item_generator()).index(data_item)
 
     # access data items by uuid
     def get_data_item_by_uuid(self, uuid):
-        for data_item in self.get_data_items():
+        for data_item in self.get_flat_data_item_generator():
             if data_item.uuid == uuid:
                 return data_item
         return None

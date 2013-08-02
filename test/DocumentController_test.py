@@ -76,14 +76,20 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.data_groups.append(data_group)
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
-        # make sure this works on the main thread
+        # make sure this works when called from the main thread
         document_controller.add_data_item_on_main_thread(data_group, data_item)
 
-    def test_flat_data_groups(self):
+    def __construct_test_document(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
         data_group1 = DocumentController.DataGroup()
         document_controller.data_groups.append(data_group1)
+        data_item1a = DataItem.DataItem()
+        data_item1a.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_group1.data_items.append(data_item1a)
+        data_item1b = DataItem.DataItem()
+        data_item1b.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_group1.data_items.append(data_item1b)
         data_group1a = DocumentController.DataGroup()
         data_group1.data_groups.append(data_group1a)
         data_group1b = DocumentController.DataGroup()
@@ -96,9 +102,18 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_group2.data_groups.append(data_group2b)
         data_group2b1 = DocumentController.DataGroup()
         data_group2b.data_groups.append(data_group2b1)
-        self.assertEqual(len(list(DocumentController.get_groups_in_group(document_controller, walk=True))), 7)
-        self.assertEqual(len(list(document_controller.get_data_groups())), 7)
+        data_item2b1a = DataItem.DataItem()
+        data_item2b1a.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_group2b1.data_items.append(data_item2b1a)
+        return document_controller
 
+    def test_flat_data_groups(self):
+        document_controller = self.__construct_test_document()
+        self.assertEqual(len(list(document_controller.get_flat_data_group_generator())), 7)
+        self.assertEqual(len(list(document_controller.get_flat_data_item_generator())), 3)
+        self.assertEqual(document_controller.get_data_item_by_key(0), document_controller.data_groups[0].data_items[0])
+        self.assertEqual(document_controller.get_data_item_by_key(1), document_controller.data_groups[0].data_items[1])
+        self.assertEqual(document_controller.get_data_item_by_key(2), document_controller.data_groups[1].data_groups[1].data_groups[0].data_items[0])
 
 class TestDataGroupClass(unittest.TestCase):
 

@@ -26,9 +26,10 @@ functionality.
 # system imports
 import logging
 import threading
+
 # local imports
-import DataItem
-from DocumentController import get_groups_in_group, get_dataitems_in_group, DataGroup
+from nion.swift import DataItem
+from nion.swift import DocumentController
 
 
 class HardwareSourceManager(object):
@@ -262,14 +263,10 @@ class LiveHWPortToImageSourceManager(object):
         self.hardware_port = None
         self.data_items = []
         #do we have a data_group with name data_group_name?
-        self.data_group = None
-        for g in get_groups_in_group(self.document_controller):
-            if str(g) == self.data_group_name:
-                self.data_group = g
-                break
+        self.data_group = DocumentController.get_data_group_in_container_by_title(self.document_controller, self.data_group_name)
         if self.data_group is None:
             # we create a new group
-            self.data_group = DataGroup()
+            self.data_group = DocumentController.DataGroup()
             self.data_group.title = self.data_group_name
             self.document_controller.data_groups.insert(0, self.data_group)
 
@@ -305,24 +302,20 @@ class LiveHWPortToImageSourceManager(object):
         If not found, creates a new one and adds it to the data_group found earlier
         """
         wanted_name = "%s.%s" % (str(self.hardware_source), index)
-        ret = None
-        for data_item in get_dataitems_in_group(self.data_group):
-            if str(data_item) == wanted_name:
-                ret = data_item
-                break
-        if not ret:
+        data_item = DocumentController.get_data_item_in_container_by_title(self.data_group, wanted_name)
+        if not data_item:
             logging.debug("Creating: %s", wanted_name)
-            ret = DataItem.DataItem()
-            ret.title = wanted_name
+            data_item = DataItem.DataItem()
+            data_item.title = wanted_name
             # the following function call needs to happen on the main thread,
             # but it also needs to be synchronized to finish before returning
             # from this method. add_data_item_on_main_thread does that.
-            self.document_controller.add_data_item_on_main_thread(self.data_group, ret)
+            self.document_controller.add_data_item_on_main_thread(self.data_group, data_item)
 
         if index == 0:
-            self.document_controller.select_data_item(self.data_group, ret)
+            self.document_controller.select_data_item(self.data_group, data_item)
 
-        return ret
+        return data_item
 
     def on_new_images(self, images):
         """
