@@ -91,7 +91,6 @@ class StorageBase(object):
         self.__weak_observers = []
         self.__weak_listeners = []
         self.__weak_parents = []
-        self.__connections = []
         self.__refCount = 0
         self.__uuid = uuid.uuid4()
 
@@ -105,8 +104,7 @@ class StorageBase(object):
     # Give subclasses a chance to clean up. This gets called when reference
     # count goes to 0, but before deletion.
     def about_to_delete(self):
-        for connection in self.__connections[:]:  # loop over copy of connections
-            self.disconnect_object(connection)
+        pass
 
     # Anytime you store a reference to this item, call add_ref.
     # This allows the class to disconnect from its own sources
@@ -182,20 +180,6 @@ class StorageBase(object):
         for parent in self.parents:
             if hasattr(parent, fn):
                 getattr(parent, fn)(*args, **keywords)
-
-    # Listen to another object. When the other object sends a notification, we will
-    # receive it.
-    def connect_object(self, object):
-        object.add_listener(self)
-        object.add_ref()
-        self.__connections.append(object)
-
-    # Disconnect the source from this DataItem. This item will
-    # no longer be a listener of the source.
-    def disconnect_object(self, object):
-        object.remove_listener(self)
-        object.remove_ref()
-        self.__connections.remove(object)
 
     def __get_storage_writer(self):
         return self.__storage_writer
