@@ -321,6 +321,7 @@ class MenuManager(object):
             menu = menu_dict["menu"]
             menu.adjustDocumentActions(document_controller)
 
+    # search through each menu and look for a matching action
     def findAction(self, action_id):
         for menu_id in self.menu_ids:
             menu_dict = self.__menu_dicts[menu_id]
