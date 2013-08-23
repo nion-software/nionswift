@@ -108,6 +108,7 @@ class DataItem(Storage.StorageBase):
             {"name": _("Parameter"), "property": "param", "type": "scalar", "default": 0.5},
             {"name": _("Calibrations"), "property": "calibrations", "type": "fixed-array"},
         ]
+        self.closed = False
         self.__title = None
         self.__param = 0.5
         self.__display_limits = (0, 1)
@@ -151,6 +152,7 @@ class DataItem(Storage.StorageBase):
 
     # This gets called when reference count goes to 0, but before deletion.
     def about_to_delete(self):
+        self.closed = True
         self.data_source = None
         self.master_data = None
         for data_item in copy.copy(self.data_items):
@@ -341,6 +343,7 @@ class DataItem(Storage.StorageBase):
     def __get_master_data(self):
         return self.__master_data
     def __set_master_data(self, data):
+        assert not self.closed or data is None
         assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
         assert data is None or self.__data_source is None  # can't have master data and image source
         with self.__data_mutex:
