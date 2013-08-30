@@ -124,7 +124,6 @@ Rectangle {
                 Drag.active: mouseArea.drag.active
                 Drag.hotSpot.x: 0
                 Drag.hotSpot.y: 0
-                // DND: Drag.mimeData: { "text/data_item_uuid": uuid }
                 Drag.mimeData: { "text/data_item_uuid": uuid }
                 Drag.dragType: Drag.Automatic
                 Drag.source: background  // use in onDropped
@@ -135,13 +134,13 @@ Rectangle {
                 height: background.imageHeight
                 opacity: 0.5
                 visible: false
+                Drag.onDragStarted: {
+                    background.sourceIndex = index  // this will be used in drop
+                }
                 Drag.onDragFinished: {
                     if (dropAction == Qt.MoveAction) {
                         app.invokePyMethod(panel, "deleteItemByUuid", [uuid])
                     }
-                }
-                Drag.onDragStarted: {
-                    background.sourceIndex = index  // this will be used in drop
                 }
             } // Item
 
