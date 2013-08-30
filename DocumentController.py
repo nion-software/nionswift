@@ -707,28 +707,6 @@ class DocumentController(Storage.StorageBase):
     def removeToolbarButton(self, id):
         self.find_panel("button-list-panel").removeButton(id)
 
-    def layoutAdd(self):
-        selected_image_panel = self.selected_image_panel
-        if selected_image_panel:
-            tab_group = self.selected_image_panel.container_chain[0]
-            image_row = self.find_panel("image-row")
-            desc = {
-                "type": "tab",
-                "id": "",
-                "content": "image-panel",
-                "title": _("Image"),
-            }
-            element = self.workspace.createElement(desc, self)
-            image_row.insertChildAfter(element, tab_group)
-
-    def layoutRemove(self):
-        selected_image_panel = self.selected_image_panel
-        if selected_image_panel:
-            tab_group = self.selected_image_panel.container_chain[1]
-            image_row = self.find_panel("image-row")
-            image_row.removeChild(tab_group)
-            self.selected_image_panel = None
-
     def add_smart_group(self):
         smart_data_group = SmartDataGroup()
         smart_data_group.title = _("Untitled Smart Group")

@@ -97,7 +97,7 @@ class Workspace(object):
             self.ui.Widget_removeWidget(self.widget)
             self.content.container = None
             self.content.remove_ref()
-            Element.close(self)
+            Workspace.Element.close(self)
 
 
     class TabGroup(Element):
@@ -140,7 +140,7 @@ class Workspace(object):
         def close(self):
             self.removeAllTabs()
             self.ui.Widget_removeWidget(self.widget)
-            Element.close(self)
+            Workspace.Element.close(self)
 
 
     class Box(Element):
@@ -210,7 +210,7 @@ class Workspace(object):
         def close(self):
             self.removeAllChildren()
             self.ui.Widget_removeWidget(self.widget)
-            Element.close(self)
+            Workspace.Element.close(self)
 
 
     class Row(Box):
@@ -231,7 +231,7 @@ class Workspace(object):
                 self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
 
 
-    def createElement(self, dict, document_controller):
+    def __create_element(self, dict, document_controller):
         #logging.debug("PARSING %s", str(dict))
         element_id = dict["id"]
         if dict["type"] == "row":
@@ -240,7 +240,7 @@ class Workspace(object):
                 properties = dict["properties"]
             row = Workspace.Row(document_controller.ui, element_id, properties)
             for child_dict in dict["children"]:
-                row.addChild(self.createElement(child_dict, document_controller))
+                row.addChild(self.__create_element(child_dict, document_controller))
             return row
         if dict["type"] == "column":
             properties = {}
@@ -248,12 +248,12 @@ class Workspace(object):
                 properties = dict["properties"]
             column = Workspace.Column(document_controller.ui, element_id, properties)
             for child_dict in dict["children"]:
-                column.addChild(self.createElement(child_dict, document_controller))
+                column.addChild(self.__create_element(child_dict, document_controller))
             return column
         if dict["type"] == "tab-group":
             tab_group = Workspace.TabGroup(document_controller.ui, element_id)
             for child_dict in dict["tabs"]:
-                tab = self.createElement(child_dict, document_controller)
+                tab = self.__create_element(child_dict, document_controller)
                 tab_group.addTab(tab)
             return tab_group
         if dict["type"] == "tab":
@@ -324,14 +324,21 @@ class Workspace(object):
                             "title": _("Image"),
                         }
                     ]
-                }
+                },
+                {
+                    "type": "tab",
+                    "id": "primary-header2",
+                    "content": "header-panel",
+                    "title": _("Data Visualization"),
+                    "properties": { "height": header_height, "platform": sys.platform }
+                },
             ]
         }
 
         self.panels = []
 
         # create the root element
-        self.root = self.createElement(self.desc, document_controller)
+        self.root = self.__create_element(self.desc, document_controller)
         self.root.add_ref()
 
         # configure the document window (central widget)
@@ -383,6 +390,82 @@ class Workspace(object):
         panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget, panel_id, title, positions, position)
         self.panels.append(panel)
         panel.add_ref()
+
+    def __create_column(self):
+        desc = {
+            "type": "column",
+            "id": "",
+            "properties": { "spacing": 0 },
+            "children": []
+        }
+        return self.__create_element(desc, self.document_controller)
+
+    def __create_image_panel_element(self, image_panel_id=None):
+        desc = {
+            "type": "tab",
+            "id": image_panel_id if image_panel_id else "",
+            "content": "image-panel",
+            "title": _("Image"),
+        }
+        return self.__create_element(desc, self.document_controller)
+
+    def change_layout(self, layout_id):
+        # first remove existing layout
+        image_row = self.find_panel("image-row")
+        image_row.removeAllChildren()
+        if layout_id == "1x1":
+            element = self.__create_image_panel_element("primary-image")
+            image_row.addChild(element)
+            self.document_controller.selected_image_panel = element.content
+        elif layout_id == "2x1":
+            element = self.__create_image_panel_element("primary-image")
+            image_row.addChild(element)
+            element2 = self.__create_image_panel_element()
+            image_row.addChild(element2)
+            self.document_controller.selected_image_panel = element.content
+        elif layout_id == "3x1":
+            element = self.__create_image_panel_element("primary-image")
+            image_row.addChild(element)
+            element2 = self.__create_image_panel_element()
+            image_row.addChild(element2)
+            element3 = self.__create_image_panel_element()
+            image_row.addChild(element3)
+            self.document_controller.selected_image_panel = element.content
+        elif layout_id == "2x2":
+            column1 = self.__create_column()
+            column2 = self.__create_column()
+            image_row.addChild(column1)
+            image_row.addChild(column2)
+            element = self.__create_image_panel_element("primary-image")
+            column1.addChild(element)
+            element2 = self.__create_image_panel_element()
+            column1.addChild(element2)
+            element3 = self.__create_image_panel_element()
+            column2.addChild(element3)
+            element4 = self.__create_image_panel_element()
+            column2.addChild(element4)
+            self.document_controller.selected_image_panel = element.content
+        # make sure size gets adjusted
+        self.ui.Widget_adjustSize(image_row.widget)
+
+    def layoutAdd(self):
+        image_row = self.find_panel("image-row")
+        desc = {
+            "type": "tab",
+            "id": "",
+            "content": "image-panel",
+            "title": _("Image"),
+        }
+        element = self.__create_element(desc, self.document_controller)
+        image_row.addChild(element)
+
+    def layoutRemove(self):
+        selected_image_panel = self.selected_image_panel
+        if selected_image_panel:
+            tab_group = self.selected_image_panel.container_chain[1]
+            image_row = self.find_panel("image-row")
+            image_row.removeChild(tab_group)
+            self.selected_image_panel = None
 
 
 @singleton

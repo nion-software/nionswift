@@ -138,12 +138,16 @@ class ImagePanel(Panel.Panel):
 
         self.document_controller.register_image_panel(self)
 
+        self.closed = False
+
     def close(self):
+        self.closed = True
         self.document_controller.unregister_image_panel(self)
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
         self.data_panel_selection = DataPanel.DataItemSpecifier()  # required before destructing display thread
         self.view.close()
+        self.view = None
         super(ImagePanel, self).close()
 
     def set_focused(self, focused):
@@ -152,7 +156,7 @@ class ImagePanel(Panel.Panel):
     def update_graphics(self):
         data_item = self.data_item
         graphics = data_item.graphics if data_item else None
-        if self.view:
+        if not self.closed and self.view:
             self.view.draw_graphics(self.image_size, graphics, self.graphic_selection, WidgetMapping(self))
 
     # message comes from the view

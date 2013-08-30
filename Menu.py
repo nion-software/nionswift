@@ -198,8 +198,10 @@ class MenuManager(object):
         self.insertSeparator("file", "print")
 
         self.insertMenu("layout-menu", _("Layout"), "window")
-        self.addDocumentAction("layout-menu", "layoutAdd", _("Layout Add"), callback=lambda dc: dc.layoutAdd(), key_sequence="Ctrl+2")
-        self.addDocumentAction("layout-menu", "layoutRemove", _("Layout Remove"), callback=lambda dc: dc.layoutRemove(), key_sequence="Ctrl+1")
+        self.addDocumentAction("layout-menu", "layout1x1", _("Layout 1x1"), callback=lambda dc: dc.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
+        self.addDocumentAction("layout-menu", "layout2x1", _("Layout 2x1"), callback=lambda dc: dc.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
+        self.addDocumentAction("layout-menu", "layout3x1", _("Layout 3x1"), callback=lambda dc: dc.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
+        self.addDocumentAction("layout-menu", "layout2x2", _("Layout 2x2"), callback=lambda dc: dc.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
 
         self.insertMenu("graphic-menu", _("Graphic"), "window")
         self.addDocumentAction("graphic-menu", "graphic-add-line", _("Add Line Graphic"), callback=lambda dc: dc.add_line_graphic())

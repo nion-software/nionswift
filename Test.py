@@ -180,6 +180,8 @@ class UserInterface:
         pass
     def Widget_addWidget(self, widget, child_widget):
         pass
+    def Widget_adjustSize(self, widget):
+        pass
     def Widget_getWidgetProperty(self, widget, property):
         return None
     def Widget_insertWidget(self, widget, child_widget, index):

@@ -494,7 +494,7 @@ class QtImageView(object):
     image_panel = property(__get_image_panel)
 
     def __get_document_controller(self):
-        return self.image_panel.document_controller
+        return self.image_panel.document_controller if self.image_panel else None
     document_controller = property(__get_document_controller)
 
     def __get_ui(self):
@@ -525,7 +525,8 @@ class QtImageView(object):
 
     def resized(self, x, y, width, height):
         self.rect = ((y, x), (height, width))
-        self.image_panel.resized(self.rect)
+        if self.image_panel:
+            self.image_panel.resized(self.rect)
     def keyPressed(self, text, key, raw_modifiers):
         # ugly hack to get qml to pass modifiers cleanly to mouse functions
         self.ui.Widget_setWidgetProperty(self.widget, "modifiers", raw_modifiers)
@@ -830,6 +831,9 @@ class QtUserInterface(object):
 
     def Widget_addWidget(self, widget, child_widget):
         NionLib.Widget_addWidget(widget, child_widget)
+
+    def Widget_adjustSize(self, widget):
+        NionLib.Widget_adjustSize(widget)
 
     def Widget_getWidgetProperty(self, widget, property):
         return NionLib.Widget_getWidgetProperty(widget, property)
