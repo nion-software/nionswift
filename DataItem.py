@@ -377,32 +377,64 @@ class DataItem(Storage.StorageBase):
             return self.__cached_data
     data = property(__get_data)
 
-    # returns a 2 dimension uint32 array, interpreted as RGBA pixels
+    def __get_thumbnail_1d_data(self, data, height, width):
+        assert data is not None
+        assert data.ndim == 1
+        data = Image.scalarFromArray(data)
+        rgba = numpy.empty((height, width, 4), numpy.uint8)
+        rgba[:] = 64
+        # TODO: only works if a.shape is larger than shape
+        def rebin_1d(a, shape):
+            sh = shape[0],a.shape[0]//shape[0]
+            return a.reshape(sh).mean(-1)
+        data_scaled = rebin_1d(data, (width,))
+        data_min = numpy.amin(data_scaled)
+        data_max = numpy.amax(data_scaled)
+        if data_max - data_min != 0.0:
+            data_scaled[:] = height * (data_scaled - data_min) / (data_max - data_min)
+        else:
+            data_scaled[:] = height * 0.5
+        # what's the better way?
+        #rgba[:,:,0] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
+        #rgba[:,:,1] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
+        #rgba[:,:,2] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
+        rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))
+        return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
+    def __get_thumbnail_2d_data(self, image, height, width):
+        assert image is not None
+        assert image.ndim in (2,3)
+        image = Image.scalarFromArray(image)
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = height if image_height > image_width else height * image_height / image_width
+        scaled_width = width if image_width > image_height else width * image_width / image_height
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.createRGBAImageFromArray(thumbnail_image)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
+    # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
         if not self.thumbnail_data_valid:
-            image = self.data
-            if image is not None: # convert image to scalar if we have one
-                image = Image.scalarFromArray(image)
-                image_height = image.shape[0]
-                image_width = image.shape[1]
-                assert image_height > 0 and image_width > 0
-                scaled_height = 128 if image_height > image_width else 128 * image_height / image_width
-                scaled_width = 128 if image_width > image_height else 128 * image_width / image_height
-                thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-                if numpy.ndim(thumbnail_image) == 2:
-                    self.thumbnail_data = Image.createRGBAImageFromArray(thumbnail_image)
-                    self.thumbnail_data_valid = True
-                elif numpy.ndim(thumbnail_image) == 3:
-                    data = thumbnail_image
-                    if thumbnail_image.shape[2] == 4:
-                        self.thumbnail_data = data.view(numpy.uint32).reshape(data.shape[:-1])
-                        self.thumbnail_data_valid = True
-                    elif thumbnail_image.shape[2] == 3:
-                        rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                        rgba[:,:,0:3] = data
-                        rgba[:,:,3] = 255
-                        self.thumbnail_data = rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-                        self.thumbnail_data_valid = True
+            data = self.data
+            if data is not None:
+                if data.ndim == 1:
+                    self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
+                elif data.ndim in (2,3):
+                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width)
+                else:
+                    pass
+                self.thumbnail_data_valid = self.thumbnail_data is not None
         return self.thumbnail_data
 
     def copy(self):

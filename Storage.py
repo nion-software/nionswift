@@ -534,6 +534,7 @@ class DictStorageReader(object):
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
                 "resample-operation": Operation.ResampleOperation,
                 "crop-operation": Operation.CropOperation,
+                "histogram-operation": Operation.HistogramOperation,
             }
             type = node["type"]
             if type in build_map:
@@ -934,6 +935,7 @@ class DbStorageReader(object):
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
                 "resample-operation": Operation.ResampleOperation,
                 "crop-operation": Operation.CropOperation,
+                "histogram-operation": Operation.HistogramOperation,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))

@@ -133,6 +133,13 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item.thumbnail_data_valid)
         data_item.remove_ref()
 
+    def test_thumbnail_1d(self):
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((256), numpy.uint32)
+        data_item.add_ref()
+        self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
+        data_item.remove_ref()
+
     def test_delete_nested_data_item(self):
         data_item = DataItem.DataItem()
         data_item.add_ref()

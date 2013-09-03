@@ -101,8 +101,10 @@ def scalarFromArray(array, normalize=True):
 
 
 def createRGBAImageFromArray(array, normalize=True, display_limits=None):
-    assert numpy.ndim(array) in (2,3)
+    assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)
+    if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
+        array = array.reshape((1,) + array.shape)
     if numpy.ndim(array) == 2:
         rgba_image = numpy.empty(array.shape, 'uint32')
         if normalize:
@@ -123,7 +125,7 @@ def createRGBAImageFromArray(array, normalize=True, display_limits=None):
             rgbView(rgba_image)[:] = array[..., numpy.newaxis]  # scalar data assigned to each component of rgb view
         alphaView(rgba_image)[:] = 255
         return rgba_image
-    if numpy.ndim(array) == 3:
+    elif numpy.ndim(array) == 3:
         assert array.shape[2] in (3,4)  # rgb, rgba
         if array.shape[2] == 4:
             return array.view(numpy.uint32).reshape(array.shape[:-1])  # squash the color into uint32

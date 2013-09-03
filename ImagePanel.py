@@ -326,9 +326,10 @@ class ImagePanel(Panel.Panel):
         data_item = self.data_item
         image = data_item.image if data_item else None
         shape = image.shape if image is not None else (0,0)
-        if shape[0] > 0 and shape[1] > 0:
-            return shape
-        return None
+        for d in shape:
+            if not d > 0:
+                return None
+        return shape
     image_size = property(__get_image_size)
 
     # map from image coordinates to widget coordinates

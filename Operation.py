@@ -248,3 +248,19 @@ class ResampleOperation(Operation):
             self.values["height"] = data_shape[0]
         if "width" not in self.values or self.values["width"] is None:
             self.values["width"] = data_shape[1]
+
+
+class HistogramOperation(Operation):
+    def __init__(self):
+        description = []
+        super(HistogramOperation, self).__init__(_("Histogram"), description)
+        self.storage_type = "histogram-operation"
+
+    @classmethod
+    def build(cls, storage_reader, item_node):
+        histogram_operation = super(HistogramOperation, cls).build(storage_reader, item_node)
+        return histogram_operation
+
+    def process_data_in_place(self, data_array):
+        histogram_data = numpy.histogram(data_array, bins=512)
+        return histogram_data[0]

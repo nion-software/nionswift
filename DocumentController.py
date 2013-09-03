@@ -789,6 +789,9 @@ class DocumentController(Storage.StorageBase):
     def processing_resample(self):
         self.add_processing_operation(Operation.ResampleOperation(), prefix=_("Resample of "))
 
+    def processing_histogram(self):
+        self.add_processing_operation(Operation.HistogramOperation(), prefix=_("Histogram of "))
+
     def processing_crop(self):
         data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
         data_item = data_panel_selection.data_item if data_panel_selection else None
