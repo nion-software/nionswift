@@ -409,7 +409,7 @@ class QtImageViewDisplayThread(object):
                     image = data_item.image
                 # make an rgb image and send it
                 rgba_image = None
-                if image is not None:
+                if image is not None and image.ndim > 1:
                     image_data = Image.scalarFromArray(image)
                     rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
                 else:
@@ -498,7 +498,7 @@ class QtImageView(object):
     document_controller = property(__get_document_controller)
 
     def __get_ui(self):
-        return self.document_controller.ui
+        return self.document_controller.ui if self.document_controller else None
     ui = property(__get_ui)
 
     def _relativeFile(self, filename):
@@ -508,8 +508,14 @@ class QtImageView(object):
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
     @queue_main_thread
+    def set_underlay_script(self, js):
+        if self.ui:
+            self.ui.Widget_setWidgetProperty(self.widget, "underlay", js)
+
+    @queue_main_thread
     def set_overlay_script(self, js):
-        self.ui.Widget_setWidgetProperty(self.widget, "overlay", js)
+        if self.ui:
+            self.ui.Widget_setWidgetProperty(self.widget, "overlay", js)
 
     def draw_graphics(self, image_size, graphics, graphic_selection, mapping):
         rect = self.rect

@@ -12,6 +12,7 @@ Item {
     property real translateY: 0
     property real imageWidth: 0
     property real imageHeight: 0
+    property string underlay
     property string overlay
     property string imageSource
 
@@ -47,6 +48,18 @@ Item {
                     anchors.fill: parent
                     color: "transparent"
                 } // Rectangle
+
+                Canvas {
+                    id: canvas0
+                    anchors.fill: parent
+                    onPaint: {
+                        var ctx = canvas0.getContext('2d');
+                        ctx.save();
+                        ctx.clearRect(0, 0, canvas0.width, canvas0.height);
+                        eval(underlay);
+                        ctx.restore();
+                    }
+                } // Canvas
 
                 Image {
                     // the size of the image is image.sourceSize.width, image.sourceSize.height
@@ -103,7 +116,7 @@ Item {
                 } // Image
 
                 Canvas {
-                    id:canvas
+                    id: canvas
                     anchors.fill: parent
                     onPaint: {
                         var ctx = canvas.getContext('2d');
@@ -137,6 +150,7 @@ Item {
     onTranslateXChanged: app.invokePyMethod(panel, "display_changed", [])
     onTranslateYChanged: app.invokePyMethod(panel, "display_changed", [])
 
+    onUnderlayChanged: canvas0.requestPaint()
     onOverlayChanged: canvas.requestPaint()
 
 } // Item

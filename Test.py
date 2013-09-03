@@ -73,6 +73,8 @@ class ImageView:
         pass
     def set_focused(self, focused):
         pass
+    def set_underlay_script(self, js):
+        pass
     def map_image_norm_to_widget(self, image_size, p):
         return (p[0]*image_size[0], p[1]*image_size[1])
     def map_mouse_to_image(self, image_size, p):
