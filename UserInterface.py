@@ -448,11 +448,18 @@ class DrawingContext(object):
         self.js += "ctx.stroke();"
     def fill(self):
         self.js += "ctx.fill();"
+    def fillText(self, text, x, y, maxWidth=None):
+        self.js += "ctx.fillText('{0}', {1}, {2}{3});".format(text, x, y, ", {0}".format(maxWidth) if maxWidth else "")
     def __get_fillStyle(self):
         raise NotImplementedError()
     def __set_fillStyle(self, a):
         self.js += "ctx.fillStyle = '{0}';".format(a)
     fillStyle = property(__get_fillStyle, __set_fillStyle)
+    def __get_font(self):
+        raise NotImplementedError()
+    def __set_font(self, a):
+        self.js += "ctx.font = '{0}';".format(a)
+    font = property(__get_font, __set_font)
     def __get_strokeStyle(self):
         raise NotImplementedError()
     def __set_strokeStyle(self, a):
