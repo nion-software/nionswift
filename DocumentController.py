@@ -446,7 +446,10 @@ class DocumentController(Storage.StorageBase):
                 self.delay_queue.task_done()
 
     def __get_default_data_group(self):
-        return self.data_groups[0]
+        for data_group in self.data_groups:
+            if isinstance(data_group, DataGroup):
+                return data_group
+        return None
     default_data_group = property(__get_default_data_group)
 
     # override from StorageBase.

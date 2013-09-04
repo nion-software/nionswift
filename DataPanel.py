@@ -408,6 +408,11 @@ class DataPanel(Panel.Panel):
                 properties["graphic_url"] = "image://thumb/"+str(data_item.uuid)+"/"+str(random.randint(0,1000000))
                 self.dataChanged()
 
+        # determine the container for the data item. this is needed because the container
+        # will not always be the data group that is being currently displayed. for instance,
+        # the data item might be a processed data item and the container would be the
+        # source data item. this is a recursive function, so pass the container in which
+        # to search as first parameter.
         def __get_data_item_container(self, container, query_data_item):
             if hasattr(container, "data_items") and query_data_item in container.data_items:
                 return container
@@ -427,7 +432,7 @@ class DataPanel(Panel.Panel):
             data_item = self.__get_data_items_flat()[index] if index >= 0 else None
             if data_item:
                 if len(text) == 1 and ord(text[0]) == 127:
-                    container = self.__get_data_item_container(self.document_controller, data_item)
+                    container = self.__get_data_item_container(self.data_group, data_item)
                     assert data_item in container.data_items
                     container.data_items.remove(data_item)
             return False

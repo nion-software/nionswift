@@ -349,6 +349,25 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = DataPanel.DataPanel(document_controller, "data-panel")
         document_controller.remove_data_group_from_parent(document_controller.data_groups[0], document_controller)
 
+    def test_data_panel_remove_item_by_key(self):
+        storage_writer = Storage.DictStorageWriter()
+        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        data_group1 = DocumentController.DataGroup()
+        data_group1.title = "data_group1"
+        data_item1 = DataItem.DataItem()
+        data_item1.title = "Green 1"
+        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_group1.data_items.append(data_item1)
+        green_group = DocumentController.SmartDataGroup()
+        green_group.title = "green_group"
+        document_controller.data_groups.insert(0, green_group)
+        document_controller.data_groups.append(data_group1)
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel.update_data_panel_selection(DataPanel.DataItemSpecifier(data_group1, data_item1))
+        self.assertTrue(data_item1 in data_group1.data_items)
+        data_panel.data_item_model.itemKeyPress(0, chr(127), 0)
+        self.assertFalse(data_item1 in data_group1.data_items)
+
     def log(self, data_panel):
         logging.debug("DATA GROUP MODEL")
         data_panel.data_group_model.log()
