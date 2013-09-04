@@ -160,29 +160,30 @@ class ImagePanel(Panel.Panel):
             self.view.draw_graphics(self.image_size, graphics, self.graphic_selection, WidgetMapping(self))
 
     def update_underlay(self):
-        ctx = UserInterface.DrawingContext()
-        ctx.save()
+        if self.view:
+            ctx = UserInterface.DrawingContext()
+            ctx.save()
 
-        if self.view and self.data_item:
-            data = self.data_item.data
-            if data is not None and data.ndim == 1:
-                rect = self.view.rect
-                data_min = numpy.amin(data)
-                data_max = numpy.amax(data)
-                data_len = data.shape[0]
-                display_width = rect[1][1]
-                display_height = rect[1][0]
-                for i in range(0,display_width):
-                    ctx.beginPath()
-                    ctx.moveTo(i, display_height)
-                    ctx.lineTo(i, display_height - (display_height * data[data_len*i/display_width] - data_min) / (data_max - data_min))
-                    ctx.closePath()
-                    ctx.lineWidth = 1
-                    ctx.strokeStyle = '#00FF00'
-                    ctx.stroke()
+            if self.data_item:
+                data = self.data_item.data
+                if data is not None and data.ndim == 1:
+                    rect = self.view.rect
+                    data_min = numpy.amin(data)
+                    data_max = numpy.amax(data)
+                    data_len = data.shape[0]
+                    display_width = rect[1][1]
+                    display_height = rect[1][0]
+                    for i in range(0,display_width):
+                        ctx.beginPath()
+                        ctx.moveTo(i, display_height)
+                        ctx.lineTo(i, display_height - (display_height * data[data_len*i/display_width] - data_min) / (data_max - data_min))
+                        ctx.closePath()
+                        ctx.lineWidth = 1
+                        ctx.strokeStyle = '#00FF00'
+                        ctx.stroke()
 
-        ctx.restore()
-        self.view.set_underlay_script(ctx.js)
+            ctx.restore()
+            self.view.set_underlay_script(ctx.js)
 
 
     # message comes from the view

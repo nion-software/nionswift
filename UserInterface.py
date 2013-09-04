@@ -362,7 +362,9 @@ class QtImageViewDisplayThread(object):
 
     @queue_main_thread
     def __set_image_source(self, url):
-        self.ui.Widget_setWidgetProperty(self.image_view.widget, "imageSource", url)
+        image_view = self.image_view
+        if image_view and image_view.widget:
+            self.ui.Widget_setWidgetProperty(image_view.widget, "imageSource", url)
 
     def __get_data_item(self):
         return self.__data_item
@@ -477,6 +479,8 @@ class QtImageView(object):
         self.display_thread.process()
 
     def close(self):
+        self.ui.Widget_unloadWidget(self.widget)
+        self.widget = None
         self.display_thread.close()  # required before destructing display thread
         self.display_thread = None
 
