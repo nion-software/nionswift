@@ -130,6 +130,8 @@ class DataPanel(Panel.Panel):
             self.__append_data_item_flat(container, data_items)
             return len(data_items)
 
+        # this message is received when a data item is inserted into one of the
+        # groups we're observing.
         def item_inserted(self, container, key, object, before_index):
             if key == "data_groups":
                 # manage the item model
@@ -153,9 +155,11 @@ class DataPanel(Panel.Panel):
                 for index, child_data_group in enumerate(data_groups):
                     self.item_inserted(object, "data_groups", child_data_group, index)
 
+        # this message is received when a data item is removed from one of the
+        # groups we're observing.
         def item_removed(self, container, key, object, index):
             if key == "data_groups":
-                assert isinstance(object, DocumentController.DataGroup)
+                assert isinstance(object, DocumentController.DataGroup) or isinstance(object, DocumentController.SmartDataGroup)
                 # get parent and item
                 parent_item = self.mapping[container]
                 # manage the item model
@@ -200,14 +204,12 @@ class DataPanel(Panel.Panel):
             self.__update_item_count(container)
 
         def item_key_press(self, text, modifiers, index, parent_row, parent_id):
-            data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
-            if data_group and len(data_group.data_items) == 0 and len(data_group.data_groups) == 0:
-                if len(text) == 1 and ord(text[0]) == 127:
+            if len(text) == 1 and ord(text[0]) == 127:
+                data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
+                if data_group:
                     parent_item = self.itemFromId(self._parent_id)
-                    if "data_group" in parent_item.data:
-                        parent_item.data["data_group"].data_groups.remove(data_group)
-                    else:
-                        self.document_controller.data_groups.remove(data_group)
+                    parent = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller
+                    self.document_controller.remove_data_group_from_parent(data_group, parent)
             return False
 
         def item_set_data(self, data, index, parent_row, parent_id):

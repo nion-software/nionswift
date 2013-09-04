@@ -717,6 +717,12 @@ class DocumentController(Storage.StorageBase):
         data_group.title = _("Untitled Group")
         self.data_groups.insert(0, data_group)
 
+    def remove_data_group_from_parent(self, data_group, parent):
+        data_group_empty = isinstance(data_group, SmartDataGroup) or (len(data_group.data_items) == 0 and len(data_group.data_groups) == 0)
+        if data_group_empty:
+            assert data_group in parent.data_groups
+            parent.data_groups.remove(data_group)
+
     def add_green_data_item(self):
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green " + str(random.randint(1,1000000))
