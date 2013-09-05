@@ -9,6 +9,7 @@ import weakref
 
 # third party libraries
 import numpy
+import scipy.interpolate
 
 # local libraries
 import Image
@@ -383,11 +384,8 @@ class DataItem(Storage.StorageBase):
         data = Image.scalarFromArray(data)
         rgba = numpy.empty((height, width, 4), numpy.uint8)
         rgba[:] = 64
-        # TODO: only works if a.shape is larger than shape
-        def rebin_1d(a, shape):
-            sh = shape[0],a.shape[0]//shape[0]
-            return a.reshape(sh).mean(-1)
-        data_scaled = rebin_1d(data, (width,))
+        f = scipy.interpolate.interp1d(numpy.arange(0,data.shape[0]),data)
+        data_scaled = f(numpy.linspace(0, data.shape[0]-1, width))
         data_min = numpy.amin(data_scaled)
         data_max = numpy.amax(data_scaled)
         if data_max - data_min != 0.0:

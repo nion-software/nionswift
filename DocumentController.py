@@ -812,6 +812,18 @@ class DocumentController(Storage.StorageBase):
             operation.graphic = graphic
             self.add_processing_operation(operation, prefix=_("Crop of "))
 
+    def processing_line_profile(self):
+        data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
+        data_item = data_panel_selection.data_item if data_panel_selection else None
+        if data_item:
+            operation = Operation.LineProfileOperation()
+            graphic = Graphics.LineGraphic()
+            graphic.start = (0.25,0.25)
+            graphic.end = (0.75,0.75)
+            data_item.graphics.append(graphic)
+            operation.graphic = graphic
+            self.add_processing_operation(operation, prefix=_("Line Profile of "))
+
     def processing_invert(self):
         self.add_processing_operation(Operation.InvertOperation(), suffix=_(" Inverted"))
 

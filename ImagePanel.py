@@ -176,7 +176,7 @@ class ImagePanel(Panel.Panel):
                     for i in range(0,display_width):
                         ctx.beginPath()
                         ctx.moveTo(i, display_height)
-                        ctx.lineTo(i, display_height - (display_height * data[data_len*i/display_width] - data_min) / (data_max - data_min))
+                        ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
                         ctx.closePath()
                         ctx.lineWidth = 1
                         ctx.strokeStyle = '#00FF00'

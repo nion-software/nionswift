@@ -1,8 +1,8 @@
 # standard libraries
 import copy
 import gettext
-#import inspect
 import logging
+import math
 import sys
 import threading
 import uuid
@@ -10,8 +10,9 @@ import weakref
 
 # third party libraries
 import numpy
-from scipy import fftpack
-from scipy import ndimage
+import scipy
+import scipy.fftpack
+import scipy.ndimage
 
 # local libraries
 import Image
@@ -121,7 +122,7 @@ class FFTOperation(Operation):
         self.storage_type = "fft-operation"
 
     def process_data_in_place(self, data_array):
-        return fftpack.fftshift(fftpack.fft2(data_array))
+        return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_array))
 
     def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
         assert len(source_calibrations) == 2
@@ -136,7 +137,7 @@ class IFFTOperation(Operation):
         self.storage_type = "inverse-fft-operation"
 
     def process_data_in_place(self, data_array):
-        return fftpack.ifft2(fftpack.ifftshift(data_array))
+        return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_array))
 
     def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
         assert len(source_calibrations) == 2
@@ -166,7 +167,7 @@ class GaussianBlurOperation(Operation):
         self.storage_type = "gaussian-blur-operation"
 
     def process_data_in_place(self, data_array_copy):
-        return ndimage.gaussian_filter(data_array_copy, sigma=10*self.sigma)
+        return scipy.ndimage.gaussian_filter(data_array_copy, sigma=10*self.sigma)
 
 
 class CropOperation(Operation):
@@ -206,8 +207,8 @@ class CropOperation(Operation):
 
     def process_data_copy(self, data_array_copy):
         graphic = self.graphic
-        shape = data_array_copy.shape
         assert isinstance(graphic, Graphics.RectangleGraphic)
+        shape = data_array_copy.shape
         bounds = graphic.bounds
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data_array_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
@@ -264,3 +265,54 @@ class HistogramOperation(Operation):
     def process_data_in_place(self, data_array):
         histogram_data = numpy.histogram(data_array, bins=512)
         return histogram_data[0]
+
+
+class LineProfileOperation(Operation):
+    def __init__(self):
+        description = []
+        super(LineProfileOperation, self).__init__(_("Line Profile"), description)
+        self.__graphic = None
+        self.storage_items += ["graphic"]
+        self.storage_type = "line-profile-operation"
+
+    @classmethod
+    def build(cls, storage_reader, item_node):
+        line_profile_operation = super(LineProfileOperation, cls).build(storage_reader, item_node)
+        graphic = storage_reader.get_item(item_node, "graphic")
+        line_profile_operation.graphic = graphic
+        return line_profile_operation
+
+    def __get_graphic(self):
+        return self.__graphic
+    def __set_graphic(self, graphic):
+        if self.__graphic:
+            self.notify_clear_item("graphic")
+            self.__graphic.remove_observer(self)
+            self.__graphic.remove_ref()
+        self.__graphic = graphic
+        if graphic:
+            assert isinstance(graphic, Graphics.LineGraphic)
+        if self.__graphic:
+            self.__graphic.add_observer(self)
+            self.__graphic.add_ref()
+            self.notify_set_item("graphic", graphic)
+    graphic = property(__get_graphic, __set_graphic)
+
+    def property_changed(self, graphic, key, value):
+        if key == "start" or key == "end":
+            self.notify_listeners("operation_changed", self)
+
+    def process_data_in_place(self, data_array):
+        graphic = self.graphic
+        assert isinstance(graphic, Graphics.LineGraphic)
+        start = graphic.start
+        end = graphic.end
+        shape = data_array.shape
+        start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
+        end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
+        length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
+        if length > 0:
+            c0 = numpy.linspace(start_data[0], end_data[0]-1, length)
+            c1 = numpy.linspace(start_data[1], end_data[1]-1, length)
+            return data_array[c0.astype(numpy.int), c1.astype(numpy.int)]
+        return numpy.zeros((1))

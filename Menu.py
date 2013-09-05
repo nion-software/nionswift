@@ -187,6 +187,7 @@ class MenuManager(object):
         self.addDocumentAction("processing-menu", "processingGaussianBlur", _("Gaussian Blur"), callback=lambda dc: dc.processing_gaussian_blur())
         self.addDocumentAction("processing-menu", "processingResample", _("Resample"), callback=lambda dc: dc.processing_resample())
         self.addDocumentAction("processing-menu", "processingCrop", _("Crop"), callback=lambda dc: dc.processing_crop())
+        self.addDocumentAction("processing-menu", "processingLineProfile", _("Line Profile"), callback=lambda dc: dc.processing_line_profile())
         self.addDocumentAction("processing-menu", "processingInvert", _("Invert"), callback=lambda dc: dc.processing_invert())
         self.addDocumentAction("processing-menu", "processingDuplicate", _("Duplicate"), callback=lambda dc: dc.processing_duplicate(), key_sequence="Ctrl+D")
         self.addDocumentAction("processing-menu", "processingSnapshot", _("Snapshot"), callback=lambda dc: dc.processing_snapshot(), key_sequence="Ctrl+Shift+S")
