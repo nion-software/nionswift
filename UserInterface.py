@@ -406,13 +406,13 @@ class QtImageViewDisplayThread(object):
             try:
                 data_item = weak_data_item() if weak_data_item else None
                 # grab the image if there is one
-                image = None
+                image_data = None
                 if data_item:
-                    image = data_item.image
+                    image_data = data_item.data
                 # make an rgb image and send it
                 rgba_image = None
-                if image is not None and image.ndim > 1:
-                    image_data = Image.scalarFromArray(image)
+                if Image.is_data_2d(image_data):
+                    image_data = Image.scalarFromArray(image_data)
                     rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
                 else:
                     rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)

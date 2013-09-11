@@ -17,6 +17,7 @@ from Decorators import relative_file
 from Decorators import queue_main_thread
 import DocumentController  # temp
 import Graphics
+import Image
 import Operation
 import Panel
 import Storage
@@ -165,8 +166,11 @@ class ImagePanel(Panel.Panel):
             ctx.save()
 
             if self.data_item:
-                data = self.data_item.data
-                if data is not None and data.ndim == 1:
+                data = Image.scalarFromArray(self.data_item.data)  # make sure complex becomes scalar
+                if Image.is_data_1d(data):
+                    if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+                        # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+                        data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
                     rect = self.view.rect
                     data_min = numpy.amin(data)
                     data_max = numpy.amax(data)

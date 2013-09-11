@@ -93,6 +93,26 @@ def createRGBAImageFromColor(size, r, g, b, a=255):
     return rgba_image
 
 
+def is_data_rgb(data):
+    return data is not None and data.dtype == numpy.uint8 and data.shape[-1] == 3 and data.ndim > 1
+
+
+def is_data_rgba(data):
+    return data is not None and data.dtype == numpy.uint8 and data.shape[-1] == 4 and data.ndim > 1
+
+
+def is_data_1d(data):
+    if is_data_rgb(data) or is_data_rgba(data):
+        return data.ndim == 2  # one extra dimension for rgb(a) values
+    return data is not None and data.ndim == 1
+
+
+def is_data_2d(data):
+    if is_data_rgb(data) or is_data_rgba(data):
+        return data.ndim == 3  # one extra dimension for rgb(a) values
+    return data is not None and data.ndim == 2
+
+
 def scalarFromArray(array, normalize=True):
     if numpy.iscomplexobj(array):
         res = numpy.log(numpy.abs(array) + 1)

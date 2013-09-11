@@ -380,8 +380,12 @@ class DataItem(Storage.StorageBase):
 
     def __get_thumbnail_1d_data(self, data, height, width):
         assert data is not None
-        assert data.ndim == 1
-        data = Image.scalarFromArray(data)
+        assert Image.is_data_1d(data)
+        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+        else:
+            data = Image.scalarFromArray(data)
         rgba = numpy.empty((height, width, 4), numpy.uint8)
         rgba[:] = 64
         f = scipy.interpolate.interp1d(numpy.arange(0,data.shape[0]),data)
@@ -392,10 +396,6 @@ class DataItem(Storage.StorageBase):
             data_scaled[:] = height * (data_scaled - data_min) / (data_max - data_min)
         else:
             data_scaled[:] = height * 0.5
-        # what's the better way?
-        #rgba[:,:,0] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
-        #rgba[:,:,1] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
-        #rgba[:,:,2] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,0,255), (height,width))
         rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))
         return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
@@ -426,9 +426,9 @@ class DataItem(Storage.StorageBase):
         if not self.thumbnail_data_valid:
             data = self.data
             if data is not None:
-                if data.ndim == 1:
+                if Image.is_data_1d(data):
                     self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
-                elif data.ndim in (2,3):
+                elif Image.is_data_2d(data):
                     self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width)
                 else:
                     pass
