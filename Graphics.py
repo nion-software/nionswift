@@ -18,14 +18,13 @@ def fit_to_aspect_ratio(rect, aspect_ratio):
         new_origin = (rect[0][0], rect[0][1] + 0.5 * (rect[1][1] - new_size[1]))
         return (new_origin, new_size)
     else:
-        new_size = (rect[1][1] / aspect_ratio, rect[1][1])
+        new_size = (rect[1][1] / float(aspect_ratio), rect[1][1])
         new_origin = (rect[0][0] + 0.5*(rect[1][0] - new_size[0]), rect[0][1])
         return (new_origin, new_size)
 
 
-def fit_to_rect(rect, fit_rect):
-    r = fit_to_aspect_ratio(rect, fit_rect[1][1]/fit_rect[1][0])
-    return ((r[0][0] + fit_rect[0][0], r[0][1] + fit_rect[0][1]), (r[1][0], r[1][1]))
+def fit_to_size(rect, fit_size):
+    return fit_to_aspect_ratio(rect, float(fit_size[1])/float(fit_size[0]))
 
 
 def distance(p1, p2):

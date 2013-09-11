@@ -576,7 +576,7 @@ class QtImageView(object):
     # map from image normalized coordinates to widget coordinates
     def map_image_norm_to_widget(self, image_size, p):
         if image_size:
-            image_rect = Graphics.fit_to_rect(self.rect, ((0,0), image_size))
+            image_rect = Graphics.fit_to_size(self.rect, image_size)
             zoom = self.ui.Widget_getWidgetProperty(self.widget, "zoom")
             tx = self.ui.Widget_getWidgetProperty(self.widget, "translateX")
             ty = self.ui.Widget_getWidgetProperty(self.widget, "translateY")
