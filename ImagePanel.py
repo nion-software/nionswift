@@ -171,8 +171,8 @@ class ImagePanel(Panel.Panel):
                     data_min = numpy.amin(data)
                     data_max = numpy.amax(data)
                     data_len = data.shape[0]
-                    display_width = rect[1][1]
-                    display_height = rect[1][0]
+                    display_width = int(rect[1][1])
+                    display_height = int(rect[1][0])
                     for i in range(0,display_width):
                         ctx.beginPath()
                         ctx.moveTo(i, display_height)
