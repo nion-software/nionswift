@@ -509,7 +509,6 @@ class DataPanel(Panel.Panel):
 
         column = self.ui.Widget_loadIntrinsicWidget("column")
         self.ui.Widget_setWidgetProperty(column, "stylesheet", "background-color: '#EEEEEE'")
-        self.ui.Widget_addSpacing(column, 32)
         self.ui.Widget_addWidget(column, self.data_group_widget)
 
         self.widget = self.ui.Widget_loadIntrinsicWidget("splitter")
