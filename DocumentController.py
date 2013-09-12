@@ -245,7 +245,6 @@ class DocumentController(Storage.StorageBase):
 
     @queue_main_thread
     def select_data_item(self, data_group, data_item):
-        logging.debug("select_data_item")
         self.selected_image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
 
     # TODO: get rid of this
