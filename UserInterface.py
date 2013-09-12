@@ -353,9 +353,10 @@ class QtImageViewDisplayThread(object):
             self.__thread_break = True
             self.__has_data_item.set()
         self.__thread_ended_event.wait()
+        self.__image_view_weakref = None
 
     def __get_image_view(self):
-        return self.__image_view_weakref()
+        return self.__image_view_weakref() if self.__image_view_weakref else None
     image_view = property(__get_image_view)
 
     delay_queue = property(lambda self: self.image_view.document_controller.delay_queue)
