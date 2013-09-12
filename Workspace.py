@@ -93,7 +93,6 @@ class Workspace(object):
             self.widget = content.widget
 
         def close(self):
-            self.ui.Widget_removeWidget(self.widget)
             self.content.container = None
             self.content.remove_ref()
             Workspace.Element.close(self)
@@ -324,13 +323,6 @@ class Workspace(object):
                         }
                     ]
                 },
-                {
-                    "type": "tab",
-                    "id": "primary-header2",
-                    "content": "header-panel",
-                    "title": _("Data Visualization"),
-                    "properties": { "height": header_height, "platform": sys.platform }
-                },
             ]
         }
 
@@ -449,8 +441,6 @@ class Workspace(object):
             element4 = self.__create_image_panel_element()
             column2.addChild(element4)
             self.document_controller.selected_image_panel = element.content
-        # make sure size gets adjusted
-        self.ui.Widget_adjustSize(image_row.widget)
 
     def layoutAdd(self):
         image_row = self.find_panel("image-row")

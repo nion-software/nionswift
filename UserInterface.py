@@ -481,8 +481,7 @@ class QtImageView(object):
         self.display_thread.process()
 
     def close(self):
-        self.ui.Widget_unloadWidget(self.widget)
-        self.widget = None
+        # NOTE: through a bit of trickery, the widget gets deleted by the ImagePanel
         self.display_thread.close()  # required before destructing display thread
         self.display_thread = None
 
@@ -515,7 +514,7 @@ class QtImageView(object):
 
     @queue_main_thread
     def set_underlay_script(self, js):
-        if self.ui:
+        if self.ui and self.widget:
             self.ui.Widget_setWidgetProperty(self.widget, "underlay", js)
 
     @queue_main_thread
@@ -870,6 +869,3 @@ class QtUserInterface(object):
 
     def Widget_setWidgetProperty(self, widget, key, value):
         NionLib.Widget_setWidgetProperty(widget, key, value)
-
-    def Widget_unloadWidget(self, widget):
-        NionLib.Widget_unloadWidget(widget)

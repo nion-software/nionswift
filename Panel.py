@@ -23,7 +23,7 @@ class Panel(Workspace.Workspace.Element):
         The Panel represents a panel within the document window.
 
         The Panel includes the ability to load a Qt widget. The Qt widget will be
-        automatically unloaded when the Panel is deleted.
+        deleted when the Panel is deleted.
 
         The Panel includes a method tryToClose which can be re-implemented in sub-
         classes to handle the case where the user clicks the close box. The default
@@ -43,12 +43,12 @@ class Panel(Workspace.Workspace.Element):
         try:
             if self.dock_widget:
                 self.ui.Widget_removeDockWidget(self.document_controller.document_window, self.dock_widget)
-                # NOTE: this is not needed, despite the Qt documentation to the contrary. Tested sep 11 2013. CEM.
-                # self.ui.Widget_unloadWidget(self.dock_widget)
+                # NOTE: deleting the widget is not needed, despite the Qt documentation to the contrary. Tested sep 11 2013. CEM.
+                # self.ui.Widget_removeWidget(self.dock_widget)
                 self.dock_widget = None
                 self.__widget = None
             if self.__widget:
-                self.ui.Widget_unloadWidget(self.__widget)
+                self.ui.Widget_removeWidget(self.__widget)
                 self.__widget = None
         except Exception, e:
             import traceback

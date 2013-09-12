@@ -200,8 +200,6 @@ class UserInterface:
         pass
     def Widget_setWidgetProperty(self, widget, key, value):
         pass
-    def Widget_unloadWidget(self, widget):
-        pass
 
 
 class KeyboardModifiers(object):
