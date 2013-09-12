@@ -39,6 +39,23 @@ class Panel(Workspace.Workspace.Element):
         self.__widget = None
         self.display_name = display_name
 
+    def close(self):
+        try:
+            if self.dock_widget:
+                self.ui.Widget_removeDockWidget(self.document_controller.document_window, self.dock_widget)
+                # NOTE: this is not needed, despite the Qt documentation to the contrary. Tested sep 11 2013. CEM.
+                # self.ui.Widget_unloadWidget(self.dock_widget)
+                self.dock_widget = None
+                self.__widget = None
+            if self.__widget:
+                self.ui.Widget_unloadWidget(self.__widget)
+                self.__widget = None
+        except Exception, e:
+            import traceback
+            traceback.print_exc()
+            raise
+        Workspace.Workspace.Element.close(self)
+
     def __get_document_controller(self):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
@@ -79,22 +96,6 @@ class Panel(Workspace.Workspace.Element):
 
     def tryToClose(self):
         self.close()
-    
-    def close(self):
-        try:
-            if self.dock_widget:
-                self.ui.Widget_removeDockWidget(self.document_controller.document_window, self.dock_widget)
-                self.ui.Widget_unloadWidget(self.dock_widget)
-                self.dock_widget = None
-                self.__widget = None
-            if self.__widget:
-                self.ui.Widget_unloadWidget(self.__widget)
-                self.__widget = None
-        except Exception, e:
-            import traceback
-            traceback.print_exc()
-            raise
-        Workspace.Workspace.Element.close(self)
 
 
 class OutputPanel(Panel):

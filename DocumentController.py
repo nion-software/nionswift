@@ -379,6 +379,10 @@ class DocumentController(Storage.StorageBase):
     app = property(__get_application)
 
     def close(self):
+        # this isn't ideal since this effectively binds one workspace per document window.
+        # TODO: revisit Workspace vs. DocumentController lifetimes
+        if self.workspace:
+            self.workspace.close()
         self.storage_writer.disconnected = True
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)

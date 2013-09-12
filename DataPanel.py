@@ -579,8 +579,6 @@ class DataPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_image_panel_changed(self, image_panel):
-        # HACK! to save the splitter state until 'close' gets connected
-        self.ui.Splitter_saveState(self.widget, "window/v1/data_panel_splitter")
         data_panel_selection = image_panel.data_panel_selection if image_panel else DataItemSpecifier()
         self.update_data_panel_selection(data_panel_selection)
 

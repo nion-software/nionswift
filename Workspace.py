@@ -349,6 +349,11 @@ class Workspace(object):
 
         self.create_panels()
 
+    def close(self):
+        for panel in copy.copy(self.panels):
+            panel.close()
+        self.panels = []
+
     def __get_document_controller(self):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
