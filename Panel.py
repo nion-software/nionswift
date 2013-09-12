@@ -11,9 +11,9 @@ import weakref
 # None
 
 # local libraries
-from Decorators import relative_file
-import UserInterface
-import Workspace
+from nion.swift.Decorators import relative_file
+from nion.swift import UserInterface
+from nion.swift import Workspace
 
 _ = gettext.gettext
 

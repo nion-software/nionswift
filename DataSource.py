@@ -10,7 +10,7 @@ import weakref
 import numpy
 
 # local libraries
-from Decorators import singleton
+from nion.swift.Decorators import singleton
 
 _ = gettext.gettext
 

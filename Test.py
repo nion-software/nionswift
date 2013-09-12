@@ -9,7 +9,7 @@ import unittest
 import numpy
 
 # local libraries
-import PlugInManager
+from nion.swift import PlugInManager
 
 """
 Running tests without Qt:

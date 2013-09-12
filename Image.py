@@ -9,7 +9,7 @@ import scipy
 import scipy.interpolate
 
 # local libraries
-import UserInterface
+# None
 
 
 # size is c-indexed (height, width)

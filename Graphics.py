@@ -7,8 +7,7 @@ import uuid
 # None
 
 # local libraries
-import Storage
-import UserInterface
+from nion.swift import Storage
 
 
 def fit_to_aspect_ratio(rect, aspect_ratio):

@@ -11,17 +11,17 @@ import weakref
 import numpy
 
 # local libraries
-import DataItem
-import DataPanel
-from Decorators import relative_file
-from Decorators import queue_main_thread
-import DocumentController  # temp
-import Graphics
-import Image
-import Operation
-import Panel
-import Storage
-import UserInterface
+from nion.swift import DataItem
+from nion.swift import DataPanel
+from nion.swift.Decorators import relative_file
+from nion.swift.Decorators import queue_main_thread
+from nion.swift import Graphics
+from nion.swift import Image
+from nion.swift import Inspector
+from nion.swift import Operation
+from nion.swift import Panel
+from nion.swift import Storage
+from nion.swift import UserInterface
 
 _ = gettext.gettext
 
@@ -572,7 +572,7 @@ class InspectorPanel(Panel.Panel):
             self.__pec.close()
             self.__pec = None
         if self.__data_item:
-            self.__pec = DocumentController.PropertyEditorController(self.ui, self.__data_item, self.widget)
+            self.__pec = Inspector.PropertyEditorController(self.ui, self.__data_item, self.widget)
 
     def __get_data_item(self):
         return self.__data_item

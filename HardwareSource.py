@@ -28,8 +28,8 @@ import logging
 import threading
 
 # local imports
+from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import DocumentController
 
 
 class HardwareSourceManager(object):
@@ -263,10 +263,10 @@ class LiveHWPortToImageSourceManager(object):
         self.hardware_port = None
         self.data_items = []
         #do we have a data_group with name data_group_name?
-        self.data_group = DocumentController.get_data_group_in_container_by_title(self.document_controller, self.data_group_name)
+        self.data_group = DataGroup.get_data_group_in_container_by_title(self.document_controller, self.data_group_name)
         if self.data_group is None:
             # we create a new group
-            self.data_group = DocumentController.DataGroup()
+            self.data_group = DataGroup.DataGroup()
             self.data_group.title = self.data_group_name
             self.document_controller.data_groups.insert(0, self.data_group)
 
@@ -302,7 +302,7 @@ class LiveHWPortToImageSourceManager(object):
         If not found, creates a new one and adds it to the data_group found earlier
         """
         wanted_name = "%s.%s" % (str(self.hardware_source), index)
-        data_item = DocumentController.get_data_item_in_container_by_title(self.data_group, wanted_name)
+        data_item = DataGroup.get_data_item_in_container_by_title(self.data_group, wanted_name)
         if not data_item:
             logging.debug("Creating: %s", wanted_name)
             data_item = DataItem.DataItem()

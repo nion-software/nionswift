@@ -10,19 +10,20 @@ import sys
 import numpy
 
 # local libraries
-import DataPanel
-import DocumentController
-import DocumentController as dc
-import ImagePanel
-import Menu
-import Panel
-import PlugInManager
-import Storage
-import Test
-import UserInterface
-import Workspace
-import HardwareSource
-import ImportExportManager
+from nion.swift import DataPanel
+from nion.swift import DocumentController
+from nion.swift import DocumentController as dc
+from nion.swift import HardwareSource
+from nion.swift import ImagePanel
+from nion.swift import ImportExportManager
+from nion.swift import Inspector
+from nion.swift import Menu
+from nion.swift import Panel
+from nion.swift import PlugInManager
+from nion.swift import Storage
+from nion.swift import Test
+from nion.swift import UserInterface
+from nion.swift import Workspace
 
 _ = gettext.gettext
 
@@ -69,7 +70,7 @@ class Application(object):
         workspace_manager.registerPanel(ImagePanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 300, "height": 80})
         workspace_manager.registerPanel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 300, "height": 96})
         workspace_manager.registerPanel(ImagePanel.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"width": 300, "height": 320})
-        workspace_manager.registerPanel(DocumentController.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
+        workspace_manager.registerPanel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
         workspace_manager.registerPanel(Panel.HeaderPanel, "header-panel", _("Data Visualization"), ["central"], "central")
         workspace_manager.registerPanel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.registerPanel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")

@@ -10,6 +10,7 @@ import scipy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
@@ -40,7 +41,7 @@ class TestStorageClass(unittest.TestCase):
     def save_document(self, document_controller):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((16, 16), numpy.uint32)
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.data_groups.append(data_group)
         data_item2 = DataItem.DataItem()
@@ -136,7 +137,7 @@ class TestStorageClass(unittest.TestCase):
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
         data_item.master_data = data1
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.data_groups.append(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
@@ -166,7 +167,7 @@ class TestStorageClass(unittest.TestCase):
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
         data_item.master_data = data1
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.data_groups.append(data_group)
         thread = threading.Thread(target=self.update_data, args=[data_item])
@@ -214,19 +215,19 @@ class TestStorageClass(unittest.TestCase):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        data_group1 = DocumentController.DataGroup()
+        data_group1 = DataGroup.DataGroup()
         document_controller.data_groups.append(data_group1)
-        data_group1a = DocumentController.DataGroup()
+        data_group1a = DataGroup.DataGroup()
         data_group1.data_groups.append(data_group1a)
-        data_group1b = DocumentController.DataGroup()
+        data_group1b = DataGroup.DataGroup()
         data_group1.data_groups.append(data_group1b)
-        data_group2 = DocumentController.DataGroup()
+        data_group2 = DataGroup.DataGroup()
         document_controller.data_groups.append(data_group2)
-        data_group2a = DocumentController.DataGroup()
+        data_group2a = DataGroup.DataGroup()
         data_group2.data_groups.append(data_group2a)
-        data_group2b = DocumentController.DataGroup()
+        data_group2b = DataGroup.DataGroup()
         data_group2.data_groups.append(data_group2b)
-        data_group2b1 = DocumentController.DataGroup()
+        data_group2b1 = DataGroup.DataGroup()
         data_group2b.data_groups.append(data_group2b1)
         data_group2_copy = data_group2.copy()
         data_group2_copy.add_ref()

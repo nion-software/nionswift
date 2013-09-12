@@ -12,9 +12,9 @@ import weakref
 import NionLib
 
 # local libraries
-from Decorators import queue_main_thread
-import Graphics
-import Image
+from nion.swift.Decorators import queue_main_thread
+from nion.swift import Graphics
+from nion.swift import Image
 
 
 class QtKeyboardModifiers(object):

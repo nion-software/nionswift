@@ -516,13 +516,13 @@ class DictStorageReader(object):
         item = None
         if uuid_ not in self.__item_map:
             node = self.__node_map[uuid_]
-            import DataItem
-            import DocumentController
-            import Graphics
-            import Operation
+            from nion.swift import DataGroup
+            from nion.swift import DataItem
+            from nion.swift import Graphics
+            from nion.swift import Operation
             build_map = {
-                "data-group": DocumentController.DataGroup,
-                "smart-data-group": DocumentController.SmartDataGroup,
+                "data-group": DataGroup.DataGroup,
+                "smart-data-group": DataGroup.SmartDataGroup,
                 "data-item": DataItem.DataItem,
                 "calibration": DataItem.Calibration,
                 "line-graphic": Graphics.LineGraphic,
@@ -918,13 +918,13 @@ class DbStorageReader(object):
     def build_item(self, uuid_):
         item = None
         if uuid_ not in self.__item_map:
-            import DataItem
-            import DocumentController
-            import Graphics
-            import Operation
+            from nion.swift import DataGroup
+            from nion.swift import DataItem
+            from nion.swift import Graphics
+            from nion.swift import Operation
             build_map = {
-                "data-group": DocumentController.DataGroup,
-                "smart-data-group": DocumentController.SmartDataGroup,
+                "data-group": DataGroup.DataGroup,
+                "smart-data-group": DataGroup.SmartDataGroup,
                 "data-item": DataItem.DataItem,
                 "calibration": DataItem.Calibration,
                 "line-graphic": Graphics.LineGraphic,

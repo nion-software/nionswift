@@ -7,6 +7,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
@@ -37,7 +38,7 @@ class TestDataPanelClass(unittest.TestCase):
         #   data_item2
         #     data_item2a
         #   data_item3
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.data_groups.append(data_group)
         data_item1 = DataItem.DataItem()
@@ -81,9 +82,9 @@ class TestDataPanelClass(unittest.TestCase):
     def test_selected_data_item_persistence(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        parent_data_group = DocumentController.DataGroup()
+        parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         parent_data_group.data_groups.append(data_group)
         document_controller.data_groups.append(parent_data_group)
@@ -127,16 +128,16 @@ class TestDataPanelClass(unittest.TestCase):
     def test_selected_group_persistence(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        parent_data_group = DocumentController.DataGroup()
+        parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
-        data_group1 = DocumentController.DataGroup()
+        data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
         parent_data_group.data_groups.append(data_group1)
         data_item1 = DataItem.DataItem()
         data_item1.title = "Data 1"
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
-        data_group2 = DocumentController.DataGroup()
+        data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
         parent_data_group.data_groups.append(data_group2)
         data_item2 = DataItem.DataItem()
@@ -228,15 +229,15 @@ class TestDataPanelClass(unittest.TestCase):
     def test_selection_during_operations(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        parent_data_group = DocumentController.DataGroup()
+        parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
-        data_group1 = DocumentController.DataGroup()
+        data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
         parent_data_group.data_groups.append(data_group1)
         data_item1 = DataItem.DataItem()
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
-        data_group2 = DocumentController.DataGroup()
+        data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
         parent_data_group.data_groups.append(data_group2)
         data_item2 = DataItem.DataItem()
@@ -272,7 +273,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_add_remove_sync(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.data_groups.append(data_group)
         data_item1 = DataItem.DataItem()
@@ -314,7 +315,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_select_after_receive_files(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
-        data_group = DocumentController.DataGroup()
+        data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.data_groups.append(data_group)
         data_item1 = DataItem.DataItem()
@@ -335,14 +336,14 @@ class TestDataPanelClass(unittest.TestCase):
     def test_data_panel_remove_group(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
-        data_group1 = DocumentController.DataGroup()
+        data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()
         data_item1.title = "Green 1"
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         document_controller.data_groups.append(data_group1)
-        green_group = DocumentController.SmartDataGroup()
+        green_group = DataGroup.SmartDataGroup()
         green_group.title = "green_group"
         document_controller.data_groups.insert(0, green_group)
         self.assertEqual(len(green_group.data_items), 1)
@@ -352,13 +353,13 @@ class TestDataPanelClass(unittest.TestCase):
     def test_data_panel_remove_item_by_key(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
-        data_group1 = DocumentController.DataGroup()
+        data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()
         data_item1.title = "Green 1"
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
-        green_group = DocumentController.SmartDataGroup()
+        green_group = DataGroup.SmartDataGroup()
         green_group.title = "green_group"
         document_controller.data_groups.insert(0, green_group)
         document_controller.data_groups.append(data_group1)

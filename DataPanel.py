@@ -10,14 +10,13 @@ import weakref
 import numpy
 
 # local libraries
-import Application
-import DataItem
-from Decorators import queue_main_thread
-from Decorators import relative_file
-import DocumentController
-import Image
-import Panel
-import UserInterface
+from nion.swift import DataItem
+from nion.swift.Decorators import queue_main_thread
+from nion.swift.Decorators import relative_file
+from nion.swift import DataGroup
+from nion.swift import Image
+from nion.swift import Panel
+from nion.swift import UserInterface
 
 _ = gettext.gettext
 
@@ -159,7 +158,7 @@ class DataPanel(Panel.Panel):
         # groups we're observing.
         def item_removed(self, container, key, object, index):
             if key == "data_groups":
-                assert isinstance(object, DocumentController.DataGroup) or isinstance(object, DocumentController.SmartDataGroup)
+                assert isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup)
                 # get parent and item
                 parent_item = self.mapping[container]
                 # manage the item model
@@ -184,7 +183,7 @@ class DataPanel(Panel.Panel):
             return matched_items[0]
 
         def __update_item_count(self, data_group):
-            assert isinstance(data_group, DocumentController.DataGroup) or isinstance(data_group, DocumentController.SmartDataGroup)
+            assert isinstance(data_group, DataGroup.DataGroup) or isinstance(data_group, DataGroup.SmartDataGroup)
             count = self.__get_data_item_count_flat(data_group)
             item = self.__item_for_data_group(data_group)
             item.data["display"] = str(data_group) + (" (%i)" % count)
@@ -600,7 +599,7 @@ class DataPanel(Panel.Panel):
         return self.receiveFiles(data_group, index, file_paths)
 
     def receiveFiles(self, data_group, index, file_paths):
-        if data_group and isinstance(data_group, DocumentController.DataGroup):
+        if data_group and isinstance(data_group, DataGroup.DataGroup):
             first_data_item = None
             for file_path in file_paths:
                 try:
@@ -632,7 +631,7 @@ class DataPanel(Panel.Panel):
 
     def copyItem(self, uuid_str, source_index, drop_index):
         data_group = self.data_item_model.data_group
-        if data_group and isinstance(data_group, DocumentController.DataGroup):
+        if data_group and isinstance(data_group, DataGroup.DataGroup):
             data_item = data_group.data_items[source_index]
             assert data_item.uuid == uuid.UUID(uuid_str)
             data_item_copy = data_item.copy()
@@ -644,7 +643,7 @@ class DataPanel(Panel.Panel):
 
     def deleteItemByUuid(self, uuid_str):
         data_group = self.data_item_model.data_group
-        if data_group and isinstance(data_group, DocumentController.DataGroup):
+        if data_group and isinstance(data_group, DataGroup.DataGroup):
             for data_item in data_group.data_items:
                 if data_item.uuid == uuid.UUID(uuid_str):
                     data_group.data_items.remove(data_item)

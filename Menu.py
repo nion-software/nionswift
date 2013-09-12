@@ -6,8 +6,8 @@ import logging
 # None
 
 # local libraries
-from Decorators import singleton
-import UserInterface
+from nion.swift.Decorators import singleton
+from nion.swift import UserInterface
 
 _ = gettext.gettext
 

@@ -15,10 +15,10 @@ import scipy.fftpack
 import scipy.ndimage
 
 # local libraries
-import Image
-import DataItem
-import Graphics
-import Storage
+from nion.swift import Image
+from nion.swift import DataItem
+from nion.swift import Graphics
+from nion.swift import Storage
 
 _ = gettext.gettext
 

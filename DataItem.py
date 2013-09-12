@@ -12,8 +12,8 @@ import numpy
 import scipy.interpolate
 
 # local libraries
-import Image
-import Storage
+from nion.swift import Image
+from nion.swift import Storage
 
 _ = gettext.gettext
 
