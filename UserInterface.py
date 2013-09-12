@@ -406,20 +406,15 @@ class QtImageViewDisplayThread(object):
             try:
                 data_item = weak_data_item() if weak_data_item else None
                 # grab the image if there is one
-                image_data = None
-                if data_item:
-                    image_data = data_item.data
-                # make an rgb image and send it
-                rgba_image = None
-                if Image.is_data_2d(image_data):
-                    image_data = Image.scalarFromArray(image_data)
-                    rgba_image = Image.createRGBAImageFromArray(image_data, display_limits=data_item.display_limits)
-                else:
+                rgba_image = data_item.preview_2d if data_item else None
+                if rgba_image is None:
                     rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
                 image_id = self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
                 self.__set_image_source("image://idc/"+self.controller_id+"/"+str(image_id))
             except Exception as e:
+                import traceback
                 logging.debug("Display thread exception %s", e)
+                traceback.print_exc()
         self.__thread_ended_event.set()
 
 

@@ -121,6 +121,7 @@ class DataItem(Storage.StorageBase):
         self.__cached_data = None
         self.__master_data = None
         self.__data_source = None
+        self.__preview = None
         self.thumbnail_data = None
         self.thumbnail_data_valid = False
         self.__live_data = False
@@ -183,6 +184,7 @@ class DataItem(Storage.StorageBase):
         self.thumbnail_data = None
         self.thumbnail_data_valid = False
         self.__cached_data = None
+        self.__preview = None
         self.notify_listeners("data_item_changed", self, info)
 
     # compatibility
@@ -300,12 +302,14 @@ class DataItem(Storage.StorageBase):
     # changed. the connection is established in operation.add_observer.
     def property_changed(self, operation, property, value):
         self.__cached_data = None
+        self.__preview = None
         self.notify_data_item_changed({"property": "data"})
 
     # this message comes from the operation. the connection is established
     # using add_listener.
     def operation_changed(self, operation):
         self.__cached_data = None
+        self.__preview = None
         self.notify_data_item_changed({"property": "data"})
 
     # data_item_changed comes from data sources to indicate that data
@@ -313,6 +317,7 @@ class DataItem(Storage.StorageBase):
     def data_item_changed(self, data_source, info):
         assert data_source == self.data_source
         self.__cached_data = None
+        self.__preview = None
         self.notify_data_item_changed(info)
 
     # use a property here to correct add_ref/remove_ref
@@ -377,6 +382,15 @@ class DataItem(Storage.StorageBase):
                 self.__cached_data = data
             return self.__cached_data
     data = property(__get_data)
+
+    def __get_preview_2d(self):
+        if self.__preview is None:
+            data_2d = self.data
+            if Image.is_data_2d(data_2d):
+                data_2d = Image.scalarFromArray(data_2d)
+                self.__preview = Image.createRGBAImageFromArray(data_2d, display_limits=self.display_limits)
+        return self.__preview
+    preview_2d = property(__get_preview_2d)
 
     def __get_thumbnail_1d_data(self, data, height, width):
         assert data is not None
