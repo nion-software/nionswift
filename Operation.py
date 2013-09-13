@@ -178,6 +178,10 @@ class CropOperation(Operation):
         self.storage_items += ["graphic"]
         self.storage_type = "crop-operation"
 
+    def about_to_delete(self):
+        self.graphic = None
+        super(CropOperation, self).about_to_delete()
+
     @classmethod
     def build(cls, storage_reader, item_node):
         crop_operation = super(CropOperation, cls).build(storage_reader, item_node)
@@ -274,6 +278,10 @@ class LineProfileOperation(Operation):
         self.__graphic = None
         self.storage_items += ["graphic"]
         self.storage_type = "line-profile-operation"
+
+    def about_to_delete(self):
+        self.graphic = None
+        super(LineProfileOperation, self).about_to_delete()
 
     @classmethod
     def build(cls, storage_reader, item_node):

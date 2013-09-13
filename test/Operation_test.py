@@ -9,6 +9,7 @@ from nion.swift import Application
 from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
+from nion.swift import Graphics
 from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Test
@@ -64,3 +65,19 @@ class TestOperationClass(unittest.TestCase):
         self.data_item.data_items.append(data_item)
         self.assertIsNotNone(operation2.description[0]["default"])
         self.assertIsNotNone(operation2.width)
+
+    # make sure crop gets disconnected when deleting
+    def test_crop_disconnect(self):
+        operation = Operation.CropOperation()
+        operation.add_ref()
+        graphic = Graphics.RectangleGraphic()
+        operation.graphic = graphic
+        operation.remove_ref()
+
+    # make sure profile gets disconnected when deleting
+    def test_line_profile_disconnect(self):
+        operation = Operation.LineProfileOperation()
+        operation.add_ref()
+        graphic = Graphics.LineGraphic()
+        operation.graphic = graphic
+        operation.remove_ref()
