@@ -493,7 +493,7 @@ class DataPanel(Panel.Panel):
         self.data_group_widget = self.loadIntrinsicWidget("pytree")
         self.ui.PyTreeWidget_setModel(self.data_group_widget, self.data_group_model.py_item_model)
         self.ui.Widget_setWidgetProperty(self.data_group_widget, "min-height", 80)
-        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "border: none; background-color: '#EEEEEE'")
+        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
 
         # set up the qml view
         context_properties = { "browser_model": self.data_item_model.py_list_model }
@@ -503,9 +503,6 @@ class DataPanel(Panel.Panel):
 
         self.__block_current_item_changed = False
 
-        #label = self.ui.Widget_loadIntrinsicWidget("label")
-        #self.ui.Widget_setWidgetProperty(label, "min-height", 240)
-
         column = self.ui.Widget_loadIntrinsicWidget("column")
         self.ui.Widget_setWidgetProperty(column, "stylesheet", "background-color: '#EEEEEE'")
         self.ui.Widget_addWidget(column, self.data_group_widget)
@@ -513,7 +510,6 @@ class DataPanel(Panel.Panel):
         self.widget = self.ui.Widget_loadIntrinsicWidget("splitter")
         self.ui.Widget_addWidget(self.widget, column)
         self.ui.Widget_addWidget(self.widget, self.data_item_widget)
-        #self.ui.Widget_addWidget(self.widget, label)
         self.ui.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
         self.ui.Splitter_restoreState(self.widget, "window/v1/data_panel_splitter")
