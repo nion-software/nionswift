@@ -2,6 +2,7 @@
 import gettext
 import logging
 import threading
+import time
 
 # third party libraries
 import numpy
@@ -13,6 +14,45 @@ from nion.swift import Panel
 from nion.swift import UserInterface
 
 _ = gettext.gettext
+
+
+# calculates the histogram data and the associated javascript to display
+class HistogramThread(object):
+
+    def __init__(self, histogram_panel):
+        self.__histogram_panel = histogram_panel
+        self.__thread_break = False
+        self.__thread_ended_event = threading.Event()
+        self.__thread_event = threading.Event()
+        self.__thread_lock = threading.Lock()
+        self.__thread = threading.Thread(target=self.__process)
+        self.__data_item = None
+        # don't start until everything is initialized
+        self.__thread.start()
+
+    def close(self):
+        with self.__thread_lock:
+            self.__thread_break = True
+            self.__thread_event.set()
+        self.__thread_ended_event.wait()
+
+    def update_data_item(self, data_item):
+        with self.__thread_lock:
+            self.__data_item = data_item
+            self.__thread_event.set()
+
+    def __process(self):
+        while True:
+            self.__thread_event.wait()
+            with self.__thread_lock:
+                self.__thread_event.clear()  # put this inside lock to avoid race condition
+                data_item = self.__data_item
+                self.__data_item = None
+                thread_break = self.__thread_break
+            if thread_break:
+                break
+            self.__histogram_panel.data_item = data_item
+        self.__thread_ended_event.set()
 
 
 class HistogramPanel(Panel.Panel):
@@ -30,7 +70,7 @@ class HistogramPanel(Panel.Panel):
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
 
-        self.data_item = None
+        self.__data_item = None
 
         self.__display_limits = (0,1)
 
@@ -42,7 +82,11 @@ class HistogramPanel(Panel.Panel):
 
         self.__update_lock = threading.Lock()
 
+        self.__histogram_thread = HistogramThread(self)
+
     def close(self):
+        self.__histogram_thread.close()
+        self.__histogram_thread = None
         # first set the data item to None
         self.selected_data_item_changed(None, {"property": "source"})
         # disconnect self as listener
@@ -102,6 +146,9 @@ class HistogramPanel(Panel.Panel):
                     histogram_data = histogram_data[0]
                     histogram_max = float(numpy.max(histogram_data))
                     self.__histogram_data = histogram_data / histogram_max
+
+        # testing the decoupling of the data item change vs. histogram calculation
+        # time.sleep(1.0)
 
         if not self.__histogram_js and self.widget:
 
@@ -198,9 +245,16 @@ class HistogramPanel(Panel.Panel):
                 self.__make_adornments()
                 self.__update_canvas(self.__histogram_js + self.__adornments_js)
 
+    def __get_data_item(self):
+        return self.__data_item
+    def __set_data_item(self, data_item):
+        self.__data_item = data_item
+        self.__histogram_data = None
+        self.__update_histogram()
+    data_item = property(__get_data_item, __set_data_item)
+
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
-        self.data_item = data_item
-        self.__histogram_data = None
-        self.__update_histogram()
+        if self.__histogram_thread:
+            self.__histogram_thread.update_data_item(data_item)
