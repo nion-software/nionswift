@@ -1,6 +1,7 @@
 # standard libraries
 import gettext
 import logging
+import threading
 
 # third party libraries
 import numpy
@@ -38,6 +39,8 @@ class HistogramPanel(Panel.Panel):
         self.__histogram_data = None
         self.__histogram_js = None
         self.__adornments_js = None
+
+        self.__update_lock = threading.Lock()
 
     def close(self):
         # first set the data item to None
@@ -186,16 +189,18 @@ class HistogramPanel(Panel.Panel):
     def __update_canvas(self, js):
         if self.ui and self.widget:
             self.ui.Widget_setWidgetProperty(self.widget, "js", js)
+        self.__update_lock.release()
 
     def __update_histogram(self):
         if self.ui and self.widget:
-            self.__make_histogram()
-            self.__make_adornments()
-            self.__update_canvas(self.__histogram_js + self.__adornments_js)
+            if self.__update_lock.acquire(0):
+                self.__make_histogram()
+                self.__make_adornments()
+                self.__update_canvas(self.__histogram_js + self.__adornments_js)
 
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
         self.data_item = data_item
-        self.histogram_data = None
+        self.__histogram_data = None
         self.__update_histogram()
