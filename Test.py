@@ -106,16 +106,6 @@ class UserInterface:
         pass
     def DocumentWindow_unregisterThumbnailProvider(self, document_window, uuid_str):
         pass
-    def Drawing_clearShapes(self, drawing):
-        pass
-    def Drawing_addShape(self, drawing, values):
-        pass
-    def Histogram_setData(self, histogram, data):
-        pass
-    def Histogram_setLeftRight(self, histogram, left, right):
-        pass
-    def Histogram_setDelegate(self, histogram, delegate):
-        pass
     def ImageDisplayController_sendImage(self, controller_id, rgba_image):
         return 0
     def Output_out(self, widget, message):
@@ -185,6 +175,10 @@ class UserInterface:
     def Widget_adjustSize(self, widget):
         pass
     def Widget_getWidgetProperty(self, widget, property):
+        if property == "canvas_width":
+            return 640
+        if property == "canvas_height":
+            return 480
         return None
     def Widget_insertWidget(self, widget, child_widget, index):
         pass

@@ -683,25 +683,6 @@ class QtUserInterface(object):
     def DocumentWindow_getFilePath(self, document_window, mode, caption, dir, filter):
         return NionLib.DocumentWindow_getFilePath(document_window, mode, caption, dir, filter)
 
-    # Drawing
-
-    def Drawing_clearShapes(self, drawing):
-        NionLib.Drawing_clearShapes(drawing)
-
-    def Drawing_addShape(self, drawing, values):
-        NionLib.Drawing_addShape(drawing, values)
-
-    # Histogram
-
-    def Histogram_setData(self, histogram, data):
-        NionLib.Histogram_setData(histogram, data)
-
-    def Histogram_setLeftRight(self, histogram, left, right):
-        NionLib.Histogram_setLeftRight(histogram, left, right)
-
-    def Histogram_setDelegate(self, histogram, delegate):
-        NionLib.Histogram_setDelegate(histogram, delegate)
-
     # Send images to an image display
 
     def ImageDisplayController_sendImage(self, controller_id, rgba_image):
