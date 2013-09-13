@@ -14,6 +14,7 @@ from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import DocumentController as dc
 from nion.swift import HardwareSource
+from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
 from nion.swift import ImportExportManager
 from nion.swift import Inspector
@@ -67,7 +68,7 @@ class Application(object):
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.registerPanel(ImagePanel.ImagePanel, "image-panel", _("Image Panel"), ["central"], "central")
         workspace_manager.registerPanel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 300, "height": 400})
-        workspace_manager.registerPanel(ImagePanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 300, "height": 80})
+        workspace_manager.registerPanel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 300, "height": 80})
         workspace_manager.registerPanel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 300, "height": 96})
         workspace_manager.registerPanel(ImagePanel.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"width": 300, "height": 320})
         workspace_manager.registerPanel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
