@@ -163,5 +163,10 @@ class ProcessingThread(object):
                 thread_break = self.__thread_break
             if thread_break:
                 break
-            self.process_data(data)
+            try:
+                self.process_data(data)
+            except Exception as e:
+                import traceback
+                logging.debug("Processing thread exception %s", e)
+                traceback.print_exc()
         self.__thread_ended_event.set()

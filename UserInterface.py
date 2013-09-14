@@ -12,6 +12,7 @@ import weakref
 import NionLib
 
 # local libraries
+from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import queue_main_thread
 from nion.swift import Graphics
 from nion.swift import Image
@@ -334,91 +335,6 @@ class ListModel(object):
         self.ui.PyListModel_dataChanged(self.py_list_model)
 
 
-class QtImageViewDisplayThread(object):
-    def __init__(self, ui, image_view, uuid):
-        self.ui = ui
-        self.__image_view_weakref = weakref.ref(image_view)
-        self.controller_id = str(uuid)
-        self.__data_item = None
-        self.__thread_break = False
-        self.__thread_ended_event = threading.Event()
-        self.__has_data_item = threading.Event()
-        self.__weak_data_item = None
-        self.__has_data_item_lock = threading.Lock()
-        self.display_thread = threading.Thread(target=self._display_process_thread)
-        self.display_thread.start()
-
-    def close(self):
-        with self.__has_data_item_lock:
-            self.__thread_break = True
-            self.__has_data_item.set()
-        self.__thread_ended_event.wait()
-        self.__image_view_weakref = None
-
-    def __get_image_view(self):
-        return self.__image_view_weakref() if self.__image_view_weakref else None
-    image_view = property(__get_image_view)
-
-    delay_queue = property(lambda self: self.image_view.document_controller.delay_queue)
-
-    @queue_main_thread
-    def __set_image_source(self, url):
-        image_view = self.image_view
-        if image_view and image_view.widget:
-            self.ui.Widget_setWidgetProperty(image_view.widget, "imageSource", url)
-
-    def __get_data_item(self):
-        return self.__data_item
-    def __set_data_item(self, data_item):
-        if self.__data_item:
-            self.__data_item.remove_listener(self)
-            self.__data_item.remove_ref()
-            self.__data_item = None
-        if data_item:
-            self.__data_item = data_item
-            self.__data_item.add_ref()
-            self.__data_item.add_listener(self)
-        self.data_item_changed(self.__data_item, {"property": "source"})
-    data_item = property(__get_data_item, __set_data_item)
-
-    def process(self):
-        data_item = self.data_item
-        weak_data_item = weakref.ref(data_item) if data_item else None
-        with self.__has_data_item_lock:
-            self.__weak_data_item = weak_data_item
-            self.__has_data_item.set()
-
-    def data_item_changed(self, data_item, info):
-        if data_item == self.data_item:  # TODO: until threading issues are worked out
-            assert data_item == self.data_item
-            self.process()
-
-    def _display_process_thread(self):
-        while True:
-            self.__has_data_item.wait()
-            weak_data_item = None
-            thread_break = False
-            with self.__has_data_item_lock:
-                weak_data_item = self.__weak_data_item
-                thread_break = self.__thread_break
-                self.__has_data_item.clear()
-            if thread_break:
-                break
-            try:
-                data_item = weak_data_item() if weak_data_item else None
-                # grab the image if there is one
-                rgba_image = data_item.preview_2d if data_item else None
-                if rgba_image is None:
-                    rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
-                image_id = self.ui.ImageDisplayController_sendImage(self.controller_id, rgba_image)
-                self.__set_image_source("image://idc/"+self.controller_id+"/"+str(image_id))
-            except Exception as e:
-                import traceback
-                logging.debug("Display thread exception %s", e)
-                traceback.print_exc()
-        self.__thread_ended_event.set()
-
-
 class DrawingContext(object):
     def __init__(self):
         self.js = ""
@@ -468,6 +384,27 @@ class DrawingContext(object):
     lineWidth = property(__get_lineWidth, __set_lineWidth)
 
 
+class QtImageViewDisplayThread(ProcessingThread):
+
+    def __init__(self, image_view):
+        super(QtImageViewDisplayThread, self).__init__()
+        self.__image_view = image_view
+        self.__data_item = None
+        # don't start until everything is initialized
+        self.start()
+
+    def handle_data(self, data_item):
+        self.__data_item = data_item
+
+    def grab_data(self):
+        data_item = self.__data_item
+        self.__data_item = None
+        return data_item
+
+    def process_data(self, data_item):
+        self.__image_view._send_image(data_item)
+
+
 class QtImageView(object):
 
     def __init__(self, image_panel):
@@ -478,13 +415,14 @@ class QtImageView(object):
         self.__uuid = uuid.uuid4()
         self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
         self.rect = ((0, 0), (0, 0))
-        self.display_thread = QtImageViewDisplayThread(self.ui, self, self.uuid)
-        self.display_thread.process()
+        self.__data_item = None
+        self.__display_thread = QtImageViewDisplayThread(self)
 
     def close(self):
         # NOTE: through a bit of trickery, the widget gets deleted by the ImagePanel
-        self.display_thread.close()  # required before destructing display thread
-        self.display_thread = None
+        self.__display_thread.close()  # required before destructing display thread
+        self.__display_thread = None
+        self.data_item = None
 
     # uuid property. read only.
     def __get_uuid(self):
@@ -558,12 +496,42 @@ class QtImageView(object):
     def display_changed(self):
         self.image_panel.display_changed()
 
+    # track the current data item. listen to it to know when the data changes.
     def __get_data_item(self):
-        return self.display_thread.data_item
+        return self.__data_item
     def __set_data_item(self, data_item):
-        # handle the display thread
-        self.display_thread.data_item = data_item
+        if self.__data_item:
+            self.__data_item.remove_listener(self)
+            self.__data_item.remove_ref()
+            self.__data_item = None
+        if data_item:
+            self.__data_item = data_item
+            self.__data_item.add_ref()
+            self.__data_item.add_listener(self)
+        self.data_item_changed(self.__data_item, {"property": "source"})
     data_item = property(__get_data_item, __set_data_item)
+
+    @queue_main_thread
+    def __set_image_source(self, url):
+        if self.ui and self.widget:
+            self.ui.Widget_setWidgetProperty(self.widget, "imageSource", url)
+
+    # this will only be invoked from the thread
+    def _send_image(self, data_item):
+        # grab the image if there is one
+        rgba_image = data_item.preview_2d if data_item else None
+        if rgba_image is None:
+            rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
+        controller_id = str(self.uuid)
+        image_id = self.ui.ImageDisplayController_sendImage(controller_id, rgba_image)
+        self.__set_image_source("image://idc/"+controller_id+"/"+str(image_id))
+
+    def data_item_changed(self, data_item, info):
+        assert data_item == self.data_item
+        if self.data_item and self.data_item.is_data_2d and self.__display_thread:
+            self.__display_thread.update_data(self.data_item)
+        else:
+            self._send_image(None)
 
     def set_focused(self, focused):
         self.ui.Widget_setContextProperty(self.widget, "focused", focused)
