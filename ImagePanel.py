@@ -13,6 +13,7 @@ import numpy
 # local libraries
 from nion.swift import DataItem
 from nion.swift import DataPanel
+from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
 from nion.swift.Decorators import queue_main_thread
 from nion.swift import Graphics
@@ -110,6 +111,27 @@ class GraphicSelection(object):
             self._notify_listeners()
 
 
+class LinePlotThread(ProcessingThread):
+
+    def __init__(self, image_panel):
+        super(LinePlotThread, self).__init__()
+        self.__image_panel = image_panel
+        self.__data_item = None
+        # don't start until everything is initialized
+        self.start()
+
+    def handle_data(self, data_item):
+        self.__data_item = data_item
+
+    def grab_data(self):
+        data_item = self.__data_item
+        self.__data_item = None
+        return data_item
+
+    def process_data(self, data_item):
+        self.__image_panel._repaint_underlay(data_item)
+
+
 class ImagePanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id):
@@ -139,10 +161,14 @@ class ImagePanel(Panel.Panel):
 
         self.document_controller.register_image_panel(self)
 
+        self.__line_plot_thread = LinePlotThread(self)
+
         self.closed = False
 
     def close(self):
         self.closed = True
+        self.__line_plot_thread.close()
+        self.__line_plot_thread = None
         self.document_controller.unregister_image_panel(self)
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
@@ -162,31 +188,40 @@ class ImagePanel(Panel.Panel):
 
     def update_underlay(self):
         if self.view:
-            ctx = UserInterface.DrawingContext()
-            ctx.save()
+            if self.data_item and self.data_item.is_data_1d and self.__line_plot_thread:
+                self.__line_plot_thread.update_data(self.data_item)
+            else:
+                self.view.set_underlay_script("")
 
-            if self.data_item and self.data_item.is_data_1d:
-                data = Image.scalarFromArray(self.data_item.data)  # make sure complex becomes scalar
-                if Image.is_data_rgb(data) or Image.is_data_rgba(data):
-                    # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
-                    data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
-                rect = self.view.rect
-                data_min = numpy.amin(data)
-                data_max = numpy.amax(data)
-                data_len = data.shape[0]
-                display_width = int(rect[1][1])
-                display_height = int(rect[1][0])
-                for i in range(0,display_width):
-                    ctx.beginPath()
-                    ctx.moveTo(i, display_height)
-                    ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
-                    ctx.closePath()
-                    ctx.lineWidth = 1
-                    ctx.strokeStyle = '#00FF00'
-                    ctx.stroke()
+    # this will be called by the line plot thread.
+    def _repaint_underlay(self, data_item):
+        assert data_item is not None
+        assert data_item.is_data_1d
 
-            ctx.restore()
-            self.view.set_underlay_script(ctx.js)
+        ctx = UserInterface.DrawingContext()
+        ctx.save()
+
+        data = Image.scalarFromArray(data_item.data)  # make sure complex becomes scalar
+        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+        rect = self.view.rect
+        data_min = numpy.amin(data)
+        data_max = numpy.amax(data)
+        data_len = data.shape[0]
+        display_width = int(rect[1][1])
+        display_height = int(rect[1][0])
+        for i in xrange(0, display_width):
+            ctx.beginPath()
+            ctx.moveTo(i, display_height)
+            ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
+            ctx.closePath()
+            ctx.lineWidth = 1
+            ctx.strokeStyle = '#00FF00'
+            ctx.stroke()
+
+        ctx.restore()
+        self.view.set_underlay_script(ctx.js)
 
 
     # message comes from the view
