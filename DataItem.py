@@ -375,10 +375,13 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             if self.__cached_data is None:
                 data = self.root_data
+                operations = self.operations
+                self.__data_mutex.release()
                 # apply operations
                 if data is not None:
-                    for operation in reversed(self.operations):
+                    for operation in reversed(operations):
                         data = operation.process_data(data)
+                self.__data_mutex.acquire()
                 self.__cached_data = data
             return self.__cached_data
     data = property(__get_data)
