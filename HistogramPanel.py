@@ -8,6 +8,7 @@ import time
 import numpy
 
 # local libraries
+from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
 from nion.swift.Decorators import queue_main_thread
 from nion.swift import Panel
@@ -16,43 +17,25 @@ from nion.swift import UserInterface
 _ = gettext.gettext
 
 
-# calculates the histogram data and the associated javascript to display
-class HistogramThread(object):
+class HistogramThread(ProcessingThread):
 
     def __init__(self, histogram_panel):
+        super(HistogramThread, self).__init__()
         self.__histogram_panel = histogram_panel
-        self.__thread_break = False
-        self.__thread_ended_event = threading.Event()
-        self.__thread_event = threading.Event()
-        self.__thread_lock = threading.Lock()
-        self.__thread = threading.Thread(target=self.__process)
         self.__data_item = None
         # don't start until everything is initialized
-        self.__thread.start()
+        self.start()
 
-    def close(self):
-        with self.__thread_lock:
-            self.__thread_break = True
-            self.__thread_event.set()
-        self.__thread_ended_event.wait()
+    def handle_data(self, data_item):
+        self.__data_item = data_item
 
-    def update_data_item(self, data_item):
-        with self.__thread_lock:
-            self.__data_item = data_item
-            self.__thread_event.set()
+    def grab_data(self):
+        data_item = self.__data_item
+        self.__data_item = None
+        return data_item
 
-    def __process(self):
-        while True:
-            self.__thread_event.wait()
-            with self.__thread_lock:
-                self.__thread_event.clear()  # put this inside lock to avoid race condition
-                data_item = self.__data_item
-                self.__data_item = None
-                thread_break = self.__thread_break
-            if thread_break:
-                break
-            self.__histogram_panel.data_item = data_item
-        self.__thread_ended_event.set()
+    def process_data(self, data_item):
+        self.__histogram_panel.data_item = data_item
 
 
 class HistogramPanel(Panel.Panel):
@@ -60,7 +43,7 @@ class HistogramPanel(Panel.Panel):
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
     def __init__(self, document_controller, panel_id):
-        Panel.Panel.__init__(self, document_controller, panel_id, _("Histogram"))
+        super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
         # load the Qml and associate it with this panel.
         context_properties = { "js": "" }
@@ -92,7 +75,7 @@ class HistogramPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
-        Panel.Panel.close(self)
+        super(HistogramPanel, self).close()
 
     def __get_display_limits(self):
         return self.__display_limits
@@ -257,4 +240,4 @@ class HistogramPanel(Panel.Panel):
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
         if self.__histogram_thread:
-            self.__histogram_thread.update_data_item(data_item)
+            self.__histogram_thread.update_data(data_item)

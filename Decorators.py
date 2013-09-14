@@ -118,3 +118,50 @@ class countedref(object):
         return self.__object
     def __eq__(self, other):
         return self.__object == other()
+
+
+# calculates the histogram data and the associated javascript to display
+class ProcessingThread(object):
+
+    def __init__(self):
+        self.__thread_break = False
+        self.__thread_ended_event = threading.Event()
+        self.__thread_event = threading.Event()
+        self.__thread_lock = threading.Lock()
+        self.__thread = threading.Thread(target=self.__process)
+        self.__thread.daemon = True
+
+    def start(self):
+        self.__thread.start()
+
+    def close(self):
+        with self.__thread_lock:
+            self.__thread_break = True
+            self.__thread_event.set()
+        self.__thread_ended_event.wait()
+
+    def update_data(self, *args, **kwargs):
+        with self.__thread_lock:
+            self.handle_data(*args, **kwargs)
+            self.__thread_event.set()
+
+    def handle_data(self, data_item):
+        raise NotImplementedError()
+
+    def grab_data(self):
+        raise NotImplementedError()
+
+    def process_data(self, data_item):
+        raise NotImplementedError()
+
+    def __process(self):
+        while True:
+            self.__thread_event.wait()
+            with self.__thread_lock:
+                self.__thread_event.clear()  # put this inside lock to avoid race condition
+                data = self.grab_data()
+                thread_break = self.__thread_break
+            if thread_break:
+                break
+            self.process_data(data)
+        self.__thread_ended_event.set()
