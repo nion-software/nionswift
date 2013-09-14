@@ -93,24 +93,32 @@ def createRGBAImageFromColor(size, r, g, b, a=255):
     return rgba_image
 
 
+def is_shape_and_dtype_rgb(shape, dtype):
+    return dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1
 def is_data_rgb(data):
-    return data is not None and data.dtype == numpy.uint8 and data.shape[-1] == 3 and data.ndim > 1
+    return data is not None and is_shape_and_dtype_rgb(data.shape, data.dtype)
 
 
+def is_shape_and_dtype_rgba(shape, dtype):
+    return dtype == numpy.uint8 and shape[-1] == 4 and len(shape) > 1
 def is_data_rgba(data):
-    return data is not None and data.dtype == numpy.uint8 and data.shape[-1] == 4 and data.ndim > 1
+    return data is not None and is_shape_and_dtype_rgba(data.shape, data.dtype)
 
 
+def is_shape_and_dtype_1d(shape, dtype):
+    if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
+        return len(shape) == 2  # one extra dimension for rgb(a) values
+    return len(shape) == 1
 def is_data_1d(data):
-    if is_data_rgb(data) or is_data_rgba(data):
-        return data.ndim == 2  # one extra dimension for rgb(a) values
-    return data is not None and data.ndim == 1
+    return data is not None and is_shape_and_dtype_1d(data.shape, data.dtype)
 
 
+def is_shape_and_dtype_2d(shape, dtype):
+    if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
+        return len(shape) == 3  # one extra dimension for rgb(a) values
+    return len(shape) == 2
 def is_data_2d(data):
-    if is_data_rgb(data) or is_data_rgba(data):
-        return data.ndim == 3  # one extra dimension for rgb(a) values
-    return data is not None and data.ndim == 2
+    return data is not None and is_shape_and_dtype_2d(data.shape, data.dtype)
 
 
 def scalarFromArray(array, normalize=True):

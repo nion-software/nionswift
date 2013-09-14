@@ -165,26 +165,25 @@ class ImagePanel(Panel.Panel):
             ctx = UserInterface.DrawingContext()
             ctx.save()
 
-            if self.data_item:
+            if self.data_item and self.data_item.is_data_1d:
                 data = Image.scalarFromArray(self.data_item.data)  # make sure complex becomes scalar
-                if Image.is_data_1d(data):
-                    if Image.is_data_rgb(data) or Image.is_data_rgba(data):
-                        # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
-                        data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
-                    rect = self.view.rect
-                    data_min = numpy.amin(data)
-                    data_max = numpy.amax(data)
-                    data_len = data.shape[0]
-                    display_width = int(rect[1][1])
-                    display_height = int(rect[1][0])
-                    for i in range(0,display_width):
-                        ctx.beginPath()
-                        ctx.moveTo(i, display_height)
-                        ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
-                        ctx.closePath()
-                        ctx.lineWidth = 1
-                        ctx.strokeStyle = '#00FF00'
-                        ctx.stroke()
+                if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+                    # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+                    data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+                rect = self.view.rect
+                data_min = numpy.amin(data)
+                data_max = numpy.amax(data)
+                data_len = data.shape[0]
+                display_width = int(rect[1][1])
+                display_height = int(rect[1][0])
+                for i in range(0,display_width):
+                    ctx.beginPath()
+                    ctx.moveTo(i, display_height)
+                    ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
+                    ctx.closePath()
+                    ctx.lineWidth = 1
+                    ctx.strokeStyle = '#00FF00'
+                    ctx.stroke()
 
             ctx.restore()
             self.view.set_underlay_script(ctx.js)
@@ -357,12 +356,11 @@ class ImagePanel(Panel.Panel):
 
     def __get_image_size(self):
         data_item = self.data_item
-        image = data_item.image if data_item else None
-        shape = image.shape if image is not None else (0,0)
-        for d in shape:
+        data_shape = data_item.data_shape if data_item else (0,0)
+        for d in data_shape:
             if not d > 0:
                 return None
-        return shape
+        return data_shape
     image_size = property(__get_image_size)
 
     # map from image coordinates to widget coordinates

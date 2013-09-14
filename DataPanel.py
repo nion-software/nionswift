@@ -355,7 +355,7 @@ class DataPanel(Panel.Panel):
             data_item.add_observer(self)
             data_item.add_ref()
             # do the insert
-            data_shape = data_item.data.shape if data_item and data_item.data is not None else None
+            data_shape = data_item.data_shape if data_item else None
             data_shape_str = " x ".join([str(d) for d in data_shape]) if data_shape else ""
             graphic_url = "image://thumb/"+str(data_item.uuid)+"/"+str(random.randint(0,1000000))
             properties = {"uuid": str(data_item.uuid), "level": level, "display": str(data_item), "display2": data_shape_str, "graphic_url": graphic_url}

@@ -214,11 +214,11 @@ class DataItem(Storage.StorageBase):
             calibrations = self.data_source.calculated_calibrations
         data = self.root_data
         data_shape = data.shape
-        data_type = data.dtype
+        data_dtype = data.dtype
         for operation in self.operations:
             if operation.enabled:
-                calibrations = operation.get_processed_calibrations(data_shape, data_type, calibrations)
-                data_shape, data_type = operation.get_processed_data_shape_and_type(data_shape, data_type)
+                calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
+                data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
         return calibrations
     calculated_calibrations = property(__get_calculated_calibrations)
 
@@ -228,11 +228,11 @@ class DataItem(Storage.StorageBase):
         data = self.root_data
         if data is not None:
             data_shape = data.shape
-            data_type = data.dtype
+            data_dtype = data.dtype
             for operation in self.operations:
-                operation.update_data_shape_and_type(data_shape, data_type)
+                operation.update_data_shape_and_dtype(data_shape, data_dtype)
                 if operation.enabled:
-                    data_shape, data_type = operation.get_processed_data_shape_and_type(data_shape, data_type)
+                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
 
     # smart groups don't participate in the storage model directly. so allow
     # listeners an alternative way of hearing about data items being inserted
@@ -365,7 +365,7 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             data = self.master_data
             if data is None:
-                if self.data_source is not None:
+                if self.data_source:
                     data = self.data_source.data
             return data
     root_data = property(__get_root_data)
@@ -382,6 +382,44 @@ class DataItem(Storage.StorageBase):
                 self.__cached_data = data
             return self.__cached_data
     data = property(__get_data)
+
+    def __get_data_shape_and_dtype(self):
+        with self.__data_mutex:
+            data = self.master_data
+            if data is not None:
+                data_shape = data.shape
+                data_dtype = data.dtype
+            elif self.data_source:
+                data_shape = self.data_source.data_shape
+                data_dtype = self.data_source.data_dtype
+            else:
+                data_shape = None
+                data_dtype = None
+            # apply operations
+            if data_shape is not None:
+                for operation in self.operations:
+                    if operation.enabled:
+                        data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+            return data_shape, data_dtype
+    data_shape_and_dtype = property(__get_data_shape_and_dtype)
+
+    def __get_data_shape(self):
+        return self.data_shape_and_dtype[0]
+    data_shape = property(__get_data_shape)
+
+    def __get_data_dtype(self):
+        return self.data_shape_and_dtype[1]
+    data_dtype = property(__get_data_dtype)
+
+    def __is_data_1d(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_1d(data_shape, data_dtype)
+    is_data_1d = property(__is_data_1d)
+
+    def __is_data_2d(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
+    is_data_2d = property(__is_data_2d)
 
     def __get_preview_2d(self):
         if self.__preview is None:

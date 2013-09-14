@@ -90,12 +90,13 @@ class Operation(Storage.StorageBase):
             data_array = self.process_data_in_place(data_array)
         return data_array
     # calibrations
-    def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         return source_calibrations
-    def get_processed_data_shape_and_type(self, data_shape, data_type):
-        return data_shape, data_type
-    # default value handling
-    def update_data_shape_and_type(self, data_shape, data_type):
+    # subclasses that change the type or shape of the data must override
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return data_shape, data_dtype
+    # default value handling.
+    def update_data_shape_and_dtype(self, data_shape, data_dtype):
         pass
     # subclasses should override copy and copyFrom as necessary
     def copy(self):
@@ -124,7 +125,7 @@ class FFTOperation(Operation):
     def process_data_in_place(self, data_array):
         return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_array))
 
-    def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
         return [DataItem.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
@@ -139,7 +140,7 @@ class IFFTOperation(Operation):
     def process_data_in_place(self, data_array):
         return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_array))
 
-    def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
         return [DataItem.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
@@ -209,6 +210,13 @@ class CropOperation(Operation):
         if key == "bounds":
             self.notify_listeners("operation_changed", self)
 
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        graphic = self.graphic
+        shape = data_shape
+        bounds = graphic.bounds
+        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        return bounds_int[1], data_dtype
+
     def process_data_copy(self, data_array_copy):
         graphic = self.graphic
         assert isinstance(graphic, Graphics.RectangleGraphic)
@@ -234,7 +242,7 @@ class ResampleOperation(Operation):
             return data_array_copy
         return Image.scaled(data_array_copy, (height, width))
 
-    def get_processed_calibrations(self, data_shape, data_type, source_calibrations):
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
         height = self.height if self.height else data_shape[0]
         width = self.width if self.width else data_shape[1]
@@ -243,10 +251,10 @@ class ResampleOperation(Operation):
                                      source_calibrations[i].scale * data_shape[i] / dimensions[i],
                                      source_calibrations[i].units) for i in range(len(source_calibrations))]
 
-    def get_processed_data_shape_and_type(self, data_shape, data_type):
-        return (self.height, self.width), data_type
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return (self.height, self.width), data_dtype
 
-    def update_data_shape_and_type(self, data_shape, data_type):
+    def update_data_shape_and_dtype(self, data_shape, data_dtype):
         self.description[1]["default"] = data_shape[0]  # height = height
         self.description[0]["default"] = data_shape[1]  # width = width
         if "height" not in self.values or self.values["height"] is None:
@@ -266,9 +274,12 @@ class HistogramOperation(Operation):
         histogram_operation = super(HistogramOperation, cls).build(storage_reader, item_node)
         return histogram_operation
 
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return (512, ), numpy.int
+
     def process_data_in_place(self, data_array):
         histogram_data = numpy.histogram(data_array, bins=512)
-        return histogram_data[0]
+        return histogram_data[0].astype(numpy.int)
 
 
 class LineProfileOperation(Operation):
@@ -309,6 +320,19 @@ class LineProfileOperation(Operation):
     def property_changed(self, graphic, key, value):
         if key == "start" or key == "end":
             self.notify_listeners("operation_changed", self)
+
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        graphic = self.graphic
+        start = graphic.start
+        end = graphic.end
+        shape = data_shape
+        start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
+        end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
+        length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
+        if data_shape[-1] == 3:
+            return (length, 3), numpy.uint8
+        else:
+            return (length, ), numpy.double
 
     def process_data_in_place(self, data_array):
         graphic = self.graphic
