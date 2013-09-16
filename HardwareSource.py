@@ -29,6 +29,7 @@ import copy
 import gettext
 import logging
 import threading
+import weakref
 
 # local imports
 from nion.swift import DataGroup
@@ -269,8 +270,9 @@ class HardwareSourceDataBuffer(object):
         self.data_group = self.document_controller.get_or_create_data_group(self.data_group_name)
         self.first_data = False
         self.last_channel_to_data_item_dict = {}
-        self.snapshots = collections.deque(maxlen=10)
-        self.__current_snapshot = -1
+        self.__snapshots = collections.deque(maxlen=30)
+        self.__current_snapshot = 0
+        self.__weak_listeners = []
 
     def close(self):
         logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
@@ -284,6 +286,25 @@ class HardwareSourceDataBuffer(object):
             # if we do want to keep data items, it should be done in on_new_images
             self.on_new_images([])
 
+    # Add a listener. Listeners will receive data_item_changed message when this
+    # DataItem is notified of a change via the notify_data_item_changed() method.
+    def add_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.append(weakref.ref(listener))
+    # Remove a listener.
+    def remove_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.remove(weakref.ref(listener))
+    # Return a copy of listeners array
+    def __get_listeners(self):
+        return [weak_listener() for weak_listener in self.__weak_listeners]
+    listeners = property(__get_listeners)
+    # Send a message to the listeners
+    def notify_listeners(self, fn, *args, **keywords):
+        for listener in self.listeners:
+            if hasattr(listener, fn):
+                getattr(listener, fn)(*args, **keywords)
+
     def __get_is_playing(self):
         return self.hardware_port is not None
     is_playing = property(__get_is_playing)
@@ -294,11 +315,17 @@ class HardwareSourceDataBuffer(object):
         assert not self.is_playing
         if current_snapshot < 0:
             current_snapshot = 0
-        elif current_snapshot >= len(self.snapshots):
-            current_snapshot = len(self.snapshots) - 1
-        self.__current_snapshot = current_snapshot
-        self.update_images(self.snapshots[self.__current_snapshot])
+        elif current_snapshot >= len(self.__snapshots):
+            current_snapshot = len(self.__snapshots) - 1
+        if self.__current_snapshot != current_snapshot:
+            self.__current_snapshot = current_snapshot
+            self.update_images(self.__snapshots[self.__current_snapshot])
+            self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
     current_snapshot = property(__get_current_snapshot, __set_current_snapshot)
+
+    def __get_snapshot_count(self):
+        return len(self.__snapshots)
+    snapshot_count = property(__get_snapshot_count)
 
     def start(self):
         logging.info("Starting HardwareSourceDataBuffer for %s", str(self.hardware_source))
@@ -310,7 +337,7 @@ class HardwareSourceDataBuffer(object):
                     "LiveHWPortToImageSource", str(self.hardware_source))
             self.hardware_port.on_new_images = self.on_new_images
             self.first_data = True
-            self.__current_snapshot = -1
+            self.__current_snapshot = 0
 
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", str(self.hardware_source))
@@ -332,16 +359,21 @@ class HardwareSourceDataBuffer(object):
             images = []
 
         # snapshots
-        self.snapshots.append(images)
+        snapshot_count = len(self.__snapshots)
+        self.__snapshots.append(images)
+        if len(self.__snapshots) != snapshot_count:
+            self.notify_listeners("snapshot_count_changed", self.hardware_source, len(self.__snapshots))
 
         # update the data on the data items
         self.update_images(images)
 
-        self.__current_snapshot = len(self.snapshots) - 1
-
+        # notify listeners if we change current snapshot
+        current_snapshot = len(self.__snapshots) - 1
+        if self.__current_snapshot != current_snapshot:
+            self.__current_snapshot = current_snapshot
+            self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
 
     def update_images(self, images):
-
         # build useful data structures (channel -> data)
         channel_to_data_dict = {}
         channels = []
