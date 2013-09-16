@@ -87,14 +87,103 @@ class Calibration(Storage.StorageBase):
         return result
 
 
-# data items top level items that are displayed
-# thumbnails need to be available for all data items
-# thumbnails are miniaturized presentations
-# this implies that all data items need an associated presentation
-# graphic items are stored in presentations
-# calibrations are stored in data sources
-# data items have data sources
-# data sources can point to other data sources and roi's
+class DataBuffer(object):
+    # TODO: almost all this functionality is copied from StorageBase. Perhaps make them common?
+    def __init__(self):
+        self.__weak_listeners = []
+        self.__refCount = 0
+        # instance variables custom to DataBuffer
+        self.__data_sets = collections.deque(maxlen=1)
+        self.__current_index = -1
+    def __del__(self):
+        # There should not be listeners
+        assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
+        assert self.__refCount == 0, 'Observable still has references'
+    # Give subclasses a chance to clean up. This gets called when reference
+    # count goes to 0, but before deletion.
+    def about_to_delete(self):
+        pass
+    # Anytime you store a reference to this item, call add_ref.
+    def add_ref(self):
+        self.__refCount += 1
+    # Anytime you give up a reference to this item, call remove_ref.
+    def remove_ref(self):
+        assert self.__refCount > 0, 'DataItem has no references'
+        self.__refCount -= 1
+        if self.__refCount == 0:
+            self.about_to_delete()
+    # Return the reference count, which should represent the number
+    # of places that this DataItem is stored by a caller.
+    def __get_ref_count(self):
+        return self.__refCount
+    ref_count = property(__get_ref_count)
+    # Add a listener. Listeners will receive data_item_changed message when this
+    # DataItem is notified of a change via the notify_data_item_changed() method.
+    def add_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.append(weakref.ref(listener))
+    # Remove a listener.
+    def remove_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.remove(weakref.ref(listener))
+    # Return a copy of listeners array
+    def get_weak_listeners(self):
+        return self.__weak_listeners  # TODO: Return a copy
+    def __get_listeners(self):
+        return [weak_listener() for weak_listener in self.__weak_listeners]
+    listeners = property(__get_listeners)
+    # Send a message to the listeners
+    def notify_listeners(self, fn, *args, **keywords):
+        for listener in self.listeners:
+            if hasattr(listener, fn):
+                getattr(listener, fn)(*args, **keywords)
+    # Methods custom to DataBuffer
+    def __get_data_set(self):
+        if len(self.__data_sets) > 0:
+            return self.__data_sets[-1]
+        return dict()
+    data_set = property(__get_data_set)
+    def data_for_channel(self, channel):
+        data_set = self.data_set
+        return data_set[channel] if channel in data_set else None
+    def append_data_set(self, data_set):
+        if len(self.__data_sets) == self.__data_sets.maxlen:
+            if self.__current_index < 0:
+                self.__current_index = self.__current_index - 1
+            else:
+                self.__current_index = self.__current_index + 1
+        self.__data_sets.append(data_set)
+        self.notify_data_buffer_updated()
+    def notify_data_buffer_updated(self):
+        self.notify_listeners("data_buffer_updated")
+
+
+# data items will represents a numpy array. the numpy array
+# may be stored directly in this item (master data), stored in
+# a data buffer (data buffer), or come from another data item
+# (data source).
+
+# thumbnail: a small representation of this data item
+
+# graphic items: roi's
+
+# calibrations: calibration for each dimension
+
+# data: data with all operations applied
+
+# master data: a numpy array associated with this data item
+# data source: another data item from which data is taken
+# data buffer: a buffer of numpy arrays, from acquisition
+
+# operations: a list of operations applied to make data
+
+# data items: child data items (aka derived data)
+
+# cached data: holds last result of data calculation
+
+# preview_2d: a 2d visual representation of data
+
+# live data: a bool indicating whether the data is live
 
 
 class DataItem(Storage.StorageBase):
@@ -121,6 +210,8 @@ class DataItem(Storage.StorageBase):
         self.__cached_data = None
         self.__master_data = None
         self.__data_source = None
+        self.__data_buffer = None
+        self.__data_buffer_channel = None
         self.__preview = None
         self.thumbnail_data = None
         self.thumbnail_data_valid = False
@@ -157,6 +248,7 @@ class DataItem(Storage.StorageBase):
         self.closed = True
         self.data_source = None
         self.master_data = None
+        self.disconnect_data_buffer()
         for data_item in copy.copy(self.data_items):
             self.data_items.remove(data_item)
         for calibration in copy.copy(self.calibrations):
@@ -175,6 +267,41 @@ class DataItem(Storage.StorageBase):
             if not self.__live_data:
                 self.notify_set_data("master_data", self.__master_data)
     live_data = property(__get_live_data, __set_live_data)
+
+    # messages come from data buffer
+    def data_buffer_updated(self):
+        logging.debug("data buffer updated (%s)", self.title)
+        self.master_data = self.__data_buffer.data_for_channel(self.__data_buffer_channel)
+
+    # read only
+    def __get_data_buffer(self):
+        return self.__data_buffer
+    data_buffer = property(__get_data_buffer)
+    def __get_data_buffer_channel(self):
+        return self.__data_buffer_channel
+    data_buffer_channel = property(__get_data_buffer_channel)
+
+    def connect_data_buffer(self, data_buffer, data_buffer_channel):
+        assert data_buffer
+        assert not self.__data_buffer  # can't connect if already connected
+        assert not self.__data_source  # can't have data source and data buffer
+        with self.__data_mutex:
+            assert isinstance(data_buffer, DataBuffer)
+            self.__data_buffer = data_buffer
+            self.__data_buffer_channel = data_buffer_channel
+            # we will receive data_item_changed from data_buffer
+            self.__data_buffer.add_listener(self)
+            self.__data_buffer.add_ref()
+        self.master_data = self.data_buffer.data_for_channel(self.__data_buffer_channel)
+
+    def disconnect_data_buffer(self):
+        if self.__data_buffer:
+            with self.__data_mutex:
+                self.__data_buffer.remove_listener(self)
+                self.__data_buffer.remove_ref()
+                self.__data_buffer = None
+                self.__data_buffer_channel = None
+            #self.master_data = None
 
     # call this when the listeners need to be updated
     # (via data_item_changed). Calling this method will send the data_item_changed
@@ -326,7 +453,8 @@ class DataItem(Storage.StorageBase):
     def __get_data_source(self):
         return self.__data_source
     def __set_data_source(self, data_source):
-        assert data_source is None or self.__master_data is None  # can't have master data and image source
+        assert data_source is None or self.__master_data is None  # can't have master data and data source
+        assert data_source is None or self.__data_buffer is None  # can't have data buffer and data source either
         if self.__data_source:
             with self.__data_mutex:
                 self.__data_source.remove_listener(self)
@@ -351,7 +479,7 @@ class DataItem(Storage.StorageBase):
     def __set_master_data(self, data):
         assert not self.closed or data is None
         assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-        assert data is None or self.__data_source is None  # can't have master data and image source
+        assert data is None or self.__data_source is None  # can't have master data and data source
         with self.__data_mutex:
             self.__master_data = data
             self.sync_calibrations(numpy.ndim(data))

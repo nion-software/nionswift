@@ -345,6 +345,31 @@ class DocumentController(Storage.StorageBase):
         else:
             raise KeyError
 
+    def get_or_create_data_group(self, group_name):
+        data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)
+        if data_group is None:
+            # we create a new group
+            data_group = DataGroup.DataGroup()
+            data_group.title = group_name
+            self.data_groups.insert(0, data_group)
+        return data_group
+
+    def sync_data_set(self, data_set, data_group, prefix):
+        data_item_set = {}
+        for channel in data_set.keys():
+            data_item_name = "%s.%s" % (prefix, channel)
+            # only use existing data item if it has a data buffer that matches
+            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
+            if not data_item:
+                data_item = DataItem.DataItem()
+                data_item.title = data_item_name
+                # the following function call needs to happen on the main thread,
+                # but it also needs to be synchronized to finish before returning
+                # from this method. add_data_item_on_main_thread does that.
+                self.add_data_item_on_main_thread(data_group, data_item)
+            data_item_set[channel] = data_item
+        return data_item_set
+
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)
         self.__weak_image_panels.append(weak_image_panel)

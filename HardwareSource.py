@@ -24,12 +24,16 @@ functionality.
 """
 
 # system imports
+import copy
+import gettext
 import logging
 import threading
 
 # local imports
 from nion.swift import DataGroup
 from nion.swift import DataItem
+
+_ = gettext.gettext
 
 
 class HardwareSourceManager(object):
@@ -239,7 +243,7 @@ class HardwareSource(object):
         return "unnamed hwsource"
 
 
-class LiveHWPortToImageSourceManager(object):
+class HardwareSourceDataBuffer(object):
     """
     For the given HWSource (which can either be an object with a create_port function, or a name. If
     a name, ports are created using the HardwareSourceManager.create_port_for_name function,
@@ -254,25 +258,20 @@ class LiveHWPortToImageSourceManager(object):
     future f necessary).
 
     """
-    data_group_name = "Sources"
+    data_group_name = _("Sources")
 
     def __init__(self, hardware_source, document_controller):
         self.hardware_source = hardware_source
         self.document_controller = document_controller
         self.hardware_source_man = document_controller.application.hardware_source_manager
         self.hardware_port = None
-        self.data_items = []
-        #do we have a data_group with name data_group_name?
-        self.data_group = DataGroup.get_data_group_in_container_by_title(self.document_controller, self.data_group_name)
-        if self.data_group is None:
-            # we create a new group
-            self.data_group = DataGroup.DataGroup()
-            self.data_group.title = self.data_group_name
-            self.document_controller.data_groups.insert(0, self.data_group)
+        self.data_buffer = DataItem.DataBuffer()
+        self.data_group = self.document_controller.get_or_create_data_group(self.data_group_name)
+        self.last_data_items = {}
 
     def start(self):
         if self.hardware_port is None:
-            logging.info("Creating LiveHWPortToImageSourceManager for %s", str(self.hardware_source))
+            logging.info("Creating HardwareSourceDataBuffer for %s", str(self.hardware_source))
             if hasattr(self.hardware_source, "create_port"):
                 self.hardware_port = self.hardware_source.create_port("ui", "default")
             else:
@@ -282,7 +281,7 @@ class LiveHWPortToImageSourceManager(object):
 
     def close(self):
         if self.hardware_port is not None:
-            logging.info("Closing LiveHWPortToImageSourceManager for %s", str(self.hardware_source))
+            logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
             self.hardware_port.on_new_images = None
             self.hardware_port.close()
             # we should be consistent about how we stop live acquisitions:
@@ -296,27 +295,6 @@ class LiveHWPortToImageSourceManager(object):
             # above to get the name of any existing data_items
             self.hardware_port = None
 
-    def _get_or_create_dataitem(self, index):
-        """
-        Looks for an existing data item for the image index supplied.
-        If not found, creates a new one and adds it to the data_group found earlier
-        """
-        wanted_name = "%s.%s" % (str(self.hardware_source), index)
-        data_item = DataGroup.get_data_item_in_container_by_title(self.data_group, wanted_name)
-        if not data_item:
-            logging.debug("Creating: %s", wanted_name)
-            data_item = DataItem.DataItem()
-            data_item.title = wanted_name
-            # the following function call needs to happen on the main thread,
-            # but it also needs to be synchronized to finish before returning
-            # from this method. add_data_item_on_main_thread does that.
-            self.document_controller.add_data_item_on_main_thread(self.data_group, data_item)
-
-        if index == 0:
-            self.document_controller.select_data_item(self.data_group, data_item)
-
-        return data_item
-
     def on_new_images(self, images):
         """
         For the array of images to show, images, go through either
@@ -327,29 +305,35 @@ class LiveHWPortToImageSourceManager(object):
         if not self.hardware_port:
             images = []
 
-        index = -1
-        for index, image in enumerate(images):
-            if index >= len(self.data_items):
-                self.data_items.append(None)
+        # build the data set (channel -> data)
+        data_set = {}
+        for index, data in enumerate(images):
+            if data is not None:
+                data_set[index] = data
 
-            if image is None:
-                data_item = self.data_items[index]
-                if data_item:
-                    data_item.live_data = False
-                    data_item.remove_ref()
-                    self.data_items[index] = None
-            else:
-                if not self.data_items[index]:
-                    data_item = self._get_or_create_dataitem(index)
-                    data_item.add_ref()
-                    self.data_items[index] = data_item
-                if self.data_items[index]:
-                    self.data_items[index].master_data = image
-                    self.data_items[index].live_data = True
+        # sync to data items
+        new_data_items = self.document_controller.sync_data_set(data_set, self.data_group, str(self.hardware_source))
 
-        for over_index in range(index+1, len(self.data_items)):
-            data_item = self.data_items[over_index]
-            if data_item:
-                data_item.live_data = False
-                data_item.remove_ref()
-                self.data_items[over_index] = None
+        # these items are now live
+        for channel in list(set(new_data_items.keys())-set(self.last_data_items.keys())):
+            data_item = new_data_items[channel]
+            data_item.live_data = True
+            if channel == 0:
+                self.document_controller.select_data_item(self.data_group, data_item)
+
+        # update the data buffer
+        for channel in data_set.keys():
+            new_data_items[channel].master_data = data_set[channel]
+
+        # these items are no longer live
+        for channel in list(set(self.last_data_items.keys())-set(new_data_items.keys())):
+            data_item = self.last_data_items[channel]
+            data_item.live_data = False
+
+        # keep the channel to data item map around and handle reference counts
+        old_data_items = copy.copy(self.last_data_items)
+        self.last_data_items = copy.copy(new_data_items)
+        for data_item in self.last_data_items.values():
+            data_item.add_ref()
+        for data_item in old_data_items.values():
+            data_item.remove_ref()
