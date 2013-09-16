@@ -521,10 +521,11 @@ class QtImageView(object):
         # grab the image if there is one
         rgba_image = data_item.preview_2d if data_item else None
         if rgba_image is None:
-            rgba_image = Image.createRGBAImageFromColor((480, 640), 255, 255, 255, 0)
-        controller_id = str(self.uuid)
-        image_id = self.ui.ImageDisplayController_sendImage(controller_id, rgba_image)
-        self.__set_image_source("image://idc/"+controller_id+"/"+str(image_id))
+            self.__set_image_source("")
+        else:
+            controller_id = str(self.uuid)
+            image_id = self.ui.ImageDisplayController_sendImage(controller_id, rgba_image)
+            self.__set_image_source("image://idc/"+controller_id+"/"+str(image_id))
 
     def data_item_changed(self, data_item, info):
         assert data_item == self.data_item
