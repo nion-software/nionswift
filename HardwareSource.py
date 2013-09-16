@@ -337,7 +337,6 @@ class HardwareSourceDataBuffer(object):
                     "LiveHWPortToImageSource", str(self.hardware_source))
             self.hardware_port.on_new_images = self.on_new_images
             self.first_data = True
-            self.__current_snapshot = 0
 
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", str(self.hardware_source))
