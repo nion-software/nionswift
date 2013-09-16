@@ -243,6 +243,77 @@ class HardwareSource(object):
         return "unnamed hwsource"
 
 
+class DataBuffer(object):
+    # TODO: almost all this functionality is copied from StorageBase. Perhaps make them common?
+    def __init__(self):
+        self.__weak_listeners = []
+        self.__refCount = 0
+        # instance variables custom to DataBuffer
+        self.__data_sets = collections.deque(maxlen=1)
+        self.__current_index = -1
+    def __del__(self):
+        # There should not be listeners
+        assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
+        assert self.__refCount == 0, 'Observable still has references'
+    # Give subclasses a chance to clean up. This gets called when reference
+    # count goes to 0, but before deletion.
+    def about_to_delete(self):
+        pass
+    # Anytime you store a reference to this item, call add_ref.
+    def add_ref(self):
+        self.__refCount += 1
+    # Anytime you give up a reference to this item, call remove_ref.
+    def remove_ref(self):
+        assert self.__refCount > 0, 'DataItem has no references'
+        self.__refCount -= 1
+        if self.__refCount == 0:
+            self.about_to_delete()
+    # Return the reference count, which should represent the number
+    # of places that this DataItem is stored by a caller.
+    def __get_ref_count(self):
+        return self.__refCount
+    ref_count = property(__get_ref_count)
+    # Add a listener. Listeners will receive data_item_changed message when this
+    # DataItem is notified of a change via the notify_data_item_changed() method.
+    def add_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.append(weakref.ref(listener))
+    # Remove a listener.
+    def remove_listener(self, listener):
+        assert listener is not None
+        self.__weak_listeners.remove(weakref.ref(listener))
+    # Return a copy of listeners array
+    def get_weak_listeners(self):
+        return self.__weak_listeners  # TODO: Return a copy
+    def __get_listeners(self):
+        return [weak_listener() for weak_listener in self.__weak_listeners]
+    listeners = property(__get_listeners)
+    # Send a message to the listeners
+    def notify_listeners(self, fn, *args, **keywords):
+        for listener in self.listeners:
+            if hasattr(listener, fn):
+                getattr(listener, fn)(*args, **keywords)
+    # Methods custom to DataBuffer
+    def __get_data_set(self):
+        if len(self.__data_sets) > 0:
+            return self.__data_sets[-1]
+        return dict()
+    data_set = property(__get_data_set)
+    def data_for_channel(self, channel):
+        data_set = self.data_set
+        return data_set[channel] if channel in data_set else None
+    def append_data_set(self, data_set):
+        if len(self.__data_sets) == self.__data_sets.maxlen:
+            if self.__current_index < 0:
+                self.__current_index = self.__current_index - 1
+            else:
+                self.__current_index = self.__current_index + 1
+        self.__data_sets.append(data_set)
+        self.notify_data_buffer_updated()
+    def notify_data_buffer_updated(self):
+        self.notify_listeners("data_buffer_updated")
+
+
 class HardwareSourceDataBuffer(object):
     """
     For the given HWSource (which can either be an object with a create_port function, or a name. If
@@ -265,25 +336,38 @@ class HardwareSourceDataBuffer(object):
         self.document_controller = document_controller
         self.hardware_source_man = document_controller.application.hardware_source_manager
         self.hardware_port = None
-        self.data_buffer = DataItem.DataBuffer()
         self.data_group = self.document_controller.get_or_create_data_group(self.data_group_name)
-        self.last_data_items = {}
+        self.first_data = False
+        self.last_channel_to_data_item_dict = {}
+
+    def __get_is_playing(self):
+        return self.hardware_port is not None
+    is_playing = property(__get_is_playing)
 
     def start(self):
+        logging.info("Starting HardwareSourceDataBuffer for %s", str(self.hardware_source))
         if self.hardware_port is None:
-            logging.info("Creating HardwareSourceDataBuffer for %s", str(self.hardware_source))
             if hasattr(self.hardware_source, "create_port"):
                 self.hardware_port = self.hardware_source.create_port("ui", "default")
             else:
                 self.hardware_port = self.hardware_source_man.create_port_for_name(
                     "LiveHWPortToImageSource", str(self.hardware_source))
             self.hardware_port.on_new_images = self.on_new_images
+            self.first_data = True
 
-    def close(self):
+    def pause(self):
+        logging.info("Pausing HardwareSourceDataBuffer for %s", str(self.hardware_source))
         if self.hardware_port is not None:
-            logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
             self.hardware_port.on_new_images = None
             self.hardware_port.close()
+            # finally we remove the reference to the port. on_new_images needs it around
+            # above to get the name of any existing data_items
+            self.hardware_port = None
+
+    def close(self):
+        logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
+        if self.hardware_port is not None:
+            self.pause()
             # we should be consistent about how we stop live acquisitions:
             # stopping should be identical to acquiring with no channels selected
             # and we should delete/keep data items the same in both cases.
@@ -291,49 +375,54 @@ class HardwareSourceDataBuffer(object):
             # now that we've set hardware_port to None
             # if we do want to keep data items, it should be done in on_new_images
             self.on_new_images([])
-            # finally we remove the reference to the port. on_new_images needs it around
-            # above to get the name of any existing data_items
-            self.hardware_port = None
 
     def on_new_images(self, images):
         """
         For the array of images to show, images, go through either
         creating a new dataitem or using an existing one if the image
-        is not null. The order of images is important, the index is
+        is not null. The order of images is important, the channel is
         used to find the appropriate dataitem.
         """
         if not self.hardware_port:
             images = []
 
-        # build the data set (channel -> data)
-        data_set = {}
-        for index, data in enumerate(images):
+        # build useful data structures (channel -> data)
+        channel_to_data_dict = {}
+        channels = []
+        for channel, data in enumerate(images):
             if data is not None:
-                data_set[index] = data
+                channels.append(channel)
+                channel_to_data_dict[channel] = data
 
         # sync to data items
-        new_data_items = self.document_controller.sync_data_set(data_set, self.data_group, str(self.hardware_source))
+        new_channel_to_data_item_dict = self.document_controller.sync_channels_to_data_items(channels, self.data_group, str(self.hardware_source))
 
-        # these items are now live
-        for channel in list(set(new_data_items.keys())-set(self.last_data_items.keys())):
-            data_item = new_data_items[channel]
+        # these items are now live. mark live_data as True.
+        for channel in list(set(new_channel_to_data_item_dict.keys())-set(self.last_channel_to_data_item_dict.keys())):
+            data_item = new_channel_to_data_item_dict[channel]
             data_item.live_data = True
-            if channel == 0:
-                self.document_controller.select_data_item(self.data_group, data_item)
 
-        # update the data buffer
-        for channel in data_set.keys():
-            new_data_items[channel].master_data = data_set[channel]
+        # select the preferred item.
+        # TODO: better mechanism for selecting preferred item at start of acquisition.
+        if self.first_data:
+            data_item = new_channel_to_data_item_dict[0]
+            self.document_controller.select_data_item(self.data_group, data_item)
+            self.first_data = False
 
-        # these items are no longer live
-        for channel in list(set(self.last_data_items.keys())-set(new_data_items.keys())):
-            data_item = self.last_data_items[channel]
+        # update the data items with the new data.
+        for channel in channels:
+            new_channel_to_data_item_dict[channel].master_data = channel_to_data_dict[channel]
+
+        # these items are no longer live. mark live_data as False.
+        for channel in list(set(self.last_channel_to_data_item_dict.keys())-set(new_channel_to_data_item_dict.keys())):
+            data_item = self.last_channel_to_data_item_dict[channel]
             data_item.live_data = False
 
-        # keep the channel to data item map around and handle reference counts
-        old_data_items = copy.copy(self.last_data_items)
-        self.last_data_items = copy.copy(new_data_items)
-        for data_item in self.last_data_items.values():
+        # keep the channel to data item map around so that we know what changed between
+        # last iteration and this one. also handle reference counts.
+        old_channel_to_data_item_dict = copy.copy(self.last_channel_to_data_item_dict)
+        self.last_channel_to_data_item_dict = copy.copy(new_channel_to_data_item_dict)
+        for data_item in self.last_channel_to_data_item_dict.values():
             data_item.add_ref()
-        for data_item in old_data_items.values():
+        for data_item in old_channel_to_data_item_dict.values():
             data_item.remove_ref()

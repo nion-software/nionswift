@@ -354,9 +354,9 @@ class DocumentController(Storage.StorageBase):
             self.data_groups.insert(0, data_group)
         return data_group
 
-    def sync_data_set(self, data_set, data_group, prefix):
+    def sync_channels_to_data_items(self, channels, data_group, prefix):
         data_item_set = {}
-        for channel in data_set.keys():
+        for channel in channels:
             data_item_name = "%s.%s" % (prefix, channel)
             # only use existing data item if it has a data buffer that matches
             data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
