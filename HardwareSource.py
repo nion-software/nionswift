@@ -346,6 +346,9 @@ class HardwareSourceDataBuffer(object):
             # finally we remove the reference to the port. on_new_images needs it around
             # above to get the name of any existing data_items
             self.hardware_port = None
+        for channel in self.last_channel_to_data_item_dict.keys():
+            data_item = self.last_channel_to_data_item_dict[channel]
+            data_item.live_data = False
 
     def on_new_images(self, images):
         """
