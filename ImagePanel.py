@@ -204,7 +204,14 @@ class ImagePanel(Panel.Panel):
         data_item = self.data_item
         graphics = data_item.graphics if data_item else None
         if not self.closed and self.view:
-            self.view.draw_graphics(self.image_size, graphics, self.graphic_selection, WidgetMapping(self))
+            rect = self.view.rect
+            ctx = UserInterface.DrawingContext()
+            ctx.save()
+            if self.image_size and graphics:
+                for graphic_index, graphic in enumerate(graphics):
+                    graphic.draw(ctx, WidgetMapping(self), self.graphic_selection.contains(graphic_index))
+            ctx.restore()
+            self.view.set_overlay_script(ctx.js)
 
     def update_underlay(self):
         if self.view:

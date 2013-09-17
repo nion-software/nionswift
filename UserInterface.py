@@ -461,16 +461,6 @@ class QtImageView(object):
         if self.ui:
             self.ui.Widget_setWidgetProperty(self.widget, "overlay", js)
 
-    def draw_graphics(self, image_size, graphics, graphic_selection, mapping):
-        rect = self.rect
-        ctx = DrawingContext()
-        ctx.save()
-        if image_size and graphics:
-            for graphic_index, graphic in enumerate(graphics):
-                graphic.draw(ctx, mapping, graphic_selection.contains(graphic_index))
-        ctx.restore()
-        self.set_overlay_script(ctx.js)
-
     # messages come from qml
 
     def resized(self, x, y, width, height):

@@ -69,9 +69,9 @@ class ImageView:
         self.image_source = None
     def close(self):
         pass
-    def draw_graphics(self, image_size, graphics, graphic_selection, mapping):
-        pass
     def set_focused(self, focused):
+        pass
+    def set_overlay_script(self, js):
         pass
     def set_underlay_script(self, js):
         pass
