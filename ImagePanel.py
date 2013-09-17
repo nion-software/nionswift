@@ -205,12 +205,28 @@ class ImagePanel(Panel.Panel):
         graphics = data_item.graphics if data_item else None
         if not self.closed and self.view:
             rect = self.view.rect
+            widget_mapping = WidgetMapping(self)
             ctx = UserInterface.DrawingContext()
             ctx.save()
             if self.image_size and graphics:
                 for graphic_index, graphic in enumerate(graphics):
-                    graphic.draw(ctx, WidgetMapping(self), self.graphic_selection.contains(graphic_index))
+                    graphic.draw(ctx, widget_mapping, self.graphic_selection.contains(graphic_index))
             ctx.restore()
+            if False:  # display scale marker?
+                ctx.beginPath()
+                origin = widget_mapping.map_point_graphic_to_container((0.95, 0.05))
+                ctx.moveTo(origin[1], origin[0])
+                ctx.lineTo(origin[1] + 100, origin[0])
+                ctx.lineTo(origin[1] + 100, origin[0] - 10)
+                ctx.lineTo(origin[1], origin[0] - 10)
+                ctx.closePath()
+                ctx.fillStyle = "#448"
+                ctx.fill()
+                ctx.strokeStyle="#000"
+                ctx.stroke()
+                ctx.font = "normal 24px serif"
+                ctx.fillStyle = "#FFF"
+                ctx.fillText("60nm", origin[1], origin[0] - 12)
             self.view.set_overlay_script(ctx.js)
 
     def update_underlay(self):
@@ -258,7 +274,7 @@ class ImagePanel(Panel.Panel):
         ctx.lineTo(display_rect[0][1], display_rect[0][0] + display_rect[1][0])
         ctx.closePath()
         ctx.lineWidth = 1
-        ctx.strokeStyle = '#000'
+        ctx.strokeStyle = '#888'
         ctx.stroke()
 
         ctx.restore()
