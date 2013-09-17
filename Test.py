@@ -67,6 +67,7 @@ class ImageView:
         self.image_panel = image_panel
         self.widget = None
         self.image_source = None
+        self.rect = ((0,0), (640,480))
     def close(self):
         pass
     def set_focused(self, focused):

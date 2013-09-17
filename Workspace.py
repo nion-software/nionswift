@@ -509,6 +509,8 @@ class Workspace(object):
                         if data_item not in displayed_data_items:
                             data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
                             break
+            if not data_panel_selection:
+                data_panel_selection = DataItem.DataItemSpecifier()
             if not data_panel_selection.is_empty:
                 displayed_data_items.append(data_panel_selection.data_item)
             image_panel_tab.content.data_panel_selection = data_panel_selection
