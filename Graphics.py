@@ -26,8 +26,13 @@ def fit_to_size(rect, fit_size):
     return fit_to_aspect_ratio(rect, float(fit_size[1])/float(fit_size[0]))
 
 
+def inset_rect(rect, amount):
+    return ((rect[0][0] + amount, rect[0][1] + amount), (rect[1][0] - 2*amount, rect[1][1] - 2*amount))
+
+
 def distance(p1, p2):
     return math.sqrt(pow(p2[0] - p1[0], 2) + pow(p2[1] - p1[1], 2))
+
 
 def midpoint(p1, p2):
     return (0.5 * (p1[0] + p2[0]), 0.5 * (p1[1] + p2[1]))

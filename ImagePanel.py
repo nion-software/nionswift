@@ -209,16 +209,30 @@ class ImagePanel(Panel.Panel):
         data_min = numpy.amin(data)
         data_max = numpy.amax(data)
         data_len = data.shape[0]
-        display_width = int(rect[1][1])
-        display_height = int(rect[1][0])
+        golden_ratio = 1.618
+        display_rect = Graphics.fit_to_aspect_ratio(self.view.rect, golden_ratio)
+        #display_rect = Graphics.inset_rect(display_rect, 12)
+        display_width = int(display_rect[1][1])
+        display_height = int(display_rect[1][0])
+        display_origin_x = int(display_rect[0][1])
+        display_origin_y = int(display_rect[0][0])
         for i in xrange(0, display_width):
             ctx.beginPath()
-            ctx.moveTo(i, display_height)
-            ctx.lineTo(i, display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
+            ctx.moveTo(display_origin_x + i, display_origin_y + display_height)
+            ctx.lineTo(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
             ctx.closePath()
             ctx.lineWidth = 1
-            ctx.strokeStyle = '#00FF00'
+            ctx.strokeStyle = '#0F0'
             ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(display_rect[0][1], display_rect[0][0])
+        ctx.lineTo(display_rect[0][1] + display_rect[1][1], display_rect[0][0])
+        ctx.lineTo(display_rect[0][1] + display_rect[1][1], display_rect[0][0] + display_rect[1][0])
+        ctx.lineTo(display_rect[0][1], display_rect[0][0] + display_rect[1][0])
+        ctx.closePath()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = '#000'
+        ctx.stroke()
 
         ctx.restore()
         self.view.set_underlay_script(ctx.js)
