@@ -7,7 +7,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DataPanel
+from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import Graphics
 from nion.swift import ImagePanel
@@ -41,7 +41,7 @@ class TestImagePanelClass(unittest.TestCase):
         default_data_group = self.document_controller.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_panel_selection = DataPanel.DataItemSpecifier(default_data_group, self.data_item)
+        self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, self.data_item)
 
     def tearDown(self):
         self.image_panel.close()

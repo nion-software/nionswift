@@ -42,40 +42,6 @@ _ = gettext.gettext
 # TODO: What happens when a group/item selected in a different image panel is deleted?
 
 
-# persistently store a data panel selection
-class DataItemSpecifier(object):
-    def __init__(self, data_group=None, data_item=None):
-        self.__data_group = data_group
-        self.__data_item = data_item
-        self.__data_item_container = self.__search_container(data_item, data_group) if data_group and data_item else None
-        assert data_item is None or data_item in self.__data_item_container.data_items
-    def __get_data_group(self):
-        return self.__data_group
-    data_group = property(__get_data_group)
-    def __get_data_item(self):
-        return self.__data_item
-    data_item = property(__get_data_item)
-    def __search_container(self, data_item, container):
-        if hasattr(container, "data_items"):
-            if data_item in container.data_items:
-                return container
-            for child_data_item in container.data_items:
-                child_container = self.__search_container(data_item, child_data_item)
-                if child_container:
-                    return child_container
-        if hasattr(container, "data_groups"):
-            for data_group in container.data_groups:
-                child_container = self.__search_container(data_item, data_group)
-                if child_container:
-                    return child_container
-        return None
-    def __get_data_item_container(self):
-        return self.__data_item_container
-    data_item_container = property(__get_data_item_container)
-    def __str__(self):
-        return "(%s,%s)" % (str(self.data_group), str(self.data_item))
-
-
 class DataPanel(Panel.Panel):
 
     # a tree model of the data groups
@@ -274,7 +240,7 @@ class DataPanel(Panel.Panel):
         def __get_data_panel_selection(self):
             parent_item = self.itemFromId(self._parent_id)
             data_group = self.itemValue("data_group", None, self.itemId(self._index, self._parent_id))
-            return DataItemSpecifier(data_group)
+            return DataItem.DataItemSpecifier(data_group)
         data_panel_selection = property(__get_data_panel_selection)
 
         def set_block_image_panel_update(self, block):
@@ -443,7 +409,7 @@ class DataPanel(Panel.Panel):
                 # update the selected image panel
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
-                    image_panel.data_panel_selection = DataItemSpecifier(self.data_group, data_item)
+                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_group, data_item)
 
         def itemClicked(self, index):
             return False
@@ -481,7 +447,7 @@ class DataPanel(Panel.Panel):
 
         def __get_data_panel_selection(self):
             data_item = self.__get_data_items_flat()[self._index] if self._index >= 0 else None
-            return DataItemSpecifier(self.data_group, data_item)
+            return DataItem.DataItemSpecifier(self.data_group, data_item)
         data_panel_selection = property(__get_data_panel_selection)
 
     def __init__(self, document_controller, panel_id):
@@ -519,7 +485,7 @@ class DataPanel(Panel.Panel):
 
     def close(self):
         self.ui.Splitter_saveState(self.widget, "window/v1/data_panel_splitter")
-        self.update_data_panel_selection(DataItemSpecifier())
+        self.update_data_panel_selection(DataItem.DataItemSpecifier())
         # clear browser model from the qml view
         self.setContextProperty("browser_model", None)
         # close the models
@@ -574,7 +540,7 @@ class DataPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_image_panel_changed(self, image_panel):
-        data_panel_selection = image_panel.data_panel_selection if image_panel else DataItemSpecifier()
+        data_panel_selection = image_panel.data_panel_selection if image_panel else DataItem.DataItemSpecifier()
         self.update_data_panel_selection(data_panel_selection)
 
     def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
@@ -621,7 +587,7 @@ class DataPanel(Panel.Panel):
                 # select the first item/group
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
-                    image_panel.data_panel_selection = DataItemSpecifier(data_group, first_data_item)
+                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, first_data_item)
                 return True
         return False
 

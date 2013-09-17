@@ -12,7 +12,6 @@ import scipy
 from nion.swift import Application
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import Graphics
 from nion.swift import ImagePanel
@@ -56,20 +55,20 @@ class TestStorageClass(unittest.TestCase):
         data_item2.data_items.append(data_item2b)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
         document_controller.selected_image_panel = image_panel
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         self.assertEqual(document_controller.selected_data_item, data_item)
         document_controller.add_line_graphic()
         document_controller.add_rectangle_graphic()
         document_controller.add_ellipse_graphic()
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         document_controller.processing_gaussian_blur()
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         document_controller.processing_resample()
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         document_controller.processing_invert()
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         document_controller.processing_crop()
-        image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item2)
+        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
         self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()

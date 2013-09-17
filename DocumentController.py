@@ -21,7 +21,6 @@ from nion.swift.Decorators import relative_file
 from nion.swift.Decorators import singleton
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import DataPanel
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import ImagePanel
@@ -244,7 +243,7 @@ class DocumentController(Storage.StorageBase):
 
     @queue_main_thread
     def select_data_item(self, data_group, data_item):
-        self.selected_image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+        self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
     # TODO: get rid of this
     @queue_main_thread_sync
@@ -510,7 +509,7 @@ class DocumentController(Storage.StorageBase):
                 new_data_item.title = (prefix if prefix else "") + str(data_item) + (suffix if suffix else "")
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
-                self.selected_image_panel.data_panel_selection = DataPanel.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
+                self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
 
     def processing_fft(self):
         self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "))

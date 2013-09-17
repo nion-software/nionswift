@@ -13,7 +13,6 @@ import numpy
 # local libraries
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import DataPanel
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
 from nion.swift.Decorators import queue_main_thread
@@ -148,7 +147,7 @@ class ImagePanel(Panel.Panel):
 
         self.last_mouse = None
 
-        self.__data_panel_selection = DataPanel.DataItemSpecifier()
+        self.__data_panel_selection = DataItem.DataItemSpecifier()
 
         self.__weak_listeners = []
 
@@ -173,7 +172,7 @@ class ImagePanel(Panel.Panel):
         self.document_controller.unregister_image_panel(self)
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
-        self.data_panel_selection = DataPanel.DataItemSpecifier()  # required before destructing display thread
+        self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
         self.view.close()
         self.view = None
         super(ImagePanel, self).close()
@@ -196,7 +195,7 @@ class ImagePanel(Panel.Panel):
             if data_group:
                 data_item = document_controller.get_data_item_by_key(data_item_uuid)
                 if data_item:
-                    self.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
+                    self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
     def set_focused(self, focused):
         self.view.set_focused(focused)
@@ -285,7 +284,7 @@ class ImagePanel(Panel.Panel):
         # assert that either data_group is not None or both are None. it is acceptable
         # to not have a data_item, but not acceptable to have a data_item without a container
         assert data_panel_selection.data_group is not None or data_panel_selection.data_item is None
-        assert isinstance(data_panel_selection, DataPanel.DataItemSpecifier)
+        assert isinstance(data_panel_selection, DataItem.DataItemSpecifier)
         # track data item in this class to report changes
         if self.data_item_container:
             self.data_item_container.remove_listener(self)
@@ -315,7 +314,7 @@ class ImagePanel(Panel.Panel):
     def data_item_removed(self, container, data_item, index):
         # if our item gets deleted, clear the selection
         if container == self.data_item_container and data_item == self.data_item:
-            self.data_panel_selection = DataPanel.DataItemSpecifier(self.__data_panel_selection.data_group)
+            self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
 
     # tell our listeners the we changed.
     def notify_image_panel_data_item_changed(self, info):

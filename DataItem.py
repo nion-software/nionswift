@@ -521,3 +521,40 @@ class DataItem(Storage.StorageBase):
         data_item_copy.master_data = numpy.copy(self.master_data) if self.master_data is not None else None
         #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
         return data_item_copy
+
+
+# persistently store a data specifier
+class DataItemSpecifier(object):
+    def __init__(self, data_group=None, data_item=None):
+        self.__data_group = data_group
+        self.__data_item = data_item
+        self.__data_item_container = self.__search_container(data_item, data_group) if data_group and data_item else None
+        assert data_item is None or data_item in self.__data_item_container.data_items
+    def __is_empty(self):
+        return not (self.__data_group and self.__data_item)
+    is_empty = property(__is_empty)
+    def __get_data_group(self):
+        return self.__data_group
+    data_group = property(__get_data_group)
+    def __get_data_item(self):
+        return self.__data_item
+    data_item = property(__get_data_item)
+    def __search_container(self, data_item, container):
+        if hasattr(container, "data_items"):
+            if data_item in container.data_items:
+                return container
+            for child_data_item in container.data_items:
+                child_container = self.__search_container(data_item, child_data_item)
+                if child_container:
+                    return child_container
+        if hasattr(container, "data_groups"):
+            for data_group in container.data_groups:
+                child_container = self.__search_container(data_item, data_group)
+                if child_container:
+                    return child_container
+        return None
+    def __get_data_item_container(self):
+        return self.__data_item_container
+    data_item_container = property(__get_data_item_container)
+    def __str__(self):
+        return "(%s,%s)" % (str(self.data_group), str(self.data_item))

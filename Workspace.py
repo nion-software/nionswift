@@ -10,6 +10,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift import DataItem
 from nion.swift.Decorators import singleton
 from nion.swift import UserInterface
 
@@ -351,8 +352,8 @@ class Workspace(object):
 
     def close(self):
         content_map = {}
-        for image_panel in self.image_panel_tabs:
-            content_map[image_panel.element_id] = image_panel.content.save_content()
+        for image_panel_tab in self.image_panel_tabs:
+            content_map[image_panel_tab.element_id] = image_panel_tab.content.save_content()
         self.ui.Settings_setString("Workspace/Content", pickle.dumps(content_map))
         self.ui.Settings_setString("Workspace/Layout", self.__current_layout_id)
         for panel in copy.copy(self.panels):
@@ -363,9 +364,9 @@ class Workspace(object):
         content_string = self.ui.Settings_getString("Workspace/Content")
         if content_string:
             content_map = pickle.loads(content_string)
-            for image_panel in self.image_panel_tabs:
-                if image_panel.element_id in content_map:
-                    image_panel.content.restore_content(content_map[image_panel.element_id], self.document_controller)
+            for image_panel_tab in self.image_panel_tabs:
+                if image_panel_tab.element_id in content_map:
+                    image_panel_tab.content.restore_content(content_map[image_panel_tab.element_id], self.document_controller)
 
     def __get_document_controller(self):
         return self.__document_controller_weakref()
@@ -428,10 +429,15 @@ class Workspace(object):
         return self.__create_element(desc, self.document_controller)
 
     def change_layout(self, layout_id):
-        # first remove existing layout
+        # remember what's current being displayed
+        old_data_panel_selections = []
+        for image_panel_tab in self.image_panel_tabs:
+            old_data_panel_selections.append(image_panel_tab.content.data_panel_selection)
+        # remove existing layout
         image_row = self.find_panel("image-row")
         image_row.removeAllChildren()
         self.image_panel_tabs = []
+        # create the new layout
         if layout_id == "2x1":
             element = self.create_image_panel_element("primary-image")
             self.image_panel_tabs.append(element)
@@ -474,6 +480,40 @@ class Workspace(object):
             self.image_panel_tabs.append(element)
             image_row.addChild(element)
             self.document_controller.selected_image_panel = element.content
+        # restore what was displayed
+        displayed_data_items = []
+        last_data_panel_selection = None
+        for index, image_panel_tab in enumerate(self.image_panel_tabs):
+            data_panel_selection = None
+            if len(old_data_panel_selections) > index and old_data_panel_selections[index] and not old_data_panel_selections[index].is_empty:
+                data_panel_selection = old_data_panel_selections[index]
+                last_data_panel_selection = data_panel_selection
+            elif last_data_panel_selection and not last_data_panel_selection.is_empty:
+                # search for derived data items
+                for data_item in last_data_panel_selection.data_item.data_items:
+                    if data_item not in displayed_data_items:
+                        data_panel_selection = DataItem.DataItemSpecifier(last_data_panel_selection.data_group, data_item)
+                        break
+                # search for another item in the group
+                if not data_panel_selection:
+                    for data_item in last_data_panel_selection.data_group.data_items:
+                        if data_item not in displayed_data_items:
+                            data_panel_selection = DataItem.DataItemSpecifier(last_data_panel_selection.data_group, data_item)
+                            break
+            else:
+                # search for next undisplayed data item
+                for data_group in self.document_controller.data_groups:
+                    if data_panel_selection:
+                        break
+                    for data_item in data_group.data_items:
+                        if data_item not in displayed_data_items:
+                            data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+                            break
+            if not data_panel_selection.is_empty:
+                displayed_data_items.append(data_panel_selection.data_item)
+            image_panel_tab.content.data_panel_selection = data_panel_selection
+        # fill in the missing items if possible
+        # save the layout id
         self.__current_layout_id = layout_id
 
     def layoutAdd(self):
