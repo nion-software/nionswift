@@ -6,7 +6,6 @@ Rectangle {
     id: data_list_view
 
     property alias currentIndex: view.currentIndex
-    property variant lastEvent
 
     color: "#EEEEEE"
 

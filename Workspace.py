@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import cPickle as pickle
 import gettext
 import logging
 import sys
@@ -338,12 +339,33 @@ class Workspace(object):
         self.ui.Widget_setWidgetProperty(self.root.widget, "min-width", 640)
         self.ui.Widget_setWidgetProperty(self.root.widget, "min-height", 480)
 
+        self.image_panel_tabs = []
+
         self.create_panels()
 
+        layout_id = self.ui.Settings_getString("Workspace/Layout")
+
+        self.change_layout(layout_id)
+
+        self.restore_content()
+
     def close(self):
+        content_map = {}
+        for image_panel in self.image_panel_tabs:
+            content_map[image_panel.element_id] = image_panel.content.save_content()
+        self.ui.Settings_setString("Workspace/Content", pickle.dumps(content_map))
+        self.ui.Settings_setString("Workspace/Layout", self.__current_layout_id)
         for panel in copy.copy(self.panels):
             panel.close()
         self.panels = []
+
+    def restore_content(self):
+        content_string = self.ui.Settings_getString("Workspace/Content")
+        if content_string:
+            content_map = pickle.loads(content_string)
+            for image_panel in self.image_panel_tabs:
+                if image_panel.element_id in content_map:
+                    image_panel.content.restore_content(content_map[image_panel.element_id], self.document_controller)
 
     def __get_document_controller(self):
         return self.__document_controller_weakref()
@@ -396,7 +418,7 @@ class Workspace(object):
         }
         return self.__create_element(desc, self.document_controller)
 
-    def __create_image_panel_element(self, image_panel_id=None):
+    def create_image_panel_element(self, image_panel_id=None):
         desc = {
             "type": "tab",
             "id": image_panel_id if image_panel_id else "",
@@ -409,22 +431,24 @@ class Workspace(object):
         # first remove existing layout
         image_row = self.find_panel("image-row")
         image_row.removeAllChildren()
-        if layout_id == "1x1":
-            element = self.__create_image_panel_element("primary-image")
+        self.image_panel_tabs = []
+        if layout_id == "2x1":
+            element = self.create_image_panel_element("primary-image")
+            self.image_panel_tabs.append(element)
             image_row.addChild(element)
-            self.document_controller.selected_image_panel = element.content
-        elif layout_id == "2x1":
-            element = self.__create_image_panel_element("primary-image")
-            image_row.addChild(element)
-            element2 = self.__create_image_panel_element()
+            element2 = self.create_image_panel_element("secondary-image")
+            self.image_panel_tabs.append(element2)
             image_row.addChild(element2)
             self.document_controller.selected_image_panel = element.content
         elif layout_id == "3x1":
-            element = self.__create_image_panel_element("primary-image")
+            element = self.create_image_panel_element("primary-image")
+            self.image_panel_tabs.append(element)
             image_row.addChild(element)
-            element2 = self.__create_image_panel_element()
+            element2 = self.create_image_panel_element("secondary-image")
+            self.image_panel_tabs.append(element2)
             image_row.addChild(element2)
-            element3 = self.__create_image_panel_element()
+            element3 = self.create_image_panel_element("3rd-image")
+            self.image_panel_tabs.append(element3)
             image_row.addChild(element3)
             self.document_controller.selected_image_panel = element.content
         elif layout_id == "2x2":
@@ -432,15 +456,25 @@ class Workspace(object):
             column2 = self.__create_column()
             image_row.addChild(column1)
             image_row.addChild(column2)
-            element = self.__create_image_panel_element("primary-image")
+            element = self.create_image_panel_element("primary-image")
+            self.image_panel_tabs.append(element)
             column1.addChild(element)
-            element2 = self.__create_image_panel_element()
+            element2 = self.create_image_panel_element("secondary-image")
+            self.image_panel_tabs.append(element2)
             column1.addChild(element2)
-            element3 = self.__create_image_panel_element()
+            element3 = self.create_image_panel_element("3rd-image")
+            self.image_panel_tabs.append(element3)
             column2.addChild(element3)
-            element4 = self.__create_image_panel_element()
+            element4 = self.create_image_panel_element("4th-image")
+            self.image_panel_tabs.append(element4)
             column2.addChild(element4)
             self.document_controller.selected_image_panel = element.content
+        else:  # default 1x1
+            element = self.create_image_panel_element("primary-image")
+            self.image_panel_tabs.append(element)
+            image_row.addChild(element)
+            self.document_controller.selected_image_panel = element.content
+        self.__current_layout_id = layout_id
 
     def layoutAdd(self):
         image_row = self.find_panel("image-row")

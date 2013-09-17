@@ -71,7 +71,6 @@ class DocumentController(Storage.StorageBase):
             self.write()
         if _create_workspace:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self)
-            self.selected_image_panel = None  # this has the effect of setting default image panel
 
     def __get_application(self):
         return self.__weak_application()

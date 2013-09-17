@@ -767,6 +767,14 @@ class QtUserInterface(object):
     def PyTreeWidget_setModel(self, widget, py_item_model):
         NionLib.PyTreeWidget_setModel(widget, py_item_model)
 
+    # Settings
+
+    def Settings_setString(self, key, value):
+        NionLib.Settings_setString(key, value)
+
+    def Settings_getString(self, key):
+        return NionLib.Settings_getString(key)
+
     # Splitter
 
     def Splitter_restoreState(self, splitter, identifier):

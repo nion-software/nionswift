@@ -313,3 +313,19 @@ def get_data_item_in_container_by_title(container, data_item_title):
         if data_item.title == data_item_title:
             return data_item
     return None
+
+# Return the data_group matching name that is the descendent of the container.
+# Use the document_controller as the container if container is None.
+def get_data_group_in_container_by_uuid(container, data_group_uuid):
+    for data_group in container.data_groups:
+        if data_group.uuid == data_group_uuid:
+            return data_group
+    return None
+
+# Return the data_item matching name that is the descendent of the container.
+# Use the document_controller as the container if container is None.
+def get_data_item_in_container_by_uuid(container, data_item_uuid):
+    for data_item in container.data_items:
+        if data_item.uuid == data_item_uuid:
+            return data_item
+    return None

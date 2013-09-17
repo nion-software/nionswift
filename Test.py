@@ -160,6 +160,10 @@ class UserInterface:
         pass
     def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
         return (document_window, filename, panel, context_properties)
+    def Settings_setString(self, key, value):
+        pass
+    def Settings_getString(self, key):
+        return None
     def Splitter_restoreState(self, splitter, identifier):
         pass
     def Splitter_saveState(self, splitter, identifier):

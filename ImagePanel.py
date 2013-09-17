@@ -11,6 +11,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift.Decorators import ProcessingThread
@@ -176,6 +177,26 @@ class ImagePanel(Panel.Panel):
         self.view.close()
         self.view = None
         super(ImagePanel, self).close()
+
+    # return a dictionary that can be used to restore the content of this image panel
+    def save_content(self):
+        content = {}
+        data_panel_selection = self.data_panel_selection
+        if data_panel_selection.data_group and data_panel_selection.data_item:
+            content["data-group"] = data_panel_selection.data_group.uuid
+            content["data-item"] = data_panel_selection.data_item.uuid
+        return content
+
+    # restore content from dictionary and document controller
+    def restore_content(self, content, document_controller):
+        if "data-group" in content and "data-item" in content:
+            data_group_uuid = content["data-group"]
+            data_item_uuid = content["data-item"]
+            data_group = DataGroup.get_data_group_in_container_by_uuid(document_controller, data_group_uuid)
+            if data_group:
+                data_item = document_controller.get_data_item_by_key(data_item_uuid)
+                if data_item:
+                    self.data_panel_selection = DataPanel.DataItemSpecifier(data_group, data_item)
 
     def set_focused(self, focused):
         self.view.set_focused(focused)
