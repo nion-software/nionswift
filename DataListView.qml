@@ -73,7 +73,8 @@ Rectangle {
 
             height: background.showDropHighlight ? imageHeight + 16 : imageHeight
             width: view.width
-            color: GridView.isCurrentItem ? "green" : "transparent"
+            color: view.currentItem == background ? "lightsteelblue" : "transparent"
+            radius: view.currentItem == background ? 5 : 0
 
             property int sourceIndex
             property bool showDropHighlight: false
@@ -84,7 +85,7 @@ Rectangle {
             MouseArea {
                 id: mouseArea
                 anchors.fill: parent
-                onClicked: view.currentIndex = index
+                onClicked: view.currentIndex = index;
                 drag.target: draggable
             }
 
@@ -155,7 +156,7 @@ Rectangle {
             anchors.fill: parent
             model: browser_model
             delegate: delegate
-            highlight: Rectangle { color: "lightsteelblue"; radius: 5 }
+            //highlight: Rectangle { color: "lightsteelblue"; radius: 5 }
             spacing: 4
             focus: true
             highlightMoveVelocity: 10000
