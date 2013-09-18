@@ -382,6 +382,16 @@ class DrawingContext(object):
     def __set_lineWidth(self, a):
         self.js += "ctx.lineWidth = {0};".format(a)
     lineWidth = property(__get_lineWidth, __set_lineWidth)
+    def __get_lineCap(self):
+        raise NotImplementedError()
+    def __set_lineCap(self, a):
+        self.js += "ctx.lineCap = '{0}';".format(a)
+    lineCap = property(__get_lineCap, __set_lineCap)
+    def __get_lineJoin(self):
+        raise NotImplementedError()
+    def __set_lineJoin(self, a):
+        self.js += "ctx.lineJoin = '{0}';".format(a)
+    lineJoin = property(__get_lineJoin, __set_lineJoin)
 
 
 class QtImageViewDisplayThread(ProcessingThread):
@@ -395,6 +405,8 @@ class QtImageViewDisplayThread(ProcessingThread):
 
     def handle_data(self, data_item):
         self.__data_item = data_item
+        if data_item:
+            data_item.add_ref()
 
     def grab_data(self):
         data_item = self.__data_item
@@ -403,6 +415,9 @@ class QtImageViewDisplayThread(ProcessingThread):
 
     def process_data(self, data_item):
         self.__image_view._send_image(data_item)
+
+    def release_data(self, data_item):
+        data_item.remove_ref()
 
 
 class QtImageView(object):
@@ -452,9 +467,11 @@ class QtImageView(object):
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
     @queue_main_thread
-    def set_underlay_script(self, js):
+    def set_underlay_script(self, js, finish_event=None):
         if self.ui and self.widget:
             self.ui.Widget_setWidgetProperty(self.widget, "underlay", js)
+        if finish_event:
+            finish_event.set()
 
     @queue_main_thread
     def set_overlay_script(self, js):

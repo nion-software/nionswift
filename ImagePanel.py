@@ -122,6 +122,8 @@ class LinePlotThread(ProcessingThread):
 
     def handle_data(self, data_item):
         self.__data_item = data_item
+        if data_item:
+            data_item.add_ref()
 
     def grab_data(self):
         data_item = self.__data_item
@@ -129,7 +131,12 @@ class LinePlotThread(ProcessingThread):
         return data_item
 
     def process_data(self, data_item):
+        assert data_item is not None
         self.__image_panel._repaint_underlay(data_item)
+
+    def release_data(self, data_item):
+        assert data_item is not None
+        data_item.remove_ref()
 
 
 class ImagePanel(Panel.Panel):
@@ -238,35 +245,47 @@ class ImagePanel(Panel.Panel):
 
     # this will be called by the line plot thread.
     def _repaint_underlay(self, data_item):
+
+        #logging.debug("enter %s %s", self, time.time())
+
         assert data_item is not None
         assert data_item.is_data_1d
+
+        data = data_item.data
+        assert data is not None
+        data = Image.scalarFromArray(data_item.data)  # make sure complex becomes scalar
+        assert data is not None
+        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+        assert data is not None
 
         ctx = UserInterface.DrawingContext()
         ctx.save()
 
-        data = Image.scalarFromArray(data_item.data)  # make sure complex becomes scalar
-        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
-            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
-            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
         rect = self.view.rect
         data_min = numpy.amin(data)
         data_max = numpy.amax(data)
         data_len = data.shape[0]
         golden_ratio = 1.618
         display_rect = Graphics.fit_to_aspect_ratio(self.view.rect, golden_ratio)
-        #display_rect = Graphics.inset_rect(display_rect, 12)
         display_width = int(display_rect[1][1])
         display_height = int(display_rect[1][0])
         display_origin_x = int(display_rect[0][1])
         display_origin_y = int(display_rect[0][0])
-        for i in xrange(0, display_width):
-            ctx.beginPath()
-            ctx.moveTo(display_origin_x + i, display_origin_y + display_height)
-            ctx.lineTo(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[data_len*float(i)/display_width]) - data_min) / (data_max - data_min)))
-            ctx.closePath()
-            ctx.lineWidth = 1
-            ctx.strokeStyle = '#0F0'
-            ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(display_origin_x, display_origin_y + display_height)
+        for i in xrange(0, display_width,3):
+            ctx.lineTo(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min)))
+        ctx.lineTo(display_origin_x + display_width-1, display_origin_y + display_height)
+        ctx.closePath()
+        ctx.fillStyle = '#AFA'
+        ctx.fill()
+        ctx.lineWidth = 2
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.strokeStyle = '#2A2'
+        ctx.stroke()
         ctx.beginPath()
         ctx.moveTo(display_rect[0][1], display_rect[0][0])
         ctx.lineTo(display_rect[0][1] + display_rect[1][1], display_rect[0][0])
@@ -278,8 +297,10 @@ class ImagePanel(Panel.Panel):
         ctx.stroke()
 
         ctx.restore()
-        self.view.set_underlay_script(ctx.js)
-
+        event = threading.Event()
+        self.view.set_underlay_script(ctx.js, event)
+        event.wait()
+        #logging.debug("exit %s %s", self, time.time())
 
     # message comes from the view
     def resized(self, rect):

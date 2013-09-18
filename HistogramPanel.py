@@ -28,6 +28,8 @@ class HistogramThread(ProcessingThread):
 
     def handle_data(self, data_item):
         self.__data_item = data_item
+        if data_item:
+            data_item.add_ref()
 
     def grab_data(self):
         data_item = self.__data_item
@@ -36,6 +38,9 @@ class HistogramThread(ProcessingThread):
 
     def process_data(self, data_item):
         self.__histogram_panel.data_item = data_item
+
+    def release_data(self, data_item):
+        data_item.remove_ref()
 
 
 class HistogramPanel(Panel.Panel):

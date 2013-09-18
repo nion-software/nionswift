@@ -151,7 +151,10 @@ class ProcessingThread(object):
     def grab_data(self):
         raise NotImplementedError()
 
-    def process_data(self, data_item):
+    def process_data(self, data):
+        raise NotImplementedError()
+
+    def release_data(self, data):
         raise NotImplementedError()
 
     def __process(self):
@@ -162,6 +165,8 @@ class ProcessingThread(object):
                 data = self.grab_data()
                 thread_break = self.__thread_break
             if thread_break:
+                if data is not None:
+                    self.release_data(data)
                 break
             try:
                 self.process_data(data)
@@ -169,4 +174,7 @@ class ProcessingThread(object):
                 import traceback
                 logging.debug("Processing thread exception %s", e)
                 traceback.print_exc()
+            finally:
+                if data is not None:
+                    self.release_data(data)
         self.__thread_ended_event.set()
