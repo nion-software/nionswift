@@ -10,7 +10,7 @@ import numpy
 # local libraries
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
-from nion.swift.Decorators import queue_main_thread
+from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift import Panel
 from nion.swift import UserInterface
 
@@ -220,7 +220,7 @@ class HistogramPanel(Panel.Panel):
     # used for queue_main_thread decorator
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
-    @queue_main_thread
+    @queue_main_thread_sync
     def __update_canvas(self, js):
         if self.ui and self.widget:
             self.ui.Widget_setWidgetProperty(self.widget, "js", js)

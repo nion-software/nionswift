@@ -14,6 +14,7 @@ import NionLib
 # local libraries
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import queue_main_thread
+from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift import Graphics
 from nion.swift import Image
 
@@ -518,7 +519,7 @@ class QtImageView(object):
         self.data_item_changed(self.__data_item, {"property": "source"})
     data_item = property(__get_data_item, __set_data_item)
 
-    @queue_main_thread
+    @queue_main_thread_sync
     def __set_image_source(self, url):
         if self.ui and self.widget:
             self.ui.Widget_setWidgetProperty(self.widget, "imageSource", url)
