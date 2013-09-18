@@ -140,6 +140,21 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
         data_item.remove_ref()
 
+    # make sure thumbnail raises exception if a bad operation is involved
+    def test_thumbnail_bad_operation(self):
+        class BadOperation(Operation.FFTOperation):
+            def process_data_in_place(self, data_array):
+                raise NotImplementedError()
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item.add_ref()
+        data_item2 = DataItem.DataItem()
+        data_item2.operations.append(BadOperation())
+        data_item.data_items.append(data_item2)
+        with self.assertRaises(NotImplementedError):
+            data_item2.get_thumbnail_data(64, 64)
+        data_item.remove_ref()
+
     def test_delete_nested_data_item(self):
         data_item = DataItem.DataItem()
         data_item.add_ref()

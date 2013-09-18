@@ -394,10 +394,12 @@ class DataItem(Storage.StorageBase):
                 operations = self.operations
                 self.__data_mutex.release()
                 # apply operations
-                if data is not None:
-                    for operation in reversed(operations):
-                        data = operation.process_data(data)
-                self.__data_mutex.acquire()
+                try:
+                    if data is not None:
+                        for operation in reversed(operations):
+                            data = operation.process_data(data)
+                finally:
+                    self.__data_mutex.acquire()
                 self.__cached_data = data
             return self.__cached_data
     data = property(__get_data)
