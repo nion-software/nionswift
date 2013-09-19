@@ -296,17 +296,11 @@ class ItemModel(object):
 
 
 class ListModel(object):
-    def __init__(self, document_controller, keys):
-        self.__document_controller_weakref = weakref.ref(document_controller)
+    def __init__(self, ui, keys):
+        self.ui = ui
         self.__keys = keys
         self.py_list_model = self.ui.PyListModel_create(self, ["index"] + keys)
         self.model = []
-    def __get_document_controller(self):
-        return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
-    def __get_ui(self):
-        return self.document_controller.ui
-    ui = property(__get_ui)
     def close(self):
         self.ui.PyListModel_destroy(self.py_list_model)
     def itemCount(self):

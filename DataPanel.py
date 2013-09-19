@@ -274,7 +274,8 @@ class DataPanel(Panel.Panel):
     class DataItemModel(UserInterface.ListModel):
 
         def __init__(self, document_controller):
-            super(DataPanel.DataItemModel, self).__init__(document_controller, ["uuid", "level", "display", "display2", "graphic_url"])
+            super(DataPanel.DataItemModel, self).__init__(document_controller.ui, ["uuid", "level", "display", "display2", "graphic_url"])
+            self.__document_controller_weakref = weakref.ref(document_controller)
             self.__data_group = None
             self._index = -1
             self.__block_item_changed = False
@@ -283,6 +284,10 @@ class DataPanel(Panel.Panel):
             # TODO: unlisten to everything
             self.data_group = None
             super(DataPanel.DataItemModel, self).close()
+
+        def __get_document_controller(self):
+            return self.__document_controller_weakref()
+        document_controller = property(__get_document_controller)
 
         def log(self):
             for index, item in enumerate(self.model):

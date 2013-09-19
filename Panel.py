@@ -189,7 +189,7 @@ class ButtonListPanel(Panel):
 
     class ButtonListModel(UserInterface.ListModel):
         def __init__(self, document_controller, button_list_panel):
-            super(ButtonListPanel.ButtonListModel, self).__init__(document_controller, ["buttonColor", "buttonTitle"])
+            super(ButtonListPanel.ButtonListModel, self).__init__(document_controller.ui, ["buttonColor", "buttonTitle"])
             self.button_list_panel_weakref = weakref.ref(button_list_panel)
             self.rebuild()
         def rebuild(self):
