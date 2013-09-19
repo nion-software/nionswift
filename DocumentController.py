@@ -77,6 +77,9 @@ class DocumentController(Storage.StorageBase):
     app = property(__get_application)
 
     def close(self):
+        # recognize when we're running as test and finish out periodic operations
+        if not self.document_window:
+            self.periodic()
         # this isn't ideal since this effectively binds one workspace per document window.
         # TODO: revisit Workspace vs. DocumentController lifetimes
         if self.workspace:
