@@ -93,6 +93,11 @@ def createRGBAImageFromColor(size, r, g, b, a=255):
     return rgba_image
 
 
+def spatial_shape_from_shape_and_dtype(shape, dtype):
+    return shape[:-1] if dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1 else shape
+def spatial_shape_from_data(data):
+    return spatial_shape_from_shape_and_dtype(data.shape, data.dtype)
+
 def is_shape_and_dtype_rgb(shape, dtype):
     return dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1
 def is_data_rgb(data):

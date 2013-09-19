@@ -104,6 +104,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
             self.assertIsNotNone(data_item.data)
+            self.assertIsNotNone(data_item.calculated_calibrations)
 
         data_item_real.remove_ref()
         data_item_complex.remove_ref()
@@ -133,6 +134,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
             self.assertIsNotNone(data_item.data)
+            self.assertIsNotNone(data_item.calculated_calibrations)
 
         data_item_real.remove_ref()
         data_item_complex.remove_ref()

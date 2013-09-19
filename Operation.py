@@ -131,7 +131,7 @@ class FFTOperation(Operation):
             raise NotImplementedError()
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
-        assert len(source_calibrations) == 2
+        assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [DataItem.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
@@ -151,7 +151,7 @@ class IFFTOperation(Operation):
             raise NotImplementedError()
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
-        assert len(source_calibrations) == 2
+        assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [DataItem.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
