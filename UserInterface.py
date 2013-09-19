@@ -568,6 +568,210 @@ class QtImageView(object):
         return None
 
 
+class QtWidget(object):
+    def __init__(self, ui, widget_type, properties):
+        self.ui = ui
+        self.properties = properties if properties else {}
+        self.widget = self.ui.Widget_loadIntrinsicWidget(widget_type)
+        for key in self.properties.keys():
+            self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
+
+
+class QtBoxWidget(QtWidget):
+
+    def __init__(self, ui, widget_type, properties):
+        super(QtBoxWidget, self).__init__(ui, widget_type, properties)
+        self.children = []
+
+    def count(self):
+        return len(self.children)
+
+    def index(self, child):
+        assert child in self.children
+        return self.children.index(child)
+
+    def insert(self, child, before):
+        index = self.index(before) if before else self.count()
+        self.children.insert(index, child)
+        assert self.widget is not None
+        assert child.widget is not None
+        NionLib.Widget_insertWidget(self.widget, child.widget, index)
+
+    def add(self, child):
+        self.insert(child, None)
+
+    def add_stretch(self):
+        NionLib.Widget_addStretch(self.widget)
+
+
+class QtRowWidget(QtBoxWidget):
+
+    def __init__(self, ui, properties):
+        super(QtRowWidget, self).__init__(ui, "row", properties)
+
+
+class QtColumnWidget(QtBoxWidget):
+
+    def __init__(self, ui, properties):
+        super(QtColumnWidget, self).__init__(ui, "column", properties)
+
+
+class QtComboBoxWidget(QtWidget):
+
+    def __init__(self, ui, items, properties):
+        super(QtComboBoxWidget, self).__init__(ui, "combobox", properties)
+        self.__on_current_text_changed = None
+        self.items = items if items else []
+        NionLib.ComboBox_connect(self.widget, self)
+
+    def __get_current_text(self):
+        return NionLib.ComboBox_getCurrentText(self.widget)
+    def __set_current_text(self, text):
+        NionLib.ComboBox_setCurrentText(self.widget, text)
+    current_text = property(__get_current_text, __set_current_text)
+
+    def __get_on_current_text_changed(self):
+        return self.__on_current_text_changed
+    def __set_on_current_text_changed(self, fn):
+        self.__on_current_text_changed = fn
+    on_current_text_changed = property(__get_on_current_text_changed, __set_on_current_text_changed)
+
+    def __get_items(self):
+        return self.__items
+    def __set_items(self, items):
+        NionLib.ComboBox_removeAllItems(self.widget)
+        for item in items:
+            NionLib.ComboBox_addItem(self.widget, item)
+    items = property(__get_items, __set_items)
+
+    # this message comes from Qt implementation
+    def current_text_changed(self, text):
+        if self.__on_current_text_changed:
+            self.__on_current_text_changed(text)
+
+
+class QtPushButtonWidget(QtWidget):
+
+    def __init__(self, ui, text, properties):
+        super(QtPushButtonWidget, self).__init__(ui, "pushbutton", properties)
+        self.__on_clicked = None
+        self.text = text
+        NionLib.PushButton_connect(self.widget, self)
+
+    def __get_text(self):
+        return self.__text
+    def __set_text(self, text):
+        self.__text = text
+        NionLib.PushButton_setText(self.widget, text)
+    text = property(__get_text, __set_text)
+
+    def __get_on_clicked(self):
+        return self.__on_clicked
+    def __set_on_clicked(self, fn):
+        self.__on_clicked = fn
+    on_clicked = property(__get_on_clicked, __set_on_clicked)
+
+    def clicked(self):
+        if self.__on_clicked:
+            self.__on_clicked()
+
+
+class QtLabelWidget(QtWidget):
+
+    def __init__(self, ui, text, properties):
+        super(QtLabelWidget, self).__init__(ui, "label", properties)
+        self.__text = None
+
+    def __get_text(self):
+        return self.__text
+    def __set_text(self, text):
+        self.__text = text if text else ""
+        NionLib.Label_setText(self.widget, text)
+    text = property(__get_text, __set_text)
+
+
+class QtSliderWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtSliderWidget, self).__init__(ui, "slider", properties)
+        self.__on_value_changed = None
+        self.__on_slider_pressed = None
+        self.__on_slider_released = None
+        self.__on_slider_moved = None
+        self.__pressed = False
+        self.__min = 0
+        self.__max = 0
+        NionLib.Slider_connect(self.widget, self)
+        self.minimum = self.__min
+        self.maximum = self.__max
+
+    def __get_value(self):
+        return NionLib.Slider_getValue(self.widget)
+    def __set_value(self, value):
+        NionLib.Slider_setValue(self.widget, value)
+    value = property(__get_value, __set_value)
+
+    def __get_minimum(self):
+        return self.__min
+    def __set_minimum(self, value):
+        self.__min = value
+        NionLib.Slider_setMinimum(self.widget, value)
+    minimum = property(__get_minimum, __set_minimum)
+
+    def __get_maximum(self):
+        return self.__max
+    def __set_maximum(self, value):
+        self.__max = value
+        NionLib.Slider_setMaximum(self.widget, value)
+    maximum = property(__get_maximum, __set_maximum)
+
+    def __get_pressed(self):
+        return self.__pressed
+    pressed = property(__get_pressed)
+
+    def __get_on_value_changed(self):
+        return self.__on_value_changed
+    def __set_on_value_changed(self, fn):
+        self.__on_value_changed = fn
+    on_value_changed = property(__get_on_value_changed, __set_on_value_changed)
+
+    def __get_on_slider_pressed(self):
+        return self.__on_slider_pressed
+    def __set_on_slider_pressed(self, fn):
+        self.__on_slider_pressed = fn
+    on_slider_pressed = property(__get_on_slider_pressed, __set_on_slider_pressed)
+
+    def __get_on_slider_released(self):
+        return self.__on_slider_released
+    def __set_on_slider_released(self, fn):
+        self.__on_slider_released = fn
+    on_slider_released = property(__get_on_slider_released, __set_on_slider_released)
+
+    def __get_on_slider_moved(self):
+        return self.__on_slider_moved
+    def __set_on_slider_moved(self, fn):
+        self.__on_slider_moved = fn
+    on_slider_moved = property(__get_on_slider_moved, __set_on_slider_moved)
+
+    def value_changed(self, value):
+        if self.__on_value_changed:
+            self.__on_value_changed(value)
+
+    def slider_pressed(self):
+        self.__pressed = True
+        if self.__on_slider_pressed:
+            self.__on_slider_pressed()
+
+    def slider_released(self):
+        self.__pressed = False
+        if self.__on_slider_released:
+            self.__on_slider_released()
+
+    def slider_moved(self, value):
+        if self.__on_slider_moved:
+            self.__on_slider_moved(value)
+
+
 class QtUserInterface(object):
 
     # Higher level UI objects
@@ -577,6 +781,24 @@ class QtUserInterface(object):
 
     def create_mime_data(self):
         return QtMimeData(self, self.MimeData_create())
+
+    def create_row_widget(self, properties=None):
+        return QtRowWidget(self, properties)
+
+    def create_column_widget(self, properties=None):
+        return QtColumnWidget(self, properties)
+
+    def create_combo_box_widget(self, items=None, properties=None):
+        return QtComboBoxWidget(self, items, properties)
+
+    def create_push_button_widget(self, text=None, properties=None):
+        return QtPushButtonWidget(self, text, properties)
+
+    def create_label_widget(self, text=None, properties=None):
+        return QtLabelWidget(self, text, properties)
+
+    def create_slider_widget(self, properties=None):
+        return QtSliderWidget(self, properties)
 
     # Actions sub-module for menus and actions
 
