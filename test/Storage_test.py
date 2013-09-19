@@ -236,7 +236,7 @@ class TestStorageClass(unittest.TestCase):
         # check that the graphic associated with the operation was read back
         graphic = document_controller.data_groups[0].data_items[0].graphics[3]
         crop_operation = document_controller.data_groups[0].data_items[0].data_items[3].operations[0]
-        self.assertIsInstance(crop_operation, Operation.CropOperation)
+        self.assertIsInstance(crop_operation, Operation.Crop2dOperation)
         self.assertEqual(graphic, crop_operation.graphic)
         # test setting original graphic to None. the graphic is still referenced by the data item
         # so it should not be None

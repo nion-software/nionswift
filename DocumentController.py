@@ -521,7 +521,7 @@ class DocumentController(Storage.StorageBase):
         self.add_processing_operation(Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "))
 
     def processing_resample(self):
-        self.add_processing_operation(Operation.ResampleOperation(), prefix=_("Resample of "))
+        self.add_processing_operation(Operation.Resample2dOperation(), prefix=_("Resample of "))
 
     def processing_histogram(self):
         self.add_processing_operation(Operation.HistogramOperation(), prefix=_("Histogram of "))
@@ -530,7 +530,7 @@ class DocumentController(Storage.StorageBase):
         data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
-            operation = Operation.CropOperation()
+            operation = Operation.Crop2dOperation()
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)

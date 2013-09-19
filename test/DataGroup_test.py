@@ -61,7 +61,7 @@ class TestDataGroupClass(unittest.TestCase):
         # add a child data item and make sure top level and data_group see it
         # also check data item.
         data_item1a = DataItem.DataItem()
-        operation1a = Operation.ResampleOperation()
+        operation1a = Operation.Resample2dOperation()
         data_item1a.operations.append(operation1a)
         data_item1.data_items.append(data_item1a)
         self.assertEqual(len(document_controller.counted_data_items), 2)
@@ -74,7 +74,7 @@ class TestDataGroupClass(unittest.TestCase):
         # add a child data item to the child and make sure top level and data_group match.
         # also check data items.
         data_item1a1 = DataItem.DataItem()
-        operation1a1 = Operation.ResampleOperation()
+        operation1a1 = Operation.Resample2dOperation()
         data_item1a1.operations.append(operation1a1)
         data_item1a.data_items.append(data_item1a1)
         data_item1a1.calculated_calibrations
@@ -92,7 +92,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_item2 = DataItem.DataItem()
         data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item2a = DataItem.DataItem()
-        operation2a = Operation.ResampleOperation()
+        operation2a = Operation.Resample2dOperation()
         data_item2a.operations.append(operation2a)
         data_item2.data_items.append(data_item2a)
         self.assertEqual(len(data_item2.counted_data_items), 1)

@@ -79,16 +79,16 @@ class Operation(Storage.StorageBase):
             object.__setattr__(self, name, value)
     # subclasses can override this method to perform processing on a copy of the original data
     # this method should return either the copy itself or a new data set
-    def process_data_copy(self, data_array_copy):
+    def process_data_copy(self, data_copy):
         raise NotImplementedError
     # subclasses can override this method to perform processing on the original data.
     # this method should always return a new copy of data
-    def process_data_in_place(self, data_array):
-        return self.process_data_copy(data_array.copy())
-    def process_data(self, data_array):
+    def process_data_in_place(self, data):
+        return self.process_data_copy(data.copy())
+    def process_data(self, data):
         if self.enabled:
-            data_array = self.process_data_in_place(data_array)
-        return data_array
+            data = self.process_data_in_place(data)
+        return data
     # calibrations
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         return source_calibrations
@@ -122,8 +122,13 @@ class FFTOperation(Operation):
         super(FFTOperation, self).__init__(_("FFT"), description)
         self.storage_type = "fft-operation"
 
-    def process_data_in_place(self, data_array):
-        return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_array))
+    def process_data_in_place(self, data):
+        if Image.is_data_1d(data):
+            return scipy.fftpack.fftshift(scipy.fftpack.fft(data))
+        elif Image.is_data_2d(data):
+            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data))
+        else:
+            raise NotImplementedError()
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
@@ -137,8 +142,13 @@ class IFFTOperation(Operation):
         super(IFFTOperation, self).__init__(_("Inverse FFT"), description)
         self.storage_type = "inverse-fft-operation"
 
-    def process_data_in_place(self, data_array):
-        return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_array))
+    def process_data_in_place(self, data):
+        if Image.is_data_1d(data):
+            return scipy.fftpack.fftshift(scipy.fftpack.ifft(data))
+        elif Image.is_data_2d(data):
+            return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data))
+        else:
+            raise NotImplementedError()
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
@@ -153,8 +163,8 @@ class InvertOperation(Operation):
         super(InvertOperation, self).__init__(_("Invert"), description)
         self.storage_type = "invert-operation"
 
-    def process_data_in_place(self, data_array_copy):
-        return 1.0 - data_array_copy[:, :]
+    def process_data_in_place(self, data_copy):
+        return 1.0 - data_copy[:]
 
 
 class GaussianBlurOperation(Operation):
@@ -167,25 +177,27 @@ class GaussianBlurOperation(Operation):
         super(GaussianBlurOperation, self).__init__(_("Gaussian"), description)
         self.storage_type = "gaussian-blur-operation"
 
-    def process_data_in_place(self, data_array_copy):
-        return scipy.ndimage.gaussian_filter(data_array_copy, sigma=10*self.sigma)
+    def process_data_in_place(self, data_copy):
+        return scipy.ndimage.gaussian_filter(data_copy, sigma=10*self.sigma)
 
 
-class CropOperation(Operation):
-    def __init__(self):
+class Crop2dOperation(Operation):
+    def __init__(self, graphic=None):
         description = []
-        super(CropOperation, self).__init__(_("Crop"), description)
+        super(Crop2dOperation, self).__init__(_("Crop"), description)
         self.__graphic = None
         self.storage_items += ["graphic"]
         self.storage_type = "crop-operation"
+        if graphic:
+            self.graphic = graphic
 
     def about_to_delete(self):
         self.graphic = None
-        super(CropOperation, self).about_to_delete()
+        super(Crop2dOperation, self).about_to_delete()
 
     @classmethod
     def build(cls, storage_reader, item_node):
-        crop_operation = super(CropOperation, cls).build(storage_reader, item_node)
+        crop_operation = super(Crop2dOperation, cls).build(storage_reader, item_node)
         graphic = storage_reader.get_item(item_node, "graphic")
         crop_operation.graphic = graphic
         return crop_operation
@@ -217,30 +229,30 @@ class CropOperation(Operation):
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return bounds_int[1], data_dtype
 
-    def process_data_copy(self, data_array_copy):
+    def process_data_copy(self, data_copy):
         graphic = self.graphic
         assert isinstance(graphic, Graphics.RectangleGraphic)
-        shape = data_array_copy.shape
+        shape = data_copy.shape
         bounds = graphic.bounds
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
-        return data_array_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
+        return data_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
 
 
-class ResampleOperation(Operation):
-    def __init__(self):
+class Resample2dOperation(Operation):
+    def __init__(self, width=None, height=None):
         description = [
-            {"name": _("Width"), "property": "width", "type": "integer-field", "default": None},
-            {"name": _("Height"), "property": "height", "type": "integer-field", "default": None}
+            {"name": _("Width"), "property": "width", "type": "integer-field", "default": width},
+            {"name": _("Height"), "property": "height", "type": "integer-field", "default": height},
         ]
-        super(ResampleOperation, self).__init__(_("Resample"), description)
+        super(Resample2dOperation, self).__init__(_("Resample"), description)
         self.storage_type = "resample-operation"
 
-    def process_data_copy(self, data_array_copy):
-        height = self.height if self.height else data_array_copy.shape[0]
-        width = self.width if self.width else data_array_copy.shape[1]
-        if data_array_copy.shape[1] == width and data_array_copy.shape[0] == height:
-            return data_array_copy
-        return Image.scaled(data_array_copy, (height, width))
+    def process_data_copy(self, data_copy):
+        height = self.height if self.height else data_copy.shape[0]
+        width = self.width if self.width else data_copy.shape[1]
+        if data_copy.shape[1] == width and data_copy.shape[0] == height:
+            return data_copy
+        return Image.scaled(data_copy, (height, width))
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
@@ -277,18 +289,20 @@ class HistogramOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return (512, ), numpy.int
 
-    def process_data_in_place(self, data_array):
-        histogram_data = numpy.histogram(data_array, bins=512)
+    def process_data_in_place(self, data):
+        histogram_data = numpy.histogram(data, bins=512)
         return histogram_data[0].astype(numpy.int)
 
 
 class LineProfileOperation(Operation):
-    def __init__(self):
+    def __init__(self, graphic=None):
         description = []
         super(LineProfileOperation, self).__init__(_("Line Profile"), description)
         self.__graphic = None
         self.storage_items += ["graphic"]
         self.storage_type = "line-profile-operation"
+        if graphic:
+            self.graphic = graphic
 
     def about_to_delete(self):
         self.graphic = None
@@ -334,17 +348,17 @@ class LineProfileOperation(Operation):
         else:
             return (length, ), numpy.double
 
-    def process_data_in_place(self, data_array):
+    def process_data_in_place(self, data):
         graphic = self.graphic
         assert isinstance(graphic, Graphics.LineGraphic)
         start = graphic.start
         end = graphic.end
-        shape = data_array.shape
+        shape = data.shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
         length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
         if length > 0:
             c0 = numpy.linspace(start_data[0], end_data[0]-1, length)
             c1 = numpy.linspace(start_data[1], end_data[1]-1, length)
-            return data_array[c0.astype(numpy.int), c1.astype(numpy.int)]
+            return data[c0.astype(numpy.int), c1.astype(numpy.int)]
         return numpy.zeros((1))

@@ -156,6 +156,16 @@ class UserInterface:
         pass
     def PyListWidget_setModel(self, widget, py_list_model):
         pass
+    def PyStack_content(self, widget):
+        return None
+    def PyStackGroup_connect(self, stack_group_widget, delegate, enabled_method, add_method, remove_method):
+        pass
+    def PyStackGroup_content(self, stack_group_widget):
+        return None
+    def PyStackGroup_setEnabled(self, stack_group_widget, enabled):
+        pass
+    def PyStackGroup_setTitle(self, stack_group_widget, title):
+        pass
     def PyTreeWidget_setCurrentRow(self, widget, index, parent_row, parent_id):
         pass
     def PyTreeWidget_setModel(self, widget, py_item_model):

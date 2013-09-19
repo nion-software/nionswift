@@ -532,8 +532,8 @@ class DictStorageReader(object):
                 "inverse-fft-operation": Operation.IFFTOperation,
                 "invert-operation": Operation.InvertOperation,
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
-                "resample-operation": Operation.ResampleOperation,
-                "crop-operation": Operation.CropOperation,
+                "resample-operation": Operation.Resample2dOperation,
+                "crop-operation": Operation.Crop2dOperation,
                 "histogram-operation": Operation.HistogramOperation,
                 "line-profile-operation": Operation.LineProfileOperation,
             }
@@ -934,8 +934,8 @@ class DbStorageReader(object):
                 "inverse-fft-operation": Operation.IFFTOperation,
                 "invert-operation": Operation.InvertOperation,
                 "gaussian-blur-operation": Operation.GaussianBlurOperation,
-                "resample-operation": Operation.ResampleOperation,
-                "crop-operation": Operation.CropOperation,
+                "resample-operation": Operation.Resample2dOperation,
+                "crop-operation": Operation.Crop2dOperation,
                 "histogram-operation": Operation.HistogramOperation,
                 "line-profile-operation": Operation.LineProfileOperation,
             }
