@@ -76,6 +76,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(data_group.data_items), 2)
         image_panel.close()
         data_panel.close()
+        document_controller.close()
 
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.

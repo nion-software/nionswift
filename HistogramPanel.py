@@ -26,7 +26,14 @@ class HistogramThread(ProcessingThread):
         # don't start until everything is initialized
         self.start()
 
+    def close(self):
+        if self.__data_item:
+            self.__data_item.remove_ref()
+        super(HistogramThread, self).close()
+
     def handle_data(self, data_item):
+        if self.__data_item:
+            self.__data_item.remove_ref()
         self.__data_item = data_item
         if data_item:
             data_item.add_ref()
