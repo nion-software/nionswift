@@ -169,7 +169,7 @@ class DataPanel(Panel.Panel):
             self.__update_item_count(container)
 
         def item_key_press(self, text, modifiers, index, parent_row, parent_id):
-            if len(text) == 1 and ord(text[0]) == 127:
+            if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
                 data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
                 if data_group:
                     parent_item = self.itemFromId(self._parent_id)
@@ -396,7 +396,7 @@ class DataPanel(Panel.Panel):
         def itemKeyPress(self, index, text, raw_modifiers):
             data_item = self.__get_data_items_flat()[index] if index >= 0 else None
             if data_item:
-                if len(text) == 1 and ord(text[0]) == 127:
+                if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
                     container = self.__get_data_item_container(self.data_group, data_item)
                     assert data_item in container.data_items
                     container.data_items.remove(data_item)
