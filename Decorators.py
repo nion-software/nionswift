@@ -80,12 +80,16 @@ def queue_main_thread_sync(f):
         # eg the name
         e = threading.Event()
         def sync_f(f, event):
-            f()
-            event.set()
+            try:
+                f()
+            finally:
+                event.set()
         wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
         synced_f = functools.partial(sync_f, wrapped_f, e)
         self.delay_queue.put(synced_f)
-        if threading.current_thread() != threading.enumerate()[0]:
+        # how do we tell if this is the main (presumably UI) thread?
+        # the order from threading.enumerate() is not reliable
+        if threading.current_thread().getName() != "MainThread":
             e.wait(5)
     return new_function
 
