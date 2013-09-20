@@ -6,6 +6,8 @@ import os
 import sys
 import uuid
 import weakref
+from contextlib import contextmanager
+from StringIO import StringIO
 
 # third party libraries
 # None
@@ -117,64 +119,52 @@ class OutputPanel(Panel):
         logging.getLogger().removeHandler(self.__output_panel_handler)
         Panel.close(self)
 
+@contextmanager
+def reassign_stdout(new_stdout, new_stderr):
+    oldstdout, oldtsderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = new_stdout, new_stderr
+    yield
+    sys.stdout, sys.stderr = oldstdout, oldtsderr
 
 class ConsolePanel(Panel):
+    # TODO: Replace this with a proper console. As it is, basic functionality
+    # like raw_input is broken, pdb doesn't work and we can't embed an IPython
+    # console.
     def __init__(self, document_controller, panel_id):
         Panel.__init__(self, document_controller, panel_id, "Console")
         self.widget = self.loadIntrinsicWidget("console")
         self.ui.Widget_setWidgetProperty(self.widget, "min-height", 180)
         self.ui.Console_setDelegate(self.widget, self)
-        # this is the console object which carries out the user commands
-        class Console(code.InteractiveConsole):
-            def __init__(self, locals):
-                code.InteractiveConsole.__init__(self, locals)
-                self.error = None
-            def write(self, data):
-                self.error = (self.error if self.error else "") + str(data)
+        self.other_stdout = StringIO()
+        self.other_stderr = StringIO()
+        # sys.ps1/2 is not always defined, we'll use it if it is
+        self.ps1 = getattr(sys, "ps1", ">>> ")
+        self.ps2 = getattr(sys, "ps2", "... ")
+
         locals = {'__name__': None, '__console__': None, '__doc__': None, 'dc': document_controller}
-        self.console = Console(locals)
+        self.console = code.InteractiveConsole(locals)
         lines = ["from nion.swift import DocumentController, DataItme, Image, Menu",
                  "import logging",
                  "import numpy as np",
                  "import numpy as numpy",
                  "_d = DocumentController.DocumentController.DataAccessor(dc)"]
-        output, error = self.pushLines(lines)
-    # capture console output
-    def captureOutput(self):
-        class ConsoleOut(object):
-            def __init__(self):
-                self.output = []
-            def write(self, data):
-                self.output.append(data)
-        # capture all output and put it into console_out.output
-        oldstdout = sys.stdout
-        oldstderr = sys.stderr
-        console_out = ConsoleOut()
-        sys.stdout = console_out
-        sys.stdout = console_out
-        self.console.error = None
-        return console_out, oldstdout, oldstderr
-    # release the console output and return captured output and error
-    def releaseOutput(self, captured):
-        console_out = captured[0]
-        sys.stdout = captured[1]
-        sys.stderr = captured[2]
-        output = "".join(console_out.output)
-        error = self.console.error
-        return output, error
-    def pushLines(self, lines):
-        captured = self.captureOutput()
-        map(self.console.push,lines)
-        return self.releaseOutput(captured)
+        for l in lines:
+            self.interpretCommand(l) 
+
     # interpretCommand is called from the intrinsic widget.
     def interpretCommand(self, command):
-        captured = self.captureOutput()
-        incomplete = self.console.push(command)
-        output, error = self.releaseOutput(captured)
-        # figure out what we're sending back to the console intrinsic widget
-        result = error if error else output
-        prompt = "... " if incomplete else ">>> "
-        error_code = -1 if error else 0
+        with reassign_stdout(self.other_stdout, self.other_stderr):
+            incomplete = self.console.push(command)
+
+        prompt = self.ps2 if incomplete else self.ps1
+        if self.other_stderr.getvalue():
+            result =  self.other_stderr.getvalue()
+            error_code = -1
+        else:
+            result =  self.other_stdout.getvalue()
+            error_code = 0
+        self.other_stdout.truncate(0)
+        self.other_stderr.truncate(0)
         return result, error_code, prompt
 
 
