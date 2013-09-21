@@ -11,9 +11,28 @@ import scipy.interpolate
 # local libraries
 # None
 
+def scale_multidimensional(image, scaled_size):
+    """
+    Return image scaled to scaled_size. scaled_size should be a sequence
+    with the same length as image.
+    """
+    # we make a list of slice objects like [0:image_x-1:scaled_size_x*1j]
+    # this will give us scaled_size_x equal points between 0 and image_x-1
+    slices = [slice(0, x-1, y*1j) for x, y in zip(image.shape, scaled_size)]
+    # we pass slices into ogrid, to gives us vectors for each dimension
+    # ogrid returns a list of floating numbers if we use complex so we have
+    # to convert to int. np.rint rounds to nearest for us, but doesn't cast to int!
+    coords = [numpy.rint(x).astype(numpy.int) for x in numpy.ogrid[slices]]
+    # coords is now, for an array image of dimension n, a list of n 1d arrays we the
+    # coords we want to take from image:
+    return image[coords]
+
 
 # size is c-indexed (height, width)
 def scaled(image, size, method='linear'):
+    if method=='nearest':
+        return scale_multidimensional(image, size)
+    
     assert numpy.ndim(image) in (2,3)
     if numpy.ndim(image) == 2:
         if method == 'cubic':

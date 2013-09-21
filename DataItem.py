@@ -461,8 +461,7 @@ class DataItem(Storage.StorageBase):
             data = Image.scalarFromArray(data)
         rgba = numpy.empty((height, width, 4), numpy.uint8)
         rgba[:] = 64
-        f = scipy.interpolate.interp1d(numpy.arange(0,data.shape[0]),data)
-        data_scaled = f(numpy.linspace(0, data.shape[0]-1, width))
+        data_scaled = Image.scale_multidimensional(data, (width,))
         data_min = numpy.amin(data_scaled)
         data_max = numpy.amax(data_scaled)
         if data_max - data_min != 0.0:
