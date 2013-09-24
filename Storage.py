@@ -536,6 +536,7 @@ class DictStorageReader(object):
                 "crop-operation": Operation.Crop2dOperation,
                 "histogram-operation": Operation.HistogramOperation,
                 "line-profile-operation": Operation.LineProfileOperation,
+                "RGBtoGrayscale-operation": Operation.RGBtoGrayscaleOperation,
             }
             type = node["type"]
             if type in build_map:
@@ -938,6 +939,7 @@ class DbStorageReader(object):
                 "crop-operation": Operation.Crop2dOperation,
                 "histogram-operation": Operation.HistogramOperation,
                 "line-profile-operation": Operation.LineProfileOperation,
+                "RGBtoGrayscale-operation": Operation.RGBtoGrayscaleOperation,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))

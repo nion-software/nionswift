@@ -362,3 +362,18 @@ class LineProfileOperation(Operation):
             c1 = numpy.linspace(start_data[1], end_data[1]-1, length)
             return data[c0.astype(numpy.int), c1.astype(numpy.int)]
         return numpy.zeros((1))
+
+class RGBtoGrayscaleOperation(Operation):
+    def __init__(self):
+        description = []
+        super(RGBtoGrayscaleOperation, self).__init__(_("RGBtoGrayscale"), description)
+        self.storage_type = "RGBtoGrayscale-operation"
+
+    def process_data_in_place(self, data_array_copy):
+        return 0.0722 * data_array_copy[:,:,0] + (
+               0.7152 * data_array_copy[:,:,1] + (
+               0.2126 * data_array_copy[:,:,2] ))
+    
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
+        # we reduce the dimension by 1 so we lose the last calibrations
+        return source_calibrations[:-1]

@@ -570,6 +570,9 @@ class DocumentController(Storage.StorageBase):
             data_item_copy.title = _("Copy of ") + str(data_item_copy)
             self.default_data_group.data_items.append(data_item_copy)
 
+    def processing_RGBtoGrayscale(self):
+        self.add_processing_operation(Operation.RGBtoGrayscaleOperation(), suffix=_(" Gray"))
+
     def add_custom_processing_operation(self, data_item, fn, title=None):
         class ZOperation(Operation.Operation):
             def __init__(self, fn):
