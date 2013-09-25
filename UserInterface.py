@@ -364,87 +364,115 @@ class ListModel(object):
 class DrawingContext(object):
     def __init__(self):
         self.js = ""
+        self.commands = []
     def clear(self):
         self.js = ""
+        self.commands = []
     def save(self):
         self.js += "ctx.save();"
+        self.commands.append(("save", ))
     def restore(self):
         self.js += "ctx.restore();"
+        self.commands.append(("restore", ))
     def beginPath(self):
         self.js += "ctx.beginPath();"
+        self.commands.append(("beginPath", ))
     def closePath(self):
         self.js += "ctx.closePath();"
+        self.commands.append(("closePath", ))
     def translate(self, x, y):
         self.js += "ctx.translate({0}, {1});".format(x, y)
+        self.commands.append(("translate", float(x), float(y)))
     def scale(self, x, y):
         self.js += "ctx.scale({0}, {1});".format(x, y)
+        self.commands.append(("scale", float(x), float(y)))
     def moveTo(self, x, y):
         self.js += "ctx.moveTo({0}, {1});".format(x, y)
+        self.commands.append(("moveTo", float(x), float(y)))
     def lineTo(self, x, y):
         self.js += "ctx.lineTo({0}, {1});".format(x, y)
+        self.commands.append(("lineTo", float(x), float(y)))
     def arc(self, a, b, c, d, e, f):
         self.js += "ctx.arc({0}, {1}, {2}, {3}, {4}, {5});".format(a, b, c, d, e, "true" if f else "false")
+        self.commands.append(("arc", float(a), float(b), float(c), float(d), float(e), bool(f)))
     def stroke(self):
         self.js += "ctx.stroke();"
+        self.commands.append(("stroke", ))
     def fill(self):
         self.js += "ctx.fill();"
+        self.commands.append(("fill", ))
     def fillText(self, text, x, y, maxWidth=None):
         self.js += "ctx.fillText('{0}', {1}, {2}{3});".format(text, x, y, ", {0}".format(maxWidth) if maxWidth else "")
+        self.commands.append(("fillText", text, float(x), float(y), float(maxWidth) if maxWidth else None))
     def __get_fillStyle(self):
         raise NotImplementedError()
     def __set_fillStyle(self, a):
         if isinstance(a, DrawingContext.LinearGradient):
             self.js += "ctx.fillStyle = {0};".format(a.js_var)
+            self.commands.append(("fillStyleGradient", int(a.command_var)))
         else:
             self.js += "ctx.fillStyle = '{0}';".format(a)
+            self.commands.append(("fillStyle", str(a)))
     fillStyle = property(__get_fillStyle, __set_fillStyle)
     def __get_font(self):
         raise NotImplementedError()
     def __set_font(self, a):
         self.js += "ctx.font = '{0}';".format(a)
+        self.commands.append(("font", str(a)))
     font = property(__get_font, __set_font)
     def __get_textAlign(self):
         raise NotImplementedError()
     def __set_textAlign(self, a):
         self.js += "ctx.textAlign = '{0}';".format(a)
+        self.commands.append(("textAlign", str(a)))
     textAlign = property(__get_textAlign, __set_textAlign)
     def __get_textBaseline(self):
         raise NotImplementedError()
     def __set_textBaseline(self, a):
         self.js += "ctx.textBaseline = '{0}';".format(a)
+        self.commands.append(("textBaseline", str(a)))
     textBaseline = property(__get_textBaseline, __set_textBaseline)
     def __get_strokeStyle(self):
         raise NotImplementedError()
     def __set_strokeStyle(self, a):
         self.js += "ctx.strokeStyle = '{0}';".format(a)
+        self.commands.append(("strokeStyle", str(a)))
     strokeStyle = property(__get_strokeStyle, __set_strokeStyle)
     def __get_lineWidth(self):
         raise NotImplementedError()
     def __set_lineWidth(self, a):
         self.js += "ctx.lineWidth = {0};".format(a)
+        self.commands.append(("lineWidth", float(a)))
     lineWidth = property(__get_lineWidth, __set_lineWidth)
     def __get_lineCap(self):
         raise NotImplementedError()
     def __set_lineCap(self, a):
         self.js += "ctx.lineCap = '{0}';".format(a)
+        self.commands.append(("lineCap", str(a)))
     lineCap = property(__get_lineCap, __set_lineCap)
     def __get_lineJoin(self):
         raise NotImplementedError()
     def __set_lineJoin(self, a):
         self.js += "ctx.lineJoin = '{0}';".format(a)
+        self.commands.append(("lineJoin", str(a)))
     lineJoin = property(__get_lineJoin, __set_lineJoin)
     class LinearGradient:
         next = 1
         def __init__(self, context, x, y, width, height):
             self.weak_context = weakref.ref(context)
             self.js_var = "grad"+str(DrawingContext.LinearGradient.next)
+            self.command_var = DrawingContext.LinearGradient.next
             self.js = "var {0} = ctx.createLinearGradient({1}, {2}, {3}, {4});".format(self.js_var, x, y, width, height)
+            self.commands = []
+            self.commands.append(("gradient", self.command_var, float(x), float(y), float(width), float(height)))
             DrawingContext.LinearGradient.next = DrawingContext.LinearGradient.next + 1
         def add_color_stop(self, x, color):
             self.weak_context().js += "{0}.addColorStop({1}, '{2}');".format(self.js_var, x, color)
+            self.weak_context().commands.append(("colorStop", self.command_var, float(x), str(color)))
     def create_linear_gradient(self, x, y, width, height):
         gradient = DrawingContext.LinearGradient(self, x, y, width, height)
         self.js += gradient.js
+        self.commands.extend(gradient.commands)
         return gradient
 
 
@@ -856,7 +884,8 @@ class QtCanvasWidget(QtWidget):
 
     # TODO: get rid of document_controller usage here
     def __init__(self, ui, document_controller, properties):
-        super(QtCanvasWidget, self).__init__(ui, None, properties)
+        super(QtCanvasWidget, self).__init__(ui, "canvas", properties)
+        NionLib.Canvas_connect(self.widget, self)
         self.__on_mouse_entered = None
         self.__on_mouse_exited = None
         self.__on_mouse_clicked = None
@@ -868,9 +897,6 @@ class QtCanvasWidget(QtWidget):
         # load the Qml and associate it with this panel.
         self.width = 0
         self.height = 0
-        context_properties = { "js": "" }
-        qml_filename = relative_file(__file__, "CanvasView.qml")
-        self.widget = self.ui.DocumentWindow_loadQmlWidget(document_controller.document_window, qml_filename, self, context_properties)
         self.layers = []
         self.update_properties()
 
@@ -894,9 +920,11 @@ class QtCanvasWidget(QtWidget):
 
     def draw(self):
         js = ""
+        commands = []
         for layer in self.layers:
             js += layer.drawing_context.js
-        self.ui.Widget_setWidgetProperty(self.widget, "js", js)
+            commands.extend(layer.drawing_context.commands)
+        NionLib.Canvas_draw(self.widget, commands)
 
     def __get_on_mouse_entered(self):
         return self.__on_mouse_entered
@@ -974,12 +1002,8 @@ class QtCanvasWidget(QtWidget):
         if self.__on_mouse_position_changed:
             self.__on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def widthChanged(self, width):
+    def sizeChanged(self, width, height):
         self.width = width
-        if self.__on_size_changed:
-            self.__on_size_changed(self.width, self.height)
-
-    def heightChanged(self, height):
         self.height = height
         if self.__on_size_changed:
             self.__on_size_changed(self.width, self.height)

@@ -200,7 +200,6 @@ class HeaderPanel(Panel):
         gradient.add_color_stop(1, '#cacaca');
         ctx.fillStyle = gradient
         ctx.fill()
-        ctx.lineWidth = 1
         ctx.restore()
 
         ctx.save()
@@ -227,6 +226,7 @@ class HeaderPanel(Panel):
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#000'
         ctx.fillText(self.display_name, self.canvas.width/2, self.canvas.height/2+1)
+        ctx.restore()
 
         self.canvas.draw()
 
