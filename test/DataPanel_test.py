@@ -328,7 +328,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.selected_image_panel = image_panel
         self.assertIsNone(image_panel.data_panel_selection.data_group)
         self.assertIsNone(image_panel.data_panel_selection.data_item)
-        data_panel.receiveFiles(data_group, 0, [":/app/scroll_gem.png"])
+        data_panel.data_group_model_receive_files(data_group, 0, [":/app/scroll_gem.png"])
         self.assertEqual(image_panel.data_panel_selection.data_group, data_group)
         self.assertEqual(image_panel.data_panel_selection.data_item, data_group.data_items[0])
         image_panel.close()

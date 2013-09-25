@@ -47,7 +47,7 @@ class DataPanel(Panel.Panel):
     # a tree model of the data groups
     class DataGroupModel(UserInterface.ItemModel):
 
-        def __init__(self, document_controller, data_panel):
+        def __init__(self, document_controller):
             super(DataPanel.DataGroupModel, self).__init__(document_controller, ["display", "edit"])
             self.document_controller.add_observer(self)
             self.mapping = {document_controller: self.root}
@@ -55,7 +55,7 @@ class DataPanel(Panel.Panel):
             self._parent_row = -1
             self._parent_id = 0
             self.__block_image_panel_update = False
-            self.__weak_data_panel = weakref.ref(data_panel)
+            self.on_receive_files = None
             # add items that already exist
             data_groups = document_controller.data_groups
             for index, data_group in enumerate(data_groups):
@@ -72,10 +72,6 @@ class DataPanel(Panel.Panel):
                 value = child.data["display"] if "display" in child.data else "---"
                 logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
                 self.log(child.id, indent + "  ")
-
-        def __get_data_panel(self):
-            return self.__weak_data_panel()
-        data_panel = property(__get_data_panel)
 
         def __append_data_item_flat(self, container, data_items):
             if isinstance(container, DataItem.DataItem):
@@ -194,7 +190,7 @@ class DataPanel(Panel.Panel):
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                     return self.NONE
-                if self.data_panel.receiveFiles(data_group, len(data_group.data_items), mime_data.file_paths):
+                if self.on_receive_files and self.on_receive_files(data_group, len(data_group.data_items), mime_data.file_paths):
                     return self.COPY
             if data_group and mime_data.has_format("text/data_item_uuid"):
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
@@ -279,6 +275,7 @@ class DataPanel(Panel.Panel):
             self.__data_group = None
             self._index = -1
             self.__block_item_changed = False
+            self.on_receive_files = None
 
         def close(self):
             # TODO: unlisten to everything
@@ -300,7 +297,7 @@ class DataPanel(Panel.Panel):
             for child_data_item in data_item.data_items:
                 self.__append_data_item_flat(child_data_item, data_items)
 
-        def __get_data_items_flat(self):
+        def get_data_items_flat(self):
             data_items = []
             if self.data_group:
                 for data_item in self.data_group.data_items:
@@ -314,12 +311,10 @@ class DataPanel(Panel.Panel):
 
         # this method if called when one of our listened to items changes
         def data_item_inserted(self, container, data_item, before_index):
-            data_items_flat = self.__get_data_items_flat()
+            data_items_flat = self.get_data_items_flat()
             before_data_item = container.get_storage_relationship("data_items", before_index)
             before_index_flat = data_items_flat.index(before_data_item)
             level = self.model[data_items_flat.index(container)]["level"]+1 if container in data_items_flat else 0
-            # register the thumbnail provider
-            self.ui.DocumentWindow_registerThumbnailProvider(self.document_controller.document_window, str(data_item.uuid), data_item)
             # add the listener. this will result in calls to data_item_changed
             data_item.add_listener(self)
             # begin observing
@@ -354,8 +349,6 @@ class DataPanel(Panel.Panel):
             self.beginRemove(index_flat, index_flat)
             del self.model[index_flat]
             self.endRemove()
-            # unregister the thumbnail provider
-            self.ui.DocumentWindow_unregisterThumbnailProvider(self.document_controller.document_window, str(data_item.uuid))
             # remove the listener.
             data_item.remove_listener(self)
             # remove the observer.
@@ -369,7 +362,7 @@ class DataPanel(Panel.Panel):
         @queue_main_thread
         def data_item_changed(self, data_item, info):
             # update the url so that it gets reloaded
-            data_items_flat = self.__get_data_items_flat()
+            data_items_flat = self.get_data_items_flat()
             # we might be receiving this message for an item that is no longer in the list
             # if the item updates and the user switches panels. check and skip it if so.
             if data_item in data_items_flat:
@@ -399,7 +392,7 @@ class DataPanel(Panel.Panel):
             return None
 
         def itemKeyPress(self, index, text, raw_modifiers):
-            data_item = self.__get_data_items_flat()[index] if index >= 0 else None
+            data_item = self.get_data_items_flat()[index] if index >= 0 else None
             if data_item:
                 if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
                     container = self.__get_data_item_container(self.data_group, data_item)
@@ -410,7 +403,10 @@ class DataPanel(Panel.Panel):
         def itemChanged(self, index):
             if not self.__block_item_changed:
                 self._index = index
-                data_item = self.__get_data_items_flat()[index] if index >= 0 else None
+                data_items = self.get_data_items_flat()
+                # check the proper index; there are some cases where it gets out of sync
+                # TODO: debug the index cases
+                data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 # update the selected image panel
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
@@ -446,50 +442,116 @@ class DataPanel(Panel.Panel):
         data_group = property(__get_data_group, __set_data_group)
 
         def get_data_item_index(self, data_item):
-            data_items_flat = self.__get_data_items_flat()
+            data_items_flat = self.get_data_items_flat()
             index = data_items_flat.index(data_item) if data_item in data_items_flat else -1
             return index
 
         def __get_data_panel_selection(self):
-            data_item = self.__get_data_items_flat()[self._index] if self._index >= 0 else None
+            data_item = self.get_data_items_flat()[self._index] if self._index >= 0 else None
             return DataItem.DataItemSpecifier(self.data_group, data_item)
         data_panel_selection = property(__get_data_panel_selection)
+
+        def __get_supported_drop_actions(self):
+            return self.DRAG | self.DROP
+        supported_drop_actions = property(__get_supported_drop_actions)
+
+        def __get_mime_types_for_drop(self):
+            return ["text/uri-list", "text/data_item_uuid"]
+        mime_types_for_drop = property(__get_mime_types_for_drop)
+
+        def item_drop_mime_data(self, mime_data, action, row, parent_row):
+            if mime_data.has_file_paths:
+                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, row, parent_row):
+                    return self.COPY
+            if mime_data.has_format("text/data_item_uuid") and parent_row < 0:
+                data_group = self.data_group
+                # don't allow copying of items in smart groups
+                if data_group and isinstance(data_group, DataGroup.DataGroup):
+                    data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+                    data_item = self.document_controller.get_data_item_by_key(data_item_uuid)
+                    if data_item:
+                        data_item_copy = data_item.copy()
+                        if row >= 0:
+                            data_group.data_items.insert(row, data_item_copy)
+                        else:
+                            data_group.data_items.append(data_item_copy)
+                        return action
+            return self.NONE
+
+        def item_mime_data(self, row):
+            data_item = self.get_data_items_flat()[row] if row >= 0 else None
+            if data_item:
+                mime_data = self.ui.create_mime_data()
+                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+                return mime_data
+            return None
+
+        def remove_rows(self, row, count):
+            data_group = self.data_group
+            # don't allow removal of rows in smart groups
+            if data_group and isinstance(data_group, DataGroup.DataGroup):
+                assert count == 1  # until implemented
+                data_item = self.get_data_items_flat()[row] if row >= 0 else None
+                if data_item:
+                    data_group.data_items.remove(data_item)
+            return True
+
+    # this message comes from the styled item delegate
+    def paint(self, dc, options):
+        rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
+        index = options["index"]["row"]
+        data_item = self.data_item_model.get_data_items_flat()[index]
+        thumbnail_data = data_item.get_thumbnail_data(72, 72)
+        level = self.data_item_model.itemValue("level", index)
+        display = self.data_item_model.itemValue("display", index)
+        display2 = self.data_item_model.itemValue("display2", index)
+        import NionLib
+        NionLib.DrawingContext_drawImage(dc, rect[0][1] + 4 + level * 16, rect[0][0] + 4, 72, 72, thumbnail_data)
+        NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17, display)
+        NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17, display2)
 
     def __init__(self, document_controller, panel_id):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Data Items"))
 
-        self.data_group_model = DataPanel.DataGroupModel(document_controller, self)
+        self.data_group_model = DataPanel.DataGroupModel(document_controller)
+        self.data_group_model.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
+
         self.data_item_model = DataPanel.DataItemModel(document_controller)
 
-        self.data_group_widget = self.loadIntrinsicWidget("pytree")
-        self.ui.PyTreeWidget_setModel(self.data_group_widget, self.data_group_model.py_item_model)
-        self.ui.Widget_setWidgetProperty(self.data_group_widget, "min-height", 80)
-        self.ui.Widget_setWidgetProperty(self.data_group_widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
+        def data_item_model_receive_files(file_paths, row, parent_row):
+            data_group = self.data_item_model.data_group
+            if parent_row == -1:  # don't accept drops _on top_ of other items
+                # row=-1, parent=-1 means dropping outside of any items; so put it at the end
+                row = row if row >= 0 else len(data_group.data_items)
+                return self.data_group_model_receive_files(data_group, row, file_paths)
+            else:
+                return False
 
-        # set up the qml view
-        context_properties = { "browser_model": self.data_item_model.py_list_model }
-        qml_filename = relative_file(__file__, "DataListView.qml")
-        self.data_item_widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
-        self.ui.Widget_setWidgetProperty(self.data_item_widget, "min-height", 240)
+        self.data_item_model.on_receive_files = data_item_model_receive_files
 
         self.__block_current_item_changed = False
 
-        column = self.ui.Widget_loadIntrinsicWidget("column")
-        self.ui.Widget_setWidgetProperty(column, "stylesheet", "background-color: '#EEEEEE'")
-        self.ui.Widget_addWidget(column, self.data_group_widget)
+        ui = document_controller.ui
 
-        self.widget = self.ui.Widget_loadIntrinsicWidget("splitter")
-        self.ui.Widget_addWidget(self.widget, column)
-        self.ui.Widget_addWidget(self.widget, self.data_item_widget)
-        self.ui.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+        self.data_group_widget = ui.create_tree_widget(properties={"min-height": 80})
+        self.data_group_widget.model = self.data_group_model
 
-        self.ui.Splitter_restoreState(self.widget, "window/v1/data_panel_splitter")
+        self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
+        self.data_item_widget.model = self.data_item_model
+        self.data_item_widget.on_paint = lambda dc, options: self.paint(dc, options)
+
+        self.splitter = ui.create_splitter_widget()
+        self.splitter.add(self.data_group_widget)
+        self.splitter.add(self.data_item_widget)
+        self.splitter.restore_state("window/v1/data_panel_splitter")
+
+        self.widget = self.splitter.widget
 
         # connect self as listener. this will result in calls to selected_image_panel_changed
         self.document_controller.add_listener(self)
 
     def close(self):
-        self.ui.Splitter_saveState(self.widget, "window/v1/data_panel_splitter")
+        self.splitter.save_state("window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataItem.DataItemSpecifier())
         # clear browser model from the qml view
         self.setContextProperty("browser_model", None)
@@ -501,6 +563,9 @@ class DataPanel(Panel.Panel):
         # finish closing
         Panel.Panel.close(self)
 
+    # if the data panel selection gets changed, the data group tree and data item list need
+    # to be updated to reflect the new selection. care needs to be taken to not introduce
+    # update cycles, so ignore 
     def update_data_panel_selection(self, data_panel_selection):
         old_block_current_item_changed = self.__block_current_item_changed
         self.__block_current_item_changed = True
@@ -528,9 +593,9 @@ class DataPanel(Panel.Panel):
         self.data_item_model.data_group = data_group
         self.data_item_model._index = self.data_item_model.get_data_item_index(data_item)
         # update the qml
-        prev_current_index = self.ui.Widget_getWidgetProperty(self.data_item_widget, "currentIndex")
+        prev_current_index = self.data_item_widget.current_index
         if prev_current_index != self.data_item_model._index:
-            self.ui.Widget_setWidgetProperty(self.data_item_widget, "currentIndex", self.data_item_model._index)
+            self.data_item_widget.current_index = self.data_item_model._index
         self.__block_current_item_changed = old_block_current_item_changed
 
     # used for queue_main_thread decorator
@@ -539,7 +604,7 @@ class DataPanel(Panel.Panel):
     @queue_main_thread
     def set_group_current_row(self, index, parent_row, parent_id):
         old = self.data_group_model.set_block_image_panel_update(True)
-        self.ui.PyTreeWidget_setCurrentRow(self.data_group_widget, index, parent_row, parent_id)
+        self.data_group_widget.set_current_row(index, parent_row, parent_id)
         self.data_group_model.set_block_image_panel_update(old)
 
     # this message is received from the document controller.
@@ -551,21 +616,8 @@ class DataPanel(Panel.Panel):
     def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
         self.update_data_panel_selection(data_panel_selection)
 
-    # these messages come straight from DataListView.qml via explicit invocation.
-    # the message is generated when the user clicks on an new item.
-    def dataListCurrentIndexChanged(self, current_index):
-        if not self.__block_current_item_changed:
-            self.data_item_model.itemChanged(current_index)
-    # the message is generated when the user presses a key.
-    def keyPressed(self, text, key, raw_modifiers):
-        return self.data_item_model.itemKeyPress(self.data_item_model._index, text, raw_modifiers)
-
-    def receiveUrls(self, index, urls):
-        data_group = self.data_item_model.data_group
-        file_paths = [self.ui.Core_URLToPath(url) for url in urls]
-        return self.receiveFiles(data_group, index, file_paths)
-
-    def receiveFiles(self, data_group, index, file_paths):
+    # this message comes from the data group model
+    def data_group_model_receive_files(self, data_group, index, file_paths):
         if data_group and isinstance(data_group, DataGroup.DataGroup):
             first_data_item = None
             for file_path in file_paths:
@@ -595,23 +647,3 @@ class DataPanel(Panel.Panel):
                     image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, first_data_item)
                 return True
         return False
-
-    def copyItem(self, uuid_str, source_index, drop_index):
-        data_group = self.data_item_model.data_group
-        if data_group and isinstance(data_group, DataGroup.DataGroup):
-            data_item = data_group.data_items[source_index]
-            assert data_item.uuid == uuid.UUID(uuid_str)
-            data_item_copy = data_item.copy()
-            assert data_item_copy.uuid != uuid.UUID(uuid_str)
-            if drop_index >= 0:
-                data_group.data_items.insert(drop_index, data_item_copy)
-            else:
-                data_group.data_items.append(data_item_copy)
-
-    def deleteItemByUuid(self, uuid_str):
-        data_group = self.data_item_model.data_group
-        if data_group and isinstance(data_group, DataGroup.DataGroup):
-            for data_item in data_group.data_items:
-                if data_item.uuid == uuid.UUID(uuid_str):
-                    data_group.data_items.remove(data_item)
-                    break

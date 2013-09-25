@@ -129,6 +129,7 @@ class Widget:
         self.drawing_context = DrawingContext()
         self.width = 0
         self.height = 0
+        self.current_index = 0
     def add(self, widget):
         pass
     def add_stretch(self):
@@ -136,6 +137,12 @@ class Widget:
     def create_layer(self):
         return Widget()
     def draw(self):
+        pass
+    def save_state(self, tag):
+        pass
+    def restore_state(self, tag):
+        pass
+    def set_current_row(self, index, parent_row, parent_id):
         pass
 
 # define a dummy user interface to use during tests
@@ -148,6 +155,8 @@ class UserInterface:
         return Widget()
     def create_column_widget(self, properties=None):
         return Widget()
+    def create_splitter_widget(self, properties=None):
+        return Widget()
     def create_combo_box_widget(self, items=None, properties=None):
         return Widget()
     def create_push_button_widget(self, text=None, properties=None):
@@ -157,6 +166,10 @@ class UserInterface:
     def create_slider_widget(self, properties=None):
         return Widget()
     def create_canvas_widget(self, document_controller, properties=None):
+        return Widget()
+    def create_tree_widget(self, properties=None):
+        return Widget()
+    def create_list_widget(self, properties=None):
         return Widget()
     def Console_setDelegate(self, widget, delegate):
         pass

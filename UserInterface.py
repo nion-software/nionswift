@@ -297,6 +297,15 @@ class ItemModel(object):
 
 
 class ListModel(object):
+
+    NONE = 0
+    COPY = 1
+    MOVE = 2
+    LINK = 4
+
+    DRAG = 1
+    DROP = 2
+
     def __init__(self, ui, keys):
         self.ui = ui
         self.__keys = keys
@@ -329,6 +338,27 @@ class ListModel(object):
         self.ui.PyListModel_endRemoveRow(self.py_list_model)
     def dataChanged(self):
         self.ui.PyListModel_dataChanged(self.py_list_model)
+    def itemDropMimeData(self, raw_mime_data, action, row, parent_row):
+        if hasattr(self, "item_drop_mime_data"):
+            return self.item_drop_mime_data(QtMimeData(self.ui, raw_mime_data), action, row, parent_row)
+        return False
+    def itemMimeData(self, row):
+        if hasattr(self, "item_mime_data"):
+            mime_data = self.item_mime_data(row)
+            return mime_data.raw_mime_data if mime_data else None
+        return None
+    def removeRows(self, row, count):
+        if hasattr(self, "remove_rows"):
+            return self.remove_rows(row, count)
+        return False
+    def supportedDropActions(self):
+        if hasattr(self, "supported_drop_actions"):
+            return self.supported_drop_actions
+        return 0
+    def mimeTypesForDrop(self):
+        if hasattr(self, "mime_types_for_drop"):
+            return self.mime_types_for_drop
+        return []
 
 
 class DrawingContext(object):
@@ -649,6 +679,22 @@ class QtColumnWidget(QtBoxWidget):
         super(QtColumnWidget, self).__init__(ui, "column", properties)
 
 
+class QtSplitterWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtSplitterWidget, self).__init__(ui, "splitter", properties)
+        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+
+    def add(self, child):
+        NionLib.Widget_addWidget(self.widget, child.widget)
+
+    def restore_state(self, tag):
+        NionLib.Splitter_restoreState(self.widget, tag)
+
+    def save_state(self, tag):
+        NionLib.Splitter_saveState(self.widget, tag)
+
+
 class QtComboBoxWidget(QtWidget):
 
     def __init__(self, ui, items, properties):
@@ -939,6 +985,88 @@ class QtCanvasWidget(QtWidget):
             self.__on_size_changed(self.width, self.height)
 
 
+class QtTreeWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtTreeWidget, self).__init__(ui, "pytree", properties)
+        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
+        NionLib.PyTreeWidget_connect(self.widget, self)
+        self.__model = None
+
+    def __get_model(self):
+        return self.__model
+    def __set_model(self, model):
+        self.__model = model
+        NionLib.PyTreeWidget_setModel(self.widget, model.py_item_model)
+    model = property(__get_model, __set_model)
+
+    def treeItemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
+        return self.model.itemKeyPress(index, parent_row, parent_id, text, raw_modifiers)
+
+    def treeItemChanged(self, index, parent_row, parent_id):
+        self.model.itemChanged(index, parent_row, parent_id)
+
+    def treeItemClicked(self, index, parent_row, parent_id):
+        return self.model.itemClicked(index, parent_row, parent_id)
+
+    def treeItemDoubleClicked(self, index, parent_row, parent_id):
+        return self.model.itemDoubleClicked(index, parent_row, parent_id)
+
+    def set_current_row(self, index, parent_row, parent_id):
+        NionLib.PyTreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
+
+
+class QtListWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtListWidget, self).__init__(ui, "pylist", properties)
+        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyListWidget { margin-top: 4px }")
+        NionLib.PyListWidget_connect(self.widget, self)
+        self.__model = None
+        self.__on_paint = None
+        self.__delegate = None
+
+    def __get_model(self):
+        return self.__model
+    def __set_model(self, model):
+        self.__model = model
+        NionLib.PyListWidget_setModel(self.widget, model.py_list_model)
+    model = property(__get_model, __set_model)
+
+    def listItemKeyPress(self, index, text, raw_modifiers):
+        return self.model.itemKeyPress(index, text, raw_modifiers)
+
+    def listItemChanged(self, index):
+        self.model.itemChanged(index)
+
+    def listItemClicked(self, index):
+        return self.model.itemClicked(index)
+
+    def listItemDoubleClicked(self, index):
+        return self.model.itemDoubleClicked(index)
+
+    def __get_current_index(self):
+        return NionLib.PyListWidget_getCurrentRow(self.widget)
+    def __set_current_index(self, current_index):
+        return NionLib.PyListWidget_setCurrentRow(self.widget, current_index)
+    current_index = property(__get_current_index, __set_current_index)
+
+    def __get_on_paint(self):
+        return self.__on_paint
+    def __set_on_paint(self, fn):
+        self.__on_paint = fn
+        if not self.__delegate:
+            self.__delegate = NionLib.PyStyledDelegate_create()
+            NionLib.PyStyledDelegate_connect(self.__delegate, self)
+            NionLib.PyListWidget_setItemDelegate(self.widget, self.__delegate)
+    on_paint = property(__get_on_paint, __set_on_paint)
+
+    # this message comes from the styled item delegate
+    def paint(self, dc, options):
+        if self.__on_paint:
+            self.__on_paint(dc, options)
+
+
 class QtUserInterface(object):
 
     # Higher level UI objects
@@ -955,6 +1083,9 @@ class QtUserInterface(object):
     def create_column_widget(self, properties=None):
         return QtColumnWidget(self, properties)
 
+    def create_splitter_widget(self, properties=None):
+        return QtSplitterWidget(self, properties)
+
     def create_combo_box_widget(self, items=None, properties=None):
         return QtComboBoxWidget(self, items, properties)
 
@@ -969,6 +1100,12 @@ class QtUserInterface(object):
 
     def create_canvas_widget(self, document_controller, properties=None):
         return QtCanvasWidget(self, document_controller, properties)
+
+    def create_tree_widget(self, properties=None):
+        return QtTreeWidget(self, properties)
+
+    def create_list_widget(self, properties=None):
+        return QtListWidget(self, properties)
 
     # Actions sub-module for menus and actions
 
