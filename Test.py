@@ -82,12 +82,32 @@ class ImageView:
     def map_mouse_to_image(self, image_size, p):
         return p
 
+class Widget:
+    def __init__(self):
+        self.widget = ()
+    def add(self, widget):
+        pass
+    def add_stretch(self):
+        pass
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
         pass
     def create_image_view(self, image_panel):
         return ImageView(image_panel)
+    def create_row_widget(self, properties=None):
+        return Widget()
+    def create_column_widget(self, properties=None):
+        return Widget()
+    def create_combo_box_widget(self, items=None, properties=None):
+        return Widget()
+    def create_push_button_widget(self, text=None, properties=None):
+        return Widget()
+    def create_label_widget(self, text=None, properties=None):
+        return Widget()
+    def create_slider_widget(self, properties=None):
+        return Widget()
     def Console_setDelegate(self, widget, delegate):
         pass
     def Core_out(self, str):
