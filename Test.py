@@ -110,7 +110,11 @@ class DrawingContext(object):
         pass
     def lineTo(self, x, y):
         pass
+    def rect(self, a, b, c, d):
+        pass
     def arc(self, a, b, c, d, e, f):
+        pass
+    def drawImage(self, img, a, b, c, d):
         pass
     def stroke(self):
         pass
@@ -127,8 +131,8 @@ class Widget:
     def __init__(self):
         self.widget = ()
         self.drawing_context = DrawingContext()
-        self.width = 0
-        self.height = 0
+        self.width = 640
+        self.height = 480
         self.current_index = 0
     def add(self, widget):
         pass
@@ -149,8 +153,6 @@ class Widget:
 class UserInterface:
     def __init__(self):
         pass
-    def create_image_view(self, image_panel):
-        return ImageView(image_panel)
     def create_row_widget(self, properties=None):
         return Widget()
     def create_column_widget(self, properties=None):
@@ -165,7 +167,7 @@ class UserInterface:
         return Widget()
     def create_slider_widget(self, properties=None):
         return Widget()
-    def create_canvas_widget(self, document_controller, properties=None):
+    def create_canvas_widget(self, properties=None):
         return Widget()
     def create_tree_widget(self, properties=None):
         return Widget()

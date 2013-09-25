@@ -111,16 +111,18 @@ class GraphicSelection(object):
             self._notify_listeners()
 
 
-class LinePlotThread(ProcessingThread):
+class DisplayThread(ProcessingThread):
 
     def __init__(self, image_panel):
-        super(LinePlotThread, self).__init__()
+        super(DisplayThread, self).__init__()
         self.__image_panel = image_panel
         self.__data_item = None
         # don't start until everything is initialized
         self.start()
 
     def handle_data(self, data_item):
+        if self.__data_item:
+            self.__data_item.remove_ref()
         self.__data_item = data_item
         if data_item:
             data_item.add_ref()
@@ -132,7 +134,7 @@ class LinePlotThread(ProcessingThread):
 
     def process_data(self, data_item):
         assert data_item is not None
-        self.__image_panel._repaint_underlay(data_item)
+        self.__image_panel._repaint(data_item)
 
     def release_data(self, data_item):
         assert data_item is not None
@@ -154,34 +156,46 @@ class ImagePanel(Panel.Panel):
 
         self.last_mouse = None
 
+        self.zoom = 1.0
+        self.tx = 0.0
+        self.ty = 0.0
+
         self.__data_panel_selection = DataItem.DataItemSpecifier()
 
         self.__weak_listeners = []
 
         self.__mouse_in = False
 
-        self.view = None  # some bootstrapping magic in case view is used before assigned
+        self.canvas = self.ui.create_canvas_widget()
+        self.canvas.focusable = True
+        self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
+        self.canvas.on_mouse_entered = lambda: self.mouse_entered()
+        self.canvas.on_mouse_exited = lambda: self.mouse_exited()
+        self.canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
+        self.canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed((y, x), modifiers)
+        self.canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released((y, x), modifiers)
+        self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
+        self.canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
-        self.view = self.ui.create_image_view(self)
+        self.widget = self.canvas.widget  # panel needs this to be dockable
 
-        self.widget = self.view.widget  # panel needs this to be dockable
+        self.__display_layer = self.canvas.create_layer()
+        self.__graphics_layer = self.canvas.create_layer()
 
         self.document_controller.register_image_panel(self)
 
-        self.__line_plot_thread = LinePlotThread(self)
+        self.__display_thread = DisplayThread(self)
 
         self.closed = False
 
     def close(self):
         self.closed = True
-        self.__line_plot_thread.close()
-        self.__line_plot_thread = None
+        self.__display_thread.close()
+        self.__display_thread = None
         self.document_controller.unregister_image_panel(self)
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
         self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
-        self.view.close()
-        self.view = None
         super(ImagePanel, self).close()
 
     # return a dictionary that can be used to restore the content of this image panel
@@ -205,15 +219,15 @@ class ImagePanel(Panel.Panel):
                     self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
     def set_focused(self, focused):
-        self.view.set_focused(focused)
+        pass
 
-    def update_graphics(self):
+    def __repaint_graphics(self):
         data_item = self.data_item
         graphics = data_item.graphics if data_item else None
-        if not self.closed and self.view:
-            rect = self.view.rect
+        if not self.closed:
             widget_mapping = WidgetMapping(self)
-            ctx = UserInterface.DrawingContext()
+            ctx = self.__graphics_layer.drawing_context
+            ctx.clear()
             ctx.save()
             if self.image_size and graphics:
                 for graphic_index, graphic in enumerate(graphics):
@@ -234,17 +248,20 @@ class ImagePanel(Panel.Panel):
                 ctx.font = "normal 24px serif"
                 ctx.fillStyle = "#FFF"
                 ctx.fillText("60nm", origin[1], origin[0] - 12)
-            self.view.set_overlay_script(ctx.js)
 
-    def update_underlay(self):
-        if self.view:
-            if self.data_item and self.data_item.is_data_1d and self.__line_plot_thread:
-                self.__line_plot_thread.update_data(self.data_item)
-            else:
-                self.view.set_underlay_script("")
+    def _repaint(self, data_item):
+        if data_item and data_item.is_data_1d:
+            self.__repaint_line_plot(data_item)
+            ctx = self.__graphics_layer.drawing_context
+            ctx.clear()
+        elif data_item and data_item.is_data_2d:
+            self.__repaint_image(data_item)
+            self.__repaint_graphics()
+        if self.ui and self.widget:
+            self.canvas.draw()
 
     # this will be called by the line plot thread.
-    def _repaint_underlay(self, data_item):
+    def __repaint_line_plot(self, data_item):
 
         #logging.debug("enter %s %s", self, time.time())
 
@@ -260,15 +277,16 @@ class ImagePanel(Panel.Panel):
             data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
         assert data is not None
 
-        ctx = UserInterface.DrawingContext()
+        rect = ((0, 0), (self.canvas.height, self.canvas.width))
+        ctx = self.__display_layer.drawing_context
+        ctx.clear()
         ctx.save()
 
-        rect = self.view.rect
         data_min = numpy.amin(data)
         data_max = numpy.amax(data)
         data_len = data.shape[0]
         golden_ratio = 1.618
-        display_rect = Graphics.fit_to_aspect_ratio(self.view.rect, golden_ratio)
+        display_rect = Graphics.fit_to_aspect_ratio(rect, golden_ratio)
         display_width = int(display_rect[1][1])
         display_height = int(display_rect[1][0])
         display_origin_x = int(display_rect[0][1])
@@ -297,21 +315,50 @@ class ImagePanel(Panel.Panel):
         ctx.stroke()
 
         ctx.restore()
-        event = threading.Event()
-        self.view.set_underlay_script(ctx.js, event)
-        event.wait()
+
+        #logging.debug("exit %s %s", self, time.time())
+
+    # this will be called by the line plot thread.
+    def __repaint_image(self, data_item):
+
+        #logging.debug("enter %s %s", self, time.time())
+
+        assert data_item is not None
+        assert data_item.is_data_2d
+
+        rect = ((0, 0), (self.canvas.height, self.canvas.width))
+        ctx = self.__display_layer.drawing_context
+        ctx.clear()
+        ctx.save()
+
+        rgba_image = data_item.preview_2d
+
+        # this method is called on a thread, so we cannot access self.data_item
+        display_rect = self.__calculate_transform_image_for_image_size(data_item.spatial_shape)
+
+        if rgba_image is not None and display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
+            ctx.drawImage(rgba_image, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
+
+        ctx.restore()
+
         #logging.debug("exit %s %s", self, time.time())
 
     # message comes from the view
-    def resized(self, rect):
-        self.update_underlay()
-        self.update_graphics()
+    def size_changed(self, width, height):
+        self.display_changed()
 
+    # call this when zoom or translation changes
     def display_changed(self):
-        self.update_graphics()
+        if self.data_item and self.__display_thread:
+            self.__display_thread.update_data(self.data_item)
+        else:
+            ctx = self.__display_layer.drawing_context
+            ctx.clear()
+            if self.ui and self.widget:
+                self.canvas.draw()
 
     def selection_changed(self, graphic_selection):
-        self.update_graphics()
+        self.display_changed()
 
     def __get_data_item(self):
         return self.__data_panel_selection.data_item
@@ -349,10 +396,6 @@ class ImagePanel(Panel.Panel):
             listener = weak_listener()
             listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
         self.data_item_changed(self.data_item, {"property": "source"})
-        # tell the view about the new data item
-        # this should be called just once so that the display thread
-        # doesn't flash
-        self.view.data_item = self.data_item
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
 
     def data_item_removed(self, container, data_item, index):
@@ -378,8 +421,7 @@ class ImagePanel(Panel.Panel):
     def data_item_changed(self, data_item, info):
         self.notify_image_panel_data_item_changed(info)
         self.update_cursor_info()
-        self.update_underlay()
-        self.update_graphics()
+        self.display_changed()
 
     def mouse_clicked(self, p, modifiers):
         # activate this view
@@ -454,7 +496,7 @@ class ImagePanel(Panel.Panel):
                 part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
                 graphic.adjust_part(WidgetMapping(self), self.graphic_drag_start_pos, p, part_data, modifiers)
                 self.graphic_drag_changed = True
-                self.update_graphics()
+                self.display_changed()
 
     def update_cursor_info(self):
         pos = None
@@ -469,12 +511,25 @@ class ImagePanel(Panel.Panel):
 
     def __get_image_size(self):
         data_item = self.data_item
-        data_shape = data_item.data_shape if data_item else (0,0)
+        data_shape = data_item.spatial_shape if data_item else (0,0)
         for d in data_shape:
             if not d > 0:
                 return None
         return data_shape
     image_size = property(__get_image_size)
+
+    def __calculate_transform_image_for_image_size(self, image_size):
+        if self.canvas and image_size:
+            rect = ((0, 0), (self.canvas.height, self.canvas.width))
+            image_rect = Graphics.fit_to_size(rect, image_size)
+            image_y = image_rect[0][0] + self.ty*self.zoom - 0.5*image_rect[1][0]*(self.zoom - 1)
+            image_x = image_rect[0][1] + self.tx*self.zoom - 0.5*image_rect[1][1]*(self.zoom - 1)
+            image_rect = ((image_y, image_x), (image_rect[1][0]*self.zoom, image_rect[1][1]*self.zoom))
+            return image_rect
+        return None
+    def __get_transformed_image_rect(self):
+        return self.__calculate_transform_image_for_image_size(self.image_size)
+    transformed_image_rect = property(__get_transformed_image_rect)
 
     # map from image coordinates to widget coordinates
     def map_image_to_widget(self, p):
@@ -485,11 +540,20 @@ class ImagePanel(Panel.Panel):
 
     # map from image normalized coordinates to widget coordinates
     def map_image_norm_to_widget(self, p):
-        return self.view.map_image_norm_to_widget(self.image_size, p)
+        transformed_image_rect = self.transformed_image_rect
+        if transformed_image_rect:
+            return (p[0]*transformed_image_rect[1][0] + transformed_image_rect[0][0], p[1]*transformed_image_rect[1][1] + transformed_image_rect[0][1])
+        return None
 
     # map from widget coordinates to image coordinates
     def map_mouse_to_image(self, p):
-        return self.view.map_mouse_to_image(self.image_size, p)
+        transformed_image_rect = self.transformed_image_rect
+        image_size = self.image_size
+        if transformed_image_rect and image_size:
+            image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
+            image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
+            return (image_y, image_x) # c-indexing
+        return None
 
     # map from widget coordinates to image normalized coordinates
     def map_mouse_to_image_norm(self, p):
@@ -506,28 +570,30 @@ class ImagePanel(Panel.Panel):
     def key_pressed(self, text, key, modifiers):
         #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
         if key == 0x1000012:  # left arrow
-            zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
-            self.setWidgetProperty("translateX", self.getWidgetProperty("translateX") - zoom)
-            self.update_graphics()
+            self.tx = self.tx - self.zoom * (10.0 if modifiers.shift else 1.0)
+            self.display_changed()
         if key == 0x1000014:  # right arrow
-            zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
-            self.setWidgetProperty("translateX", self.getWidgetProperty("translateX") + zoom)
+            self.tx = self.tx + self.zoom * (10.0 if modifiers.shift else 1.0)
+            self.display_changed()
         if key == 0x1000013:  # up arrow
-            zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
-            self.setWidgetProperty("translateY", self.getWidgetProperty("translateY") - zoom)
+            self.ty = self.ty - self.zoom * (10.0 if modifiers.shift else 1.0)
+            self.display_changed()
         if key == 0x1000015:  # down arrow
-            zoom = self.getWidgetProperty("zoom") * (10.0 if modifiers.shift else 1.0)
-            self.setWidgetProperty("translateY", self.getWidgetProperty("translateY") + zoom)
+            self.ty = self.ty + self.zoom * (10.0 if modifiers.shift else 1.0)
+            self.display_changed()
         if text == "-":
-            zoom = self.getWidgetProperty("zoom")
-            self.setWidgetProperty("zoom", zoom / 1.05)
+            zoom = self.zoom
+            self.zoom = zoom / 1.05
+            self.display_changed()
         if text == "+":
-            zoom = self.getWidgetProperty("zoom")
-            self.setWidgetProperty("zoom", zoom * 1.05)
+            zoom = self.zoom
+            self.zoom = zoom * 1.05
+            self.display_changed()
         if text == "0":
-            self.setWidgetProperty("zoom", 1.0)
-            self.setWidgetProperty("translateX", 0.0)
-            self.setWidgetProperty("translateY", 0.0)
+            self.zoom = 1.0
+            self.tx = 0.0
+            self.ty = 0.0
+            self.display_changed()
         return False
 
 

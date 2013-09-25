@@ -428,6 +428,11 @@ class DataItem(Storage.StorageBase):
         return self.data_shape_and_dtype[0]
     data_shape = property(__get_data_shape)
 
+    def __get_spatial_shape(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+    spatial_shape = property(__get_spatial_shape)
+
     def __get_data_dtype(self):
         return self.data_shape_and_dtype[1]
     data_dtype = property(__get_data_dtype)

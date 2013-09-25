@@ -365,15 +365,19 @@ class DrawingContext(object):
     def __init__(self):
         self.js = ""
         self.commands = []
+        self.save_count = 0
     def clear(self):
         self.js = ""
         self.commands = []
+        self.save_count = 0
     def save(self):
         self.js += "ctx.save();"
         self.commands.append(("save", ))
+        self.save_count = self.save_count + 1
     def restore(self):
         self.js += "ctx.restore();"
         self.commands.append(("restore", ))
+        self.save_count = self.save_count - 1
     def beginPath(self):
         self.js += "ctx.beginPath();"
         self.commands.append(("beginPath", ))
@@ -392,9 +396,15 @@ class DrawingContext(object):
     def lineTo(self, x, y):
         self.js += "ctx.lineTo({0}, {1});".format(x, y)
         self.commands.append(("lineTo", float(x), float(y)))
+    def rect(self, a, b, c, d):
+        self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
+        self.commands.append(("rect", float(a), float(b), float(c), float(d)))
     def arc(self, a, b, c, d, e, f):
         self.js += "ctx.arc({0}, {1}, {2}, {3}, {4}, {5});".format(a, b, c, d, e, "true" if f else "false")
         self.commands.append(("arc", float(a), float(b), float(c), float(d), float(e), bool(f)))
+    def drawImage(self, img, a, b, c, d):
+        self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
+        self.commands.append(("image", img, float(a), float(b), float(c), float(d)))
     def stroke(self):
         self.js += "ctx.stroke();"
         self.commands.append(("stroke", ))
@@ -474,185 +484,6 @@ class DrawingContext(object):
         self.js += gradient.js
         self.commands.extend(gradient.commands)
         return gradient
-
-
-class QtImageViewDisplayThread(ProcessingThread):
-
-    def __init__(self, image_view):
-        super(QtImageViewDisplayThread, self).__init__()
-        self.__image_view = image_view
-        self.__data_item = None
-        # don't start until everything is initialized
-        self.start()
-
-    def handle_data(self, data_item):
-        self.__data_item = data_item
-        if data_item:
-            data_item.add_ref()
-
-    def grab_data(self):
-        data_item = self.__data_item
-        self.__data_item = None
-        return data_item
-
-    def process_data(self, data_item):
-        self.__image_view._send_image(data_item)
-
-    def release_data(self, data_item):
-        data_item.remove_ref()
-
-
-class QtImageView(object):
-
-    def __init__(self, image_panel):
-        self.__image_panel_weakref = weakref.ref(image_panel)
-        # load the Qml and associate it with this panel.
-        context_properties = { }
-        qml_filename = self._relativeFile("ImageView.qml")
-        self.__uuid = uuid.uuid4()
-        self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
-        self.rect = ((0, 0), (0, 0))
-        self.__data_item = None
-        self.__display_thread = QtImageViewDisplayThread(self)
-
-    def close(self):
-        # NOTE: through a bit of trickery, the widget gets deleted by the ImagePanel
-        self.__display_thread.close()  # required before destructing display thread
-        self.__display_thread = None
-        self.data_item = None
-
-    # uuid property. read only.
-    def __get_uuid(self):
-        return self.__uuid
-    uuid = property(__get_uuid)
-
-    # access for the property. this allows C++ to get the value.
-    def get_uuid_str(self):
-        return str(self.uuid)
-
-    def __get_image_panel(self):
-        return self.__image_panel_weakref()
-    image_panel = property(__get_image_panel)
-
-    def __get_document_controller(self):
-        return self.image_panel.document_controller if self.image_panel else None
-    document_controller = property(__get_document_controller)
-
-    def __get_ui(self):
-        return self.document_controller.ui if self.document_controller else None
-    ui = property(__get_ui)
-
-    def _relativeFile(self, filename):
-        dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
-        return os.path.join(dir, filename)
-
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
-
-    @queue_main_thread
-    def set_underlay_script(self, js, finish_event=None):
-        if self.ui and self.widget:
-            self.ui.Widget_setWidgetProperty(self.widget, "underlay", js)
-        if finish_event:
-            finish_event.set()
-
-    @queue_main_thread
-    def set_overlay_script(self, js):
-        if self.ui:
-            self.ui.Widget_setWidgetProperty(self.widget, "overlay", js)
-
-    # messages come from qml
-
-    def resized(self, x, y, width, height):
-        self.rect = ((y, x), (height, width))
-        if self.image_panel:
-            self.image_panel.resized(self.rect)
-    def keyPressed(self, text, key, raw_modifiers):
-        # ugly hack to get qml to pass modifiers cleanly to mouse functions
-        self.ui.Widget_setWidgetProperty(self.widget, "modifiers", raw_modifiers)
-        return self.image_panel.key_pressed(text, key, QtKeyboardModifiers(raw_modifiers))
-    def mouseEntered(self):
-        self.image_panel.mouse_entered()
-    def mouseExited(self):
-        self.image_panel.mouse_exited()
-    def mouseClicked(self, y, x, raw_modifiers):
-        self.image_panel.mouse_clicked((y, x), QtKeyboardModifiers(raw_modifiers))
-    def mousePressed(self, y, x, raw_modifiers):
-        self.image_panel.mouse_pressed((y, x), QtKeyboardModifiers(raw_modifiers))
-    def mouseReleased(self, y, x, raw_modifiers):
-        self.image_panel.mouse_released((y, x), QtKeyboardModifiers(raw_modifiers))
-    def mousePositionChanged(self, y, x, raw_modifiers):
-        self.image_panel.mouse_position_changed((y, x), QtKeyboardModifiers(raw_modifiers))
-    def display_changed(self):
-        self.image_panel.display_changed()
-
-    # track the current data item. listen to it to know when the data changes.
-    def __get_data_item(self):
-        return self.__data_item
-    def __set_data_item(self, data_item):
-        if self.__data_item:
-            self.__data_item.remove_listener(self)
-            self.__data_item.remove_ref()
-            self.__data_item = None
-        if data_item:
-            self.__data_item = data_item
-            self.__data_item.add_ref()
-            self.__data_item.add_listener(self)
-        self.data_item_changed(self.__data_item, {"property": "source"})
-    data_item = property(__get_data_item, __set_data_item)
-
-    @queue_main_thread_sync
-    def __set_image_source(self, url):
-        if self.ui and self.widget:
-            self.ui.Widget_setWidgetProperty(self.widget, "imageSource", url)
-
-    # this will only be invoked from the thread
-    def _send_image(self, data_item):
-        # grab the image if there is one
-        rgba_image = data_item.preview_2d if data_item else None
-        if rgba_image is None:
-            self.__set_image_source("")
-        else:
-            controller_id = str(self.uuid)
-            image_id = self.ui.ImageDisplayController_sendImage(controller_id, rgba_image)
-            self.__set_image_source("image://idc/"+controller_id+"/"+str(image_id))
-
-    def data_item_changed(self, data_item, info):
-        assert data_item == self.data_item
-        if self.data_item and self.data_item.is_data_2d and self.__display_thread:
-            self.__display_thread.update_data(self.data_item)
-        else:
-            self._send_image(None)
-
-    def set_focused(self, focused):
-        self.ui.Widget_setContextProperty(self.widget, "focused", focused)
-
-    # map from image normalized coordinates to widget coordinates
-    def map_image_norm_to_widget(self, image_size, p):
-        if image_size:
-            image_rect = Graphics.fit_to_size(self.rect, image_size)
-            zoom = self.ui.Widget_getWidgetProperty(self.widget, "zoom")
-            tx = self.ui.Widget_getWidgetProperty(self.widget, "translateX")
-            ty = self.ui.Widget_getWidgetProperty(self.widget, "translateY")
-            image_y = image_rect[0][0] + ty*zoom - 0.5*image_rect[1][0]*(zoom - 1)
-            image_x = image_rect[0][1] + tx*zoom - 0.5*image_rect[1][1]*(zoom - 1)
-            image_rect = ((image_y, image_x), (image_rect[1][0]*zoom, image_rect[1][1]*zoom))
-            return (p[0]*image_rect[1][0] + image_rect[0][0], p[1]*image_rect[1][1] + image_rect[0][1])
-        return None
-
-    # map from widget coordinates to image coordinates
-    def map_mouse_to_image(self, image_size, p):
-        if image_size:
-            widget_width = self.ui.Widget_getWidgetProperty(self.widget, "imageWidth")
-            widget_height = self.ui.Widget_getWidgetProperty(self.widget, "imageHeight")
-            if widget_height > 0 and widget_width > 0:
-                widget_aspect = float(widget_width) / float(widget_height)
-                image_aspect = float(image_size[1]) / float(image_size[0])
-                # scale maps from widget to image size
-                scale = image_size[0] / widget_height if widget_aspect > image_aspect else image_size[1] / widget_width
-                image_y = (p[0] - widget_height * 0.5) * scale + 0.5 * image_size[0]
-                image_x = (p[1] - widget_width * 0.5) * scale + 0.5 * image_size[1]
-                return (image_y, image_x) # c-indexing
-        return None
 
 
 class QtWidget(object):
@@ -883,7 +714,7 @@ class QtSliderWidget(QtWidget):
 class QtCanvasWidget(QtWidget):
 
     # TODO: get rid of document_controller usage here
-    def __init__(self, ui, document_controller, properties):
+    def __init__(self, ui, properties):
         super(QtCanvasWidget, self).__init__(ui, "canvas", properties)
         NionLib.Canvas_connect(self.widget, self)
         self.__on_mouse_entered = None
@@ -893,12 +724,19 @@ class QtCanvasWidget(QtWidget):
         self.__on_mouse_pressed = None
         self.__on_mouse_released = None
         self.__on_mouse_position_changed = None
+        self.__on_key_pressed = None
         self.__on_size_changed = None
         # load the Qml and associate it with this panel.
         self.width = 0
         self.height = 0
         self.layers = []
         self.update_properties()
+
+    def __get_focusable(self):
+        raise NotImplementedError()
+    def __set_focusable(self, focusable):
+        NionLib.Canvas_setFocusPolicy(self.widget)
+    focusable = property(__get_focusable, __set_focusable)
 
     class Layer(object):
         def __init__(self, canvas):
@@ -919,11 +757,10 @@ class QtCanvasWidget(QtWidget):
         return layer
 
     def draw(self):
-        js = ""
         commands = []
         for layer in self.layers:
-            js += layer.drawing_context.js
             commands.extend(layer.drawing_context.commands)
+            assert layer.drawing_context.save_count == 0
         NionLib.Canvas_draw(self.widget, commands)
 
     def __get_on_mouse_entered(self):
@@ -974,6 +811,12 @@ class QtCanvasWidget(QtWidget):
         self.__on_size_changed = fn
     on_size_changed = property(__get_on_size_changed, __set_on_size_changed)
 
+    def __get_on_key_pressed(self):
+        return self.__on_key_pressed
+    def __set_on_key_pressed(self, fn):
+        self.__on_key_pressed = fn
+    on_key_pressed = property(__get_on_key_pressed, __set_on_key_pressed)
+
     def mouseEntered(self):
         if self.__on_mouse_entered:
             self.__on_mouse_entered()
@@ -1007,6 +850,11 @@ class QtCanvasWidget(QtWidget):
         self.height = height
         if self.__on_size_changed:
             self.__on_size_changed(self.width, self.height)
+
+    def keyPressed(self, text, key, raw_modifiers):
+        if self.__on_key_pressed:
+            return self.__on_key_pressed(text, key, QtKeyboardModifiers(raw_modifiers))
+        return False
 
 
 class QtTreeWidget(QtWidget):
@@ -1095,9 +943,6 @@ class QtUserInterface(object):
 
     # Higher level UI objects
 
-    def create_image_view(self, image_panel):
-        return QtImageView(image_panel)
-
     def create_mime_data(self):
         return QtMimeData(self, self.MimeData_create())
 
@@ -1122,8 +967,8 @@ class QtUserInterface(object):
     def create_slider_widget(self, properties=None):
         return QtSliderWidget(self, properties)
 
-    def create_canvas_widget(self, document_controller, properties=None):
-        return QtCanvasWidget(self, document_controller, properties)
+    def create_canvas_widget(self, properties=None):
+        return QtCanvasWidget(self, properties)
 
     def create_tree_widget(self, properties=None):
         return QtTreeWidget(self, properties)

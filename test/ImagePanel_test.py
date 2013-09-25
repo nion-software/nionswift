@@ -40,6 +40,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.document_controller.create_default_data_groups()
         default_data_group = self.document_controller.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
+        self.image_panel.canvas.width = 1000
+        self.image_panel.canvas.height = 1000
         self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, self.data_item)
 
@@ -146,3 +148,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.simulate_drag((200,200), (300,400))
         self.assertClosePoint(self.data_item.graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.data_item.graphics[0].end, (0.8, 0.8))
+
+    def test_map_widget_to_image(self):
+        # assumes the test widget is 640x480
+        self.image_panel.canvas.width = 640
+        self.image_panel.canvas.height = 480
+        self.assertClosePoint(self.image_panel.map_mouse_to_image((240, 320)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.map_mouse_to_image((0, 80)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.map_mouse_to_image((480, 560)), (1000.0, 1000.0))

@@ -173,7 +173,7 @@ class HeaderPanel(Panel):
 
         ui = document_controller.ui
 
-        self.canvas = ui.create_canvas_widget(document_controller)
+        self.canvas = ui.create_canvas_widget()
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
 
         self.layer = self.canvas.create_layer()

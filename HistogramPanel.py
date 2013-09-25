@@ -59,13 +59,13 @@ class HistogramPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        self.canvas = ui.create_canvas_widget(document_controller)
+        self.canvas = ui.create_canvas_widget()
 
-        self.canvas.on_size_changed = lambda width, height: self.on_size_changed(width, height)
-        self.canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.on_mouse_double_clicked(x, y, modifiers)
-        self.canvas.on_mouse_pressed = lambda x, y, modifiers: self.on_mouse_pressed(x, y, modifiers)
-        self.canvas.on_mouse_released = lambda x, y, modifiers: self.on_mouse_released(x, y, modifiers)
-        self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.on_mouse_position_changed(x, y, modifiers)
+        self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
+        self.canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.mouse_double_clicked(x, y, modifiers)
+        self.canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed(x, y, modifiers)
+        self.canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
+        self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
 
         self.widget = self.canvas.widget
 
@@ -108,25 +108,25 @@ class HistogramPanel(Panel.Panel):
         self.__update_histogram()
     display_limits = property(__get_display_limits, __set_display_limits)
 
-    def on_size_changed(self, width, height):
+    def size_changed(self, width, height):
         if width > 0 and height > 0:
             self.__histogram_dirty = True
             self.__update_histogram()
 
-    def on_mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x, y, modifiers):
         self.display_limits = (0, 1)
 
-    def on_mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x, y, modifiers):
         self.pressed = True
         self.start = float(x)/self.canvas.width
         self.display_limits = (self.start, self.start)
 
-    def on_mouse_released(self, x, y, modifiers):
+    def mouse_released(self, x, y, modifiers):
         self.pressed = False
         if self.data_item and (self.display_limits[1] - self.display_limits[0] > 0):
             self.data_item.display_limits = self.display_limits
 
-    def on_mouse_position_changed(self, x, y, modifiers):
+    def mouse_position_changed(self, x, y, modifiers):
         canvas_width = self.canvas.width
         canvas_height = self.canvas.height
         if self.pressed:
