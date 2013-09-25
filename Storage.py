@@ -982,7 +982,8 @@ class DbStorageReader(object):
         items = []
         for row in c.fetchall():
             item = self.build_item(row[0])
-            items.append(item)
+            if item:
+                items.append(item)
         #items = [self.build_item(row[0]) for row in c.fetchall()]
         return items
 
