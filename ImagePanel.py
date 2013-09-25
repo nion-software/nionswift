@@ -538,14 +538,35 @@ class InfoPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Info"))
 
-        # load the Qml and associate it with this panel.
-        context_properties = {
-            "position_text": "",
-            "value_text": "",
-            "graphic_text": ""
-        }
-        qml_filename = relative_file(__file__, "InfoView.qml")
-        self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
+        ui = document_controller.ui
+
+        position_label = ui.create_label_widget(_("Position:"))
+        self.position_text = ui.create_label_widget()
+        value_label = ui.create_label_widget(_("Value:"))
+        self.value_text = ui.create_label_widget()
+        self.graphic_text = ui.create_label_widget()
+
+        position_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        position_row.add(position_label)
+        position_row.add(self.position_text)
+        position_row.add_stretch()
+
+        value_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        value_row.add(value_label)
+        value_row.add(self.value_text)
+        value_row.add_stretch()
+
+        graphic_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        graphic_row.add(self.graphic_text)
+        graphic_row.add_stretch()
+
+        column = ui.create_column_widget(properties={"spacing": 2, "margin": 6})
+        column.add(position_row)
+        column.add(value_row)
+        column.add(graphic_row)
+        column.add_stretch()
+
+        self.widget = column.widget
 
         # connect self as listener. this will result in calls to selected_data_item_changed and cursor_changed
         self.document_controller.add_listener(self)
@@ -580,9 +601,9 @@ class InfoPanel(Panel.Panel):
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
                 graphic_text = graphic.calibrated_description(image_size, calibrations)
-        self.ui.Widget_setContextProperty(self.widget, "position_text", position_text)
-        self.ui.Widget_setContextProperty(self.widget, "value_text", value_text)
-        self.ui.Widget_setContextProperty(self.widget, "graphic_text", graphic_text)
+        self.position_text.text = position_text
+        self.value_text.text = value_text
+        self.graphic_text.text = graphic_text
 
 
 class InspectorPanel(Panel.Panel):
