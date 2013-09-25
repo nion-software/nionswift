@@ -192,7 +192,7 @@ class MenuManager(object):
         self.addDocumentAction("processing-menu", "processingDuplicate", _("Duplicate"), callback=lambda dc: dc.processing_duplicate(), key_sequence="Ctrl+D")
         self.addDocumentAction("processing-menu", "processingSnapshot", _("Snapshot"), callback=lambda dc: dc.processing_snapshot(), key_sequence="Ctrl+Shift+S")
         self.addDocumentAction("processing-menu", "processingHistogram", _("Histogram"), callback=lambda dc: dc.processing_histogram())
-        self.addDocumentAction("processing-menu", "processingRGBtoGrayscale", _("RGBtoGrayscale"), callback=lambda dc: dc.processing_RGBtoGrayscale())
+        self.addDocumentAction("processing-menu", "processingConvertToScalar", _("Convert to Scalar"), callback=lambda dc: dc.processing_convert_to_scalar())
 
         # put these in processing menu until it is possible to add them to the File menu
         self.insertDocumentAction("file", "file-add-smart-group", "print", _("Add Smart Group"), callback=lambda dc: dc.add_smart_group(), key_sequence="Ctrl+Alt+N")

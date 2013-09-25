@@ -98,6 +98,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.InvertOperation()))
         operation_list.append((data_item_real, Operation.GaussianBlurOperation()))
         operation_list.append((data_item_real, Operation.HistogramOperation()))
+        operation_list.append((data_item_real, Operation.ConvertToScalarOperation()))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -128,6 +129,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.Resample2dOperation(128,128)))
         operation_list.append((data_item_real, Operation.HistogramOperation()))
         operation_list.append((data_item_real, Operation.LineProfileOperation(Graphics.LineGraphic())))
+        operation_list.append((data_item_real, Operation.ConvertToScalarOperation()))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -138,3 +140,27 @@ class TestOperationClass(unittest.TestCase):
 
         data_item_real.remove_ref()
         data_item_complex.remove_ref()
+
+    # test operations against 2d data. doesn't test for correctness of the operation.
+    def test_operations_2d(self):
+        data_item_rgb = DataItem.DataItem()
+        data_item_rgb.master_data = numpy.zeros((256,256), numpy.double)
+        data_item_rgb.add_ref()
+
+        operation_list = []
+        operation_list.append((data_item_rgb, Operation.InvertOperation()))
+        operation_list.append((data_item_rgb, Operation.GaussianBlurOperation()))
+        operation_list.append((data_item_rgb, Operation.Crop2dOperation(Graphics.RectangleGraphic())))
+        operation_list.append((data_item_rgb, Operation.Resample2dOperation(128,128)))
+        operation_list.append((data_item_rgb, Operation.HistogramOperation()))
+        operation_list.append((data_item_rgb, Operation.LineProfileOperation(Graphics.LineGraphic())))
+        operation_list.append((data_item_rgb, Operation.ConvertToScalarOperation()))
+
+        for source_data_item, operation in operation_list:
+            data_item = DataItem.DataItem()
+            data_item.operations.append(operation)
+            source_data_item.data_items.append(data_item)
+            self.assertIsNotNone(data_item.data)
+            self.assertIsNotNone(data_item.calculated_calibrations)
+
+        data_item_rgb.remove_ref()
