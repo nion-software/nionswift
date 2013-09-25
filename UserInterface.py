@@ -982,23 +982,23 @@ class QtCanvasWidget(QtWidget):
         if self.__on_mouse_exited:
             self.__on_mouse_exited()
 
-    def mouseClicked(self, y, x, raw_modifiers):
+    def mouseClicked(self, x, y, raw_modifiers):
         if self.__on_mouse_clicked:
             self.__on_mouse_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def mouseDoubleClicked(self, y, x, raw_modifiers):
+    def mouseDoubleClicked(self, x, y, raw_modifiers):
         if self.__on_mouse_double_clicked:
             self.__on_mouse_double_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def mousePressed(self, y, x, raw_modifiers):
+    def mousePressed(self, x, y, raw_modifiers):
         if self.__on_mouse_pressed:
             self.__on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def mouseReleased(self, y, x, raw_modifiers):
+    def mouseReleased(self, x, y, raw_modifiers):
         if self.__on_mouse_released:
             self.__on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def mousePositionChanged(self, y, x, raw_modifiers):
+    def mousePositionChanged(self, x, y, raw_modifiers):
         if self.__on_mouse_position_changed:
             self.__on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
