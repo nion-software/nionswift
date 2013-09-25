@@ -1130,6 +1130,9 @@ class QtUserInterface(object):
 
     # PyListWidget
 
+    def PyListWidget_getCurrentRow(self, widget):
+        return NionLib.PyListWidget_getCurrentRow(widget)
+
     def PyListWidget_setCurrentRow(self, widget, index):
         NionLib.PyListWidget_setCurrentRow(widget, index)
 
