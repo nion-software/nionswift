@@ -15,6 +15,7 @@ import NionLib
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import queue_main_thread
 from nion.swift.Decorators import queue_main_thread_sync
+from nion.swift.Decorators import relative_file
 from nion.swift import Graphics
 from nion.swift import Image
 
@@ -598,9 +599,13 @@ class QtWidget(object):
     def __init__(self, ui, widget_type, properties):
         self.ui = ui
         self.properties = properties if properties else {}
-        self.widget = self.ui.Widget_loadIntrinsicWidget(widget_type)
-        for key in self.properties.keys():
-            self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
+        self.widget = self.ui.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
+        self.update_properties()
+
+    def update_properties(self):
+        if self.widget:
+            for key in self.properties.keys():
+                self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
 
 
 class QtBoxWidget(QtWidget):
@@ -799,6 +804,119 @@ class QtSliderWidget(QtWidget):
             self.__on_slider_moved(value)
 
 
+class QtCanvasWidget(QtWidget):
+    # TODO: get rid of document_controller usage here
+    def __init__(self, ui, document_controller, properties):
+        super(QtCanvasWidget, self).__init__(ui, None, properties)
+        self.__on_mouse_entered = None
+        self.__on_mouse_exited = None
+        self.__on_mouse_clicked = None
+        self.__on_mouse_double_clicked = None
+        self.__on_mouse_pressed = None
+        self.__on_mouse_released = None
+        self.__on_mouse_position_changed = None
+        self.__on_size_changed = None
+        # load the Qml and associate it with this panel.
+        self.width = 0
+        self.height = 0
+        context_properties = { "js": "" }
+        qml_filename = relative_file(__file__, "CanvasView.qml")
+        self.widget = self.ui.DocumentWindow_loadQmlWidget(document_controller.document_window, qml_filename, self, context_properties)
+        self.update_properties()
+
+    def create_drawing_context(self):
+        return DrawingContext()
+
+    def draw(self, ctx):
+        self.ui.Widget_setWidgetProperty(self.widget, "js", ctx.js)
+
+    def __get_on_mouse_entered(self):
+        return self.__on_mouse_entered
+    def __set_on_mouse_entered(self, fn):
+        self.__on_mouse_entered = fn
+    on_mouse_entered = property(__get_on_mouse_entered, __set_on_mouse_entered)
+
+    def __get_on_mouse_exited(self):
+        return self.__on_mouse_exited
+    def __set_on_mouse_exited(self, fn):
+        self.__on_mouse_exited = fn
+    on_mouse_exited = property(__get_on_mouse_exited, __set_on_mouse_exited)
+
+    def __get_on_mouse_clicked(self):
+        return self.__on_mouse_clicked
+    def __set_on_mouse_clicked(self, fn):
+        self.__on_mouse_clicked = fn
+    on_mouse_clicked = property(__get_on_mouse_clicked, __set_on_mouse_clicked)
+
+    def __get_on_mouse_double_clicked(self):
+        return self.__on_mouse_double_clicked
+    def __set_on_mouse_double_clicked(self, fn):
+        self.__on_mouse_double_clicked = fn
+    on_mouse_double_clicked = property(__get_on_mouse_double_clicked, __set_on_mouse_double_clicked)
+
+    def __get_on_mouse_pressed(self):
+        return self.__on_mouse_pressed
+    def __set_on_mouse_pressed(self, fn):
+        self.__on_mouse_pressed = fn
+    on_mouse_pressed = property(__get_on_mouse_pressed, __set_on_mouse_pressed)
+
+    def __get_on_mouse_released(self):
+        return self.__on_mouse_released
+    def __set_on_mouse_released(self, fn):
+        self.__on_mouse_released = fn
+    on_mouse_released = property(__get_on_mouse_released, __set_on_mouse_released)
+
+    def __get_on_mouse_position_changed(self):
+        return self.__on_mouse_position_changed
+    def __set_on_mouse_position_changed(self, fn):
+        self.__on_mouse_position_changed = fn
+    on_mouse_position_changed = property(__get_on_mouse_position_changed, __set_on_mouse_position_changed)
+
+    def __get_on_size_changed(self):
+        return self.__on_size_changed
+    def __set_on_size_changed(self, fn):
+        self.__on_size_changed = fn
+    on_size_changed = property(__get_on_size_changed, __set_on_size_changed)
+
+    def mouseEntered(self):
+        if self.__on_mouse_entered:
+            self.__on_mouse_entered()
+
+    def mouseExited(self):
+        if self.__on_mouse_exited:
+            self.__on_mouse_exited()
+
+    def mouseClicked(self, y, x, raw_modifiers):
+        if self.__on_mouse_clicked:
+            self.__on_mouse_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mouseDoubleClicked(self, y, x, raw_modifiers):
+        if self.__on_mouse_double_clicked:
+            self.__on_mouse_double_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mousePressed(self, y, x, raw_modifiers):
+        if self.__on_mouse_pressed:
+            self.__on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mouseReleased(self, y, x, raw_modifiers):
+        if self.__on_mouse_released:
+            self.__on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mousePositionChanged(self, y, x, raw_modifiers):
+        if self.__on_mouse_position_changed:
+            self.__on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def widthChanged(self, width):
+        self.width = width
+        if self.__on_size_changed:
+            self.__on_size_changed(self.width, self.height)
+
+    def heightChanged(self, height):
+        self.height = height
+        if self.__on_size_changed:
+            self.__on_size_changed(self.width, self.height)
+
+
 class QtUserInterface(object):
 
     # Higher level UI objects
@@ -826,6 +944,9 @@ class QtUserInterface(object):
 
     def create_slider_widget(self, properties=None):
         return QtSliderWidget(self, properties)
+
+    def create_canvas_widget(self, document_controller, properties=None):
+        return QtCanvasWidget(self, document_controller, properties)
 
     # Actions sub-module for menus and actions
 

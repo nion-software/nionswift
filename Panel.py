@@ -13,8 +13,6 @@ from StringIO import StringIO
 # None
 
 # local libraries
-from nion.swift.Decorators import relative_file
-from nion.swift import UserInterface
 from nion.swift import Workspace
 
 _ = gettext.gettext
@@ -173,25 +171,26 @@ class HeaderPanel(Panel):
     def __init__(self, document_controller, panel_id):
         Panel.__init__(self, document_controller, panel_id, "Header")
 
-        # load the Qml and associate it with this panel.
-        context_properties = { "js": "" }
-        qml_filename = relative_file(__file__, "CanvasView.qml")
-        self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
-        self.width = 640
-        self.height = 0
+        ui = document_controller.ui
+
+        self.canvas = ui.create_canvas_widget(document_controller)
+        self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
+
         self.update_header()
 
+        self.widget = self.canvas.widget
+
     def update_header(self):
-        ctx = UserInterface.DrawingContext()
+        ctx = self.canvas.create_drawing_context()
 
         ctx.save()
         ctx.beginPath()
         ctx.moveTo(0, 0)
-        ctx.lineTo(0, self.height)
-        ctx.lineTo(self.width, self.height)
-        ctx.lineTo(self.width, 0)
+        ctx.lineTo(0, self.canvas.height)
+        ctx.lineTo(self.canvas.width, self.canvas.height)
+        ctx.lineTo(self.canvas.width, 0)
         ctx.closePath()
-        gradient = ctx.create_linear_gradient(0, 0, 0, self.height);
+        gradient = ctx.create_linear_gradient(0, 0, 0, self.canvas.height);
         gradient.add_color_stop(0, '#ededed');
         gradient.add_color_stop(1, '#cacaca');
         ctx.fillStyle = gradient
@@ -203,7 +202,7 @@ class HeaderPanel(Panel):
         ctx.beginPath()
         # line is adjust 1/2 pixel down to align to pixel boundary
         ctx.moveTo(0, 0.5)
-        ctx.lineTo(self.width, 0.5)
+        ctx.lineTo(self.canvas.width, 0.5)
         ctx.strokeStyle = '#FFF'
         ctx.stroke()
         ctx.restore()
@@ -211,8 +210,8 @@ class HeaderPanel(Panel):
         ctx.save()
         ctx.beginPath()
         # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.moveTo(0, self.height-0.5)
-        ctx.lineTo(self.width, self.height-0.5)
+        ctx.moveTo(0, self.canvas.height-0.5)
+        ctx.lineTo(self.canvas.width, self.canvas.height-0.5)
         ctx.strokeStyle = '#b0b0b0'
         ctx.stroke()
         ctx.restore()
@@ -222,9 +221,9 @@ class HeaderPanel(Panel):
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillStyle = '#000'
-        ctx.fillText(self.display_name, self.width/2, self.height/2+1)
+        ctx.fillText(self.display_name, self.canvas.width/2, self.canvas.height/2+1)
 
-        self.ui.Widget_setWidgetProperty(self.widget, "js", ctx.js)
+        self.canvas.draw(ctx)
 
     def mouseEntered(self):
         pass
@@ -241,9 +240,5 @@ class HeaderPanel(Panel):
     def mousePositionChanged(self, y, x, raw_modifiers):
         pass
 
-    def widthChanged(self, width):
-        self.width = width
-        self.update_header()
-    def heightChanged(self, height):
-        self.height = height
+    def size_changed(self, width, height):
         self.update_header()
