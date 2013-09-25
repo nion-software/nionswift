@@ -681,12 +681,13 @@ class QtLabelWidget(QtWidget):
     def __init__(self, ui, text, properties):
         super(QtLabelWidget, self).__init__(ui, "label", properties)
         self.__text = None
+        self.text = text
 
     def __get_text(self):
         return self.__text
     def __set_text(self, text):
         self.__text = text if text else ""
-        NionLib.Label_setText(self.widget, text)
+        NionLib.Label_setText(self.widget, self.__text)
     text = property(__get_text, __set_text)
 
 
