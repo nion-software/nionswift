@@ -360,13 +360,26 @@ class DrawingContext(object):
     def __get_fillStyle(self):
         raise NotImplementedError()
     def __set_fillStyle(self, a):
-        self.js += "ctx.fillStyle = '{0}';".format(a)
+        if isinstance(a, DrawingContext.LinearGradient):
+            self.js += "ctx.fillStyle = {0};".format(a.js_var)
+        else:
+            self.js += "ctx.fillStyle = '{0}';".format(a)
     fillStyle = property(__get_fillStyle, __set_fillStyle)
     def __get_font(self):
         raise NotImplementedError()
     def __set_font(self, a):
         self.js += "ctx.font = '{0}';".format(a)
     font = property(__get_font, __set_font)
+    def __get_textAlign(self):
+        raise NotImplementedError()
+    def __set_textAlign(self, a):
+        self.js += "ctx.textAlign = '{0}';".format(a)
+    textAlign = property(__get_textAlign, __set_textAlign)
+    def __get_textBaseline(self):
+        raise NotImplementedError()
+    def __set_textBaseline(self, a):
+        self.js += "ctx.textBaseline = '{0}';".format(a)
+    textBaseline = property(__get_textBaseline, __set_textBaseline)
     def __get_strokeStyle(self):
         raise NotImplementedError()
     def __set_strokeStyle(self, a):
@@ -387,6 +400,19 @@ class DrawingContext(object):
     def __set_lineJoin(self, a):
         self.js += "ctx.lineJoin = '{0}';".format(a)
     lineJoin = property(__get_lineJoin, __set_lineJoin)
+    class LinearGradient:
+        next = 1
+        def __init__(self, context, x, y, width, height):
+            self.weak_context = weakref.ref(context)
+            self.js_var = "grad"+str(DrawingContext.LinearGradient.next)
+            self.js = "var {0} = ctx.createLinearGradient({1}, {2}, {3}, {4});".format(self.js_var, x, y, width, height)
+            DrawingContext.LinearGradient.next = DrawingContext.LinearGradient.next + 1
+        def add_color_stop(self, x, color):
+            self.weak_context().js += "{0}.addColorStop({1}, '{2}');".format(self.js_var, x, color)
+    def create_linear_gradient(self, x, y, width, height):
+        gradient = DrawingContext.LinearGradient(self, x, y, width, height)
+        self.js += gradient.js
+        return gradient
 
 
 class QtImageViewDisplayThread(ProcessingThread):

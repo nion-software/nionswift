@@ -106,6 +106,11 @@ class HistogramPanel(Panel.Panel):
     def mouseClicked(self, y, x, raw_modifiers):
         pass
 
+    def widthChanged(self, width):
+        self.__update_histogram()
+    def heightChanged(self, height):
+        self.__update_histogram()
+
     def mouseDoubleClicked(self, y, x, raw_modifiers):
         self.display_limits = (0, 1)
 

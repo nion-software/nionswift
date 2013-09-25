@@ -172,4 +172,78 @@ class HeaderPanel(Panel):
 
     def __init__(self, document_controller, panel_id):
         Panel.__init__(self, document_controller, panel_id, "Header")
-        self.widget = self.loadQmlWidget(relative_file(__file__, "HeaderView.qml"))
+
+        # load the Qml and associate it with this panel.
+        context_properties = { "js": "" }
+        qml_filename = relative_file(__file__, "CanvasView.qml")
+        self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
+        self.width = 640
+        self.height = 0
+        self.update_header()
+
+    def update_header(self):
+        ctx = UserInterface.DrawingContext()
+
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(0, self.height)
+        ctx.lineTo(self.width, self.height)
+        ctx.lineTo(self.width, 0)
+        ctx.closePath()
+        gradient = ctx.create_linear_gradient(0, 0, 0, self.height);
+        gradient.add_color_stop(0, '#ededed');
+        gradient.add_color_stop(1, '#cacaca');
+        ctx.fillStyle = gradient
+        ctx.fill()
+        ctx.lineWidth = 1
+        ctx.restore()
+
+        ctx.save()
+        ctx.beginPath()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.moveTo(0, 0.5)
+        ctx.lineTo(self.width, 0.5)
+        ctx.strokeStyle = '#FFF'
+        ctx.stroke()
+        ctx.restore()
+
+        ctx.save()
+        ctx.beginPath()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.moveTo(0, self.height-0.5)
+        ctx.lineTo(self.width, self.height-0.5)
+        ctx.strokeStyle = '#b0b0b0'
+        ctx.stroke()
+        ctx.restore()
+
+        ctx.save()
+        ctx.font = 'normal 11px serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#000'
+        ctx.fillText(self.display_name, self.width/2, self.height/2+1)
+
+        self.ui.Widget_setWidgetProperty(self.widget, "js", ctx.js)
+
+    def mouseEntered(self):
+        pass
+    def mouseExited(self):
+        pass
+    def mouseClicked(self, y, x, raw_modifiers):
+        pass
+    def mouseDoubleClicked(self, y, x, raw_modifiers):
+        pass
+    def mousePressed(self, y, x, raw_modifiers):
+        pass
+    def mouseReleased(self, y, x, raw_modifiers):
+        pass
+    def mousePositionChanged(self, y, x, raw_modifiers):
+        pass
+
+    def widthChanged(self, width):
+        self.width = width
+        self.update_header()
+    def heightChanged(self, height):
+        self.height = height
+        self.update_header()

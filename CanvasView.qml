@@ -52,4 +52,7 @@ Rectangle {
 
     onJsChanged: canvas.requestPaint()
 
+    onWidthChanged: app.invokePyMethod(panel, "widthChanged", [root.width])
+    onHeightChanged: app.invokePyMethod(panel, "heightChanged", [root.height])
+
 } // Item
