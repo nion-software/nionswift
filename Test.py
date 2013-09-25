@@ -82,12 +82,60 @@ class ImageView:
     def map_mouse_to_image(self, image_size, p):
         return p
 
+class DrawingContext(object):
+    def __init__(self):
+        self.fillStyle = None
+        self.font = None
+        self.textAlign = None
+        self.textBaseline = None
+        self.strokeStyle = None
+        self.lineWidth = None
+        self.lineCap = None
+        self.lineJoin = None
+    def clear(self):
+        pass
+    def save(self):
+        pass
+    def restore(self):
+        pass
+    def beginPath(self):
+        pass
+    def closePath(self):
+        pass
+    def translate(self, x, y):
+        pass
+    def scale(self, x, y):
+        pass
+    def moveTo(self, x, y):
+        pass
+    def lineTo(self, x, y):
+        pass
+    def arc(self, a, b, c, d, e, f):
+        pass
+    def stroke(self):
+        pass
+    def fill(self):
+        pass
+    def fillText(self, text, x, y, maxWidth=None):
+        pass
+    def create_linear_gradient(self, x, y, width, height):
+        return DrawingContext()
+    def add_color_stop(self, a, b):
+        pass
+
 class Widget:
     def __init__(self):
         self.widget = ()
+        self.drawing_context = DrawingContext()
+        self.width = 0
+        self.height = 0
     def add(self, widget):
         pass
     def add_stretch(self):
+        pass
+    def create_layer(self):
+        return Widget()
+    def draw(self):
         pass
 
 # define a dummy user interface to use during tests
@@ -107,6 +155,8 @@ class UserInterface:
     def create_label_widget(self, text=None, properties=None):
         return Widget()
     def create_slider_widget(self, properties=None):
+        return Widget()
+    def create_canvas_widget(self, document_controller, properties=None):
         return Widget()
     def Console_setDelegate(self, widget, delegate):
         pass

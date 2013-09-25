@@ -334,6 +334,8 @@ class ListModel(object):
 class DrawingContext(object):
     def __init__(self):
         self.js = ""
+    def clear(self):
+        self.js = ""
     def save(self):
         self.js += "ctx.save();"
     def restore(self):
@@ -805,6 +807,7 @@ class QtSliderWidget(QtWidget):
 
 
 class QtCanvasWidget(QtWidget):
+
     # TODO: get rid of document_controller usage here
     def __init__(self, ui, document_controller, properties):
         super(QtCanvasWidget, self).__init__(ui, None, properties)
@@ -822,13 +825,32 @@ class QtCanvasWidget(QtWidget):
         context_properties = { "js": "" }
         qml_filename = relative_file(__file__, "CanvasView.qml")
         self.widget = self.ui.DocumentWindow_loadQmlWidget(document_controller.document_window, qml_filename, self, context_properties)
+        self.layers = []
         self.update_properties()
 
-    def create_drawing_context(self):
-        return DrawingContext()
+    class Layer(object):
+        def __init__(self, canvas):
+            self.__weak_canvas = weakref.ref(canvas)
+            self.__drawing_context = DrawingContext()
 
-    def draw(self, ctx):
-        self.ui.Widget_setWidgetProperty(self.widget, "js", ctx.js)
+        def __get_canvas(self):
+            return self.__weak_canvas()
+        canvas = property(__get_canvas)
+
+        def __get_drawing_context(self):
+            return self.__drawing_context
+        drawing_context = property(__get_drawing_context)
+
+    def create_layer(self):
+        layer = QtCanvasWidget.Layer(self)
+        self.layers.append(layer)
+        return layer
+
+    def draw(self):
+        js = ""
+        for layer in self.layers:
+            js += layer.drawing_context.js
+        self.ui.Widget_setWidgetProperty(self.widget, "js", js)
 
     def __get_on_mouse_entered(self):
         return self.__on_mouse_entered

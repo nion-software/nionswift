@@ -176,12 +176,17 @@ class HeaderPanel(Panel):
         self.canvas = ui.create_canvas_widget(document_controller)
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
 
+        self.layer = self.canvas.create_layer()
+
         self.update_header()
 
         self.widget = self.canvas.widget
 
     def update_header(self):
-        ctx = self.canvas.create_drawing_context()
+
+        ctx = self.layer.drawing_context
+
+        ctx.clear()
 
         ctx.save()
         ctx.beginPath()
@@ -223,7 +228,7 @@ class HeaderPanel(Panel):
         ctx.fillStyle = '#000'
         ctx.fillText(self.display_name, self.canvas.width/2, self.canvas.height/2+1)
 
-        self.canvas.draw(ctx)
+        self.canvas.draw()
 
     def mouseEntered(self):
         pass

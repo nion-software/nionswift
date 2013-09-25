@@ -57,10 +57,17 @@ class HistogramPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
-        # load the Qml and associate it with this panel.
-        context_properties = { "js": "" }
-        qml_filename = relative_file(__file__, "CanvasView.qml")
-        self.widget = self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
+        ui = document_controller.ui
+
+        self.canvas = ui.create_canvas_widget(document_controller)
+
+        self.canvas.on_size_changed = lambda width, height: self.on_size_changed(width, height)
+        self.canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.on_mouse_double_clicked(x, y, modifiers)
+        self.canvas.on_mouse_pressed = lambda x, y, modifiers: self.on_mouse_pressed(x, y, modifiers)
+        self.canvas.on_mouse_released = lambda x, y, modifiers: self.on_mouse_released(x, y, modifiers)
+        self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.on_mouse_position_changed(x, y, modifiers)
+
+        self.widget = self.canvas.widget
 
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
@@ -72,8 +79,12 @@ class HistogramPanel(Panel.Panel):
         self.pressed = False
 
         self.__histogram_data = None
-        self.__histogram_js = None
-        self.__adornments_js = None
+
+        self.__histogram_layer = self.canvas.create_layer()
+        self.__adornments_layer = self.canvas.create_layer()
+
+        self.__histogram_dirty = True
+        self.__adornments_dirty = True
 
         self.__update_lock = threading.Lock()
 
@@ -93,41 +104,30 @@ class HistogramPanel(Panel.Panel):
         return self.__display_limits
     def __set_display_limits(self, display_limits):
         self.__display_limits = display_limits
-        self.__adornments_js = None
+        self.__adornments_dirty = True
         self.__update_histogram()
     display_limits = property(__get_display_limits, __set_display_limits)
 
-    # these messages come directly from Qml.
-    # TODO: refactor into Qml independent class. Also include auto dragging messages.
-    def mouseEntered(self):
-        pass
-    def mouseExited(self):
-        pass
-    def mouseClicked(self, y, x, raw_modifiers):
-        pass
-
-    def widthChanged(self, width):
-        self.__update_histogram()
-    def heightChanged(self, height):
+    def on_size_changed(self, width, height):
+        self.__histogram_dirty = True
         self.__update_histogram()
 
-    def mouseDoubleClicked(self, y, x, raw_modifiers):
+    def on_mouse_double_clicked(self, x, y, modifiers):
         self.display_limits = (0, 1)
 
-    def mousePressed(self, y, x, raw_modifiers):
+    def on_mouse_pressed(self, x, y, modifiers):
         self.pressed = True
-        canvas_width = self.ui.Widget_getWidgetProperty(self.widget, "canvas_width")
-        self.start = float(x)/canvas_width
+        self.start = float(x)/self.canvas.width
         self.display_limits = (self.start, self.start)
 
-    def mouseReleased(self, y, x, raw_modifiers):
+    def on_mouse_released(self, x, y, modifiers):
         self.pressed = False
         if self.data_item and (self.display_limits[1] - self.display_limits[0] > 0):
             self.data_item.display_limits = self.display_limits
 
-    def mousePositionChanged(self, y, x, raw_modifiers):
-        canvas_width = self.ui.Widget_getWidgetProperty(self.widget, "canvas_width")
-        canvas_height = self.ui.Widget_getWidgetProperty(self.widget, "canvas_height")
+    def on_mouse_position_changed(self, x, y, modifiers):
+        canvas_width = self.canvas.width
+        canvas_height = self.canvas.height
         if self.pressed:
             current = float(x)/canvas_width
             self.display_limits = (min(self.start, current), max(self.start, current))
@@ -138,7 +138,6 @@ class HistogramPanel(Panel.Panel):
     def __make_histogram(self):
 
         if self.__histogram_data is None:
-            self.__histogram_js = None
             if self.data_item:
                 image = self.data_item.image
                 if image is not None:
@@ -150,44 +149,47 @@ class HistogramPanel(Panel.Panel):
         # testing the decoupling of the data item change vs. histogram calculation
         # time.sleep(1.0)
 
-        if not self.__histogram_js and self.widget:
+        data = self.__histogram_data
 
-            self.__histogram_js = ""
+        if self.__histogram_dirty and (data is not None and len(data) > 0):
 
-            data = self.__histogram_data
+            self.__histogram_dirty = False
 
-            if data is not None and len(data) > 0:
+            canvas_width = self.canvas.width
+            canvas_height = self.canvas.height
 
-                canvas_width = self.ui.Widget_getWidgetProperty(self.widget, "canvas_width")
-                canvas_height = self.ui.Widget_getWidgetProperty(self.widget, "canvas_height")
+            ctx = self.__histogram_layer.drawing_context
 
-                ctx = UserInterface.DrawingContext()
-                
-                # draw the histogram itself
-                ctx.save()
-                ctx.beginPath()
-                ctx.moveTo(0, canvas_height)
-                ctx.lineTo(0, canvas_height * (1 - data[0]))
-                for i in xrange(1,canvas_width,2):
-                    ctx.lineTo(i, canvas_height * (1 - data[int(len(data)*float(i)/canvas_width)]))
-                ctx.lineTo(canvas_width, canvas_height)
-                ctx.closePath()
-                ctx.fillStyle = "#888"
-                ctx.fill()
-                ctx.lineWidth = 1
-                ctx.strokeStyle = "#00F"
-                ctx.stroke()
-                ctx.restore()
-
-                self.__histogram_js = ctx.js
+            ctx.clear()
+            
+            # draw the histogram itself
+            ctx.save()
+            ctx.beginPath()
+            ctx.moveTo(0, canvas_height)
+            ctx.lineTo(0, canvas_height * (1 - data[0]))
+            for i in xrange(1,canvas_width,2):
+                ctx.lineTo(i, canvas_height * (1 - data[int(len(data)*float(i)/canvas_width)]))
+            ctx.lineTo(canvas_width, canvas_height)
+            ctx.closePath()
+            ctx.fillStyle = "#888"
+            ctx.fill()
+            ctx.lineWidth = 1
+            ctx.strokeStyle = "#00F"
+            ctx.stroke()
+            ctx.restore()
 
     def __make_adornments(self):
 
-        if not self.__adornments_js and self.widget:
-            canvas_width = self.ui.Widget_getWidgetProperty(self.widget, "canvas_width")
-            canvas_height = self.ui.Widget_getWidgetProperty(self.widget, "canvas_height")
+        if self.widget and self.__adornments_dirty:
 
-            ctx = UserInterface.DrawingContext()
+            self.__adornments_dirty = False
+
+            canvas_width = self.canvas.width
+            canvas_height = self.canvas.height
+
+            ctx = self.__adornments_layer.drawing_context
+
+            ctx.clear()
 
             left = self.display_limits[0]
             right = self.display_limits[1]
@@ -227,29 +229,27 @@ class HistogramPanel(Panel.Panel):
             ctx.stroke()
             ctx.restore()
 
-            self.__adornments_js = ctx.js
-
     # used for queue_main_thread decorator
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
     @queue_main_thread_sync
-    def __update_canvas(self, js):
+    def __update_canvas(self):
         if self.ui and self.widget:
-            self.ui.Widget_setWidgetProperty(self.widget, "js", js)
-        self.__update_lock.release()
+            self.canvas.draw()
 
     def __update_histogram(self):
         if self.ui and self.widget:
-            if self.__update_lock.acquire(0):
+            with self.__update_lock:
                 self.__make_histogram()
                 self.__make_adornments()
-                self.__update_canvas(self.__histogram_js + self.__adornments_js)
+                self.__update_canvas()
 
     def __get_data_item(self):
         return self.__data_item
     def __set_data_item(self, data_item):
         self.__data_item = data_item
         self.__histogram_data = None
+        self.__histogram_dirty = True
         self.__update_histogram()
     data_item = property(__get_data_item, __set_data_item)
 
