@@ -109,8 +109,9 @@ class HistogramPanel(Panel.Panel):
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def on_size_changed(self, width, height):
-        self.__histogram_dirty = True
-        self.__update_histogram()
+        if width > 0 and height > 0:
+            self.__histogram_dirty = True
+            self.__update_histogram()
 
     def on_mouse_double_clicked(self, x, y, modifiers):
         self.display_limits = (0, 1)
@@ -232,7 +233,6 @@ class HistogramPanel(Panel.Panel):
     # used for queue_main_thread decorator
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
-    @queue_main_thread_sync
     def __update_canvas(self):
         if self.ui and self.widget:
             self.canvas.draw()

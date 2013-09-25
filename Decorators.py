@@ -90,7 +90,8 @@ def queue_main_thread_sync(f):
         # how do we tell if this is the main (presumably UI) thread?
         # the order from threading.enumerate() is not reliable
         if threading.current_thread().getName() != "MainThread":
-            e.wait(5)
+            if not e.wait(5):
+                logging.debug("TIMEOUT %s", f)
     return new_function
 
 

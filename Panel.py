@@ -246,4 +246,5 @@ class HeaderPanel(Panel):
         pass
 
     def size_changed(self, width, height):
-        self.update_header()
+        if width > 0 and height > 0:
+            self.update_header()
