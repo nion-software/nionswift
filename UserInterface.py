@@ -726,17 +726,30 @@ class QtCanvasWidget(QtWidget):
         self.__on_mouse_position_changed = None
         self.__on_key_pressed = None
         self.__on_size_changed = None
+        self.__on_focus_changed = None
         # load the Qml and associate it with this panel.
         self.width = 0
         self.height = 0
+        self.__focusable = False
         self.layers = []
         self.update_properties()
 
     def __get_focusable(self):
-        raise NotImplementedError()
+        return self.__focusable
     def __set_focusable(self, focusable):
-        NionLib.Canvas_setFocusPolicy(self.widget)
+        self.__focusable = focusable
+        NionLib.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
     focusable = property(__get_focusable, __set_focusable)
+
+    def __get_focused(self):
+        return NionLib.Canvas_hasFocus(self.widget)
+    def __set_focused(self, focused):
+        if focused != self.focused:
+            if focused:
+                NionLib.Canvas_setFocus(self.widget, 7)
+            else:
+                NionLib.Canvas_clearFocus(self.widget)
+    focused = property(__get_focused, __set_focused)
 
     class Layer(object):
         def __init__(self, canvas):
@@ -811,6 +824,12 @@ class QtCanvasWidget(QtWidget):
         self.__on_size_changed = fn
     on_size_changed = property(__get_on_size_changed, __set_on_size_changed)
 
+    def __get_on_focus_changed(self):
+        return self.__on_focus_changed
+    def __set_on_focus_changed(self, fn):
+        self.__on_focus_changed = fn
+    on_focus_changed = property(__get_on_focus_changed, __set_on_focus_changed)
+
     def __get_on_key_pressed(self):
         return self.__on_key_pressed
     def __set_on_key_pressed(self, fn):
@@ -850,6 +869,14 @@ class QtCanvasWidget(QtWidget):
         self.height = height
         if self.__on_size_changed:
             self.__on_size_changed(self.width, self.height)
+
+    def focusIn(self):
+        if self.__on_focus_changed:
+            self.__on_focus_changed(True)
+
+    def focusOut(self):
+        if self.__on_focus_changed:
+            self.__on_focus_changed(False)
 
     def keyPressed(self, text, key, raw_modifiers):
         if self.__on_key_pressed:

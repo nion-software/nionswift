@@ -169,6 +169,7 @@ class ImagePanel(Panel.Panel):
         self.canvas = self.ui.create_canvas_widget()
         self.canvas.focusable = True
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
+        self.canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.canvas.on_mouse_entered = lambda: self.mouse_entered()
         self.canvas.on_mouse_exited = lambda: self.mouse_exited()
         self.canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
@@ -219,8 +220,10 @@ class ImagePanel(Panel.Panel):
                     self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
     def set_focused(self, focused):
-        pass
+        self.canvas.focused = focused
+        self.display_changed()
 
+    # this will only be called from the drawing thread (via _repaint)
     def __repaint_graphics(self):
         data_item = self.data_item
         graphics = data_item.graphics if data_item else None
@@ -249,6 +252,7 @@ class ImagePanel(Panel.Panel):
                 ctx.fillStyle = "#FFF"
                 ctx.fillText("60nm", origin[1], origin[0] - 12)
 
+    # this will only be called from the drawing thread
     def _repaint(self, data_item):
         if data_item and data_item.is_data_1d:
             self.__repaint_line_plot(data_item)
@@ -257,10 +261,21 @@ class ImagePanel(Panel.Panel):
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
             self.__repaint_graphics()
+        if self.document_controller.selected_image_panel == self:
+            ctx = self.__graphics_layer.drawing_context
+            stroke_style = "#CCC"  # TODO: platform dependent
+            if self.canvas.focused:
+                stroke_style = "#3876D6"  # TODO: platform dependent
+            ctx.beginPath()
+            ctx.rect(2, 2, self.canvas.width - 4, self.canvas.height - 4)
+            ctx.lineJoin = "miter"
+            ctx.strokeStyle = stroke_style
+            ctx.lineWidth = 4.0
+            ctx.stroke()
         if self.ui and self.widget:
             self.canvas.draw()
 
-    # this will be called by the line plot thread.
+    # this will only be called from the drawing thread (via _repaint)
     def __repaint_line_plot(self, data_item):
 
         #logging.debug("enter %s %s", self, time.time())
@@ -318,7 +333,7 @@ class ImagePanel(Panel.Panel):
 
         #logging.debug("exit %s %s", self, time.time())
 
-    # this will be called by the line plot thread.
+    # this will only be called from the drawing thread (via _repaint)
     def __repaint_image(self, data_item):
 
         #logging.debug("enter %s %s", self, time.time())
@@ -346,6 +361,8 @@ class ImagePanel(Panel.Panel):
     # message comes from the view
     def size_changed(self, width, height):
         self.display_changed()
+    def focus_changed(self, focused):
+        self.display_changed()
 
     # call this when zoom or translation changes
     def display_changed(self):
@@ -354,6 +371,7 @@ class ImagePanel(Panel.Panel):
         else:
             ctx = self.__display_layer.drawing_context
             ctx.clear()
+            self.__repaint_graphics()
             if self.ui and self.widget:
                 self.canvas.draw()
 
@@ -424,7 +442,7 @@ class ImagePanel(Panel.Panel):
         self.display_changed()
 
     def mouse_clicked(self, p, modifiers):
-        # activate this view
+        # activate this view. this has the side effect of grabbing focus.
         self.document_controller.selected_image_panel = self
 
     def mouse_pressed(self, p, modifiers):
