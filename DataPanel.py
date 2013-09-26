@@ -538,7 +538,7 @@ class DataPanel(Panel.Panel):
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.model = self.data_item_model
-        #self.data_item_widget.on_paint = lambda dc, options: self.paint(dc, options)
+        self.data_item_widget.on_paint = lambda dc, options: self.paint(dc, options)
 
         self.splitter = ui.create_splitter_widget()
         self.splitter.add(self.data_group_widget)
