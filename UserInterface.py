@@ -727,7 +727,6 @@ class QtCanvasWidget(QtWidget):
         self.__on_key_pressed = None
         self.__on_size_changed = None
         self.__on_focus_changed = None
-        # load the Qml and associate it with this panel.
         self.width = 0
         self.height = 0
         self.__focusable = False
@@ -1060,29 +1059,15 @@ class QtUserInterface(object):
     def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
         return NionLib.DocumentWindow_addDockWidget(document_window, widget, identifier, title, positions, position)
 
-    def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
-        return NionLib.DocumentWindow_loadQmlWidget(document_window, filename, panel, context_properties)
-
-    def DocumentWindow_registerThumbnailProvider(self, document_window, uuid_str, data_item):
-        NionLib.DocumentWindow_registerThumbnailProvider(document_window, uuid_str, data_item)
-
     def DocumentWindow_setCentralWidget(self, document_window, widget):
         NionLib.DocumentWindow_setCentralWidget(document_window, widget)
 
     def DocumentWindow_tabifyDockWidgets(self, document_controller, widget1, widget2):
         NionLib.DocumentWindow_tabifyDockWidgets(document_controller, widget1, widget2)
 
-    def DocumentWindow_unregisterThumbnailProvider(self, document_window, uuid_str):
-        NionLib.DocumentWindow_unregisterThumbnailProvider(document_window, uuid_str)
-
     # Opens a file dialog. mode should be one of 'load', 'save' or 'loadmany'.
     def DocumentWindow_getFilePath(self, document_window, mode, caption, dir, filter):
         return NionLib.DocumentWindow_getFilePath(document_window, mode, caption, dir, filter)
-
-    # Send images to an image display
-
-    def ImageDisplayController_sendImage(self, controller_id, rgba_image):
-        return NionLib.ImageDisplayController_sendImage(NionLib.idc, controller_id, rgba_image)
 
     # Mime data
 
@@ -1220,9 +1205,6 @@ class QtUserInterface(object):
 
     # General Widget methods
 
-    def Widget_addOverlay(self, widget, overlay):
-        NionLib.Widget_addOverlay(widget, overlay)
-
     def Widget_addSpacing(self, container, spacing):
         NionLib.Widget_addSpacing(container, spacing)
 
@@ -1252,9 +1234,6 @@ class QtUserInterface(object):
 
     def Widget_removeWidget(self, widget):
         NionLib.Widget_removeWidget(widget)
-
-    def Widget_setContextProperty(self, widget, property, value):
-        NionLib.Widget_setContextProperty(widget, property, value)
 
     def Widget_setWidgetProperty(self, widget, key, value):
         NionLib.Widget_setWidgetProperty(widget, key, value)

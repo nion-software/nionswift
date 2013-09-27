@@ -190,7 +190,7 @@ class ProcessingPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Processing"))
 
-        # load the Qml and associate it with this panel.
+        # load the widget and associate it with this panel.
         self.widget = self.loadIntrinsicWidget("pystack")
         self.__stack_groups = []
 

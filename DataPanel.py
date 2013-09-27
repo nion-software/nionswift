@@ -553,8 +553,6 @@ class DataPanel(Panel.Panel):
     def close(self):
         self.splitter.save_state("window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataItem.DataItemSpecifier())
-        # clear browser model from the qml view
-        self.setContextProperty("browser_model", None)
         # close the models
         self.data_item_model.close()
         self.data_group_model.close()
@@ -592,7 +590,7 @@ class DataPanel(Panel.Panel):
             self.set_group_current_row(-1, -1, 0)
         self.data_item_model.data_group = data_group
         self.data_item_model._index = self.data_item_model.get_data_item_index(data_item)
-        # update the qml
+        # restore the selected item
         prev_current_index = self.data_item_widget.current_index
         if prev_current_index != self.data_item_model._index:
             self.data_item_widget.current_index = self.data_item_model._index

@@ -78,15 +78,8 @@ class Panel(Workspace.Workspace.Element):
         self.__widget = widget
     widget = property(__get_widget, __set_widget)
 
-    def loadQmlWidget(self, qml_filename, context_properties = None):
-        context_properties = context_properties if context_properties else {}
-        return self.ui.DocumentWindow_loadQmlWidget(self.document_controller.document_window, qml_filename, self, context_properties)
-
     def loadIntrinsicWidget(self, intrinsic_id):
         return self.ui.Widget_loadIntrinsicWidget(intrinsic_id)
-
-    def setContextProperty(self, property, value):
-        self.ui.Widget_setContextProperty(self.__widget, property, value)
 
     def getWidgetProperty(self, property):
         return self.ui.Widget_getWidgetProperty(self.__widget, property)

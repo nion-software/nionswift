@@ -79,7 +79,7 @@ class ImageView:
             finish_event.set()
     def map_image_norm_to_widget(self, image_size, p):
         return (p[0]*image_size[0], p[1]*image_size[1])
-    def map_mouse_to_image(self, image_size, p):
+    def map_widget_to_image(self, image_size, p):
         return p
 
 class DrawingContext(object):
@@ -185,18 +185,10 @@ class UserInterface:
         return (url)
     def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
         return (document_window, widget, identifier, title, positions, position)
-    def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
-        return (document_window, filename, panel, context_properties)
-    def DocumentWindow_registerThumbnailProvider(self, document_window, uuid_str, data_item):
-        pass
     def DocumentWindow_setCentralWidget(self, document_window, widget):
         pass
     def DocumentWindow_tabifyDockWidgets(self, document_controller, widget1, widget2):
         pass
-    def DocumentWindow_unregisterThumbnailProvider(self, document_window, uuid_str):
-        pass
-    def ImageDisplayController_sendImage(self, controller_id, rgba_image):
-        return 0
     def Output_out(self, widget, message):
         pass  # print message
     def PyControl_connect(self, widget, object, property):
@@ -255,8 +247,6 @@ class UserInterface:
         pass
     def PyTreeWidget_setModel(self, widget, py_item_model):
         pass
-    def DocumentWindow_loadQmlWidget(self, document_window, filename, panel, context_properties):
-        return (document_window, filename, panel, context_properties)
     def Settings_setString(self, key, value):
         pass
     def Settings_getString(self, key):
@@ -264,8 +254,6 @@ class UserInterface:
     def Splitter_restoreState(self, splitter, identifier):
         pass
     def Splitter_saveState(self, splitter, identifier):
-        pass
-    def Widget_addOverlay(self, widget, overlay):
         pass
     def Widget_addSpacing(self, container, spacing):
         pass
@@ -290,8 +278,6 @@ class UserInterface:
     def Widget_removeDockWidget(self, document_controller, dock_widget):
         pass
     def Widget_removeWidget(self, widget):
-        pass
-    def Widget_setContextProperty(self, widget, property, value):
         pass
     def Widget_setWidgetProperty(self, widget, key, value):
         pass

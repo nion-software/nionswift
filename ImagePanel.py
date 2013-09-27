@@ -29,7 +29,6 @@ _ = gettext.gettext
 
 # coordinate systems:
 #   widget (origin top left, size of the widget)
-#   mouse (origin where it goes, size of the qml image item)
 #   image_norm ((0,0), (1,1))
 #   image_pixel (0,0 size of the image in pixels)
 #   calibrated
@@ -46,7 +45,7 @@ class WidgetMapping(object):
         ms0 = self.map_point_graphic_to_container((0,0))
         return (ms[0] - ms0[0], ms[1] - ms0[1])
     def map_point_container_to_graphic(self, p):
-        return self.image_panel.map_mouse_to_image_norm(p)
+        return self.image_panel.map_widget_to_image_norm(p)
 
 
 class GraphicSelection(object):
@@ -453,8 +452,7 @@ class ImagePanel(Panel.Panel):
         self.graphic_drag_indexes = []
         if self.data_item:
             for graphic_index, graphic in enumerate(self.data_item.graphics):
-                # de-transform mouse coords
-                start_drag_pos = self.map_mouse_to_widget(p)
+                start_drag_pos = p
                 already_selected = self.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(self.graphic_selection.indexes) > 1
                 move_only = not already_selected or multiple_items_selected
@@ -521,7 +519,7 @@ class ImagePanel(Panel.Panel):
         image_size = self.image_size
         if self.__mouse_in and self.last_mouse:
             if image_size and len(image_size) > 1:
-                pos = self.map_mouse_to_image(self.last_mouse)
+                pos = self.map_widget_to_image(self.last_mouse)
             data_item = self.data_item
             graphics = data_item.graphics if data_item else None
             selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
@@ -564,7 +562,7 @@ class ImagePanel(Panel.Panel):
         return None
 
     # map from widget coordinates to image coordinates
-    def map_mouse_to_image(self, p):
+    def map_widget_to_image(self, p):
         transformed_image_rect = self.transformed_image_rect
         image_size = self.image_size
         if transformed_image_rect and image_size:
@@ -574,17 +572,14 @@ class ImagePanel(Panel.Panel):
         return None
 
     # map from widget coordinates to image normalized coordinates
-    def map_mouse_to_image_norm(self, p):
+    def map_widget_to_image_norm(self, p):
         image_size = self.image_size
         if image_size:
-            p_image = self.map_mouse_to_image(p)
+            p_image = self.map_widget_to_image(p)
             return (float(p_image[0]) / image_size[0], float(p_image[1]) / image_size[1])
         return None
 
-    def map_mouse_to_widget(self, p):
-        return self.map_image_to_widget(self.map_mouse_to_image(p))
-
-    # ths message comes fro Qml
+    # ths message comes from the widget
     def key_pressed(self, text, key, modifiers):
         #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
         if key == 0x1000012:  # left arrow

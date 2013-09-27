@@ -153,6 +153,6 @@ class TestImagePanelClass(unittest.TestCase):
         # assumes the test widget is 640x480
         self.image_panel.canvas.width = 640
         self.image_panel.canvas.height = 480
-        self.assertClosePoint(self.image_panel.map_mouse_to_image((240, 320)), (500.0, 500.0))
-        self.assertClosePoint(self.image_panel.map_mouse_to_image((0, 80)), (0.0, 0.0))
-        self.assertClosePoint(self.image_panel.map_mouse_to_image((480, 560)), (1000.0, 1000.0))
+        self.assertClosePoint(self.image_panel.map_widget_to_image((240, 320)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.map_widget_to_image((0, 80)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.map_widget_to_image((480, 560)), (1000.0, 1000.0))
