@@ -173,6 +173,8 @@ class UserInterface:
         return Widget()
     def create_list_widget(self, properties=None):
         return Widget()
+    def load_rgba_data_from_file(self, filename):
+        return numpy.zeros((20,20), numpy.uint32)
     def Console_setDelegate(self, widget, delegate):
         pass
     def Core_out(self, str):
@@ -197,8 +199,6 @@ class UserInterface:
         return 0
     def Output_out(self, widget, message):
         pass  # print message
-    def readImageToPyArray(self, filename):
-        return numpy.zeros((20,20), numpy.uint32)
     def PyControl_connect(self, widget, object, property):
         pass
     def PyControl_setFloatValue(self, widget, value):

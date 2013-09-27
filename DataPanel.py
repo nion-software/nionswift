@@ -622,7 +622,7 @@ class DataPanel(Panel.Panel):
             first_data_item = None
             for file_path in file_paths:
                 try:
-                    raw_image = self.ui.readImageToPyArray(file_path)
+                    raw_image = self.ui.load_rgba_data_from_file(file_path)
                     rgba_image = Image.rgbView(raw_image)
                     if numpy.array_equal(rgba_image[..., 0],rgba_image[..., 1]) and numpy.array_equal(rgba_image[..., 1],rgba_image[..., 2]):
                         image_data = numpy.zeros(raw_image.shape, numpy.uint32)

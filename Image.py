@@ -191,7 +191,7 @@ def createRGBAImageFromArray(array, normalize=True, display_limits=None):
 
 
 def readImageFromFile(ui, filename, dtype=numpy.uint32):
-    rgba_image = ui.readImageToPyArray(filename)
+    rgba_image = ui.load_rgba_data_from_file(filename)
     assert rgba_image is not None
     image = numpy.zeros(rgba_image.shape, dtype)
     image[:, :] = numpy.mean(rgbView(rgba_image), 2)

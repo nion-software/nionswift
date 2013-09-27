@@ -1003,6 +1003,9 @@ class QtUserInterface(object):
     def create_list_widget(self, properties=None):
         return QtListWidget(self, properties)
 
+    def load_rgba_data_from_file(self, filename):
+        return NionLib.readImageToPyArray(filename)
+
     # Actions sub-module for menus and actions
 
     def Actions_createApplicationAction(self, qt_action_manager, action_id, title, is_application):
@@ -1051,9 +1054,6 @@ class QtUserInterface(object):
 
     def Output_out(self, widget, message):
         NionLib.Output_out(widget, message)
-
-    def readImageToPyArray(self, filename):
-        return NionLib.readImageToPyArray(filename)
 
     # General document window commands
 
