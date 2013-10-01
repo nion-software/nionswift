@@ -184,7 +184,7 @@ class DataPanel(Panel.Panel):
 
         def item_key_pressed(self, index, parent_row, parent_id, text, modifiers):
             if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
-                data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(index, parent_id))
+                data_group = self.item_model_controller.item_value("data_group", index, parent_id)
                 if data_group:
                     parent_item = self.item_model_controller.item_from_id(self._parent_id)
                     parent = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller
@@ -192,7 +192,7 @@ class DataPanel(Panel.Panel):
             return False
 
         def item_set_data(self, data, index, parent_row, parent_id):
-            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(index, parent_id))
+            data_group = self.item_model_controller.item_value("data_group", index, parent_id)
             if data_group:
                 data_group.title = data
                 return True
@@ -237,7 +237,7 @@ class DataPanel(Panel.Panel):
 
         def item_mime_data(self, row, parent_row, parent_id):
             parent_item = self.item_model_controller.item_from_id(self._parent_id)
-            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(self._index, self._parent_id))
+            data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
             if data_group:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
@@ -253,7 +253,7 @@ class DataPanel(Panel.Panel):
 
         def __get_data_panel_selection(self):
             parent_item = self.item_model_controller.item_from_id(self._parent_id)
-            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(self._index, self._parent_id))
+            data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
             return DataItem.DataItemSpecifier(data_group)
         data_panel_selection = property(__get_data_panel_selection)
 

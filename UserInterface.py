@@ -174,20 +174,23 @@ class QtItemModelController(object):
         self.traverse(fn)
         return item[0] if item else None
 
-    def item_id(self, index, parent_id):
+    def __item_id(self, index, parent_id):
         parent = self.item_from_id(parent_id)
         assert parent is not None
         if index >= 0 and index < len(parent.children):
             return parent.children[index].id
         return 0  # invalid id
 
-    def item_value(self, role, index, item_id):
+    def item_value_for_item_id(self, role, index, item_id):
         child = self.item_from_id(item_id)
         if role == "index":
             return index
         if role in child.data:
             return child.data[role]
         return None
+
+    def item_value(self, role, index, parent_id):
+        return self.item_value_for_item_id(role, index, self.__item_id(index, parent_id))
 
     # these methods are invoked from Qt
 
@@ -198,7 +201,7 @@ class QtItemModelController(object):
 
     # itemId returns the id of the item within the parent
     def itemId(self, index, parent_id):
-        return self.item_id(index, parent_id)
+        return self.__item_id(index, parent_id)
 
     def itemParent(self, index, item_id):
         if item_id == 0:
@@ -210,7 +213,7 @@ class QtItemModelController(object):
         return [parent.row, parent.id]
 
     def itemValue(self, role, index, item_id):
-        return self.item_value(role, index, item_id)
+        return self.item_value_for_item_id(role, index, item_id)
 
     def itemSetData(self, index, parent_row, parent_id, data):
         if self.on_item_set_data:
