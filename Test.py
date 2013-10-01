@@ -135,6 +135,8 @@ class Widget:
         self.height = 480
         self.current_index = 0
         self.children = []
+    def close(self):
+        pass
     def add(self, widget):
         self.children.append(widget)
     def insert(self, widget, before):
@@ -157,6 +159,10 @@ class Widget:
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
+        pass
+    def create_dock_widget(self, document_controller, widget, panel_id, title, positions, position):
+        return Widget()
+    def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
         pass
     def create_row_widget(self, properties=None):
         return Widget()
@@ -194,11 +200,7 @@ class UserInterface:
         return (str)
     def Core_pathToURL(self, path):
         return (path)
-    def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
-        return (document_window, widget, identifier, title, positions, position)
     def DocumentWindow_setCentralWidget(self, document_window, widget):
-        pass
-    def DocumentWindow_tabifyDockWidgets(self, document_controller, widget1, widget2):
         pass
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
         pass
@@ -235,8 +237,6 @@ class UserInterface:
     def PyTreeWidget_setCurrentRow(self, widget, index, parent_row, parent_id):
         pass
     def PyTreeWidget_setModel(self, widget, py_item_model):
-        pass
-    def Widget_removeDockWidget(self, document_controller, dock_widget):
         pass
 
 

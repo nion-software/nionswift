@@ -100,7 +100,7 @@ class Workspace(object):
 
         header_height = 20 if sys.platform == "win32" else 22
 
-        self.panels = []
+        self.dock_widgets = []
         self.image_panels = []
 
         # create the root element
@@ -126,9 +126,10 @@ class Workspace(object):
             content_map[image_panel.element_id] = image_panel.save_content()
         self.ui.set_persistent_string("Workspace/Content", pickle.dumps(content_map))
         self.ui.set_persistent_string("Workspace/Layout", self.__current_layout_id)
-        for panel in copy.copy(self.panels):
-            panel.close()
-        self.panels = []
+        for dock_widget in copy.copy(self.dock_widgets):
+            dock_widget.panel.close()
+            dock_widget.close()
+        self.dock_widgets = []
 
     def restore_content(self):
         content_string = self.ui.get_persistent_string("Workspace/Content")
@@ -142,10 +143,10 @@ class Workspace(object):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
-    def find_panel(self, panel_id):
-        for panel in self.panels:
-            if panel.panel_id == panel_id:
-                return panel
+    def find_dock_widget(self, panel_id):
+        for dock_widget in self.dock_widgets:
+            if dock_widget.panel.panel_id == panel_id:
+                return dock_widget
         return None
 
     def create_panels(self):
@@ -159,16 +160,15 @@ class Workspace(object):
                 self.create_panel(document_controller, panel_id, title, positions, position, properties)
 
         # clean up panels (tabify console/output)
-        self.ui.DocumentWindow_tabifyDockWidgets(document_controller.document_window, self.find_panel("console-panel").widget.widget, self.find_panel("output-panel").widget.widget)
+        self.ui.tabify_dock_widgets(document_controller, self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties=None):
         panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-        assert panel.widget.widget is not None, "panel widget native_widget is None [%s]" % panel_id
-        panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget.widget, panel_id, title, positions, position)
-        self.panels.append(panel)
-        #panel.add_ref()
+        dock_widget = self.ui.create_dock_widget(document_controller, panel.widget, panel_id, title, positions, position)
+        dock_widget.panel = panel
+        self.dock_widgets.append(dock_widget)
 
     def __create_image_panel(self, element_id):
         image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)

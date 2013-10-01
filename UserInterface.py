@@ -782,7 +782,6 @@ class QtLineEditWidget(QtWidget):
 
 class QtCanvasWidget(QtWidget):
 
-    # TODO: get rid of document_controller usage here
     def __init__(self, ui, properties):
         super(QtCanvasWidget, self).__init__(ui, "canvas", properties)
         NionLib.Canvas_connect(self.widget, self)
@@ -1046,12 +1045,33 @@ class QtConsoleWidget(QtWidget):
         return "", 0, "?"
 
 
+class QtDockWidget(object):
+
+    def __init__(self, document_controller, widget, panel_id, title, positions, position):
+        self.document_controller = document_controller
+        self.widget = widget
+        self.native_dock_widget = NionLib.DocumentWindow_addDockWidget(document_controller.document_window, widget.widget, panel_id, title, positions, position)
+
+    def close(self):
+        NionLib.Widget_removeDockWidget(self.document_controller.document_window, self.native_dock_widget)
+
+
 class QtUserInterface(object):
 
     # Higher level UI objects
 
     def create_mime_data(self):
         return QtMimeData(self)
+
+    # window elements
+
+    def create_dock_widget(self, document_controller, widget, panel_id, title, positions, position):
+        return QtDockWidget(document_controller, widget, panel_id, title, positions, position)
+
+    def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
+        NionLib.DocumentWindow_tabifyDockWidgets(document_controller.document_window, dock_widget1.widget.widget, dock_widget2.widget.widget)
+
+    # user interface elements
 
     def create_row_widget(self, properties=None):
         return QtRowWidget(self, properties)
@@ -1148,14 +1168,8 @@ class QtUserInterface(object):
 
     # General document window commands
 
-    def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
-        return NionLib.DocumentWindow_addDockWidget(document_window, widget, identifier, title, positions, position)
-
     def DocumentWindow_setCentralWidget(self, document_window, widget):
         NionLib.DocumentWindow_setCentralWidget(document_window, widget)
-
-    def DocumentWindow_tabifyDockWidgets(self, document_controller, widget1, widget2):
-        NionLib.DocumentWindow_tabifyDockWidgets(document_controller, widget1, widget2)
 
     # Opens a file dialog. mode should be one of 'load', 'save' or 'loadmany'.
     def DocumentWindow_getFilePath(self, document_window, mode, caption, dir, filter):
@@ -1230,8 +1244,3 @@ class QtUserInterface(object):
 
     def TabWidget_addTab(self, tab_widget, widget, tab_label):
         NionLib.TabWidget_addTab(tab_widget, widget, tab_label)
-
-    # General Widget methods
-
-    def Widget_removeDockWidget(self, document_controller, dock_widget):
-        NionLib.Widget_removeDockWidget(document_controller, dock_widget)

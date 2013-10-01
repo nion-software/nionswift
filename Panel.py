@@ -31,26 +31,12 @@ class Panel(object):
         self.__document_controller_weakref = weakref.ref(document_controller)
         self.ui = document_controller.ui
         self.panel_id = panel_id
-        self.__uuid = uuid.uuid4()
         self.dock_widget = None
         self.display_name = display_name
 
+    # subclasses can override to clean up when the panel closes.
     def close(self):
-        try:
-            if self.dock_widget:
-                self.ui.Widget_removeDockWidget(self.document_controller.document_window, self.dock_widget)
-                # NOTE: deleting the widget is not needed, despite the Qt documentation to the contrary. Tested sep 11 2013. CEM.
-                # self.ui.Widget_removeWidget(self.dock_widget)
-                self.dock_widget = None
-                self.__widget = None
-# For now, don't remove this widget here. Dockable items are never removed; and image panels are handled external to this class. CEM 2013-09-30.
-#            if self.__widget:
-#                self.ui.Widget_removeWidget(self.__widget)
-#                self.__widget = None
-        except Exception, e:
-            import traceback
-            traceback.print_exc()
-            raise
+        pass
 
     def __get_document_controller(self):
         return self.__document_controller_weakref()
@@ -58,11 +44,6 @@ class Panel(object):
 
     def __str__(self):
         return self.display_name
-
-    # uuid property. read only.
-    def __get_uuid(self):
-        return self.__uuid
-    uuid = property(__get_uuid)
 
     # access for the property. this allows C++ to get the value.
     def get_uuid_str(self):
