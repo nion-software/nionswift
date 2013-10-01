@@ -255,11 +255,11 @@ class ProcessingPanel(Panel.Panel):
         data item itself.
         """
 
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Processing"))
 
         # the main column widget contains a stack group for each operation
-        self.column = self.ui.create_column_widget()  # TODO: put this in scroll area
+        self.column = self.ui.create_column_widget(properties)  # TODO: put this in scroll area
         self.column.add_stretch()
         self.__stack_groups = []
 

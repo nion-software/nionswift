@@ -511,7 +511,7 @@ class DataPanel(Panel.Panel):
         NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17, display)
         NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17, display2)
 
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Data Items"))
 
         self.data_group_model = DataPanel.DataGroupModel(document_controller)
@@ -541,7 +541,7 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.model = self.data_item_model
         self.data_item_widget.on_paint = lambda dc, options: self.paint(dc, options)
 
-        self.splitter = ui.create_splitter_widget()
+        self.splitter = ui.create_splitter_widget(properties)
         self.splitter.add(self.data_group_widget)
         self.splitter.add(self.data_item_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")

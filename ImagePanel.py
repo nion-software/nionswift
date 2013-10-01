@@ -142,7 +142,7 @@ class DisplayThread(ProcessingThread):
 
 class ImagePanel(Panel.Panel):
 
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
         self.graphic_drag_items = []
@@ -165,7 +165,7 @@ class ImagePanel(Panel.Panel):
 
         self.__mouse_in = False
 
-        self.canvas = self.ui.create_canvas_widget()
+        self.canvas = self.ui.create_canvas_widget(properties)
         self.canvas.focusable = True
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
@@ -616,7 +616,7 @@ class InfoPanel(Panel.Panel):
 
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Info"))
 
         ui = document_controller.ui
@@ -641,7 +641,9 @@ class InfoPanel(Panel.Panel):
         graphic_row.add(self.graphic_text)
         graphic_row.add_stretch()
 
-        column = ui.create_column_widget(properties={"spacing": 2, "margin": 6})
+        properties["spacing"] = 2
+        properties["margin"] = 6
+        column = ui.create_column_widget(properties)
         column.add(position_row)
         column.add(value_row)
         column.add(graphic_row)
@@ -688,10 +690,10 @@ class InfoPanel(Panel.Panel):
 
 
 class InspectorPanel(Panel.Panel):
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Inspector"))
 
-        self.column = self.ui.create_column_widget()
+        self.column = self.ui.create_column_widget(properties)
 
         self.__data_item = None
         self.__pec = None

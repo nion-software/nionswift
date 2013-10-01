@@ -59,9 +59,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         data_item3.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item3)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item1)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.selected_image_panel = image_panel
         # first delete a child of a data item
         self.assertEqual(len(data_item1.data_items), 1)
@@ -97,11 +97,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item2)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         self.assertEqual(data_panel.data_group_model._parent_id, 0)
         self.assertEqual(data_panel.data_group_model._parent_row, -1)
         self.assertEqual(data_panel.data_group_model._index, -1)
@@ -146,11 +146,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group2.data_items.append(data_item2)
         document_controller.data_groups.append(parent_data_group)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group1, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group2, data_item2)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         self.assertEqual(data_panel.data_group_model._parent_id, 0)
         self.assertEqual(data_panel.data_group_model._parent_row, -1)
         self.assertEqual(data_panel.data_group_model._index, -1)
@@ -246,11 +246,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group2.data_items.append(data_item2)
         document_controller.data_groups.append(parent_data_group)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group1, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group2, data_item2)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.selected_image_panel = image_panel1
         # make sure our preconditions are right
         self.assertEqual(document_controller.selected_data_item, data_item1)
@@ -289,9 +289,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         data_item3.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item3)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.selected_image_panel = image_panel
         # verify assumptions
         self.assertEqual(len(data_panel.data_item_model.model), 3)
@@ -323,8 +323,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1.title = "data_item1"
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item1)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.selected_image_panel = image_panel
         self.assertIsNone(image_panel.data_panel_selection.data_group)
         self.assertIsNone(image_panel.data_panel_selection.data_item)
@@ -348,7 +348,7 @@ class TestDataPanelClass(unittest.TestCase):
         green_group.title = "green_group"
         document_controller.data_groups.insert(0, green_group)
         self.assertEqual(len(green_group.data_items), 1)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.remove_data_group_from_parent(document_controller.data_groups[0], document_controller)
 
     def test_data_panel_remove_item_by_key(self):
@@ -364,7 +364,7 @@ class TestDataPanelClass(unittest.TestCase):
         green_group.title = "green_group"
         document_controller.data_groups.insert(0, green_group)
         document_controller.data_groups.append(data_group1)
-        data_panel = DataPanel.DataPanel(document_controller, "data-panel")
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
         self.assertTrue(data_item1 in data_group1.data_items)
         data_panel.data_item_model.itemKeyPress(0, chr(127), 0)

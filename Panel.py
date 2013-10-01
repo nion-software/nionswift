@@ -93,9 +93,10 @@ class Panel(object):
 
 
 class OutputPanel(Panel):
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.__init__(self, document_controller, panel_id, "Output")
-        self.widget = self.ui.create_output_widget(properties={"min-height": 180})
+        properties["min-height"] = 180
+        self.widget = self.ui.create_output_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):
             def __init__(self, ui):
@@ -121,9 +122,10 @@ class ConsolePanel(Panel):
     # TODO: Replace this with a proper console. As it is, basic functionality
     # like raw_input is broken, pdb doesn't work and we can't embed an IPython
     # console.
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         Panel.__init__(self, document_controller, panel_id, "Console")
-        self.widget = self.ui.create_console_widget(properties={"min-height": 180})
+        properties["min-height"] = 180
+        self.widget = self.ui.create_console_widget(properties)
         self.widget.on_interpret_command = lambda command: self.interpret_command(command)
         self.other_stdout = StringIO()
         self.other_stderr = StringIO()

@@ -162,10 +162,7 @@ class Workspace(object):
         self.ui.DocumentWindow_tabifyDockWidgets(document_controller.document_window, self.find_panel("console-panel").widget.widget, self.find_panel("output-panel").widget.widget)
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties=None):
-        panel = self.workspace_manager.create_panel_content(panel_id, document_controller)
-        if properties:
-            for key in properties.keys():
-                self.ui.Widget_setWidgetProperty(panel.widget.widget, key, properties[key])
+        panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
         assert panel.widget.widget is not None, "panel widget native_widget is None [%s]" % panel_id
@@ -297,12 +294,13 @@ class WorkspaceManager(object):
     def unregisterPanel(self, panel_id):
         del self.__panel_tuples[panel_id]
 
-    def create_panel_content(self, panel_id, document_controller):
+    def create_panel_content(self, panel_id, document_controller, properties=None):
         if panel_id in self.__panel_tuples:
             tuple = self.__panel_tuples[panel_id]
             cls = tuple[0]
             try:
-                panel = cls(document_controller, panel_id)
+                properties = properties if properties else {}
+                panel = cls(document_controller, panel_id, properties)
                 return panel
             except Exception, e:
                 import traceback

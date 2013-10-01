@@ -54,12 +54,12 @@ class HistogramPanel(Panel.Panel):
 
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
-    def __init__(self, document_controller, panel_id):
+    def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
         ui = document_controller.ui
 
-        self.canvas = ui.create_canvas_widget()
+        self.canvas = ui.create_canvas_widget(properties)
 
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.mouse_double_clicked(x, y, modifiers)

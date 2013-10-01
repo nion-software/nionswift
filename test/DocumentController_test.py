@@ -72,7 +72,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         default_data_group.data_items.append(data_item)
         weak_data_item = weakref.ref(data_item)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel")
+        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, data_item)
         self.assertIsNotNone(weak_data_item())
         image_panel.close()
