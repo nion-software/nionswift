@@ -37,7 +37,6 @@ class Panel(object):
         self.panel_id = panel_id
         self.__uuid = uuid.uuid4()
         self.dock_widget = None
-        self.__widget = None
         self.display_name = display_name
 
     def close(self):
@@ -72,21 +71,6 @@ class Panel(object):
     # access for the property. this allows C++ to get the value.
     def get_uuid_str(self):
         return str(self.uuid)
-
-    def __get_widget(self):
-        return self.__widget
-    def __set_widget(self, widget):
-        self.__widget = widget
-    widget = property(__get_widget, __set_widget)
-
-    def loadIntrinsicWidget(self, intrinsic_id):
-        return self.ui.Widget_loadIntrinsicWidget(intrinsic_id)
-
-    def getWidgetProperty(self, property):
-        return self.ui.Widget_getWidgetProperty(self.__widget, property)
-
-    def setWidgetProperty(self, property, value):
-        self.ui.Widget_setWidgetProperty(self.__widget, property, value)
 
     def tryToClose(self):
         self.close()

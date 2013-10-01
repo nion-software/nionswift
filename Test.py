@@ -186,22 +186,16 @@ class UserInterface:
         return Widget()
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)
-    def Console_setDelegate(self, widget, delegate):
-        pass
     def Core_out(self, str):
         return (str)
     def Core_pathToURL(self, path):
         return (path)
-    def Core_URLToPath(self, url):
-        return (url)
     def DocumentWindow_addDockWidget(self, document_window, widget, identifier, title, positions, position):
         return (document_window, widget, identifier, title, positions, position)
     def DocumentWindow_setCentralWidget(self, document_window, widget):
         pass
     def DocumentWindow_tabifyDockWidgets(self, document_controller, widget1, widget2):
         pass
-    def Output_out(self, widget, message):
-        pass  # print message
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
         pass
     def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
@@ -242,35 +236,7 @@ class UserInterface:
         pass
     def Settings_getString(self, key):
         return None
-    def Splitter_restoreState(self, splitter, identifier):
-        pass
-    def Splitter_saveState(self, splitter, identifier):
-        pass
-    def Widget_addSpacing(self, container, spacing):
-        pass
-    def Widget_addStretch(self, container):
-        pass
-    def Widget_addWidget(self, widget, child_widget):
-        pass
-    def Widget_adjustSize(self, widget):
-        pass
-    def Widget_getWidgetProperty(self, widget, property):
-        if property == "canvas_width":
-            return 640
-        if property == "canvas_height":
-            return 480
-        return None
-    def Widget_insertWidget(self, widget, child_widget, index):
-        pass
-    def Widget_loadIntrinsicWidget(self, type):
-        return (type)
-    def Widget_removeAll(self, container):
-        pass
     def Widget_removeDockWidget(self, document_controller, dock_widget):
-        pass
-    def Widget_removeWidget(self, widget):
-        pass
-    def Widget_setWidgetProperty(self, widget, key, value):
         pass
 
 

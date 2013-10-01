@@ -70,11 +70,11 @@ class QtKeyboardModifiers(object):
 
 
 class QtMimeData(object):
-    def __init__(self, ui, mime_data):
+    def __init__(self, ui, mime_data=None):
         self.ui = ui
-        self.raw_mime_data = mime_data
+        self.raw_mime_data = mime_data if mime_data else NionLib.MimeData_create()
     def __get_formats(self):
-        return self.ui.MimeData_formats(self.raw_mime_data)
+        return NionLib.MimeData_formats(self.raw_mime_data)
     formats = property(__get_formats)
     def has_format(self, format):
         return format in self.formats
@@ -90,15 +90,15 @@ class QtMimeData(object):
         urls = self.urls
         file_paths = []
         for url in urls:
-            file_path = self.ui.Core_URLToPath(url)
+            file_path = NionLib.Core_URLToPath(url)
             if file_path and len(file_path) > 0 and os.path.isfile(file_path) and os.path.exists(file_path):
                 file_paths.append(file_path)
         return file_paths
     file_paths = property(__get_file_paths)
     def data_as_string(self, format):
-        return self.ui.MimeData_dataAsString(self.raw_mime_data, format)
+        return NionLib.MimeData_dataAsString(self.raw_mime_data, format)
     def set_data_as_string(self, format, text):
-        self.ui.MimeData_setDataAsString(self.raw_mime_data, format, text)
+        NionLib.MimeData_setDataAsString(self.raw_mime_data, format, text)
 
 
 class ItemModel(object):
@@ -490,13 +490,13 @@ class QtWidget(object):
     def __init__(self, ui, widget_type, properties):
         self.ui = ui
         self.properties = properties if properties else {}
-        self.widget = self.ui.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
+        self.widget = NionLib.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
 
     def update_properties(self):
         if self.widget:
             for key in self.properties.keys():
-                self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
+                NionLib.Widget_setWidgetProperty(self.widget, key, self.properties[key])
 
     def __get_focused(self):
         return NionLib.Widget_hasFocus(self.widget)
@@ -541,6 +541,9 @@ class QtBoxWidget(QtWidget):
 
     def add_stretch(self):
         NionLib.Widget_addStretch(self.widget)
+
+    def add_spacing(self, spacing):
+        NionLib.Widget_addSpacing(self.widget, spacing)
 
 
 class QtRowWidget(QtBoxWidget):
@@ -1048,7 +1051,7 @@ class QtUserInterface(object):
     # Higher level UI objects
 
     def create_mime_data(self):
-        return QtMimeData(self, self.MimeData_create())
+        return QtMimeData(self)
 
     def create_row_widget(self, properties=None):
         return QtRowWidget(self, properties)
@@ -1123,23 +1126,14 @@ class QtUserInterface(object):
 
     # Output and miscellaneous
 
-    def Console_setDelegate(self, widget, delegate):
-        NionLib.Console_setDelegate(widget, delegate)
-
     def Core_out(self, str):
         return NionLib.Core_out(str)
 
     def Core_pathToURL(self, path):
         return NionLib.Core_pathToURL(path)
 
-    def Core_URLToPath(self, url):
-        return NionLib.Core_URLToPath(url)
-
     def Core_getLocation(self, location):
         return NionLib.Core_getLocation(location)
-
-    def Output_out(self, widget, message):
-        NionLib.Output_out(widget, message)
 
     # General document window commands
 
@@ -1155,20 +1149,6 @@ class QtUserInterface(object):
     # Opens a file dialog. mode should be one of 'load', 'save' or 'loadmany'.
     def DocumentWindow_getFilePath(self, document_window, mode, caption, dir, filter):
         return NionLib.DocumentWindow_getFilePath(document_window, mode, caption, dir, filter)
-
-    # Mime data
-
-    def MimeData_create(self):
-        return NionLib.MimeData_create()
-
-    def MimeData_formats(self, mime_data):
-        return NionLib.MimeData_formats(mime_data)
-
-    def MimeData_dataAsString(self, mime_data, format):
-        return NionLib.MimeData_dataAsString(mime_data, format)
-
-    def MimeData_setDataAsString(self, mime_data, format, text):
-        return NionLib.MimeData_setDataAsString(mime_data, format, text)
 
     # PyItemModel is a tree model
 
@@ -1243,14 +1223,6 @@ class QtUserInterface(object):
     def Settings_getString(self, key):
         return NionLib.Settings_getString(key)
 
-    # Splitter
-
-    def Splitter_restoreState(self, splitter, identifier):
-        NionLib.Splitter_restoreState(splitter, identifier)
-
-    def Splitter_saveState(self, splitter, identifier):
-        NionLib.Splitter_saveState(splitter, identifier)
-
     # TabWidget to present tabs
 
     def TabWidget_addTab(self, tab_widget, widget, tab_label):
@@ -1258,35 +1230,5 @@ class QtUserInterface(object):
 
     # General Widget methods
 
-    def Widget_addSpacing(self, container, spacing):
-        NionLib.Widget_addSpacing(container, spacing)
-
-    def Widget_addStretch(self, container):
-        NionLib.Widget_addStretch(container)
-
-    def Widget_addWidget(self, widget, child_widget):
-        NionLib.Widget_addWidget(widget, child_widget)
-
-    def Widget_adjustSize(self, widget):
-        NionLib.Widget_adjustSize(widget)
-
-    def Widget_getWidgetProperty(self, widget, property):
-        return NionLib.Widget_getWidgetProperty(widget, property)
-
-    def Widget_insertWidget(self, widget, child_widget, index):
-        NionLib.Widget_insertWidget(widget, child_widget, index)
-
-    def Widget_loadIntrinsicWidget(self, type):
-        return NionLib.Widget_loadIntrinsicWidget(type)
-
-    def Widget_removeAll(self, container):
-        NionLib.Widget_removeAll(container)
-
     def Widget_removeDockWidget(self, document_controller, dock_widget):
         NionLib.Widget_removeDockWidget(document_controller, dock_widget)
-
-    def Widget_removeWidget(self, widget):
-        NionLib.Widget_removeWidget(widget)
-
-    def Widget_setWidgetProperty(self, widget, key, value):
-        NionLib.Widget_setWidgetProperty(widget, key, value)
