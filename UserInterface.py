@@ -1158,6 +1158,9 @@ class QtUserInterface(object):
 
     # persistence (associated with application)
 
+    def get_data_location(self):
+        return NionLib.Core_getLocation("data")
+
     def get_persistent_string(self, key, default_value=None):
         value = NionLib.Settings_getString(key)
         return value if value else default_value
@@ -1193,17 +1196,6 @@ class QtUserInterface(object):
 
     def Actions_setShortcut(self, qt_action_manager, action_id, key_sequence):
         NionLib.Actions_setShortcut(qt_action_manager, action_id, key_sequence)
-
-    # Output and miscellaneous
-
-    def Core_out(self, str):
-        return NionLib.Core_out(str)
-
-    def Core_pathToURL(self, path):
-        return NionLib.Core_pathToURL(path)
-
-    def Core_getLocation(self, location):
-        return NionLib.Core_getLocation(location)
 
     # PyItemModel is a tree model
 

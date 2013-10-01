@@ -16,7 +16,7 @@ Running tests without Qt:
 
 import Application
 import Test
-Application.Application(Test.UserInterface(), catch_stdout=False)
+Application.Application(Test.UserInterface())
 Test.run_all_tests()
 Test.run_test("TestApplicationClass")
 """
@@ -209,10 +209,8 @@ class UserInterface:
         return default_value
     def set_persistent_string(self, key, value):
         pass
-    def Core_out(self, str):
-        return (str)
-    def Core_pathToURL(self, path):
-        return (path)
+    def get_data_location(self):
+        pass
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
         pass
     def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):

@@ -23,7 +23,7 @@ from nion.swift import Test
 class TestStorageClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), catch_stdout=False, set_global=False)
+        self.app = Application.Application(Test.UserInterface(), set_global=False)
 
     def tearDown(self):
         pass

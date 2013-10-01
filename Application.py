@@ -31,16 +31,9 @@ _ = gettext.gettext
 app = None
 
 
-class StdoutCatcher(object):
-    def __init__(self, ui):
-        self.ui = ui
-    def write(self, stuff):
-        self.ui.Core_out(str(stuff).strip())
-
-
 # facilitate bootstrapping the application
 class Application(object):
-    def __init__(self, ui, catch_stdout=True, set_global=True):
+    def __init__(self, ui, set_global=True):
         global app
 
         self.ui = ui
@@ -51,16 +44,9 @@ class Application(object):
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
 
-        if catch_stdout:
-            sys.stdout = StdoutCatcher(ui)
-            sys.stderr = StdoutCatcher(ui)
-
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
-
-        if catch_stdout:
-            logging.info("Welcome to Nion Swift.")
 
         self.__document_windows = []
         self.__menu_handlers = []
@@ -82,7 +68,7 @@ class Application(object):
     # this method is invoked from the host application
     def make_document_controller(self, native_document_window):
         document_window = self.ui.create_document_window(native_document_window)
-        documents_dir = self.ui.Core_getLocation("data")
+        documents_dir = self.ui.get_data_location()
         filename = os.path.join(documents_dir, "Swift Workspace.nswrk")
         #filename = ":memory:"
         create_new_document = not os.path.exists(filename)
@@ -98,6 +84,7 @@ class Application(object):
             storage_reader = Storage.DbStorageReader(filename)
             document_controller = DocumentController.DocumentController(self, document_window, storage_writer, storage_reader)
             document_controller.create_default_data_groups()
+        logging.info("Welcome to Nion Swift.")
         return document_controller
 
     def register_document_window(self, document_window):
