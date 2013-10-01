@@ -498,6 +498,16 @@ class QtWidget(object):
             for key in self.properties.keys():
                 self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
 
+    def __get_focused(self):
+        return NionLib.Widget_hasFocus(self.widget)
+    def __set_focused(self, focused):
+        if focused != self.focused:
+            if focused:
+                NionLib.Widget_setFocus(self.widget, 7)
+            else:
+                NionLib.Widget_clearFocus(self.widget)
+    focused = property(__get_focused, __set_focused)
+
 
 class QtBoxWidget(QtWidget):
 
@@ -711,6 +721,55 @@ class QtSliderWidget(QtWidget):
             self.__on_slider_moved(value)
 
 
+class QtLineEditWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtLineEditWidget, self).__init__(ui, "lineedit", properties)
+        self.__on_editing_finished = None
+        self.__on_text_edited = None
+        self.__formatter = None
+        NionLib.LineEdit_connect(self.widget, self)
+
+    def __get_text(self):
+        return NionLib.LineEdit_getText(self.widget)
+    def __set_text(self, text):
+        NionLib.LineEdit_setText(self.widget, text)
+    text = property(__get_text, __set_text)
+
+    def __get_formatter(self):
+        return self.__formatter
+    def __set_formatter(self, formatter):
+        self.__formatter = formatter
+        if self.__formatter:
+            self.__formatter.format(self.text)
+    formatter = property(__get_formatter, __set_formatter)
+
+    def __get_on_editing_finished(self):
+        return self.__on_editing_finished
+    def __set_on_editing_finished(self, fn):
+        self.__on_editing_finished = fn
+    on_editing_finished = property(__get_on_editing_finished, __set_on_editing_finished)
+
+    def __get_on_text_edited(self):
+        return self.__on_text_edited
+    def __set_on_text_edited(self, fn):
+        self.__on_text_edited = fn
+    on_text_edited = property(__get_on_text_edited, __set_on_text_edited)
+
+    def select_all(self):
+        NionLib.LineEdit_selectAll(self.widget)
+
+    def editing_finished(self, text):
+        if self.__formatter:
+            self.__formatter.format(text)
+        if self.__on_editing_finished:
+            self.__on_editing_finished(text)
+
+    def text_edited(self, text):
+        if self.__on_text_edited:
+            self.__on_text_edited(text)
+
+
 class QtCanvasWidget(QtWidget):
 
     # TODO: get rid of document_controller usage here
@@ -739,16 +798,6 @@ class QtCanvasWidget(QtWidget):
         self.__focusable = focusable
         NionLib.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
     focusable = property(__get_focusable, __set_focusable)
-
-    def __get_focused(self):
-        return NionLib.Canvas_hasFocus(self.widget)
-    def __set_focused(self, focused):
-        if focused != self.focused:
-            if focused:
-                NionLib.Canvas_setFocus(self.widget, 7)
-            else:
-                NionLib.Canvas_clearFocus(self.widget)
-    focused = property(__get_focused, __set_focused)
 
     class Layer(object):
         def __init__(self, canvas):
@@ -993,6 +1042,9 @@ class QtUserInterface(object):
     def create_slider_widget(self, properties=None):
         return QtSliderWidget(self, properties)
 
+    def create_line_edit_widget(self, properties=None):
+        return QtLineEditWidget(self, properties)
+
     def create_canvas_widget(self, properties=None):
         return QtCanvasWidget(self, properties)
 
@@ -1082,23 +1134,6 @@ class QtUserInterface(object):
 
     def MimeData_setDataAsString(self, mime_data, format, text):
         return NionLib.MimeData_setDataAsString(mime_data, format, text)
-
-    # PyControl is used to manage a parameter for an operation
-
-    def PyControl_connect(self, widget, object, property):
-        NionLib.PyControl_connect(widget, object, property)
-
-    def PyControl_setFloatValue(self, widget, value):
-        NionLib.PyControl_setFloatValue(widget, value)
-
-    def PyControl_setIntegerValue(self, widget, value):
-        NionLib.PyControl_setIntegerValue(widget, value)
-
-    def PyControl_setStringValue(self, widget, value):
-        NionLib.PyControl_setStringValue(widget, value)
-
-    def PyControl_setTitle(self, widget, title):
-        NionLib.PyControl_setTitle(widget, title)
 
     # PyItemModel is a tree model
 

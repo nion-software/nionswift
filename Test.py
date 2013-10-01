@@ -167,6 +167,8 @@ class UserInterface:
         return Widget()
     def create_slider_widget(self, properties=None):
         return Widget()
+    def create_line_edit_widget(self, properties=None):
+        return Widget()
     def create_canvas_widget(self, properties=None):
         return Widget()
     def create_tree_widget(self, properties=None):
@@ -191,16 +193,6 @@ class UserInterface:
         pass
     def Output_out(self, widget, message):
         pass  # print message
-    def PyControl_connect(self, widget, object, property):
-        pass
-    def PyControl_setFloatValue(self, widget, value):
-        pass
-    def PyControl_setIntegerValue(self, widget, value):
-        pass
-    def PyControl_setStringValue(self, widget, value):
-        pass
-    def PyControl_setTitle(self, widget, title):
-        pass
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
         pass
     def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):

@@ -19,20 +19,71 @@ _ = gettext.gettext
 # Changes to the UI will result in changes to the object's properties.
 
 
+class IntegerFormatter(object):
+
+    def __init__(self, line_edit):
+        self.line_edit = line_edit
+
+    def format(self, text):
+        self.value = int(text)
+
+    def __get_value(self):
+        return int(self.line_edit.text)
+    def __set_value(self, value):
+        self.line_edit.text = str(value)
+    value = property(__get_value, __set_value)
+
+
+class FloatFormatter(object):
+
+    def __init__(self, line_edit):
+        self.line_edit = line_edit
+
+    def format(self, text):
+        self.value = float(text)
+
+    def __get_value(self):
+        return float(self.line_edit.text)
+    def __set_value(self, value):
+        self.line_edit.text = "%g" % float(value)
+    value = property(__get_value, __set_value)
+
+
 class ScalarController(object):
     def __init__(self, ui, object, name, property, container_widget):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("pyscalar")
-        self.ui.PyControl_connect(self.widget, self.object, property)
-        self.ui.PyControl_setTitle(self.widget, name)
-        self.ui.PyControl_setFloatValue(self.widget, float(getattr(self.object, property)))
+
+        row = self.ui.create_row_widget()
+        label = self.ui.create_label_widget(name)
+        self.slider = self.ui.create_slider_widget()
+        self.slider.maximum = 100
+        self.slider.on_value_changed = lambda value: self.slider_value_changed(value)
+        self.field = self.ui.create_line_edit_widget()
+        self.field.on_editing_finished = lambda text: self.editing_finished(text)
+        self.field_formatter = FloatFormatter(self.field)
+        row.add(label)
+        row.add(self.slider)
+        row.add(self.field)
+        row.add_stretch()
+        self.widget = row.widget
+        self.update()
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
         self.ui.Widget_removeWidget(self.widget)
     def update(self):
-        self.ui.PyControl_setFloatValue(self.widget, float(getattr(self.object, self.property)))
+        value = getattr(self.object, self.property)
+        self.field_formatter.value = float(value)
+        self.slider.value = int(value * 100)
+    def slider_value_changed(self, value):
+        setattr(self.object, self.property, self.slider.value/100.0)
+        self.update()
+    def editing_finished(self, text):
+        setattr(self.object, self.property, self.field_formatter.value)
+        self.update()
+        if self.field.focused:
+            self.field.select_all()
 
 
 class IntegerFieldController(object):
@@ -40,15 +91,25 @@ class IntegerFieldController(object):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("pyintegerfield")
-        self.ui.PyControl_connect(self.widget, self.object, property)
-        self.ui.PyControl_setTitle(self.widget, name)
-        self.ui.PyControl_setIntegerValue(self.widget, int(getattr(self.object, property)))
+        row = self.ui.create_row_widget()
+        label = self.ui.create_label_widget(name)
+        self.field = self.ui.create_line_edit_widget()
+        self.field.on_editing_finished = lambda text: self.editing_finished(text)
+        self.field_formatter = IntegerFormatter(self.field)
+        row.add(label)
+        row.add(self.field)
+        row.add_stretch()
+        self.widget = row.widget
+        self.update()
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
         self.ui.Widget_removeWidget(self.widget)
     def update(self):
-        self.ui.PyControl_setIntegerValue(self.widget, int(getattr(self.object, self.property)))
+        self.field_formatter.value = getattr(self.object, self.property)
+    def editing_finished(self, text):
+        setattr(self.object, self.property, self.field_formatter.value)
+        if self.field.focused:
+            self.field.select_all()
 
 
 class FloatFieldController(object):
@@ -56,15 +117,25 @@ class FloatFieldController(object):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("pyfloatfield")
-        self.ui.PyControl_connect(self.widget, self.object, property)
-        self.ui.PyControl_setTitle(self.widget, name)
-        self.ui.PyControl_setFloatValue(self.widget, float(getattr(self.object, property)))
+        row = self.ui.create_row_widget()
+        label = self.ui.create_label_widget(name)
+        self.field = self.ui.create_line_edit_widget()
+        self.field.on_editing_finished = lambda text: self.editing_finished(text)
+        self.field_formatter = FloatFormatter(self.field)
+        row.add(label)
+        row.add(self.field)
+        row.add_stretch()
+        self.widget = row.widget
+        self.update()
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
         self.ui.Widget_removeWidget(self.widget)
     def update(self):
-        self.ui.PyControl_setFloatValue(self.widget, float(getattr(self.object, self.property)))
+        self.field_formatter.value = getattr(self.object, self.property)
+    def editing_finished(self, text):
+        setattr(self.object, self.property, self.field_formatter.value)
+        if self.field.focused:
+            self.field.select_all()
 
 
 class StringFieldController(object):
@@ -72,16 +143,25 @@ class StringFieldController(object):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("pystringfield")
-        self.ui.PyControl_connect(self.widget, self.object, property)
-        self.ui.PyControl_setTitle(self.widget, name)
-        value = getattr(self.object, property)
-        self.ui.PyControl_setStringValue(self.widget, str(value) if value else "")
+        row = self.ui.create_row_widget()
+        label = self.ui.create_label_widget(name)
+        self.field = self.ui.create_line_edit_widget()
+        self.field.on_editing_finished = lambda text: self.editing_finished(text)
+        row.add(label)
+        row.add(self.field)
+        row.add_stretch()
+        self.widget = row.widget
+        self.update()
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
         self.ui.Widget_removeWidget(self.widget)
     def update(self):
-        self.ui.PyControl_setStringValue(self.widget, str(getattr(self.object, self.property)))
+        value = getattr(self.object, self.property)
+        self.field.text = str(value) if value else ""
+    def editing_finished(self, text):
+        setattr(self.object, self.property, text)
+        if self.field.focused:
+            self.field.select_all()
 
 
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
@@ -91,18 +171,19 @@ class FixedArrayController(object):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("column")
+        self.column = self.ui.create_column_widget()
         self.__columns = []
         array = getattr(self.object, property)
         for item in array:
-            column_widget = self.ui.Widget_loadIntrinsicWidget("column")
-            controller = PropertyEditorController(self.ui, item, column_widget)
-            self.__columns.append((controller, column_widget))
-            self.ui.Widget_addWidget(self.widget, column_widget)
+            column_widget = self.ui.create_column_widget()
+            controller = PropertyEditorController(self.ui, item, column_widget.widget)
+            self.__columns.append((controller, column_widget.widget))
+            self.column.add(column_widget)
+        self.widget = self.column.widget
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
-        for column in self.__columns:
-            column[0].close()
+        for controller, column_widget in self.__columns:
+            controller.close()
         self.ui.Widget_removeWidget(self.widget)
     def update(self):
         for controller, column_widget in self.__columns:
@@ -116,10 +197,10 @@ class ItemController(object):
         self.ui = ui
         self.object = object
         self.property = property
-        self.widget = self.ui.Widget_loadIntrinsicWidget("column")
-        self.columns = None
+        self.column = self.ui.create_column_widget()
+        self.widget = self.column.widget
         item = getattr(self.object, property)
-        self.controller = PropertyEditorController(self.ui, item, self.widget)
+        self.controller = PropertyEditorController(self.ui, item, self.column.widget)
         self.ui.Widget_addWidget(container_widget, self.widget)
     def close(self):
         self.controller.close()
