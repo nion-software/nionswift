@@ -43,7 +43,7 @@ class DocumentController(Storage.StorageBase):
         super(DocumentController, self).__init__()
         self.__weak_application = weakref.ref(application)
         self.ui = application.ui
-        self.document_window = document_window
+        self.document_window = document_window if document_window else self.ui.create_document_window(None)
         self.menu_manager = Menu.MenuManager(self.ui)  # used only on Windows
         self.workspace = None
         self.__weak_image_panels = []
@@ -78,7 +78,7 @@ class DocumentController(Storage.StorageBase):
 
     def close(self):
         # recognize when we're running as test and finish out periodic operations
-        if not self.document_window:
+        if not self.document_window.has_event_loop:
             self.periodic()
         # this isn't ideal since this effectively binds one workspace per document window.
         # TODO: revisit Workspace vs. DocumentController lifetimes

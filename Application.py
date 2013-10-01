@@ -79,7 +79,9 @@ class Application(object):
         PlugInManager.loadPlugIns()
         Test.load_tests()  # after plug-ins are loaded
 
-    def make_document_controller(self, document_window):
+    # this method is invoked from the host application
+    def make_document_controller(self, native_document_window):
+        document_window = self.ui.create_document_window(native_document_window)
         documents_dir = self.ui.Core_getLocation("data")
         filename = os.path.join(documents_dir, "Swift Workspace.nswrk")
         #filename = ":memory:"

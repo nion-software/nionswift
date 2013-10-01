@@ -574,6 +574,22 @@ class QtSplitterWidget(QtWidget):
         NionLib.Splitter_saveState(self.widget, tag)
 
 
+class QtTabWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtTabWidget, self).__init__(ui, "group", properties)
+        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+
+    def add(self, child, label):
+        NionLib.TabWidget_addTab(self.widget, child.widget, label)
+
+    def restore_state(self, tag):
+        pass
+
+    def save_state(self, tag):
+        pass
+
+
 class QtComboBoxWidget(QtWidget):
 
     def __init__(self, ui, items, properties):
@@ -1045,15 +1061,38 @@ class QtConsoleWidget(QtWidget):
         return "", 0, "?"
 
 
+class QtDocumentWindow(object):
+
+    def __init__(self, native_document_window):
+        self.native_document_window = native_document_window
+        self.root_widget = None
+        self.has_event_loop = True
+
+    def attach(self, root_widget):
+        self.root_widget = root_widget
+        NionLib.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
+
+    def get_file_paths_dialog(self, title, directory, filter):
+        return NionLib.DocumentWindow_getFilePath(self.native_document_window, "loadmany", title, directory, filter)
+
+    def get_save_file_path(self, title, directory, filter):
+        return NionLib.DocumentWindow_getFilePath(self.native_document_window, "save", title, directory, filter)
+
+    def create_dock_widget(self, widget, panel_id, title, positions, position):
+        return QtDockWidget(self, widget, panel_id, title, positions, position)
+
+    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+        NionLib.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
+
+
 class QtDockWidget(object):
 
-    def __init__(self, document_controller, widget, panel_id, title, positions, position):
-        self.document_controller = document_controller
-        self.widget = widget
-        self.native_dock_widget = NionLib.DocumentWindow_addDockWidget(document_controller.document_window, widget.widget, panel_id, title, positions, position)
+    def __init__(self, document_window, widget, panel_id, title, positions, position):
+        self.document_window = document_window
+        self.native_dock_widget = NionLib.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, title, positions, position)
 
     def close(self):
-        NionLib.Widget_removeDockWidget(self.document_controller.document_window, self.native_dock_widget)
+        NionLib.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
 
 
 class QtUserInterface(object):
@@ -1065,11 +1104,8 @@ class QtUserInterface(object):
 
     # window elements
 
-    def create_dock_widget(self, document_controller, widget, panel_id, title, positions, position):
-        return QtDockWidget(document_controller, widget, panel_id, title, positions, position)
-
-    def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
-        NionLib.DocumentWindow_tabifyDockWidgets(document_controller.document_window, dock_widget1.widget.widget, dock_widget2.widget.widget)
+    def create_document_window(self, native_document_window):
+        return QtDocumentWindow(native_document_window)
 
     # user interface elements
 
@@ -1081,6 +1117,9 @@ class QtUserInterface(object):
 
     def create_splitter_widget(self, properties=None):
         return QtSplitterWidget(self, properties)
+
+    def create_tab_widget(self, properties=None):
+        return QtTabWidget(self, properties)
 
     def create_combo_box_widget(self, items=None, properties=None):
         return QtComboBoxWidget(self, items, properties)
@@ -1166,15 +1205,6 @@ class QtUserInterface(object):
     def Core_getLocation(self, location):
         return NionLib.Core_getLocation(location)
 
-    # General document window commands
-
-    def DocumentWindow_setCentralWidget(self, document_window, widget):
-        NionLib.DocumentWindow_setCentralWidget(document_window, widget)
-
-    # Opens a file dialog. mode should be one of 'load', 'save' or 'loadmany'.
-    def DocumentWindow_getFilePath(self, document_window, mode, caption, dir, filter):
-        return NionLib.DocumentWindow_getFilePath(document_window, mode, caption, dir, filter)
-
     # PyItemModel is a tree model
 
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
@@ -1220,27 +1250,3 @@ class QtUserInterface(object):
 
     def PyListModel_endRemoveRow(self, py_item_model):
         NionLib.PyListModel_endRemoveRow(py_item_model)
-
-    # PyListWidget
-
-    def PyListWidget_getCurrentRow(self, widget):
-        return NionLib.PyListWidget_getCurrentRow(widget)
-
-    def PyListWidget_setCurrentRow(self, widget, index):
-        NionLib.PyListWidget_setCurrentRow(widget, index)
-
-    def PyListWidget_setModel(self, widget, py_list_model):
-        NionLib.PyListWidget_setModel(widget, py_list_model)
-
-    # PyTreeWidget to view a PyItemModel
-
-    def PyTreeWidget_setCurrentRow(self, widget, index, parent_row, parent_id):
-        NionLib.PyTreeWidget_setCurrentRow(widget, index, parent_row, parent_id)
-
-    def PyTreeWidget_setModel(self, widget, py_item_model):
-        NionLib.PyTreeWidget_setModel(widget, py_item_model)
-
-    # TabWidget to present tabs
-
-    def TabWidget_addTab(self, tab_widget, widget, tab_label):
-        NionLib.TabWidget_addTab(tab_widget, widget, tab_label)

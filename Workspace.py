@@ -104,13 +104,13 @@ class Workspace(object):
         self.image_panels = []
 
         # create the root element
-        self.root = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
+        root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
         self.image_row = self.ui.create_column_widget()
-        self.root.add(self.__create_header_widget())
-        self.root.add(self.image_row)
+        root_widget.add(self.__create_header_widget())
+        root_widget.add(self.image_row)
 
         # configure the document window (central widget)
-        self.ui.DocumentWindow_setCentralWidget(document_controller.document_window, self.root.widget)
+        document_controller.document_window.attach(root_widget)
 
         self.create_panels()
 
@@ -160,13 +160,13 @@ class Workspace(object):
                 self.create_panel(document_controller, panel_id, title, positions, position, properties)
 
         # clean up panels (tabify console/output)
-        self.ui.tabify_dock_widgets(document_controller, self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
+        document_controller.document_window.tabify_dock_widgets(self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties=None):
         panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-        dock_widget = self.ui.create_dock_widget(document_controller, panel.widget, panel_id, title, positions, position)
+        dock_widget = document_controller.document_window.create_dock_widget(panel.widget, panel_id, title, positions, position)
         dock_widget.panel = panel
         self.dock_widgets.append(dock_widget)
 

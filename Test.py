@@ -156,12 +156,23 @@ class Widget:
     def set_current_row(self, index, parent_row, parent_id):
         pass
 
+class DocumentWindow:
+    def __init__(self):
+        self.has_event_loop = False
+        self.widget = None
+    def attach(self, widget):
+        self.widget = widget
+    def create_dock_widget(self, widget, panel_id, title, positions, position):
+        return Widget()
+    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+        pass
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
         pass
-    def create_dock_widget(self, document_controller, widget, panel_id, title, positions, position):
-        return Widget()
+    def create_document_window(self, native_document_window):
+        return DocumentWindow()
     def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
         pass
     def create_row_widget(self, properties=None):
@@ -169,6 +180,8 @@ class UserInterface:
     def create_column_widget(self, properties=None):
         return Widget()
     def create_splitter_widget(self, properties=None):
+        return Widget()
+    def create_tab_widget(self, properties=None):
         return Widget()
     def create_combo_box_widget(self, items=None, properties=None):
         return Widget()
@@ -200,8 +213,6 @@ class UserInterface:
         return (str)
     def Core_pathToURL(self, path):
         return (path)
-    def DocumentWindow_setCentralWidget(self, document_window, widget):
-        pass
     def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
         pass
     def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
@@ -229,14 +240,6 @@ class UserInterface:
     def PyListModel_endInsertRow(self, py_item_model):
         pass
     def PyListModel_endRemoveRow(self, py_item_model):
-        pass
-    def PyListWidget_setCurrentRow(self, widget, index):
-        pass
-    def PyListWidget_setModel(self, widget, py_list_model):
-        pass
-    def PyTreeWidget_setCurrentRow(self, widget, index, parent_row, parent_id):
-        pass
-    def PyTreeWidget_setModel(self, widget, py_item_model):
         pass
 
 
