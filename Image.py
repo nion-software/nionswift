@@ -113,23 +113,31 @@ def createRGBAImageFromColor(size, r, g, b, a=255):
 
 
 def spatial_shape_from_shape_and_dtype(shape, dtype):
+    if shape is None or dtype is None:
+        return None
     return shape[:-1] if dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1 else shape
 def spatial_shape_from_data(data):
     return spatial_shape_from_shape_and_dtype(data.shape, data.dtype)
 
 def is_shape_and_dtype_rgb(shape, dtype):
+    if shape is None or dtype is None:
+        return False
     return dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1
 def is_data_rgb(data):
     return data is not None and is_shape_and_dtype_rgb(data.shape, data.dtype)
 
 
 def is_shape_and_dtype_rgba(shape, dtype):
+    if shape is None or dtype is None:
+        return False
     return dtype == numpy.uint8 and shape[-1] == 4 and len(shape) > 1
 def is_data_rgba(data):
     return data is not None and is_shape_and_dtype_rgba(data.shape, data.dtype)
 
 
 def is_shape_and_dtype_1d(shape, dtype):
+    if shape is None or dtype is None:
+        return False
     if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
         return len(shape) == 2  # one extra dimension for rgb(a) values
     return len(shape) == 1
@@ -138,6 +146,8 @@ def is_data_1d(data):
 
 
 def is_shape_and_dtype_2d(shape, dtype):
+    if shape is None or dtype is None:
+        return False
     if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
         return len(shape) == 3  # one extra dimension for rgb(a) values
     return len(shape) == 2

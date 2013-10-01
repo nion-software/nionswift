@@ -528,6 +528,8 @@ class ImagePanel(Panel.Panel):
     def __get_image_size(self):
         data_item = self.data_item
         data_shape = data_item.spatial_shape if data_item else (0,0)
+        if not data_shape:
+            return (0,0)
         for d in data_shape:
             if not d > 0:
                 return None

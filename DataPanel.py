@@ -506,7 +506,8 @@ class DataPanel(Panel.Panel):
         display = self.data_item_model.itemValue("display", index)
         display2 = self.data_item_model.itemValue("display2", index)
         import NionLib
-        NionLib.DrawingContext_drawImage(dc, rect[0][1] + 4 + level * 16, rect[0][0] + 4, 72, 72, thumbnail_data)
+        if thumbnail_data is not None:
+            NionLib.DrawingContext_drawImage(dc, rect[0][1] + 4 + level * 16, rect[0][0] + 4, 72, 72, thumbnail_data)
         NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17, display)
         NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17, display2)
 
