@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import weakref
@@ -50,12 +51,12 @@ class FloatFormatter(object):
 
 
 class ScalarController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
 
-        row = self.ui.create_row_widget()
+        self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.slider = self.ui.create_slider_widget()
         self.slider.maximum = 100
@@ -63,15 +64,11 @@ class ScalarController(object):
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
         self.field_formatter = FloatFormatter(self.field)
-        row.add(label)
-        row.add(self.slider)
-        row.add(self.field)
-        row.add_stretch()
-        self.widget = row.widget
+        self.widget.add(label)
+        self.widget.add(self.slider)
+        self.widget.add(self.field)
+        self.widget.add_stretch()
         self.update()
-        self.ui.Widget_addWidget(container_widget, self.widget)
-    def close(self):
-        self.ui.Widget_removeWidget(self.widget)
     def update(self):
         value = getattr(self.object, self.property)
         self.field_formatter.value = float(value)
@@ -87,23 +84,19 @@ class ScalarController(object):
 
 
 class IntegerFieldController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
-        row = self.ui.create_row_widget()
+        self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
         self.field_formatter = IntegerFormatter(self.field)
-        row.add(label)
-        row.add(self.field)
-        row.add_stretch()
-        self.widget = row.widget
+        self.widget.add(label)
+        self.widget.add(self.field)
+        self.widget.add_stretch()
         self.update()
-        self.ui.Widget_addWidget(container_widget, self.widget)
-    def close(self):
-        self.ui.Widget_removeWidget(self.widget)
     def update(self):
         self.field_formatter.value = getattr(self.object, self.property)
     def editing_finished(self, text):
@@ -113,23 +106,19 @@ class IntegerFieldController(object):
 
 
 class FloatFieldController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
-        row = self.ui.create_row_widget()
+        self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
         self.field_formatter = FloatFormatter(self.field)
-        row.add(label)
-        row.add(self.field)
-        row.add_stretch()
-        self.widget = row.widget
+        self.widget.add(label)
+        self.widget.add(self.field)
+        self.widget.add_stretch()
         self.update()
-        self.ui.Widget_addWidget(container_widget, self.widget)
-    def close(self):
-        self.ui.Widget_removeWidget(self.widget)
     def update(self):
         self.field_formatter.value = getattr(self.object, self.property)
     def editing_finished(self, text):
@@ -139,22 +128,18 @@ class FloatFieldController(object):
 
 
 class StringFieldController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
-        row = self.ui.create_row_widget()
+        self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
-        row.add(label)
-        row.add(self.field)
-        row.add_stretch()
-        self.widget = row.widget
+        self.widget.add(label)
+        self.widget.add(self.field)
+        self.widget.add_stretch()
         self.update()
-        self.ui.Widget_addWidget(container_widget, self.widget)
-    def close(self):
-        self.ui.Widget_removeWidget(self.widget)
     def update(self):
         value = getattr(self.object, self.property)
         self.field.text = str(value) if value else ""
@@ -167,78 +152,79 @@ class StringFieldController(object):
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
 class FixedArrayController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
-        self.column = self.ui.create_column_widget()
+        self.widget = self.ui.create_column_widget()
         self.__columns = []
         array = getattr(self.object, property)
         for item in array:
             column_widget = self.ui.create_column_widget()
-            controller = PropertyEditorController(self.ui, item, column_widget.widget)
-            self.__columns.append((controller, column_widget.widget))
-            self.column.add(column_widget)
-        self.widget = self.column.widget
-        self.ui.Widget_addWidget(container_widget, self.widget)
+            controller = PropertyEditorController(self.ui, item)
+            column_widget.add(controller.widget)
+            self.__columns.append(controller)
+            self.widget.add(column_widget)
     def close(self):
-        for controller, column_widget in self.__columns:
-            controller.close()
-        self.ui.Widget_removeWidget(self.widget)
+        for controller in self.__columns:
+            if hasattr(controller, 'close'):
+                controller.close()
     def update(self):
-        for controller, column_widget in self.__columns:
+        for controller in self.__columns:
             controller.update()
 
 
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
 class ItemController(object):
-    def __init__(self, ui, object, name, property, container_widget):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
         self.object = object
         self.property = property
-        self.column = self.ui.create_column_widget()
-        self.widget = self.column.widget
+        self.widget = self.ui.create_column_widget()
         item = getattr(self.object, property)
-        self.controller = PropertyEditorController(self.ui, item, self.column.widget)
-        self.ui.Widget_addWidget(container_widget, self.widget)
+        self.controller = PropertyEditorController(self.ui, item)
+        self.widget.add(self.controller.widget)
     def close(self):
-        self.controller.close()
-        self.ui.Widget_removeWidget(self.widget)
+        if hasattr(self.controller, 'close'):
+            self.controller.close()
     def update(self):
         self.controller.update()
 
 
-def construct_controller(ui, object, type, name, property, container_widget):
+def construct_controller(ui, object, type, name, property):
     controller = None
     if type == "scalar":
-        controller = ScalarController(ui, object, name, property, container_widget)
+        controller = ScalarController(ui, object, name, property)
     elif type == "integer-field":
-        controller = IntegerFieldController(ui, object, name, property, container_widget)
+        controller = IntegerFieldController(ui, object, name, property)
     elif type == "float-field":
-        controller = FloatFieldController(ui, object, name, property, container_widget)
+        controller = FloatFieldController(ui, object, name, property)
     elif type == "string-field":
-        controller = StringFieldController(ui, object, name, property, container_widget)
+        controller = StringFieldController(ui, object, name, property)
     elif type == "fixed-array":
-        controller = FixedArrayController(ui, object, name, property, container_widget)
+        controller = FixedArrayController(ui, object, name, property)
     elif type == "item":
-        controller = ItemController(ui, object, name, property, container_widget)
+        controller = ItemController(ui, object, name, property)
     return controller
+
 
 class PropertyEditorController(object):
 
-    def __init__(self, ui, object, container_widget):
+    def __init__(self, ui, object):
         self.ui = ui
         self.object = object
         self.__controllers = {}
+        self.widget = self.ui.create_column_widget()
         # add self as observer. this will result in property_changed messages.
         self.object.add_observer(self)
         for dict in object.description:
             name = dict["name"]
             type = dict["type"]
             property = dict["property"]
-            controller = construct_controller(self.ui, self.object, type, name, property, container_widget)
+            controller = construct_controller(self.ui, self.object, type, name, property)
             if controller:
+                self.widget.add(controller.widget)
                 self.__controllers[property] = controller
             else:
                 logging.debug("Unknown controller type %s", type)
@@ -248,7 +234,8 @@ class PropertyEditorController(object):
         self.object.remove_observer(self)
         # delete widgets
         for controller in self.__controllers.values():
-            controller.close()
+            if hasattr(controller, 'close'):
+                controller.close()
         self.__controllers = {}
 
     def property_changed(self, sender, property, value):
@@ -271,12 +258,15 @@ class ProcessingPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Processing"))
 
-        # load the widget and associate it with this panel.
-        self.widget = self.loadIntrinsicWidget("pystack")
+        # the main column widget contains a stack group for each operation
+        self.column = self.ui.create_column_widget()  # TODO: put this in scroll area
+        self.column.add_stretch()
         self.__stack_groups = []
 
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
+
+        self.widget = self.column.widget
 
     def close(self):
         # first set the data item to None
@@ -297,11 +287,20 @@ class ProcessingPanel(Panel.Panel):
             # add self as observer. this will result in property_changed messages.
             # needed to handle 'enabled'
             self.operation.add_observer(self)
-            self.stack_group_widget = panel.loadIntrinsicWidget("pystackgroup")
-            self.ui.PyStackGroup_connect(self.stack_group_widget, self, "enabled", "add_pressed", "remove_pressed")
-            self.ui.PyStackGroup_setTitle(self.stack_group_widget, operation.name)
-            self.ui.PyStackGroup_setEnabled(self.stack_group_widget, self.operation.enabled)
-            self.property_editor_controller = PropertyEditorController(self.ui, operation, self.ui.PyStackGroup_content(self.stack_group_widget))
+            self.widget = self.ui.create_column_widget()
+            self.control_row = self.ui.create_row_widget()
+            label = self.ui.create_label_widget(operation.name)
+            remove_button = self.ui.create_push_button_widget(_("Remove"))
+            remove_button.on_clicked = lambda: self.remove_pressed()
+            self.control_row.add(label)
+            self.control_row.add_stretch()
+            self.control_row.add(remove_button)
+            self.container_widget = self.ui.create_column_widget()
+            self.widget.add(self.control_row)
+            self.widget.add(self.container_widget)
+            self.widget.add_stretch()
+            self.property_editor_controller = PropertyEditorController(self.ui, operation)
+            self.container_widget.add(self.property_editor_controller.widget)
         def __get_document_controller(self):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
@@ -311,12 +310,11 @@ class ProcessingPanel(Panel.Panel):
         def close(self):
             self.property_editor_controller.close()
             self.operation.remove_observer(self)
-            self.ui.Widget_removeWidget(self.stack_group_widget)
         # receive change notifications from the operation. this connection is established
         # using add_observer/remove_observer.
         def property_changed(self, sender, property, value):
             if property == "enabled":
-                self.ui.PyStackGroup_setEnabled(self.stack_group_widget, value)
+                pass  # TODO: allow enabled/disabled operations?
         def __get_enabled(self):
             return self.operation.enabled
         def __set_enabled(self, enabled):
@@ -327,8 +325,6 @@ class ProcessingPanel(Panel.Panel):
                 traceback.print_exc()
                 raise
         enabled = property(__get_enabled, __set_enabled)
-        def add_pressed(self):
-            logging.debug("add")
         def remove_pressed(self):
             self.document_controller.remove_operation(self.operation)
 
@@ -337,16 +333,15 @@ class ProcessingPanel(Panel.Panel):
 
     @queue_main_thread
     def rebuild_panel(self, operations):
-        if self.widget:
-            for stack_group in self.__stack_groups:
+        if self.column:
+            for stack_group in copy.copy(self.__stack_groups):
                 stack_group.close()
-            self.ui.Widget_removeAll(self.ui.PyStack_content(self.widget))
+                self.column.remove(stack_group.widget)
             self.__stack_groups = []
-            for operation in operations:
+            for operation in reversed(operations):
                 stack_group = self.StackGroup(self, operation)
-                self.ui.Widget_addWidget(self.ui.PyStack_content(self.widget), stack_group.stack_group_widget)
+                self.column.insert(stack_group.widget, 0)
                 self.__stack_groups.append(stack_group)
-            self.ui.Widget_addStretch(self.ui.PyStack_content(self.widget))
 
     # this message is received from the document controller.
     # it is established using add_listener

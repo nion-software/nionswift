@@ -523,7 +523,10 @@ class QtBoxWidget(QtWidget):
         return self.children.index(child)
 
     def insert(self, child, before):
-        index = self.index(before) if before else self.count()
+        if isinstance(before, int):
+            index = before
+        else:
+            index = self.index(before) if before else self.count()
         self.children.insert(index, child)
         assert self.widget is not None
         assert child.widget is not None
@@ -531,6 +534,10 @@ class QtBoxWidget(QtWidget):
 
     def add(self, child):
         self.insert(child, None)
+
+    def remove(self, child):
+        self.children.remove(child)
+        NionLib.Widget_removeWidget(child.widget)
 
     def add_stretch(self):
         NionLib.Widget_addStretch(self.widget)

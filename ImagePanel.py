@@ -691,7 +691,7 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id):
         Panel.Panel.__init__(self, document_controller, panel_id, _("Inspector"))
 
-        self.widget = self.loadIntrinsicWidget("column")
+        self.column = self.ui.create_column_widget()
 
         self.__data_item = None
         self.__pec = None
@@ -700,6 +700,8 @@ class InspectorPanel(Panel.Panel):
 
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
+
+        self.widget = self.column.widget
 
     def close(self):
         # close the property controller
@@ -715,10 +717,12 @@ class InspectorPanel(Panel.Panel):
     @queue_main_thread
     def __update_property_editor_controller(self):
         if self.__pec:
+            self.column.remove(self.__pec.widget)
             self.__pec.close()
             self.__pec = None
         if self.__data_item:
-            self.__pec = Inspector.PropertyEditorController(self.ui, self.__data_item, self.widget)
+            self.__pec = Inspector.PropertyEditorController(self.ui, self.__data_item)
+            self.column.add(self.__pec.widget)
 
     def __get_data_item(self):
         return self.__data_item

@@ -136,6 +136,10 @@ class Widget:
         self.current_index = 0
     def add(self, widget):
         pass
+    def insert(self, widget, before):
+        pass
+    def remove(self, widget):
+        pass
     def add_stretch(self):
         pass
     def create_layer(self):
