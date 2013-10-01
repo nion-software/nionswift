@@ -14,6 +14,7 @@ from nion.swift import DataItem
 from nion.swift.Decorators import queue_main_thread
 from nion.swift.Decorators import relative_file
 from nion.swift import DataGroup
+from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import Panel
 from nion.swift import UserInterface
@@ -482,7 +483,7 @@ class DataPanel(Panel.Panel):
             return True
 
     # this message comes from the styled item delegate
-    def paint(self, dc, options):
+    def paint(self, ctx, options):
         rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
         index = options["index"]["row"]
         data_item = self.data_item_model_controller.get_data_items_flat()[index]
@@ -491,11 +492,16 @@ class DataPanel(Panel.Panel):
         level = data["level"]
         display = data["display"]
         display2 = data["display2"]
-        import NionLib
+        ctx.save()
         if thumbnail_data is not None:
-            NionLib.DrawingContext_drawImage(dc, rect[0][1] + 4 + level * 16, rect[0][0] + 4, 72, 72, thumbnail_data)
-        NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17, display)
-        NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17, display2)
+            draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
+            draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
+            ctx.drawImage(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+        ctx.fillStyle = "#000"
+        ctx.fillText(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
+        ctx.font = "italic"
+        ctx.fillText(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
+        ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))

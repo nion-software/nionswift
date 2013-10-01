@@ -1040,7 +1040,9 @@ class QtListWidget(QtWidget):
     # this message comes from the styled item delegate
     def paint(self, dc, options):
         if self.__on_paint:
-            self.__on_paint(dc, options)
+            drawing_context = QtDrawingContext()
+            self.__on_paint(drawing_context, options)
+            NionLib.DrawingContext_drawCommands(dc, drawing_context.commands)
 
 
 class QtOutputWidget(QtWidget):
