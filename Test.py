@@ -134,12 +134,13 @@ class Widget:
         self.width = 640
         self.height = 480
         self.current_index = 0
+        self.children = []
     def add(self, widget):
-        pass
+        self.children.append(widget)
     def insert(self, widget, before):
-        pass
+        self.children.insert(before, widget)
     def remove(self, widget):
-        pass
+        self.children.remove(widget)
     def add_stretch(self):
         pass
     def create_layer(self):
@@ -178,6 +179,10 @@ class UserInterface:
     def create_tree_widget(self, properties=None):
         return Widget()
     def create_list_widget(self, properties=None):
+        return Widget()
+    def create_output_widget(self, properties=None):
+        return Widget()
+    def create_console_widget(self, properties=None):
         return Widget()
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)

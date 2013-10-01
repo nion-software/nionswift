@@ -67,7 +67,7 @@ class HistogramPanel(Panel.Panel):
         self.canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
         self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
 
-        self.widget = self.canvas.widget
+        self.widget = self.canvas
 
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)

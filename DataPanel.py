@@ -546,7 +546,7 @@ class DataPanel(Panel.Panel):
         self.splitter.add(self.data_item_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
-        self.widget = self.splitter.widget
+        self.widget = self.splitter
 
         # connect self as listener. this will result in calls to selected_image_panel_changed
         self.document_controller.add_listener(self)

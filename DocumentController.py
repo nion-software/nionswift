@@ -372,15 +372,11 @@ class DocumentController(Storage.StorageBase):
         weak_image_panel = weakref.ref(image_panel)
         self.__weak_image_panels.remove(weak_image_panel)
 
-    def find_panel(self, panel_id):
-        return self.workspace.find_panel(panel_id)
-
     def __get_selected_image_panel(self):
         return self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
     def __set_selected_image_panel(self, selected_image_panel):
         if not selected_image_panel:
-            tab = self.find_panel("primary-image")
-            selected_image_panel = tab.content if tab else None
+            selected_image_panel = self.workspace.primary_image_panel
         weak_selected_image_panel = weakref.ref(selected_image_panel) if selected_image_panel else None
         if weak_selected_image_panel != self.__weak_selected_image_panel:
 
@@ -423,11 +419,6 @@ class DocumentController(Storage.StorageBase):
     def image_panel_data_item_changed(self, image_panel, info):
         data_item = image_panel.data_item if image_panel else None
         self.notify_listeners("selected_data_item_changed", data_item, info)
-
-    def addToolbarButton(self, id, title, callback):
-        self.find_panel("button-list-panel").addButton(id, title, callback)
-    def removeToolbarButton(self, id):
-        self.find_panel("button-list-panel").removeButton(id)
 
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()

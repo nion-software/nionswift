@@ -13,12 +13,13 @@ from StringIO import StringIO
 # None
 
 # local libraries
-from nion.swift import Workspace
+# None
+
 
 _ = gettext.gettext
 
 
-class Panel(Workspace.Workspace.Element):
+class Panel(object):
     """
         The Panel represents a panel within the document window.
 
@@ -31,8 +32,8 @@ class Panel(Workspace.Workspace.Element):
         """
 
     def __init__(self, document_controller, panel_id, display_name):
-        super(Panel, self).__init__(document_controller.ui, panel_id)
         self.__document_controller_weakref = weakref.ref(document_controller)
+        self.ui = document_controller.ui
         self.panel_id = panel_id
         self.__uuid = uuid.uuid4()
         self.dock_widget = None
@@ -47,14 +48,14 @@ class Panel(Workspace.Workspace.Element):
                 # self.ui.Widget_removeWidget(self.dock_widget)
                 self.dock_widget = None
                 self.__widget = None
-            if self.__widget:
-                self.ui.Widget_removeWidget(self.__widget)
-                self.__widget = None
+# For now, don't remove this widget here. Dockable items are never removed; and image panels are handled external to this class. CEM 2013-09-30.
+#            if self.__widget:
+#                self.ui.Widget_removeWidget(self.__widget)
+#                self.__widget = None
         except Exception, e:
             import traceback
             traceback.print_exc()
             raise
-        Workspace.Workspace.Element.close(self)
 
     def __get_document_controller(self):
         return self.__document_controller_weakref()
@@ -94,16 +95,15 @@ class Panel(Workspace.Workspace.Element):
 class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id):
         Panel.__init__(self, document_controller, panel_id, "Output")
-        self.widget = self.loadIntrinsicWidget("output")
-        self.ui.Widget_setWidgetProperty(self.widget, "min-height", 180)
-        output_widget = self.widget
+        self.widget = self.ui.create_output_widget(properties={"min-height": 180})
+        output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):
             def __init__(self, ui):
                 super(OutputPanelHandler, self).__init__()
                 self.ui = ui
             def emit(self, record):
                 if record.levelno >= logging.INFO:
-                    self.ui.Output_out(output_widget, record.getMessage())
+                    output_widget.send(record.getMessage())
         self.__output_panel_handler = OutputPanelHandler(document_controller.ui)
         logging.getLogger().addHandler(self.__output_panel_handler)
     def close(self):
@@ -123,9 +123,8 @@ class ConsolePanel(Panel):
     # console.
     def __init__(self, document_controller, panel_id):
         Panel.__init__(self, document_controller, panel_id, "Console")
-        self.widget = self.loadIntrinsicWidget("console")
-        self.ui.Widget_setWidgetProperty(self.widget, "min-height", 180)
-        self.ui.Console_setDelegate(self.widget, self)
+        self.widget = self.ui.create_console_widget(properties={"min-height": 180})
+        self.widget.on_interpret_command = lambda command: self.interpret_command(command)
         self.other_stdout = StringIO()
         self.other_stderr = StringIO()
         # sys.ps1/2 is not always defined, we'll use it if it is
@@ -140,10 +139,10 @@ class ConsolePanel(Panel):
                  "import numpy as numpy",
                  "_d = DocumentController.DocumentController.DataAccessor(dc)"]
         for l in lines:
-            self.interpretCommand(l) 
+            self.interpret_command(l)
 
     # interpretCommand is called from the intrinsic widget.
-    def interpretCommand(self, command):
+    def interpret_command(self, command):
         with reassign_stdout(self.other_stdout, self.other_stderr):
             incomplete = self.console.push(command)
 
@@ -157,87 +156,3 @@ class ConsolePanel(Panel):
         self.other_stdout.truncate(0)
         self.other_stderr.truncate(0)
         return result, error_code, prompt
-
-
-class HeaderPanel(Panel):
-
-    def __init__(self, document_controller, panel_id):
-        Panel.__init__(self, document_controller, panel_id, "Header")
-
-        ui = document_controller.ui
-
-        self.canvas = ui.create_canvas_widget()
-        self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
-
-        self.layer = self.canvas.create_layer()
-
-        self.update_header()
-
-        self.widget = self.canvas.widget
-
-    def update_header(self):
-
-        ctx = self.layer.drawing_context
-
-        ctx.clear()
-
-        ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(0, self.canvas.height)
-        ctx.lineTo(self.canvas.width, self.canvas.height)
-        ctx.lineTo(self.canvas.width, 0)
-        ctx.closePath()
-        gradient = ctx.create_linear_gradient(0, 0, 0, self.canvas.height);
-        gradient.add_color_stop(0, '#ededed');
-        gradient.add_color_stop(1, '#cacaca');
-        ctx.fillStyle = gradient
-        ctx.fill()
-        ctx.restore()
-
-        ctx.save()
-        ctx.beginPath()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.moveTo(0, 0.5)
-        ctx.lineTo(self.canvas.width, 0.5)
-        ctx.strokeStyle = '#FFF'
-        ctx.stroke()
-        ctx.restore()
-
-        ctx.save()
-        ctx.beginPath()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.moveTo(0, self.canvas.height-0.5)
-        ctx.lineTo(self.canvas.width, self.canvas.height-0.5)
-        ctx.strokeStyle = '#b0b0b0'
-        ctx.stroke()
-        ctx.restore()
-
-        ctx.save()
-        ctx.font = 'normal 11px serif'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillStyle = '#000'
-        ctx.fillText(self.display_name, self.canvas.width/2, self.canvas.height/2+1)
-        ctx.restore()
-
-        self.canvas.draw()
-
-    def mouseEntered(self):
-        pass
-    def mouseExited(self):
-        pass
-    def mouseClicked(self, y, x, raw_modifiers):
-        pass
-    def mouseDoubleClicked(self, y, x, raw_modifiers):
-        pass
-    def mousePressed(self, y, x, raw_modifiers):
-        pass
-    def mouseReleased(self, y, x, raw_modifiers):
-        pass
-    def mousePositionChanged(self, y, x, raw_modifiers):
-        pass
-
-    def size_changed(self, width, height):
-        if width > 0 and height > 0:
-            self.update_header()

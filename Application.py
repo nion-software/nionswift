@@ -72,7 +72,6 @@ class Application(object):
         workspace_manager.registerPanel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 300, "height": 96})
         workspace_manager.registerPanel(ImagePanel.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"width": 300, "height": 320})
         workspace_manager.registerPanel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
-        workspace_manager.registerPanel(Panel.HeaderPanel, "header-panel", _("Data Visualization"), ["central"], "central")
         workspace_manager.registerPanel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.registerPanel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
 

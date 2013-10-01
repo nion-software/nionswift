@@ -1021,6 +1021,28 @@ class QtListWidget(QtWidget):
             self.__on_paint(dc, options)
 
 
+class QtOutputWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtOutputWidget, self).__init__(ui, "output", properties)
+
+    def send(self, message):
+        NionLib.Output_out(self.widget, message)
+
+
+class QtConsoleWidget(QtWidget):
+
+    def __init__(self, ui, properties):
+        super(QtConsoleWidget, self).__init__(ui, "console", properties)
+        self.on_interpret_command = None
+        NionLib.Console_setDelegate(self.widget, self)
+
+    def interpretCommand(self, command):
+        if self.on_interpret_command:
+            return self.on_interpret_command(command)
+        return "", 0, "?"
+
+
 class QtUserInterface(object):
 
     # Higher level UI objects
@@ -1060,6 +1082,12 @@ class QtUserInterface(object):
 
     def create_list_widget(self, properties=None):
         return QtListWidget(self, properties)
+
+    def create_output_widget(self, properties=None):
+        return QtOutputWidget(self, properties)
+
+    def create_console_widget(self, properties=None):
+        return QtConsoleWidget(self, properties)
 
     def load_rgba_data_from_file(self, filename):
         return NionLib.readImageToPyArray(filename)

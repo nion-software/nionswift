@@ -266,7 +266,7 @@ class ProcessingPanel(Panel.Panel):
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
 
-        self.widget = self.column.widget
+        self.widget = self.column
 
     def close(self):
         # first set the data item to None

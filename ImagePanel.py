@@ -177,7 +177,7 @@ class ImagePanel(Panel.Panel):
         self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
         self.canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
-        self.widget = self.canvas.widget  # panel needs this to be dockable
+        self.widget = self.canvas
 
         self.__display_layer = self.canvas.create_layer()
         self.__graphics_layer = self.canvas.create_layer()
@@ -627,17 +627,17 @@ class InfoPanel(Panel.Panel):
         self.value_text = ui.create_label_widget()
         self.graphic_text = ui.create_label_widget()
 
-        position_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        position_row = ui.create_row_widget(properties={"spacing": 6})
         position_row.add(position_label)
         position_row.add(self.position_text)
         position_row.add_stretch()
 
-        value_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        value_row = ui.create_row_widget(properties={"spacing": 6})
         value_row.add(value_label)
         value_row.add(self.value_text)
         value_row.add_stretch()
 
-        graphic_row = ui.create_row_widget(properties={"spacing": 6, "margin": 0})
+        graphic_row = ui.create_row_widget(properties={"spacing": 6})
         graphic_row.add(self.graphic_text)
         graphic_row.add_stretch()
 
@@ -647,7 +647,7 @@ class InfoPanel(Panel.Panel):
         column.add(graphic_row)
         column.add_stretch()
 
-        self.widget = column.widget
+        self.widget = column
 
         # connect self as listener. this will result in calls to selected_data_item_changed and cursor_changed
         self.document_controller.add_listener(self)
@@ -701,7 +701,7 @@ class InspectorPanel(Panel.Panel):
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
 
-        self.widget = self.column.widget
+        self.widget = self.column
 
     def close(self):
         # close the property controller

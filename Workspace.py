@@ -31,199 +31,65 @@ class Workspace(object):
         from its original size/shape when saved.
     """
 
+    def __create_header_widget(self):
+        header_height = 20 if sys.platform == "win32" else 22
+        canvas = self.ui.create_canvas_widget(properties={"height": header_height})
+        layer = canvas.create_layer()
+        canvas.on_size_changed = lambda width, height: self.__header_size_changed(canvas, layer, width, height)
+        self.__update_header(canvas, layer)
+        return canvas
 
-    class Element(object):
+    def __update_header(self, canvas, layer):
 
-        def __init__(self, ui, element_id, properties = None):
-            self.ui = ui
-            self.element_id = element_id
-            self.properties = properties if properties else {}
-            self.__weak_container = None
-            self.__ref_count = 0
+        ctx = layer.drawing_context
 
-        # Anytime you store a reference to this item, call add_ref.
-        # This allows the class to delete its widget when the reference count goes to zero.
-        def add_ref(self):
-            self.__ref_count += 1
+        ctx.clear()
 
-        # Anytime you give up a reference to this item, call remove_ref.
-        def remove_ref(self):
-            assert self.__ref_count > 0, 'DataItem has no references'
-            self.__ref_count -= 1
-            if self.__ref_count == 0:
-                self.close()
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(0, canvas.height)
+        ctx.lineTo(canvas.width, canvas.height)
+        ctx.lineTo(canvas.width, 0)
+        ctx.closePath()
+        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height);
+        gradient.add_color_stop(0, '#ededed');
+        gradient.add_color_stop(1, '#cacaca');
+        ctx.fillStyle = gradient
+        ctx.fill()
+        ctx.restore()
 
-        def descendent(self, element_id):
-            if self.element_id == element_id:
-                return self
-            return None
+        ctx.save()
+        ctx.beginPath()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.moveTo(0, 0.5)
+        ctx.lineTo(canvas.width, 0.5)
+        ctx.strokeStyle = '#FFF'
+        ctx.stroke()
+        ctx.restore()
 
-        def __get_container(self):
-            return self.__weak_container() if self.__weak_container else None
-        def __set_container(self, container):
-            assert container is None or self.__weak_container is None
-            self.__weak_container = weakref.ref(container) if container else None
-        container = property(__get_container, __set_container)
+        ctx.save()
+        ctx.beginPath()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.moveTo(0, canvas.height-0.5)
+        ctx.lineTo(canvas.width, canvas.height-0.5)
+        ctx.strokeStyle = '#b0b0b0'
+        ctx.stroke()
+        ctx.restore()
 
-        def close(self):
-            pass
+        ctx.save()
+        ctx.font = 'normal 11px serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#000'
+        ctx.fillText(_("Data Visualization"), canvas.width/2, canvas.height/2+1)
+        ctx.restore()
 
+        canvas.draw()
 
-    class Tab(Element):
-
-        # element_id should be unique within the root
-        # label should be localized
-        # content should be a panel
-        # properties is an optional dictionary
-        def __init__(self, ui, element_id, label, content, properties = None):
-            super(Workspace.Tab, self).__init__(ui, element_id, properties)
-            self.label = label
-            self.content = content
-            self.content.add_ref()
-            self.content.container = self
-            self.widget = content.widget
-
-        def close(self):
-            self.content.container = None
-            self.content.remove_ref()
-            Workspace.Element.close(self)
-
-
-    class Box(Element):
-
-        def __init__(self, ui, element_id, properties = None):
-            super(Workspace.Box, self).__init__(ui, element_id, properties)
-            self.children = []
-            self.properties = properties if properties else {}
-            self.widget = None
-
-        def descendent(self, element_id):
-            if self.element_id == element_id:
-                return self
-            for child in self.children:
-                descendent = child.descendent(element_id)
-                if descendent:
-                    return descendent
-            return None
-
-        def childCount(self):
-            return len(self.children)
-
-        def indexOfChild(self, child):
-            assert child in self.children
-            return self.children.index(child)
-
-        def insertChildAfter(self, child, after):
-            index = self.indexOfChild(after)+1
-            self.children.insert(index, child)
-            child.add_ref()
-            child.container = self
-            assert self.widget is not None
-            assert child.widget is not None
-            self.ui.Widget_insertWidget(self.widget, child.widget, index)
-
-        def insertChildBefore(self, child, before):
-            index = self.indexOfChild(before)
-            self.children.insert(index, child)
-            child.add_ref()
-            child.container = self
-            assert self.widget is not None
-            assert child.widget is not None
-            self.ui.Widget_insertWidget(self.widget, child.widget, index)
-
-        def addChild(self, child):
-            self.children.append(child)
-            child.add_ref()
-            child.container = self
-            assert self.widget is not None
-            # temporarily check for child.widget while Qt code is isolated
-            if child.widget:
-                assert child.widget is not None
-                self.ui.Widget_addWidget(self.widget, child.widget)
-
-        def removeChild(self, child):
-            assert child in self.children
-            self.children.remove(child)
-            child.remove_ref()
-            child.container = None
-
-        def removeAllChildren(self):
-            for child in self.children:
-                child.remove_ref()
-                child.container = None
-            self.children = []
-
-        def close(self):
-            self.removeAllChildren()
-            self.ui.Widget_removeWidget(self.widget)
-            Workspace.Element.close(self)
-
-
-    class Row(Box):
-
-        def __init__(self, ui, element_id, properties = None):
-            super(Workspace.Row, self).__init__(ui, element_id, properties)
-            self.widget = self.ui.Widget_loadIntrinsicWidget("row")
-            for key in self.properties.keys():
-                self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
-
-
-    class Column(Box):
-
-        def __init__(self, ui, element_id, properties = None):
-            super(Workspace.Column, self).__init__(ui, element_id, properties)
-            self.widget = self.ui.Widget_loadIntrinsicWidget("column")
-            for key in self.properties.keys():
-                self.ui.Widget_setWidgetProperty(self.widget, key, self.properties[key])
-
-
-    def __create_element(self, dict, document_controller):
-        #logging.debug("PARSING %s", str(dict))
-        element_id = dict["id"]
-        if dict["type"] == "row":
-            properties = {}
-            if "properties" in dict:
-                properties = dict["properties"]
-            row = Workspace.Row(document_controller.ui, element_id, properties)
-            for child_dict in dict["children"]:
-                row.addChild(self.__create_element(child_dict, document_controller))
-            return row
-        if dict["type"] == "column":
-            properties = {}
-            if "properties" in dict:
-                properties = dict["properties"]
-            column = Workspace.Column(document_controller.ui, element_id, properties)
-            for child_dict in dict["children"]:
-                column.addChild(self.__create_element(child_dict, document_controller))
-            return column
-        if dict["type"] == "tab":
-            panel_id = dict["content"]
-            label = dict["title"]
-            properties = dict["properties"] if "properties" in dict else None
-            workspace_manager = WorkspaceManager()
-            content = workspace_manager.create_panel_content(panel_id, document_controller)
-            assert content is not None, "content is None [%s]" % panel_id
-            # temporarily check for content.widget while Qt code is isolated
-            if content.widget:
-                assert content.widget is not None, "content widget is None [%s]" % panel_id
-                if properties:
-                    for key in properties.keys():
-                        self.ui.Widget_setWidgetProperty(content.widget, key, properties[key])
-                self.ui.Widget_setWidgetProperty(content.widget, "title", label)
-            return Workspace.Tab(document_controller.ui, element_id, label, content)
-
-    def __descendent(self, dict, test_element_id):
-        element_id = dict["id"]
-        if element_id == test_element_id:
-            return dict
-        if dict["type"] == "row" or dict["type"] == "column":
-            for child_dict in dict["children"]:
-                result = self.__descendent(child_dict, test_element_id)
-                if result:
-                    return result
-            return None
-        return None
-
+    def __header_size_changed(self, canvas, layer, width, height):
+        if width > 0 and height > 0:
+            self.__update_header(canvas, layer)
 
     def __init__(self, document_controller):
         self.__document_controller_weakref = weakref.ref(document_controller)
@@ -234,47 +100,17 @@ class Workspace(object):
 
         header_height = 20 if sys.platform == "win32" else 22
 
-        self.desc = {
-            "type": "column",
-            "id": "content-column",
-            "properties": { "spacing": 0 },
-            "children": [
-                {
-                    "type": "tab",
-                    "id": "primary-header",
-                    "content": "header-panel",
-                    "title": _("Data Visualization"),
-                    "properties": { "height": header_height, "platform": sys.platform }
-                },
-                {
-                    "type": "row",
-                    "id": "image-row",
-                    "properties": { "spacing": 0 },
-                    "children": [
-                        {
-                            "type": "tab",
-                            "id": "primary-image",
-                            "content": "image-panel",
-                            "title": _("Image"),
-                        }
-                    ]
-                },
-            ]
-        }
-
         self.panels = []
+        self.image_panels = []
 
         # create the root element
-        self.root = self.__create_element(self.desc, document_controller)
-        self.root.add_ref()
+        self.root = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
+        self.image_row = self.ui.create_column_widget()
+        self.root.add(self.__create_header_widget())
+        self.root.add(self.image_row)
 
         # configure the document window (central widget)
         self.ui.DocumentWindow_setCentralWidget(document_controller.document_window, self.root.widget)
-
-        self.ui.Widget_setWidgetProperty(self.root.widget, "min-width", 640)
-        self.ui.Widget_setWidgetProperty(self.root.widget, "min-height", 480)
-
-        self.image_panel_tabs = []
 
         self.create_panels()
 
@@ -286,8 +122,8 @@ class Workspace(object):
 
     def close(self):
         content_map = {}
-        for image_panel_tab in self.image_panel_tabs:
-            content_map[image_panel_tab.element_id] = image_panel_tab.content.save_content()
+        for image_panel in self.image_panels:
+            content_map[image_panel.element_id] = image_panel.save_content()
         self.ui.Settings_setString("Workspace/Content", pickle.dumps(content_map))
         self.ui.Settings_setString("Workspace/Layout", self.__current_layout_id)
         for panel in copy.copy(self.panels):
@@ -298,9 +134,9 @@ class Workspace(object):
         content_string = self.ui.Settings_getString("Workspace/Content")
         if content_string:
             content_map = pickle.loads(content_string)
-            for image_panel_tab in self.image_panel_tabs:
-                if image_panel_tab.element_id in content_map:
-                    image_panel_tab.content.restore_content(content_map[image_panel_tab.element_id], self.document_controller)
+            for image_panel in self.image_panels:
+                if image_panel.element_id in content_map:
+                    image_panel.restore_content(content_map[image_panel.element_id], self.document_controller)
 
     def __get_document_controller(self):
         return self.__document_controller_weakref()
@@ -310,8 +146,6 @@ class Workspace(object):
         for panel in self.panels:
             if panel.panel_id == panel_id:
                 return panel
-        if self.root:
-            return self.root.descendent(panel_id)
         return None
 
     def create_panels(self):
@@ -325,93 +159,85 @@ class Workspace(object):
                 self.create_panel(document_controller, panel_id, title, positions, position, properties)
 
         # clean up panels (tabify console/output)
-        self.ui.DocumentWindow_tabifyDockWidgets(document_controller.document_window, self.find_panel("console-panel").widget, self.find_panel("output-panel").widget)
+        self.ui.DocumentWindow_tabifyDockWidgets(document_controller.document_window, self.find_panel("console-panel").widget.widget, self.find_panel("output-panel").widget.widget)
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties=None):
         panel = self.workspace_manager.create_panel_content(panel_id, document_controller)
         if properties:
             for key in properties.keys():
-                self.ui.Widget_setWidgetProperty(panel.widget, key, properties[key])
+                self.ui.Widget_setWidgetProperty(panel.widget.widget, key, properties[key])
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-        panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget, panel_id, title, positions, position)
+        assert panel.widget.widget is not None, "panel widget native_widget is None [%s]" % panel_id
+        panel.dock_widget = self.ui.DocumentWindow_addDockWidget(document_controller.document_window, panel.widget.widget, panel_id, title, positions, position)
         self.panels.append(panel)
-        panel.add_ref()
+        #panel.add_ref()
 
-    def __create_column(self):
-        desc = {
-            "type": "column",
-            "id": "",
-            "properties": { "spacing": 0 },
-            "children": []
-        }
-        return self.__create_element(desc, self.document_controller)
+    def __create_image_panel(self, element_id):
+        image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)
+        image_panel.title = _("Image")
+        image_panel.element_id = element_id
+        self.image_panels.append(image_panel)
+        return image_panel
 
-    def __create_image_panel_element(self, image_panel_id=None):
-        desc = {
-            "type": "tab",
-            "id": image_panel_id if image_panel_id else "",
-            "content": "image-panel",
-            "title": _("Image"),
-        }
-        return self.__create_element(desc, self.document_controller)
+    def __get_primary_image_panel(self):
+        return self.image_panels[0] if len(self.image_panels) > 0 else None
+    primary_image_panel = property(__get_primary_image_panel)
 
     def change_layout(self, layout_id):
         # remember what's current being displayed
         old_data_panel_selections = []
-        for image_panel_tab in self.image_panel_tabs:
-            old_data_panel_selections.append(image_panel_tab.content.data_panel_selection)
+        for image_panel in self.image_panels:
+            old_data_panel_selections.append(image_panel.data_panel_selection)
         # remove existing layout
-        image_row = self.find_panel("image-row")
-        image_row.removeAllChildren()
-        self.image_panel_tabs = []
+        for image_panel in copy.copy(self.image_panels):
+            image_panel.close()
+        self.image_panels = []
+        for child in copy.copy(self.image_row.children):
+            self.image_row.remove(child)
         # create the new layout
         if layout_id == "2x1":
-            element = self.__create_image_panel_element("primary-image")
-            self.image_panel_tabs.append(element)
-            image_row.addChild(element)
-            element2 = self.__create_image_panel_element("secondary-image")
-            self.image_panel_tabs.append(element2)
-            image_row.addChild(element2)
-            self.document_controller.selected_image_panel = element.content
+            image_row = self.ui.create_row_widget()
+            image_panel = self.__create_image_panel("primary-image")
+            image_row.add(image_panel.widget)
+            image_panel2 = self.__create_image_panel("secondary-image")
+            image_row.add(image_panel2.widget)
+            self.image_row.add(image_row)
+            self.document_controller.selected_image_panel = image_panel
         elif layout_id == "3x1":
-            element = self.__create_image_panel_element("primary-image")
-            self.image_panel_tabs.append(element)
-            image_row.addChild(element)
-            element2 = self.__create_image_panel_element("secondary-image")
-            self.image_panel_tabs.append(element2)
-            image_row.addChild(element2)
-            element3 = self.__create_image_panel_element("3rd-image")
-            self.image_panel_tabs.append(element3)
-            image_row.addChild(element3)
-            self.document_controller.selected_image_panel = element.content
+            image_row = self.ui.create_row_widget()
+            image_panel = self.__create_image_panel("primary-image")
+            image_row.add(image_panel.widget)
+            image_panel2 = self.__create_image_panel("secondary-image")
+            image_row.add(image_panel2.widget)
+            image_panel3 = self.__create_image_panel("3rd-image")
+            image_row.add(image_panel3.widget)
+            self.image_row.add(image_row)
+            self.document_controller.selected_image_panel = image_panel
         elif layout_id == "2x2":
-            column1 = self.__create_column()
-            column2 = self.__create_column()
-            image_row.addChild(column1)
-            image_row.addChild(column2)
-            element = self.__create_image_panel_element("primary-image")
-            self.image_panel_tabs.append(element)
-            column1.addChild(element)
-            element2 = self.__create_image_panel_element("secondary-image")
-            self.image_panel_tabs.append(element2)
-            column1.addChild(element2)
-            element3 = self.__create_image_panel_element("3rd-image")
-            self.image_panel_tabs.append(element3)
-            column2.addChild(element3)
-            element4 = self.__create_image_panel_element("4th-image")
-            self.image_panel_tabs.append(element4)
-            column2.addChild(element4)
-            self.document_controller.selected_image_panel = element.content
+            image_row = self.ui.create_row_widget()
+            image_column1 = self.ui.create_column_widget()
+            image_column2 = self.ui.create_column_widget()
+            image_row.add(image_column1)
+            image_row.add(image_column2)
+            image_panel = self.__create_image_panel("primary-image")
+            image_column1.add(image_panel.widget)
+            image_panel2 = self.__create_image_panel("secondary-image")
+            image_column1.add(image_panel2.widget)
+            image_panel3 = self.__create_image_panel("3rd-image")
+            image_column2.add(image_panel3.widget)
+            image_panel4 = self.__create_image_panel("4th-image")
+            image_column2.add(image_panel4.widget)
+            self.image_row.add(image_row)
+            self.document_controller.selected_image_panel = image_panel
         else:  # default 1x1
-            element = self.__create_image_panel_element("primary-image")
-            self.image_panel_tabs.append(element)
-            image_row.addChild(element)
-            self.document_controller.selected_image_panel = element.content
+            image_panel = self.__create_image_panel("primary-image")
+            self.image_row.add(image_panel.widget)
+            self.document_controller.selected_image_panel = image_panel
         # restore what was displayed
         displayed_data_items = []
         last_data_panel_selection = None
-        for index, image_panel_tab in enumerate(self.image_panel_tabs):
+        for index, image_panel in enumerate(self.image_panels):
             data_panel_selection = None
             if len(old_data_panel_selections) > index and old_data_panel_selections[index] and not old_data_panel_selections[index].is_empty:
                 data_panel_selection = old_data_panel_selections[index]
@@ -428,6 +254,13 @@ class Workspace(object):
                         if data_item not in displayed_data_items:
                             data_panel_selection = DataItem.DataItemSpecifier(last_data_panel_selection.data_group, data_item)
                             break
+                # search in another group
+                if not data_panel_selection:
+                    for data_group in self.document_controller.data_groups:
+                        for data_item in data_group.data_items:
+                            if data_item not in displayed_data_items:
+                                data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+                                break
             else:
                 # search for next undisplayed data item
                 for data_group in self.document_controller.data_groups:
@@ -441,7 +274,7 @@ class Workspace(object):
                 data_panel_selection = DataItem.DataItemSpecifier()
             if not data_panel_selection.is_empty:
                 displayed_data_items.append(data_panel_selection.data_item)
-            image_panel_tab.content.data_panel_selection = data_panel_selection
+            image_panel.data_panel_selection = data_panel_selection
         # fill in the missing items if possible
         # save the layout id
         self.__current_layout_id = layout_id
