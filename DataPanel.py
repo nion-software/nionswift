@@ -44,7 +44,10 @@ _ = gettext.gettext
 
 class DataPanel(Panel.Panel):
 
-    # a tree model of the data groups
+    # a tree model of the data groups. this class watches for changes to the data groups contained in the document controller
+    # and responds by updating the item model controller associated with the data group tree view widget. it also handles
+    # drag and drop and keeps the current selection synchronized with the image panel.
+
     class DataGroupModelController(object):
 
         def __init__(self, document_controller):
@@ -91,19 +94,14 @@ class DataPanel(Panel.Panel):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
 
+        # these two methods support the 'count' display for data groups. they count up
+        # the data items that are children of the container (which can be a data group
+        # or a document controller) and also data items in all of their child groups.
         def __append_data_item_flat(self, container, data_items):
             if isinstance(container, DataItem.DataItem):
                 data_items.append(container)
             for child_data_item in container.data_items:
                 self.__append_data_item_flat(child_data_item, data_items)
-
-        def __get_data_items_flat(self):
-            data_items = []
-            if self.data_group:
-                for data_item in self.data_group.data_items:
-                    self.__append_data_item_flat(data_item, data_items)
-            return data_items
-
         def __get_data_item_count_flat(self, container):
             data_items = []
             self.__append_data_item_flat(container, data_items)
@@ -150,22 +148,10 @@ class DataPanel(Panel.Panel):
                 self.mapping.pop(object)
                 self.item_model_controller.end_remove()
 
-        def __item_for_data_group(self, data_group):
-            matched_items = []
-            def match_item(parent, index, item):
-                if "data_group" in item.data:
-                    if item.data["data_group"] == data_group:
-                        matched_items.append(item)
-                        return True
-                return False
-            self.item_model_controller.traverse(match_item)
-            assert len(matched_items) == 1
-            return matched_items[0]
-
         def __update_item_count(self, data_group):
             assert isinstance(data_group, DataGroup.DataGroup) or isinstance(data_group, DataGroup.SmartDataGroup)
             count = self.__get_data_item_count_flat(data_group)
-            item = self.__item_for_data_group(data_group)
+            item = self.mapping[data_group]
             item.data["display"] = str(data_group) + (" (%i)" % count)
             item.data["edit"] = data_group.title
             self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
@@ -174,11 +160,11 @@ class DataPanel(Panel.Panel):
             if key == "title":
                 self.__update_item_count(data_group)
 
-        # this method if called when one of our listened to items changes
+        # this method if called when one of our listened to data groups changes
         def data_item_inserted(self, container, data_item, before_index):
             self.__update_item_count(container)
 
-        # this method if called when one of our listened to items changes
+        # this method if called when one of our listened to data groups changes
         def data_item_removed(self, container, data_item, index):
             self.__update_item_count(container)
 
@@ -419,7 +405,6 @@ class DataPanel(Panel.Panel):
                 self._index = index
                 data_items = self.get_data_items_flat()
                 # check the proper index; there are some cases where it gets out of sync
-                # TODO: debug the index cases
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 # update the selected image panel
                 image_panel = self.document_controller.selected_image_panel
