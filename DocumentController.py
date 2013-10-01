@@ -24,8 +24,8 @@ from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import ImagePanel
-from nion.swift import Inspector
 from nion.swift import Menu
+from nion.swift import Inspector
 from nion.swift import Operation
 from nion.swift import Panel
 from nion.swift import Storage
@@ -44,7 +44,7 @@ class DocumentController(Storage.StorageBase):
         self.__weak_application = weakref.ref(application)
         self.ui = application.ui
         self.document_window = document_window if document_window else self.ui.create_document_window(None)
-        self.menu_manager = Menu.MenuManager(self.ui)  # used only on Windows
+        self.menu_manager = self.ui.create_menu_manager()  # used only on Windows
         self.workspace = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
@@ -55,6 +55,7 @@ class DocumentController(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
+        Menu.build_menus(self.menu_manager)
         self.application.register_document_window(self)
         if storage_reader:
             storage_writer.disconnected = True

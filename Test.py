@@ -262,6 +262,18 @@ class ListModelController:
     def data_changed(self):
         pass
 
+class MenuManager:
+    def __init__(self):
+        pass
+    def add_document_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
+        pass
+    def insert_document_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
+        pass
+    def insert_menu(self, menu_id, title, before_menu_id, use_existing=True):
+        pass
+    def insert_separator(self, menu_id, before_action_id):
+        pass
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
@@ -312,6 +324,8 @@ class UserInterface:
         pass
     def get_data_location(self):
         pass
+    def create_menu_manager(self):
+        return MenuManager()
 
 
 class KeyboardModifiers(object):

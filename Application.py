@@ -37,9 +37,11 @@ class Application(object):
         global app
 
         self.ui = ui
-        self.menu_manager = Menu.MenuManager(ui)  # used only on Mac OS
+        self.menu_manager = self.ui.create_menu_manager()  # used only on Mac OS
         self.hardware_source_manager = HardwareSource.HardwareSourceManager()
         self.import_export_manager = ImportExportManager.ImportExportManager()
+
+        Menu.build_menus(self.menu_manager)
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?

@@ -1101,6 +1101,288 @@ class QtDockWidget(object):
         NionLib.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
 
 
+class QtAction(object):
+
+    def __init__(self, action_id, title):
+        self.action_id = action_id
+        self.title = title
+        self._qt_action = None
+        self.qt_action_manager = None
+        self.key_sequence = None
+
+    def create(self):
+        pass
+
+    def __get_qt_action(self):
+        self.create()
+        return self._qt_action
+    qt_action = property(__get_qt_action)
+
+    def configure(self):
+        if self.key_sequence:
+            NionLib.Actions_setShortcut(self.qt_action_manager, self.action_id, self.key_sequence)
+
+
+class QtApplicationAction(QtAction):
+
+    def __init__(self, action_id, title, callback):
+        super(QtApplicationAction, self).__init__(action_id, title)
+        self.callback = callback
+
+    def create(self):
+        if self._qt_action is None:
+            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, True)
+
+    def adjustApplicationAction(self):
+        NionLib.Actions_enableAction(self.qt_action_manager, self.action_id)
+
+    def adjustDocumentAction(self, document_controller):
+        pass
+
+    def execute(self):
+        self.callback()
+
+
+class QtDocumentAction(QtAction):
+
+    def __init__(self, action_id, title, callback):
+        super(QtDocumentAction, self).__init__(action_id, title)
+        self.callback = callback
+
+    def create(self):
+        if self._qt_action is None:
+            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
+
+    def adjustApplicationAction(self):
+        pass
+
+    def adjustDocumentAction(self, document_controller):
+        NionLib.Actions_enableAction(self.qt_action_manager, self.action_id)
+
+    def execute(self, document_controller):
+        self.callback(document_controller)
+
+
+class QtPanelAction(QtAction):
+
+    def __init__(self, action_id, title, callback):
+        super(QtPanelAction, self).__init__(action_id, title)
+        self.callback = callback
+
+    def create(self):
+        if self._qt_action is None:
+            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
+
+    def adjustApplicationAction(self):
+        pass
+
+    def adjustDocumentAction(self, document_controller):
+        pass # NionLib.Actions_enableAction(qt_action_manager, self.action_id)
+
+    def execute(self, document_controller):
+        self.callback(document_controller.selected_image_panel)
+
+
+class QtMenu(object):
+
+    def __init__(self, menu_id, title):
+        self.menu_id = menu_id
+        self.title = title
+        self.qt_action_manager = None
+        self.__qt_menu = None
+        self.action_ids = []
+        self.__action_map = {}
+        self.__build_items = []  # used to delay building menus
+
+    def __create(self):
+        if self.__qt_menu is None:
+            self.__qt_menu = NionLib.Actions_findMenu(self.qt_action_manager, self.menu_id)
+            if not self.__qt_menu:
+                self.__qt_menu = NionLib.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
+
+    def get_qt_menu(self):
+        self.__create()
+        return self.__qt_menu
+    qt_menu = property(get_qt_menu)
+
+    def createActions(self):
+        for build_item in self.__build_items:
+            insert_before_action_id = build_item["insert"] if "insert" in build_item else None
+            if "action" in build_item:
+                action = build_item["action"]
+                action.qt_action_manager = self.qt_action_manager
+                qt_action = action.qt_action  # need to set action.qt_action_manager before this call
+                NionLib.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
+                action.configure()
+            else:
+                NionLib.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, insert_before_action_id)
+
+    def insertAction(self, action, before_action_id):
+        action_id = action.action_id
+        assert action_id not in self.action_ids
+        self.action_ids.append(action_id)
+        self.__build_items.append({ "action": action, "insert": before_action_id })
+        self.__action_map[action_id] = action
+        if self.__qt_menu:
+            action.qt_action_manager = self.qt_action_manager
+            qt_action = action.qt_action  # need to set action.qt_action_manager before this call
+            NionLib.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, before_action_id)
+
+    def insertSeparator(self, before_action_id):
+        self.__build_items.append({ "separator": True, "insert": before_action_id })
+        if self.__qt_menu:
+            action.qt_action_manager = self.qt_action_manager
+            NionLib.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, before_action_id)
+
+    def adjustApplicationActions(self):
+        for action_id in self.action_ids:
+            action = self.__action_map[action_id]
+            action.adjustApplicationAction()
+
+    def adjustDocumentActions(self, document_controller):
+        for action_id in self.action_ids:
+            action = self.__action_map[action_id]
+            action.adjustDocumentAction(document_controller)
+
+    def findAction(self, action_id):
+        return self.__action_map[action_id] if action_id in self.__action_map else None
+
+
+class QtMenuManager(object):
+
+    def __init__(self):
+        self.menu_ids = []  # ordering of menus
+        self.__menu_dicts = {}  # map from id to menu dict
+        self.qt_menu_bar = None
+        self.qt_action_manager = None
+
+    def createMenus(self, qt_menu_bar, qt_action_manager):
+        self.qt_menu_bar = qt_menu_bar
+        self.qt_action_manager = qt_action_manager
+        for menu_id in self.menu_ids:
+            menu_dict = self.__menu_dicts[menu_id]
+            menu = menu_dict["menu"]
+            menu.qt_action_manager = self.qt_action_manager
+            qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
+            insert_before_id = menu_dict["insert"]
+            NionLib.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, insert_before_id)
+            menu.createActions()
+
+    # Menu will be inserted immediately if menu_bar is not None.
+    # Otherwise, menu will be inserted when createMenus is called.
+    def insert_menu(self, menu_id, title, before_menu_id, use_existing=True):
+        assert use_existing or menu_id not in self.menu_ids
+        if not use_existing or menu_id not in self.menu_ids:
+            menu = QtMenu(menu_id, title)
+            self.menu_ids.append(menu_id)
+            self.__menu_dicts[menu_id] = { "menu": menu, "insert": before_menu_id }
+            if self.qt_menu_bar and self.qt_action_manager:
+                menu.qt_action_manager = self.qt_action_manager
+                qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
+                NionLib.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, before_menu_id)
+                menu.createActions()
+
+    def add_menu(self, menu_id, title):
+        self.insert_menu(menu_id, title, None)
+
+    def insert_separator(self, menu_id, before_action_id):
+        assert menu_id in self.__menu_dicts
+        menu_dict = self.__menu_dicts[menu_id]
+        menu = menu_dict["menu"]
+        assert menu is not None
+        menu.insertSeparator(before_action_id)
+
+    def insert_action(self, menu_id, action, before_action_id):
+        assert menu_id in self.__menu_dicts
+        menu_dict = self.__menu_dicts[menu_id]
+        menu = menu_dict["menu"]
+        assert menu is not None
+        menu.insertAction(action, before_action_id)
+
+    def insert_application_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None):
+        action = self.findAction(action_id)
+        assert action is None, "action already exists"
+        action = QtApplicationAction(action_id, title, callback)
+        action.key_sequence = key_sequence
+        self.insert_action(menu_id, action, before_action_id)
+
+    def insert_document_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
+        action = self.findAction(action_id)
+        assert action is None, "action already exists"
+        action = QtDocumentAction(action_id, title, callback)
+        action.key_sequence = key_sequence
+        self.insert_action(menu_id, action, before_action_id)
+
+    def add_action(self, menu_id, action):
+        assert not self.findAction(action.action_id)
+        self.insert_action(menu_id, action, None)
+
+    def add_application_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
+        action = self.findAction(action_id)
+        assert replace_existing or (action is None), "action already exists"
+        if replace_existing and action:
+            action.title = title
+            action.callback = callback
+        else:
+            action = QtApplicationAction(action_id, title, callback)
+            action.key_sequence = key_sequence
+            self.add_action(menu_id, action)
+
+    def add_document_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
+        action = self.findAction(action_id)
+        assert replace_existing or (action is None), "action already exists"
+        if replace_existing and action:
+            action.title = title
+            action.callback = callback
+        else:
+            action = QtDocumentAction(action_id, title, callback)
+            action.key_sequence = key_sequence
+            self.add_action(menu_id, action)
+
+    def add_panel_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
+        action = self.findAction(action_id)
+        assert replace_existing or (action is None), "action already exists"
+        if replace_existing and action:
+            action.title = title
+            action.callback = callback
+        else:
+            action = QtPanelAction(action_id, title, callback)
+            action.key_sequence = key_sequence
+            self.add_action(menu_id, action)
+
+    def adjustApplicationActions(self):
+        for menu_id in self.menu_ids:
+            menu_dict = self.__menu_dicts[menu_id]
+            menu = menu_dict["menu"]
+            menu.adjustApplicationActions()
+
+    def adjustDocumentActions(self, document_controller):
+        for menu_id in self.menu_ids:
+            menu_dict = self.__menu_dicts[menu_id]
+            menu = menu_dict["menu"]
+            menu.adjustDocumentActions(document_controller)
+
+    # search through each menu and look for a matching action
+    def findAction(self, action_id):
+        for menu_id in self.menu_ids:
+            menu_dict = self.__menu_dicts[menu_id]
+            menu = menu_dict["menu"]
+            action = menu.findAction(action_id)
+            if action:
+                return action
+        return None
+
+    def dispatchApplicationAction(self, action_id):
+        action = self.findAction(action_id)
+        if action:
+            action.execute()
+
+    def dispatchDocumentAction(self, document_controller, action_id):
+        action = self.findAction(action_id)
+        if action:
+            action.execute(document_controller)
+
+
 class QtUserInterface(object):
 
     # data objects
@@ -1180,31 +1462,7 @@ class QtUserInterface(object):
     def set_persistent_string(self, key, value):
         NionLib.Settings_setString(key, value)
 
-    # Actions sub-module for menus and actions
+    # menus
 
-    def Actions_createApplicationAction(self, qt_action_manager, action_id, title, is_application):
-        return NionLib.Actions_createApplicationAction(qt_action_manager, action_id, title, is_application)
-
-    def Actions_createMenu(self, qt_action_manager, menu_id, title):
-        return NionLib.Actions_createMenu(qt_action_manager, menu_id, title)
-
-    def Actions_enableAction(self, qt_action_manager, action_id):
-        NionLib.Actions_enableAction(qt_action_manager, action_id)
-
-    def Actions_findAction(self, qt_action_manager, action_id):
-        return NionLib.Actions_findAction(qt_action_manager, action_id)
-
-    def Actions_findMenu(self, qt_action_manager, menu_id):
-        return NionLib.Actions_findMenu(qt_action_manager, menu_id)
-
-    def Actions_insertAction(self, qt_action_manager, qt_menu, qt_action, insert_before_action_id):
-        NionLib.Actions_insertAction(qt_action_manager, qt_menu, qt_action, insert_before_action_id)
-
-    def Actions_insertSeparator(self, qt_action_manager, qt_menu, insert_before_action_id):
-        NionLib.Actions_insertSeparator(qt_action_manager, qt_menu, insert_before_action_id)
-
-    def Actions_insertMenu(self, action_manager, qt_menu_bar, qt_menu, insert_before_id):
-        NionLib.Actions_insertMenu(action_manager, qt_menu_bar, qt_menu, insert_before_id)
-
-    def Actions_setShortcut(self, qt_action_manager, action_id, key_sequence):
-        NionLib.Actions_setShortcut(qt_action_manager, action_id, key_sequence)
+    def create_menu_manager(self):
+        return QtMenuManager()
