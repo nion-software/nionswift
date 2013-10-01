@@ -89,15 +89,6 @@ class DocumentController(Storage.StorageBase):
             self.data_groups.remove(data_group)
         self.application.unregister_document_window(self)
 
-    def reset(self, storage_writer):
-        for data_group in copy.copy(self.data_groups):
-            self.data_groups.remove(data_group)
-        assert len(self.data_groups) == 0
-        self.workspace.reset()
-        self.storage_writer = storage_writer
-        self.storage_writer.set_root(self)
-        self.write()
-
     def read(self, storage_reader):
         need_rewrite = False
         parent_node, uuid = storage_reader.find_root_node("document")
@@ -582,18 +573,3 @@ class DocumentController(Storage.StorageBase):
             def process_data_copy(self, data_array):
                 return self.fn(data_array)
         self.add_processing_operation(ZOperation(fn))
-
-    def test_storage_log(self):
-        self.storage_writer.log()
-
-    def test_storage_read(self):
-        storage_reader = Storage.DictStorageReader()
-        storage_reader.load_file("/Users/cmeyer/Developer/Nion/NionImaging/data.p")
-        self.reset(Storage.DictStorageWriter())
-        self.read(storage_reader)
-
-    def test_storage_write(self):
-        self.storage_writer.save_file("/Users/cmeyer/Developer/Nion/NionImaging/data.p")
-
-    def test_storage_reset(self):
-        self.reset(Storage.DictStorageWriter())

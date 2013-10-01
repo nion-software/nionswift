@@ -213,13 +213,6 @@ class MenuManager(object):
         # TODO: allow action to change menu name based on plurality of selected objects
         self.addDocumentAction("graphic-menu", "graphic-remove", _("Remove Graphic"), callback=lambda dc: dc.remove_graphic())
 
-        self.insertMenu("test-menu", _("Test"), "window")
-        self.addApplicationAction("test-menu", "test-xxx", _("XXX"), callback=lambda: logging.debug("XXX"))
-        self.addDocumentAction("test-menu", "test-log", _("Storage Log"), callback=lambda dc: dc.test_storage_log())
-        self.addDocumentAction("test-menu", "test-read", _("Storage Read"), callback=lambda dc: dc.test_storage_read())
-        self.addDocumentAction("test-menu", "test-write", _("Storage Write"), callback=lambda dc: dc.test_storage_write())
-        self.addDocumentAction("test-menu", "test-reset", _("Storage Reset"), callback=lambda dc: dc.test_storage_reset())
-
     def createMenus(self, qt_menu_bar, qt_action_manager):
         self.qt_menu_bar = qt_menu_bar
         self.qt_action_manager = qt_action_manager

@@ -65,17 +65,6 @@ class Workspace(object):
             self.__weak_container = weakref.ref(container) if container else None
         container = property(__get_container, __set_container)
 
-        def __get_container_chain(self):
-            containers = []
-            container = self.container
-            if container:
-                containers.append(container)
-                container_chain = container.container_chain
-                if container_chain:
-                    containers.extend(container_chain)
-            return containers
-        container_chain = property(__get_container_chain)
-
         def close(self):
             pass
 
@@ -97,49 +86,6 @@ class Workspace(object):
         def close(self):
             self.content.container = None
             self.content.remove_ref()
-            Workspace.Element.close(self)
-
-
-    class TabGroup(Element):
-
-        def __init__(self, ui, element_id, properties = None):
-            super(Workspace.TabGroup, self).__init__(ui, element_id, properties)
-            self.tabs = []
-            self.properties = properties if properties else {}
-            self.widget = self.ui.Widget_loadIntrinsicWidget("group")
-
-        def descendent(self, element_id):
-            if self.element_id == element_id:
-                return self
-            for tab in self.tabs:
-                descendent = tab.descendent(element_id)
-                if descendent:
-                    return descendent
-            return None
-
-        def addTab(self, tab):
-            self.tabs.append(tab)
-            tab.add_ref()
-            tab.container = self
-            widget = tab.widget
-            assert widget is not None
-            self.ui.TabWidget_addTab(self.widget, widget, tab.label)
-
-        def removeTab(self, tab):
-            assert tab in self.tabs
-            self.tabs.remove(tab)
-            tab.remove_ref()
-            tab.container = None
-
-        def removeAllTabs(self):
-            for tab in self.tabs:
-                tab.remove_ref()
-                tab.container = None
-            self.tabs = []
-
-        def close(self):
-            self.removeAllTabs()
-            self.ui.Widget_removeWidget(self.widget)
             Workspace.Element.close(self)
 
 
@@ -250,12 +196,6 @@ class Workspace(object):
             for child_dict in dict["children"]:
                 column.addChild(self.__create_element(child_dict, document_controller))
             return column
-        if dict["type"] == "tab-group":
-            tab_group = Workspace.TabGroup(document_controller.ui, element_id)
-            for child_dict in dict["tabs"]:
-                tab = self.__create_element(child_dict, document_controller)
-                tab_group.addTab(tab)
-            return tab_group
         if dict["type"] == "tab":
             panel_id = dict["content"]
             label = dict["title"]
@@ -278,12 +218,6 @@ class Workspace(object):
             return dict
         if dict["type"] == "row" or dict["type"] == "column":
             for child_dict in dict["children"]:
-                result = self.__descendent(child_dict, test_element_id)
-                if result:
-                    return result
-            return None
-        if dict["type"] == "tab-group":
-            for child_dict in dict["tabs"]:
                 result = self.__descendent(child_dict, test_element_id)
                 if result:
                     return result
@@ -372,12 +306,6 @@ class Workspace(object):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
-    def reset(self):
-        for panel in copy.copy(self.panels):
-            panel.close()
-        self.panels = []
-        self.create_panels()
-
     def find_panel(self, panel_id):
         for panel in self.panels:
             if panel.panel_id == panel_id:
@@ -419,7 +347,7 @@ class Workspace(object):
         }
         return self.__create_element(desc, self.document_controller)
 
-    def create_image_panel_element(self, image_panel_id=None):
+    def __create_image_panel_element(self, image_panel_id=None):
         desc = {
             "type": "tab",
             "id": image_panel_id if image_panel_id else "",
@@ -439,21 +367,21 @@ class Workspace(object):
         self.image_panel_tabs = []
         # create the new layout
         if layout_id == "2x1":
-            element = self.create_image_panel_element("primary-image")
+            element = self.__create_image_panel_element("primary-image")
             self.image_panel_tabs.append(element)
             image_row.addChild(element)
-            element2 = self.create_image_panel_element("secondary-image")
+            element2 = self.__create_image_panel_element("secondary-image")
             self.image_panel_tabs.append(element2)
             image_row.addChild(element2)
             self.document_controller.selected_image_panel = element.content
         elif layout_id == "3x1":
-            element = self.create_image_panel_element("primary-image")
+            element = self.__create_image_panel_element("primary-image")
             self.image_panel_tabs.append(element)
             image_row.addChild(element)
-            element2 = self.create_image_panel_element("secondary-image")
+            element2 = self.__create_image_panel_element("secondary-image")
             self.image_panel_tabs.append(element2)
             image_row.addChild(element2)
-            element3 = self.create_image_panel_element("3rd-image")
+            element3 = self.__create_image_panel_element("3rd-image")
             self.image_panel_tabs.append(element3)
             image_row.addChild(element3)
             self.document_controller.selected_image_panel = element.content
@@ -462,21 +390,21 @@ class Workspace(object):
             column2 = self.__create_column()
             image_row.addChild(column1)
             image_row.addChild(column2)
-            element = self.create_image_panel_element("primary-image")
+            element = self.__create_image_panel_element("primary-image")
             self.image_panel_tabs.append(element)
             column1.addChild(element)
-            element2 = self.create_image_panel_element("secondary-image")
+            element2 = self.__create_image_panel_element("secondary-image")
             self.image_panel_tabs.append(element2)
             column1.addChild(element2)
-            element3 = self.create_image_panel_element("3rd-image")
+            element3 = self.__create_image_panel_element("3rd-image")
             self.image_panel_tabs.append(element3)
             column2.addChild(element3)
-            element4 = self.create_image_panel_element("4th-image")
+            element4 = self.__create_image_panel_element("4th-image")
             self.image_panel_tabs.append(element4)
             column2.addChild(element4)
             self.document_controller.selected_image_panel = element.content
         else:  # default 1x1
-            element = self.create_image_panel_element("primary-image")
+            element = self.__create_image_panel_element("primary-image")
             self.image_panel_tabs.append(element)
             image_row.addChild(element)
             self.document_controller.selected_image_panel = element.content
@@ -517,25 +445,6 @@ class Workspace(object):
         # fill in the missing items if possible
         # save the layout id
         self.__current_layout_id = layout_id
-
-    def layoutAdd(self):
-        image_row = self.find_panel("image-row")
-        desc = {
-            "type": "tab",
-            "id": "",
-            "content": "image-panel",
-            "title": _("Image"),
-        }
-        element = self.__create_element(desc, self.document_controller)
-        image_row.addChild(element)
-
-    def layoutRemove(self):
-        selected_image_panel = self.selected_image_panel
-        if selected_image_panel:
-            tab_group = self.selected_image_panel.container_chain[1]
-            image_row = self.find_panel("image-row")
-            image_row.removeChild(tab_group)
-            self.selected_image_panel = None
 
 
 @singleton
