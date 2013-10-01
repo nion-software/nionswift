@@ -1227,23 +1227,6 @@ class QtUserInterface(object):
     def PyListWidget_setModel(self, widget, py_list_model):
         NionLib.PyListWidget_setModel(widget, py_list_model)
 
-    # PyStack/PyStackGroup for presenting operations
-
-    def PyStack_content(self, widget):
-        return NionLib.PyStack_content(widget)
-
-    def PyStackGroup_connect(self, stack_group_widget, delegate, enabled_method, add_method, remove_method):
-        NionLib.PyStackGroup_connect(stack_group_widget, delegate, enabled_method, add_method, remove_method)
-
-    def PyStackGroup_content(self, stack_group_widget):
-        return NionLib.PyStackGroup_content(stack_group_widget)
-
-    def PyStackGroup_setEnabled(self, stack_group_widget, enabled):
-        NionLib.PyStackGroup_setEnabled(stack_group_widget, enabled)
-
-    def PyStackGroup_setTitle(self, stack_group_widget, title):
-        NionLib.PyStackGroup_setTitle(stack_group_widget, title)
-
     # PyTreeWidget to view a PyItemModel
 
     def PyTreeWidget_setCurrentRow(self, widget, index, parent_row, parent_id):
