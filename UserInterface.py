@@ -70,8 +70,7 @@ class QtKeyboardModifiers(object):
 
 
 class QtMimeData(object):
-    def __init__(self, ui, mime_data=None):
-        self.ui = ui
+    def __init__(self, mime_data=None):
         self.raw_mime_data = mime_data if mime_data else NionLib.MimeData_create()
     def __get_formats(self):
         return NionLib.MimeData_formats(self.raw_mime_data)
@@ -233,7 +232,7 @@ class ItemModel(object):
 
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
         if hasattr(self, "item_drop_mime_data"):
-            return self.item_drop_mime_data(QtMimeData(self.ui, raw_mime_data), action, row, parent_row, parent_id)
+            return self.item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row, parent_id)
         return False
 
     def itemMimeData(self, row, parent_row, parent_id):
@@ -296,7 +295,7 @@ class ItemModel(object):
         self.ui.PyItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
 
 
-class ListModel(object):
+class QtListModelController(object):
 
     NONE = 0
     COPY = 1
@@ -306,13 +305,18 @@ class ListModel(object):
     DRAG = 1
     DROP = 2
 
-    def __init__(self, ui, keys):
-        self.ui = ui
+    def __init__(self, keys):
         self.__keys = keys
-        self.py_list_model = self.ui.PyListModel_create(self, ["index"] + keys)
+        self.py_list_model = NionLib.PyListModel_create(self, ["index"] + keys)
         self.model = []
+        self.on_item_drop_mime_data = None
+        self.on_item_mime_data = None
+        self.on_remove_rows = None
+        self.supported_drop_actions = 0
+        self.mime_types_for_drop = []
     def close(self):
-        self.ui.PyListModel_destroy(self.py_list_model)
+        NionLib.PyListModel_destroy(self.py_list_model)
+    # these methods are invoked from Qt
     def itemCount(self):
         return len(self.model)
     def itemValue(self, role, index):
@@ -325,40 +329,34 @@ class ListModel(object):
         else:
             #print "Unknown key %s" % role
             return None
-    def replaceModel(self, values):
-        self.model = values
-        self.ui.PyListModel_dataChanged(self.py_list_model)
-    def beginInsert(self, first_row, last_row):
-        self.ui.PyListModel_beginInsertRows(self.py_list_model, first_row, last_row)
-    def endInsert(self):
-        self.ui.PyListModel_endInsertRow(self.py_list_model)
-    def beginRemove(self, first_row, last_row):
-        self.ui.PyListModel_beginRemoveRows(self.py_list_model, first_row, last_row)
-    def endRemove(self):
-        self.ui.PyListModel_endRemoveRow(self.py_list_model)
-    def dataChanged(self):
-        self.ui.PyListModel_dataChanged(self.py_list_model)
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row):
-        if hasattr(self, "item_drop_mime_data"):
-            return self.item_drop_mime_data(QtMimeData(self.ui, raw_mime_data), action, row, parent_row)
+        if self.on_item_drop_mime_data:
+            return self.on_item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row)
         return False
     def itemMimeData(self, row):
-        if hasattr(self, "item_mime_data"):
-            mime_data = self.item_mime_data(row)
+        if self.on_item_mime_data:
+            mime_data = self.on_item_mime_data(row)
             return mime_data.raw_mime_data if mime_data else None
         return None
     def removeRows(self, row, count):
-        if hasattr(self, "remove_rows"):
-            return self.remove_rows(row, count)
+        if self.on_remove_rows:
+            return self.on_remove_rows(row, count)
         return False
     def supportedDropActions(self):
-        if hasattr(self, "supported_drop_actions"):
-            return self.supported_drop_actions
-        return 0
+        return self.supported_drop_actions
     def mimeTypesForDrop(self):
-        if hasattr(self, "mime_types_for_drop"):
-            return self.mime_types_for_drop
-        return []
+        return self.mime_types_for_drop
+    # these methods must be invoked from the client when the model changes
+    def begin_insert(self, first_row, last_row):
+        NionLib.PyListModel_beginInsertRows(self.py_list_model, first_row, last_row)
+    def end_insert(self):
+        NionLib.PyListModel_endInsertRow(self.py_list_model)
+    def begin_remove(self, first_row, last_row):
+        NionLib.PyListModel_beginRemoveRows(self.py_list_model, first_row, last_row)
+    def end_remove(self):
+        NionLib.PyListModel_endRemoveRow(self.py_list_model)
+    def data_changed(self):
+        NionLib.PyListModel_dataChanged(self.py_list_model)
 
 
 class QtDrawingContext(object):
@@ -994,28 +992,38 @@ class QtListWidget(QtWidget):
         super(QtListWidget, self).__init__(ui, "pylist", properties)
         NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyListWidget { margin-top: 4px }")
         NionLib.PyListWidget_connect(self.widget, self)
-        self.__model = None
+        self.__list_model_controller = None
         self.__on_paint = None
+        self.on_current_item_changed = None
+        self.on_item_key_pressed = None
+        self.on_item_clicked = None
+        self.on_item_double_clicked = None
         self.__delegate = None
 
-    def __get_model(self):
-        return self.__model
-    def __set_model(self, model):
-        self.__model = model
-        NionLib.PyListWidget_setModel(self.widget, model.py_list_model)
-    model = property(__get_model, __set_model)
-
-    def listItemKeyPress(self, index, text, raw_modifiers):
-        return self.model.itemKeyPress(index, text, raw_modifiers)
+    def __get_list_model_controller(self):
+        return self.__list_model_controller
+    def __set_list_model_controller(self, list_model_controller):
+        self.__list_model_controller = list_model_controller
+        NionLib.PyListWidget_setModel(self.widget, list_model_controller.py_list_model)
+    list_model_controller = property(__get_list_model_controller, __set_list_model_controller)
 
     def listItemChanged(self, index):
-        self.model.itemChanged(index)
+        if self.on_current_item_changed:
+            self.on_current_item_changed(index)
+
+    def listItemKeyPress(self, index, text, raw_modifiers):
+        if self.on_item_key_pressed:
+            return self.on_item_key_pressed(index, text, QtKeyboardModifiers(raw_modifiers))
 
     def listItemClicked(self, index):
-        return self.model.itemClicked(index)
+        if self.on_item_clicked:
+            return self.on_item_clicked(index)
+        return False
 
     def listItemDoubleClicked(self, index):
-        return self.model.itemDoubleClicked(index)
+        if self.on_item_double_clicked:
+            return self.on_item_double_clicked(index)
+        return False
 
     def __get_current_index(self):
         return NionLib.PyListWidget_getCurrentRow(self.widget)
@@ -1097,10 +1105,13 @@ class QtDockWidget(object):
 
 class QtUserInterface(object):
 
-    # Higher level UI objects
+    # data objects
 
     def create_mime_data(self):
-        return QtMimeData(self)
+        return QtMimeData()
+
+    def create_list_model_controller(self, keys):
+        return QtListModelController(keys)
 
     # window elements
 
@@ -1219,26 +1230,3 @@ class QtUserInterface(object):
 
     def PyItemModel_endRemoveRow(self, py_item_model):
         NionLib.PyItemModel_endRemoveRow(py_item_model)
-
-    # PyListModel is a list model
-
-    def PyListModel_beginInsertRows(self, py_item_model, first_row, last_row):
-        NionLib.PyListModel_beginInsertRows(py_item_model, first_row, last_row)
-
-    def PyListModel_beginRemoveRows(self, py_item_model, first_row, last_row):
-        NionLib.PyListModel_beginRemoveRows(py_item_model, first_row, last_row)
-
-    def PyListModel_create(self, delegate, keys):
-        return NionLib.PyListModel_create(delegate, keys)
-
-    def PyListModel_dataChanged(self, py_item_model):
-        NionLib.PyListModel_dataChanged(py_item_model)
-
-    def PyListModel_destroy(self, py_item_model):
-        NionLib.PyListModel_destroy(py_item_model)
-
-    def PyListModel_endInsertRow(self, py_item_model):
-        NionLib.PyListModel_endInsertRow(py_item_model)
-
-    def PyListModel_endRemoveRow(self, py_item_model):
-        NionLib.PyListModel_endRemoveRow(py_item_model)

@@ -167,10 +167,32 @@ class DocumentWindow:
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
 
+class ListModelController:
+    DRAG = 0
+    DROP = 1
+    def __init__(self):
+        self.model = []
+    def close(self):
+        pass
+    def begin_insert(self, first_row, last_row):
+        pass
+    def end_insert(self):
+        pass
+    def begin_remove(self, first_row, last_row):
+        pass
+    def end_remove(self):
+        pass
+    def data_changed(self):
+        pass
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
         pass
+    def create_mime_data(self):
+        return None
+    def create_list_model_controller(self, keys):
+        return ListModelController()
     def create_document_window(self, native_document_window):
         return DocumentWindow()
     def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
@@ -224,20 +246,6 @@ class UserInterface:
     def PyItemModel_endInsertRow(self, py_item_model):
         pass
     def PyItemModel_endRemoveRow(self, py_item_model):
-        pass
-    def PyListModel_beginInsertRows(self, py_item_model, first_row, last_row):
-        pass
-    def PyListModel_beginRemoveRows(self, py_item_model, first_row, last_row):
-        pass
-    def PyListModel_create(self, delegate, keys):
-        return (delegate, keys)
-    def PyListModel_dataChanged(self, py_item_model):
-        pass
-    def PyListModel_destroy(self, py_item_model):
-        pass
-    def PyListModel_endInsertRow(self, py_item_model):
-        pass
-    def PyListModel_endRemoveRow(self, py_item_model):
         pass
 
 
