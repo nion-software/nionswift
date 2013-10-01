@@ -361,7 +361,7 @@ class ListModel(object):
         return []
 
 
-class DrawingContext(object):
+class QtDrawingContext(object):
     def __init__(self):
         self.js = ""
         self.commands = []
@@ -417,7 +417,7 @@ class DrawingContext(object):
     def __get_fillStyle(self):
         raise NotImplementedError()
     def __set_fillStyle(self, a):
-        if isinstance(a, DrawingContext.LinearGradient):
+        if isinstance(a, QtDrawingContext.LinearGradient):
             self.js += "ctx.fillStyle = {0};".format(a.js_var)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
         else:
@@ -470,17 +470,17 @@ class DrawingContext(object):
         next = 1
         def __init__(self, context, x, y, width, height):
             self.weak_context = weakref.ref(context)
-            self.js_var = "grad"+str(DrawingContext.LinearGradient.next)
-            self.command_var = DrawingContext.LinearGradient.next
+            self.js_var = "grad"+str(QtDrawingContext.LinearGradient.next)
+            self.command_var = QtDrawingContext.LinearGradient.next
             self.js = "var {0} = ctx.createLinearGradient({1}, {2}, {3}, {4});".format(self.js_var, x, y, width, height)
             self.commands = []
             self.commands.append(("gradient", self.command_var, float(x), float(y), float(width), float(height)))
-            DrawingContext.LinearGradient.next = DrawingContext.LinearGradient.next + 1
+            QtDrawingContext.LinearGradient.next = QtDrawingContext.LinearGradient.next + 1
         def add_color_stop(self, x, color):
             self.weak_context().js += "{0}.addColorStop({1}, '{2}');".format(self.js_var, x, color)
             self.weak_context().commands.append(("colorStop", self.command_var, float(x), str(color)))
     def create_linear_gradient(self, x, y, width, height):
-        gradient = DrawingContext.LinearGradient(self, x, y, width, height)
+        gradient = QtDrawingContext.LinearGradient(self, x, y, width, height)
         self.js += gradient.js
         self.commands.extend(gradient.commands)
         return gradient
@@ -827,7 +827,7 @@ class QtCanvasWidget(QtWidget):
     class Layer(object):
         def __init__(self, canvas):
             self.__weak_canvas = weakref.ref(canvas)
-            self.__drawing_context = DrawingContext()
+            self.__drawing_context = QtDrawingContext()
 
         def __get_canvas(self):
             return self.__weak_canvas()
