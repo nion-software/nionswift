@@ -114,7 +114,7 @@ class Workspace(object):
 
         self.create_panels()
 
-        layout_id = self.ui.Settings_getString("Workspace/Layout")
+        layout_id = self.ui.get_persistent_string("Workspace/Layout")
 
         self.change_layout(layout_id)
 
@@ -124,14 +124,14 @@ class Workspace(object):
         content_map = {}
         for image_panel in self.image_panels:
             content_map[image_panel.element_id] = image_panel.save_content()
-        self.ui.Settings_setString("Workspace/Content", pickle.dumps(content_map))
-        self.ui.Settings_setString("Workspace/Layout", self.__current_layout_id)
+        self.ui.set_persistent_string("Workspace/Content", pickle.dumps(content_map))
+        self.ui.set_persistent_string("Workspace/Layout", self.__current_layout_id)
         for panel in copy.copy(self.panels):
             panel.close()
         self.panels = []
 
     def restore_content(self):
-        content_string = self.ui.Settings_getString("Workspace/Content")
+        content_string = self.ui.get_persistent_string("Workspace/Content")
         if content_string:
             content_map = pickle.loads(content_string)
             for image_panel in self.image_panels:

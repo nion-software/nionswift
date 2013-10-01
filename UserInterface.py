@@ -1092,8 +1092,19 @@ class QtUserInterface(object):
     def create_console_widget(self, properties=None):
         return QtConsoleWidget(self, properties)
 
+    # file i/o
+
     def load_rgba_data_from_file(self, filename):
         return NionLib.readImageToPyArray(filename)
+
+    # persistence (associated with application)
+
+    def get_persistent_string(self, key, default_value=None):
+        value = NionLib.Settings_getString(key)
+        return value if value else default_value
+
+    def set_persistent_string(self, key, value):
+        NionLib.Settings_setString(key, value)
 
     # Actions sub-module for menus and actions
 
@@ -1214,14 +1225,6 @@ class QtUserInterface(object):
 
     def PyTreeWidget_setModel(self, widget, py_item_model):
         NionLib.PyTreeWidget_setModel(widget, py_item_model)
-
-    # Settings
-
-    def Settings_setString(self, key, value):
-        NionLib.Settings_setString(key, value)
-
-    def Settings_getString(self, key):
-        return NionLib.Settings_getString(key)
 
     # TabWidget to present tabs
 

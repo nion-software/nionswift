@@ -186,6 +186,10 @@ class UserInterface:
         return Widget()
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)
+    def get_persistent_string(self, key, default_value=None):
+        return default_value
+    def set_persistent_string(self, key, value):
+        pass
     def Core_out(self, str):
         return (str)
     def Core_pathToURL(self, path):
@@ -232,10 +236,6 @@ class UserInterface:
         pass
     def PyTreeWidget_setModel(self, widget, py_item_model):
         pass
-    def Settings_setString(self, key, value):
-        pass
-    def Settings_getString(self, key):
-        return None
     def Widget_removeDockWidget(self, document_controller, dock_widget):
         pass
 
