@@ -25,10 +25,6 @@ class Panel(object):
 
         The Panel includes the ability to load a Qt widget. The Qt widget will be
         deleted when the Panel is deleted.
-
-        The Panel includes a method tryToClose which can be re-implemented in sub-
-        classes to handle the case where the user clicks the close box. The default
-        implementation is to call close.
         """
 
     def __init__(self, document_controller, panel_id, display_name):
@@ -72,9 +68,6 @@ class Panel(object):
     def get_uuid_str(self):
         return str(self.uuid)
 
-    def tryToClose(self):
-        self.close()
-
 
 class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
@@ -93,7 +86,7 @@ class OutputPanel(Panel):
         logging.getLogger().addHandler(self.__output_panel_handler)
     def close(self):
         logging.getLogger().removeHandler(self.__output_panel_handler)
-        Panel.close(self)
+        super(OutputPanel, self).close()
 
 @contextmanager
 def reassign_stdout(new_stdout, new_stderr):

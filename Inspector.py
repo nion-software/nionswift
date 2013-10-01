@@ -256,7 +256,7 @@ class ProcessingPanel(Panel.Panel):
         """
 
     def __init__(self, document_controller, panel_id, properties):
-        Panel.Panel.__init__(self, document_controller, panel_id, _("Processing"))
+        super(ProcessingPanel, self).__init__(document_controller, panel_id, _("Processing"))
 
         # the main column widget contains a stack group for each operation
         self.column = self.ui.create_column_widget(properties)  # TODO: put this in scroll area
@@ -274,7 +274,7 @@ class ProcessingPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
-        Panel.Panel.close(self)
+        super(ProcessingPanel, self).close()
 
     # represents the UI for a specific data item (operation) in the image
     # source chain. for instance, an data item chain might have a structure

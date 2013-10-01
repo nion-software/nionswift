@@ -617,7 +617,7 @@ class InfoPanel(Panel.Panel):
     delay_queue = property(lambda self: self.document_controller.delay_queue)
 
     def __init__(self, document_controller, panel_id, properties):
-        Panel.Panel.__init__(self, document_controller, panel_id, _("Info"))
+        super(InfoPanel, self).__init__(document_controller, panel_id, _("Info"))
 
         ui = document_controller.ui
 
@@ -658,7 +658,7 @@ class InfoPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
-        Panel.Panel.close(self)
+        super(InfoPanel, self).close()
 
     # this message is received from the document controller.
     # it is established using add_listener
@@ -691,7 +691,7 @@ class InfoPanel(Panel.Panel):
 
 class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
-        Panel.Panel.__init__(self, document_controller, panel_id, _("Inspector"))
+        super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
         self.column = self.ui.create_column_widget(properties)
 
@@ -713,7 +713,7 @@ class InspectorPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
-        Panel.Panel.close(self)
+        super(InspectorPanel, self).close()
 
     delay_queue = property(lambda self: self.document_controller.delay_queue)
     @queue_main_thread

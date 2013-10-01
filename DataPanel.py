@@ -512,7 +512,7 @@ class DataPanel(Panel.Panel):
         NionLib.DrawingContext_drawText(dc, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17, display2)
 
     def __init__(self, document_controller, panel_id, properties):
-        Panel.Panel.__init__(self, document_controller, panel_id, _("Data Items"))
+        super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
         self.data_group_model = DataPanel.DataGroupModel(document_controller)
         self.data_group_model.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
@@ -560,7 +560,7 @@ class DataPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
-        Panel.Panel.close(self)
+        super(DataPanel, self).close()
 
     # if the data panel selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
