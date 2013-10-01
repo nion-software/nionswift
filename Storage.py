@@ -739,6 +739,14 @@ class DbStorageWriter(object):
             self.__remove_node_ref(item_uuid)
             self.conn.commit()
 
+    # don't let incorrect item_indexes go into database
+    def __item_index_integrity_check(self, c, parent_uuid):
+        self.execute(c, "SELECT COUNT(*), MAX(item_index), MIN(item_index) FROM relationships WHERE parent_uuid=? and key='data_items'", (str(parent_uuid), ))
+        results = c.fetchone()
+        if results[0] > 0:
+            assert results[2] == 0
+            assert results[1] == results[0] - 1
+
     def insert_item(self, parent, key, item, before):
         if not self.disconnected:
             c = self.conn.cursor()
@@ -749,6 +757,7 @@ class DbStorageWriter(object):
             self.execute(c, "UPDATE relationships SET item_index = -item_index WHERE parent_uuid=? AND key=? AND item_index < -?", (str(parent.uuid), key, before, ))
             self.execute(c, "INSERT INTO relationships (parent_uuid, key, item_index, item_uuid) VALUES (?, ?, ?, ?)", (str(parent.uuid), key, before, str(item.uuid), ))
             self.__add_node_ref(item.uuid)
+            self.__item_index_integrity_check(c, parent.uuid)
             self.conn.commit()
 
     def remove_item(self, parent, key, index):
@@ -761,6 +770,7 @@ class DbStorageWriter(object):
             self.execute(c, "UPDATE relationships SET item_index = -(item_index - 1) WHERE parent_uuid=? AND key=? AND item_index > ?", (str(parent.uuid), key, index, ))
             self.execute(c, "UPDATE relationships SET item_index = -item_index WHERE parent_uuid=? AND key=? AND item_index <= -?", (str(parent.uuid), key, index, ))
             self.__remove_node_ref(item_uuid)
+            self.__item_index_integrity_check(c, parent.uuid)
             self.conn.commit()
 
     def set_property(self, item, key, value):
