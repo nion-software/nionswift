@@ -100,7 +100,7 @@ class QtMimeData(object):
         NionLib.MimeData_setDataAsString(self.raw_mime_data, format, text)
 
 
-class ItemModel(object):
+class QtItemModelController(object):
 
     NONE = 0
     COPY = 1
@@ -118,15 +118,15 @@ class ItemModel(object):
             self.children = []
         def __str__(self):
             return "Item %i (row %i parent %s)" % (self.id, self.row, self.parent)
-        def removeAllChildren(self):
+        def remove_all_children(self):
             self.children = []
-        def appendChild(self, item):
+        def append_child(self, item):
             item.parent = self
             self.children.append(item)
-        def insertChild(self, before_index, item):
+        def insert_child(self, before_index, item):
             item.parent = self
             self.children.insert(before_index, item)
-        def removeChild(self, item):
+        def remove_child(self, item):
             item.parent = None
             self.children.remove(item)
         def child(self, index):
@@ -143,31 +143,29 @@ class ItemModel(object):
             self.weak_parent = weakref.ref(parent) if parent else None
         parent = property(__get_parent, __set_parent)
 
-    def __init__(self, document_controller, keys):
-        self.__document_controller_weakref = weakref.ref(document_controller)
-        self.__keys = keys
-        self.py_item_model = self.ui.PyItemModel_create(self, ["index"] + keys)
+    def __init__(self, keys):
+        self.py_item_model = NionLib.PyItemModel_create(self, ["index"] + keys)
         self.__next_id = 0
-        self.root = self.createItem()
-
-    def __get_document_controller(self):
-        return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
-
-    def __get_ui(self):
-        return self.document_controller.ui
-    ui = property(__get_ui)
+        self.root = self.create_item()
+        self.on_item_set_data = None
+        self.on_item_drop_mime_data = None
+        self.on_item_mime_data = None
+        self.on_remove_rows = None
+        self.supported_drop_actions = 0
+        self.mime_types_for_drop = []
 
     def close(self):
-        self.ui.PyItemModel_destroy(self.py_item_model)
+        NionLib.PyItemModel_destroy(self.py_item_model)
 
-    def createItem(self, data=None):
-        item = ItemModel.Item(data)
+    # these methods must be invoked from the client
+
+    def create_item(self, data=None):
+        item = QtItemModelController.Item(data)
         item.id = self.__next_id
         self.__next_id = self.__next_id + 1
         return item
 
-    def itemFromId(self, item_id, parent=None):
+    def item_from_id(self, item_id, parent=None):
         item = []  # nonlocal in Python 3.1+
         def fn(parent, index, child):
             if child.id == item_id:
@@ -176,85 +174,70 @@ class ItemModel(object):
         self.traverse(fn)
         return item[0] if item else None
 
-    def itemCount(self, parent_id):
-        parent = self.itemFromId(parent_id)
-        assert parent is not None
-        return len(parent.children)
-
-    # itemId returns the id of the item within the parent
-    def itemId(self, index, parent_id):
-        parent = self.itemFromId(parent_id)
+    def item_id(self, index, parent_id):
+        parent = self.item_from_id(parent_id)
         assert parent is not None
         if index >= 0 and index < len(parent.children):
             return parent.children[index].id
         return 0  # invalid id
 
-    def itemParent(self, index, item_id):
-        if item_id == 0:
-            return [-1, 0]
-        child = self.itemFromId(item_id)
-        parent = child.parent
-        if parent == self.root:
-            return [-1, 0]
-        return [parent.row, parent.id]
-
-    def itemValue(self, role, index, item_id):
-        child = self.itemFromId(item_id)
+    def item_value(self, role, index, item_id):
+        child = self.item_from_id(item_id)
         if role == "index":
             return index
         if role in child.data:
             return child.data[role]
         return None
 
-    def itemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
-        if hasattr(self, "item_key_press"):
-            return self.item_key_press(text, QtKeyboardModifiers(raw_modifiers), index, parent_row, parent_id)
-        return False
+    # these methods are invoked from Qt
+
+    def itemCount(self, parent_id):
+        parent = self.item_from_id(parent_id)
+        assert parent is not None
+        return len(parent.children)
+
+    # itemId returns the id of the item within the parent
+    def itemId(self, index, parent_id):
+        return self.item_id(index, parent_id)
+
+    def itemParent(self, index, item_id):
+        if item_id == 0:
+            return [-1, 0]
+        child = self.item_from_id(item_id)
+        parent = child.parent
+        if parent == self.root:
+            return [-1, 0]
+        return [parent.row, parent.id]
+
+    def itemValue(self, role, index, item_id):
+        return self.item_value(role, index, item_id)
 
     def itemSetData(self, index, parent_row, parent_id, data):
-        if hasattr(self, "item_set_data"):
-            return self.item_set_data(data, index, parent_row, parent_id)
-        return False
-
-    def itemChanged(self, index, parent_row, parent_id):
-        if hasattr(self, "item_changed"):
-            self.item_changed(index, parent_row, parent_id)
-
-    def itemClicked(self, index, parent_row, parent_id):
-        if hasattr(self, "item_clicked"):
-            return self.item_clicked(index, parent_row, parent_id)
-        return False
-
-    def itemDoubleClicked(self, index, parent_row, parent_id):
-        if hasattr(self, "item_double_clicked"):
-            return self.item_double_clicked(index, parent_row, parent_id)
+        if self.on_item_set_data:
+            return self.on_item_set_data(data, index, parent_row, parent_id)
         return False
 
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
-        if hasattr(self, "item_drop_mime_data"):
-            return self.item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row, parent_id)
+        if self.on_item_drop_mime_data:
+            return self.on_item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row, parent_id)
         return False
 
     def itemMimeData(self, row, parent_row, parent_id):
-        if hasattr(self, "item_mime_data"):
-            mime_data = self.item_mime_data(row, parent_row, parent_id)
+        if self.on_item_mime_data:
+            mime_data = self.on_item_mime_data(row, parent_row, parent_id)
             return mime_data.raw_mime_data if mime_data else None
         return None
 
     def removeRows(self, row, count, parent_row, parent_id):
-        if hasattr(self, "remove_rows"):
-            return self.remove_rows(row, count, parent_row, parent_id)
+        if self.on_remove_rows:
+            return self.on_remove_rows(row, count, parent_row, parent_id)
         return False
 
     def supportedDropActions(self):
-        if hasattr(self, "supported_drop_actions"):
-            return self.supported_drop_actions
-        return 0
+        return self.supported_drop_actions
 
     def mimeTypesForDrop(self):
-        if hasattr(self, "mime_types_for_drop"):
-            return self.mime_types_for_drop
-        return []
+        return self.mime_types_for_drop
 
 
 #abc (None, 0)
@@ -279,20 +262,20 @@ class ItemModel(object):
         if not fn(None, 0, self.root):
             self.traverse_depth_first(fn, self.root)
 
-    def beginInsert(self, first_row, last_row, parent_row, parent_id):
-        self.ui.PyItemModel_beginInsertRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
+    def begin_insert(self, first_row, last_row, parent_row, parent_id):
+        NionLib.PyItemModel_beginInsertRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
 
-    def endInsert(self):
-        self.ui.PyItemModel_endInsertRow(self.py_item_model)
+    def end_insert(self):
+        NionLib.PyItemModel_endInsertRow(self.py_item_model)
 
-    def beginRemove(self, first_row, last_row, parent_row, parent_id):
-        self.ui.PyItemModel_beginRemoveRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
+    def begin_remove(self, first_row, last_row, parent_row, parent_id):
+        NionLib.PyItemModel_beginRemoveRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
 
-    def endRemove(self):
-        self.ui.PyItemModel_endRemoveRow(self.py_item_model)
+    def end_remove(self):
+        NionLib.PyItemModel_endRemoveRow(self.py_item_model)
 
-    def dataChanged(self, row, parent_row, parent_id):
-        self.ui.PyItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
+    def data_changed(self, row, parent_row, parent_id):
+        NionLib.PyItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
 
 
 class QtListModelController(object):
@@ -306,7 +289,6 @@ class QtListModelController(object):
     DROP = 2
 
     def __init__(self, keys):
-        self.__keys = keys
         self.py_list_model = NionLib.PyListModel_create(self, ["index"] + keys)
         self.model = []
         self.on_item_drop_mime_data = None
@@ -485,8 +467,7 @@ class QtDrawingContext(object):
 
 
 class QtWidget(object):
-    def __init__(self, ui, widget_type, properties):
-        self.ui = ui
+    def __init__(self, widget_type, properties):
         self.properties = properties if properties else {}
         self.widget = NionLib.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
@@ -509,8 +490,8 @@ class QtWidget(object):
 
 class QtBoxWidget(QtWidget):
 
-    def __init__(self, ui, widget_type, properties):
-        super(QtBoxWidget, self).__init__(ui, widget_type, properties)
+    def __init__(self, widget_type, properties):
+        super(QtBoxWidget, self).__init__(widget_type, properties)
         self.children = []
 
     def count(self):
@@ -546,20 +527,20 @@ class QtBoxWidget(QtWidget):
 
 class QtRowWidget(QtBoxWidget):
 
-    def __init__(self, ui, properties):
-        super(QtRowWidget, self).__init__(ui, "row", properties)
+    def __init__(self, properties):
+        super(QtRowWidget, self).__init__("row", properties)
 
 
 class QtColumnWidget(QtBoxWidget):
 
-    def __init__(self, ui, properties):
-        super(QtColumnWidget, self).__init__(ui, "column", properties)
+    def __init__(self, properties):
+        super(QtColumnWidget, self).__init__("column", properties)
 
 
 class QtSplitterWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtSplitterWidget, self).__init__(ui, "splitter", properties)
+    def __init__(self, properties):
+        super(QtSplitterWidget, self).__init__("splitter", properties)
         NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
     def add(self, child):
@@ -574,8 +555,8 @@ class QtSplitterWidget(QtWidget):
 
 class QtTabWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtTabWidget, self).__init__(ui, "group", properties)
+    def __init__(self, properties):
+        super(QtTabWidget, self).__init__("group", properties)
         NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
     def add(self, child, label):
@@ -590,8 +571,8 @@ class QtTabWidget(QtWidget):
 
 class QtComboBoxWidget(QtWidget):
 
-    def __init__(self, ui, items, properties):
-        super(QtComboBoxWidget, self).__init__(ui, "combobox", properties)
+    def __init__(self, items, properties):
+        super(QtComboBoxWidget, self).__init__("combobox", properties)
         self.__on_current_text_changed = None
         self.items = items if items else []
         NionLib.ComboBox_connect(self.widget, self)
@@ -624,8 +605,8 @@ class QtComboBoxWidget(QtWidget):
 
 class QtPushButtonWidget(QtWidget):
 
-    def __init__(self, ui, text, properties):
-        super(QtPushButtonWidget, self).__init__(ui, "pushbutton", properties)
+    def __init__(self, text, properties):
+        super(QtPushButtonWidget, self).__init__("pushbutton", properties)
         self.__on_clicked = None
         self.text = text
         NionLib.PushButton_connect(self.widget, self)
@@ -650,8 +631,8 @@ class QtPushButtonWidget(QtWidget):
 
 class QtLabelWidget(QtWidget):
 
-    def __init__(self, ui, text, properties):
-        super(QtLabelWidget, self).__init__(ui, "label", properties)
+    def __init__(self, text, properties):
+        super(QtLabelWidget, self).__init__("label", properties)
         self.__text = None
         self.text = text
 
@@ -665,8 +646,8 @@ class QtLabelWidget(QtWidget):
 
 class QtSliderWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtSliderWidget, self).__init__(ui, "slider", properties)
+    def __init__(self, properties):
+        super(QtSliderWidget, self).__init__("slider", properties)
         self.__on_value_changed = None
         self.__on_slider_pressed = None
         self.__on_slider_released = None
@@ -747,8 +728,8 @@ class QtSliderWidget(QtWidget):
 
 class QtLineEditWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtLineEditWidget, self).__init__(ui, "lineedit", properties)
+    def __init__(self, properties):
+        super(QtLineEditWidget, self).__init__("lineedit", properties)
         self.__on_editing_finished = None
         self.__on_text_edited = None
         self.__formatter = None
@@ -796,8 +777,8 @@ class QtLineEditWidget(QtWidget):
 
 class QtCanvasWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtCanvasWidget, self).__init__(ui, "canvas", properties)
+    def __init__(self, properties):
+        super(QtCanvasWidget, self).__init__("canvas", properties)
         NionLib.Canvas_connect(self.widget, self)
         self.__on_mouse_entered = None
         self.__on_mouse_exited = None
@@ -957,30 +938,41 @@ class QtCanvasWidget(QtWidget):
 
 class QtTreeWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtTreeWidget, self).__init__(ui, "pytree", properties)
+    def __init__(self, properties):
+        super(QtTreeWidget, self).__init__("pytree", properties)
         NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
         NionLib.PyTreeWidget_connect(self.widget, self)
-        self.__model = None
+        self.__item_model_controller = None
+        self.on_key_pressed = None
+        self.on_current_item_changed = None
+        self.on_item_clicked = None
+        self.on_item_double_clicked = None
 
-    def __get_model(self):
-        return self.__model
-    def __set_model(self, model):
-        self.__model = model
-        NionLib.PyTreeWidget_setModel(self.widget, model.py_item_model)
-    model = property(__get_model, __set_model)
-
-    def treeItemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
-        return self.model.itemKeyPress(index, parent_row, parent_id, text, raw_modifiers)
+    def __get_item_model_controller(self):
+        return self.__item_model_controller
+    def __set_item_model_controller(self, item_model_controller):
+        self.__item_model_controller = item_model_controller
+        NionLib.PyTreeWidget_setModel(self.widget, item_model_controller.py_item_model)
+    item_model_controller = property(__get_item_model_controller, __set_item_model_controller)
 
     def treeItemChanged(self, index, parent_row, parent_id):
-        self.model.itemChanged(index, parent_row, parent_id)
+        if self.on_current_item_changed:
+            self.on_current_item_changed(index, parent_row, parent_id)
+
+    def treeItemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
+        if self.on_item_key_pressed:
+            return self.on_item_key_pressed(index, parent_row, parent_id, text, QtKeyboardModifiers(raw_modifiers))
+        return False
 
     def treeItemClicked(self, index, parent_row, parent_id):
-        return self.model.itemClicked(index, parent_row, parent_id)
+        if self.on_item_clicked:
+            return self.on_item_clicked(index, parent_row, parent_id)
+        return False
 
     def treeItemDoubleClicked(self, index, parent_row, parent_id):
-        return self.model.itemDoubleClicked(index, parent_row, parent_id)
+        if self.on_item_double_clicked:
+            return self.on_item_double_clicked(index, parent_row, parent_id)
+        return False
 
     def set_current_row(self, index, parent_row, parent_id):
         NionLib.PyTreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
@@ -988,8 +980,8 @@ class QtTreeWidget(QtWidget):
 
 class QtListWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtListWidget, self).__init__(ui, "pylist", properties)
+    def __init__(self, properties):
+        super(QtListWidget, self).__init__("pylist", properties)
         NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyListWidget { margin-top: 4px }")
         NionLib.PyListWidget_connect(self.widget, self)
         self.__list_model_controller = None
@@ -1014,6 +1006,7 @@ class QtListWidget(QtWidget):
     def listItemKeyPress(self, index, text, raw_modifiers):
         if self.on_item_key_pressed:
             return self.on_item_key_pressed(index, text, QtKeyboardModifiers(raw_modifiers))
+        return False
 
     def listItemClicked(self, index):
         if self.on_item_clicked:
@@ -1049,8 +1042,8 @@ class QtListWidget(QtWidget):
 
 class QtOutputWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtOutputWidget, self).__init__(ui, "output", properties)
+    def __init__(self, properties):
+        super(QtOutputWidget, self).__init__("output", properties)
 
     def send(self, message):
         NionLib.Output_out(self.widget, message)
@@ -1058,8 +1051,8 @@ class QtOutputWidget(QtWidget):
 
 class QtConsoleWidget(QtWidget):
 
-    def __init__(self, ui, properties):
-        super(QtConsoleWidget, self).__init__(ui, "console", properties)
+    def __init__(self, properties):
+        super(QtConsoleWidget, self).__init__("console", properties)
         self.on_interpret_command = None
         NionLib.Console_setDelegate(self.widget, self)
 
@@ -1110,6 +1103,9 @@ class QtUserInterface(object):
     def create_mime_data(self):
         return QtMimeData()
 
+    def create_item_model_controller(self, keys):
+        return QtItemModelController(keys)
+
     def create_list_model_controller(self, keys):
         return QtListModelController(keys)
 
@@ -1121,46 +1117,46 @@ class QtUserInterface(object):
     # user interface elements
 
     def create_row_widget(self, properties=None):
-        return QtRowWidget(self, properties)
+        return QtRowWidget(properties)
 
     def create_column_widget(self, properties=None):
-        return QtColumnWidget(self, properties)
+        return QtColumnWidget(properties)
 
     def create_splitter_widget(self, properties=None):
-        return QtSplitterWidget(self, properties)
+        return QtSplitterWidget(properties)
 
     def create_tab_widget(self, properties=None):
-        return QtTabWidget(self, properties)
+        return QtTabWidget(properties)
 
     def create_combo_box_widget(self, items=None, properties=None):
-        return QtComboBoxWidget(self, items, properties)
+        return QtComboBoxWidget(items, properties)
 
     def create_push_button_widget(self, text=None, properties=None):
-        return QtPushButtonWidget(self, text, properties)
+        return QtPushButtonWidget(text, properties)
 
     def create_label_widget(self, text=None, properties=None):
-        return QtLabelWidget(self, text, properties)
+        return QtLabelWidget(text, properties)
 
     def create_slider_widget(self, properties=None):
-        return QtSliderWidget(self, properties)
+        return QtSliderWidget(properties)
 
     def create_line_edit_widget(self, properties=None):
-        return QtLineEditWidget(self, properties)
+        return QtLineEditWidget(properties)
 
     def create_canvas_widget(self, properties=None):
-        return QtCanvasWidget(self, properties)
+        return QtCanvasWidget(properties)
 
     def create_tree_widget(self, properties=None):
-        return QtTreeWidget(self, properties)
+        return QtTreeWidget(properties)
 
     def create_list_widget(self, properties=None):
-        return QtListWidget(self, properties)
+        return QtListWidget(properties)
 
     def create_output_widget(self, properties=None):
-        return QtOutputWidget(self, properties)
+        return QtOutputWidget(properties)
 
     def create_console_widget(self, properties=None):
-        return QtConsoleWidget(self, properties)
+        return QtConsoleWidget(properties)
 
     # file i/o
 
@@ -1207,26 +1203,3 @@ class QtUserInterface(object):
 
     def Actions_setShortcut(self, qt_action_manager, action_id, key_sequence):
         NionLib.Actions_setShortcut(qt_action_manager, action_id, key_sequence)
-
-    # PyItemModel is a tree model
-
-    def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
-        NionLib.PyItemModel_beginInsertRows(py_item_model, first_row, last_row, parent_row, parent_id)
-
-    def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
-        NionLib.PyItemModel_beginRemoveRows(py_item_model, first_row, last_row, parent_row, parent_id)
-
-    def PyItemModel_create(self, delegate, keys):
-        return NionLib.PyItemModel_create(delegate, keys)
-
-    def PyItemModel_dataChanged(self, py_item_model, row, parent_row, parent_id):
-        NionLib.PyItemModel_dataChanged(py_item_model, row, parent_row, parent_id)
-
-    def PyItemModel_destroy(self, py_item_model):
-        NionLib.PyItemModel_destroy(py_item_model)
-
-    def PyItemModel_endInsertRow(self, py_item_model):
-        NionLib.PyItemModel_endInsertRow(py_item_model)
-
-    def PyItemModel_endRemoveRow(self, py_item_model):
-        NionLib.PyItemModel_endRemoveRow(py_item_model)

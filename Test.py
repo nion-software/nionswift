@@ -167,6 +167,81 @@ class DocumentWindow:
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
 
+class ItemModelController:
+    DRAG = 0
+    DROP = 1
+    class Item(object):
+        def __init__(self, data=None):
+            self.children = []
+            self.parent = None
+            self.id = None
+            self.data = data if data else {}
+        def insert_child(self, before_index, item):
+            item.parent = self
+            self.children.insert(before_index, item)
+        def remove_child(self, item):
+            item.parent = None
+            self.children.remove(item)
+        def child(self, index):
+            return self.children[index]
+        def __get_row(self):
+            if self.parent:
+                return self.parent.children.index(self)
+            return -1
+        row = property(__get_row)
+    def __init__(self):
+        self.__next_id = 0
+        self.root = self.create_item()
+    def close(self):
+        pass
+    def create_item(self, data=None):
+        item = ItemModelController.Item(data)
+        item.id = self.__next_id
+        self.__next_id = self.__next_id + 1
+        return item
+    def item_from_id(self, item_id, parent=None):
+        item = []  # nonlocal in Python 3.1+
+        def fn(parent, index, child):
+            if child.id == item_id:
+                item.append(child)
+                return True
+        self.traverse(fn)
+        return item[0] if item else None
+    def item_id(self, index, parent_id):
+        parent = self.item_from_id(parent_id)
+        assert parent is not None
+        if index >= 0 and index < len(parent.children):
+            return parent.children[index].id
+        return 0  # invalid id
+    def item_value(self, role, index, item_id):
+        child = self.item_from_id(item_id)
+        if role == "index":
+            return index
+        if role in child.data:
+            return child.data[role]
+        return None
+    def begin_insert(self, first_row, last_row, parent_row, parent_id):
+        pass
+    def end_insert(self):
+        pass
+    def begin_remove(self, first_row, last_row, parent_row, parent_id):
+        pass
+    def end_remove(self):
+        pass
+    def data_changed(self, row, parent_row, parent_id):
+        pass
+    def traverse_depth_first(self, fn, parent):
+        real_parent = parent if parent else self.root
+        for index, child in enumerate(real_parent.children):
+            if self.traverse_depth_first(fn, child):
+                return True
+            if fn(parent, index, child):
+                return True
+        return False
+    def traverse(self, fn):
+        if not fn(None, 0, self.root):
+            self.traverse_depth_first(fn, self.root)
+
 class ListModelController:
     DRAG = 0
     DROP = 1
@@ -191,6 +266,8 @@ class UserInterface:
         pass
     def create_mime_data(self):
         return None
+    def create_item_model_controller(self, keys):
+        return ItemModelController()
     def create_list_model_controller(self, keys):
         return ListModelController()
     def create_document_window(self, native_document_window):
@@ -232,20 +309,6 @@ class UserInterface:
     def set_persistent_string(self, key, value):
         pass
     def get_data_location(self):
-        pass
-    def PyItemModel_beginInsertRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
-        pass
-    def PyItemModel_beginRemoveRows(self, py_item_model, first_row, last_row, parent_row, parent_id):
-        pass
-    def PyItemModel_create(self, delegate, keys):
-        return (delegate, keys)
-    def PyItemModel_dataChanged(self, py_item_model, row, parent_row, parent_id):
-        pass
-    def PyItemModel_destroy(self, py_item_model):
-        pass
-    def PyItemModel_endInsertRow(self, py_item_model):
-        pass
-    def PyItemModel_endRemoveRow(self, py_item_model):
         pass
 
 

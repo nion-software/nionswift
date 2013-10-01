@@ -45,12 +45,20 @@ _ = gettext.gettext
 class DataPanel(Panel.Panel):
 
     # a tree model of the data groups
-    class DataGroupModel(UserInterface.ItemModel):
+    class DataGroupModelController(object):
 
         def __init__(self, document_controller):
-            super(DataPanel.DataGroupModel, self).__init__(document_controller, ["display", "edit"])
+            self.ui = document_controller.ui
+            self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
+            self.item_model_controller.on_item_set_data = lambda data, index, parent_row, parent_id: self.item_set_data(data, index, parent_row, parent_id)
+            self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
+            self.item_model_controller.on_item_mime_data = lambda row, parent_row, parent_id: self.item_mime_data(row, parent_row, parent_id)
+            self.item_model_controller.on_remove_rows = lambda row, count, parent_row, parent_id: self.remove_rows(row, count, parent_row, parent_id)
+            self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
+            self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
+            self.__document_controller_weakref = weakref.ref(document_controller)
             self.document_controller.add_observer(self)
-            self.mapping = {document_controller: self.root}
+            self.mapping = { document_controller: self.item_model_controller.root }
             self._index = -1
             self._parent_row = -1
             self._parent_id = 0
@@ -62,16 +70,26 @@ class DataPanel(Panel.Panel):
                 self.item_inserted(document_controller, "data_groups", data_group, index)
 
         def close(self):
-            # TODO: unlisten to everything
+            # cheap way to unlisten to everything
+            for object in self.mapping.keys():
+                if isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup):
+                    object.remove_listener(self)
+                    object.remove_observer(self)
+                    object.remove_ref()
             self.document_controller.remove_observer(self)
-            super(DataPanel.DataGroupModel, self).close()
+            self.item_model_controller.close()
+            self.item_model_controller = None
 
         def log(self, parent_id=-1, indent=""):
-            parent_id = parent_id if parent_id >= 0 else self.root.id
-            for index, child in enumerate(self.itemFromId(parent_id).children):
+            parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
+            for index, child in enumerate(self.item_model_controller.item_from_id(parent_id).children):
                 value = child.data["display"] if "display" in child.data else "---"
                 logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
                 self.log(child.id, indent + "  ")
+
+        def __get_document_controller(self):
+            return self.__document_controller_weakref()
+        document_controller = property(__get_document_controller)
 
         def __append_data_item_flat(self, container, data_items):
             if isinstance(container, DataItem.DataItem):
@@ -97,20 +115,20 @@ class DataPanel(Panel.Panel):
             if key == "data_groups":
                 # manage the item model
                 parent_item = self.mapping[container]
-                self.beginInsert(before_index, before_index, parent_item.row, parent_item.id)
+                self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
                 count = self.__get_data_item_count_flat(object)
                 properties = {
                     "display": str(object) + (" (%i)" % count),
                     "edit": object.title,
                     "data_group": object
                 }
-                item = self.createItem(properties)
-                parent_item.insertChild(before_index, item)
+                item = self.item_model_controller.create_item(properties)
+                parent_item.insert_child(before_index, item)
                 self.mapping[object] = item
                 object.add_observer(self)
                 object.add_listener(self)
                 object.add_ref()
-                self.endInsert()
+                self.item_model_controller.end_insert()
                 # recursively insert items that already exist
                 data_groups = object.data_groups
                 for index, child_data_group in enumerate(data_groups):
@@ -124,13 +142,13 @@ class DataPanel(Panel.Panel):
                 # get parent and item
                 parent_item = self.mapping[container]
                 # manage the item model
-                self.beginRemove(index, index, parent_item.row, parent_item.id)
+                self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
                 object.remove_listener(self)
                 object.remove_observer(self)
                 object.remove_ref()
-                parent_item.removeChild(parent_item.children[index])
+                parent_item.remove_child(parent_item.children[index])
                 self.mapping.pop(object)
-                self.endRemove()
+                self.item_model_controller.end_remove()
 
         def __item_for_data_group(self, data_group):
             matched_items = []
@@ -140,7 +158,7 @@ class DataPanel(Panel.Panel):
                         matched_items.append(item)
                         return True
                 return False
-            self.traverse(match_item)
+            self.item_model_controller.traverse(match_item)
             assert len(matched_items) == 1
             return matched_items[0]
 
@@ -150,7 +168,7 @@ class DataPanel(Panel.Panel):
             item = self.__item_for_data_group(data_group)
             item.data["display"] = str(data_group) + (" (%i)" % count)
             item.data["edit"] = data_group.title
-            self.dataChanged(item.row, item.parent.row, item.parent.id)
+            self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
 
         def property_changed(self, data_group, key, value):
             if key == "title":
@@ -164,24 +182,24 @@ class DataPanel(Panel.Panel):
         def data_item_removed(self, container, data_item, index):
             self.__update_item_count(container)
 
-        def item_key_press(self, text, modifiers, index, parent_row, parent_id):
+        def item_key_pressed(self, index, parent_row, parent_id, text, modifiers):
             if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
-                data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
+                data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(index, parent_id))
                 if data_group:
-                    parent_item = self.itemFromId(self._parent_id)
+                    parent_item = self.item_model_controller.item_from_id(self._parent_id)
                     parent = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller
                     self.document_controller.remove_data_group_from_parent(data_group, parent)
             return False
 
         def item_set_data(self, data, index, parent_row, parent_id):
-            data_group = self.itemValue("data_group", None, self.itemId(index, parent_id))
+            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(index, parent_id))
             if data_group:
                 data_group.title = data
                 return True
             return False
 
         def __get_data_group_of_parent(self, parent_row, parent_id):
-            parent_item = self.itemFromId(parent_id)
+            parent_item = self.item_model_controller.item_from_id(parent_id)
             return parent_item.data["data_group"] if "data_group" in parent_item.data else None
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
@@ -189,12 +207,12 @@ class DataPanel(Panel.Panel):
             container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                    return self.NONE
+                    return self.item_model_controller.NONE
                 if self.on_receive_files and self.on_receive_files(data_group, len(data_group.data_items), mime_data.file_paths):
-                    return self.COPY
+                    return self.item_model_controller.COPY
             if data_group and mime_data.has_format("text/data_item_uuid"):
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                    return self.NONE
+                    return self.item_model_controller.NONE
                 # if the data item exists in this document, then it is copied to the
                 # target group. if it doesn't exist in this document, then it is coming
                 # from another document and can't be handled here.
@@ -204,7 +222,7 @@ class DataPanel(Panel.Panel):
                     data_item_copy = data_item.copy()
                     data_group.data_items.append(data_item_copy)
                     return action
-                return self.NONE
+                return self.item_model_controller.NONE
             if mime_data.has_format("text/data_group_uuid"):
                 data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
                 data_group = self.document_controller.get_data_group_by_uuid(data_group_uuid)
@@ -215,11 +233,11 @@ class DataPanel(Panel.Panel):
                     else:
                         container.data_groups.append(data_group_copy)
                     return action
-            return self.NONE
+            return self.item_model_controller.NONE
 
         def item_mime_data(self, row, parent_row, parent_id):
-            parent_item = self.itemFromId(self._parent_id)
-            data_group = self.itemValue("data_group", None, self.itemId(self._index, self._parent_id))
+            parent_item = self.item_model_controller.item_from_id(self._parent_id)
+            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(self._index, self._parent_id))
             if data_group:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
@@ -234,8 +252,8 @@ class DataPanel(Panel.Panel):
             return True
 
         def __get_data_panel_selection(self):
-            parent_item = self.itemFromId(self._parent_id)
-            data_group = self.itemValue("data_group", None, self.itemId(self._index, self._parent_id))
+            parent_item = self.item_model_controller.item_from_id(self._parent_id)
+            data_group = self.item_model_controller.item_value("data_group", None, self.item_model_controller.item_id(self._index, self._parent_id))
             return DataItem.DataItemSpecifier(data_group)
         data_panel_selection = property(__get_data_panel_selection)
 
@@ -244,7 +262,7 @@ class DataPanel(Panel.Panel):
             self.__block_image_panel_update = block
             return old_block_image_panel_update
 
-        def item_changed(self, index, parent_row, parent_id):
+        def current_item_changed(self, index, parent_row, parent_id):
             # record the change
             self._index = index
             self._parent_row = parent_row
@@ -254,14 +272,6 @@ class DataPanel(Panel.Panel):
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
                     image_panel.data_panel_selection = self.data_panel_selection
-
-        def __get_supported_drop_actions(self):
-            return self.DRAG | self.DROP
-        supported_drop_actions = property(__get_supported_drop_actions)
-
-        def __get_mime_types_for_drop(self):
-            return ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
-        mime_types_for_drop = property(__get_mime_types_for_drop)
 
     # a list model of the data items. data items are actually hierarchical in nature,
     # but we don't use a tree view since the hierarchy is always visible and represented
@@ -505,8 +515,8 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
-        self.data_group_model = DataPanel.DataGroupModel(document_controller)
-        self.data_group_model.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
+        self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
+        self.data_group_model_controller.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
 
         self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
 
@@ -526,7 +536,9 @@ class DataPanel(Panel.Panel):
         ui = document_controller.ui
 
         self.data_group_widget = ui.create_tree_widget(properties={"min-height": 80})
-        self.data_group_widget.model = self.data_group_model
+        self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
+        self.data_group_widget.on_current_item_changed = lambda index, parent_row, parent_id: self.data_group_model_controller.current_item_changed(index, parent_row, parent_id)
+        self.data_group_widget.on_item_key_pressed = lambda index, parent_row, parent_id, text, modifiers: self.data_group_model_controller.item_key_pressed(index, parent_row, parent_id, text, modifiers)
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
@@ -549,7 +561,7 @@ class DataPanel(Panel.Panel):
         self.update_data_panel_selection(DataItem.DataItemSpecifier())
         # close the models
         self.data_item_model_controller.close()
-        self.data_group_model.close()
+        self.data_group_model_controller.close()
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -564,8 +576,8 @@ class DataPanel(Panel.Panel):
         data_group = data_panel_selection.data_group
         data_item = data_panel_selection.data_item
         item = None
-        data_group_item = self.data_group_model.mapping.get(data_group)
-        parent_item = data_group_item.parent if data_group_item else self.data_group_model.root
+        data_group_item = self.data_group_model_controller.mapping.get(data_group)
+        parent_item = data_group_item.parent if data_group_item else self.data_group_model_controller.item_model_controller.root
         assert parent_item is not None
         for child in parent_item.children:
             child_data_group = child.data.get("data_group")
@@ -573,14 +585,14 @@ class DataPanel(Panel.Panel):
                 item = child
                 break
         if item:
-            self.data_group_model._index = item.row
-            self.data_group_model._parent_row = item.parent.row
-            self.data_group_model._parent_id = item.parent.id
+            self.data_group_model_controller._index = item.row
+            self.data_group_model_controller._parent_row = item.parent.row
+            self.data_group_model_controller._parent_id = item.parent.id
             self.set_group_current_row(item.row, item.parent.row, item.parent.id)
         else:
-            self.data_group_model._index = -1
-            self.data_group_model._parent_row = -1
-            self.data_group_model._parent_id = 0
+            self.data_group_model_controller._index = -1
+            self.data_group_model_controller._parent_row = -1
+            self.data_group_model_controller._parent_id = 0
             self.set_group_current_row(-1, -1, 0)
         self.data_item_model_controller.data_group = data_group
         self.data_item_model_controller._index = self.data_item_model_controller.get_data_item_index(data_item)
@@ -595,9 +607,9 @@ class DataPanel(Panel.Panel):
 
     @queue_main_thread
     def set_group_current_row(self, index, parent_row, parent_id):
-        old = self.data_group_model.set_block_image_panel_update(True)
+        old = self.data_group_model_controller.set_block_image_panel_update(True)
         self.data_group_widget.set_current_row(index, parent_row, parent_id)
-        self.data_group_model.set_block_image_panel_update(old)
+        self.data_group_model_controller.set_block_image_panel_update(old)
 
     # this message is received from the document controller.
     # it is established using add_listener
