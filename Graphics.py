@@ -162,6 +162,7 @@ class RectangleGraphic(Graphic):
     def end_drag(self, part_data):
         pass
     def adjust_part(self, mapping, original, current, part, modifiers):
+        #logging.debug("adjust part %s %s %s %s", original, current, part, modifiers)
         o = mapping.map_point_container_to_graphic(original)
         p = mapping.map_point_container_to_graphic(current)
         old_bounds = part[1]

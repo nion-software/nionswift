@@ -34,6 +34,45 @@ _ = gettext.gettext
 #   calibrated
 
 
+# refer to Illustrator / Default keyboard shortcuts
+# http://help.adobe.com/en_US/illustrator/cs/using/WS714a382cdf7d304e7e07d0100196cbc5f-6426a.html
+
+# KEYS FOR CHOOSING TOOLS               ACTION/KEY
+# selection tool (whole object)         v
+# direct selection tool (parts)         a
+# line tool                             \
+# rectangle tool                        m
+# ellipse tool                          l
+# rotate tool                           r
+# scale tool                            s
+# hand tool (moving image)              h
+# zoom tool (zooming image)             z
+
+# KEYS FOR VIEWING IMAGES               ACTION/KEY
+# fit image to area                     double w/ hand tool
+# magnify to 100%                       double w/ zoom tool
+
+# KEYS FOR DRAWING GRAPHICS             ACTION/KEY
+# constrain shape                       shift-drag
+# move while draging                    spacebar-drag
+# drag from center                      alt-drag (Windows), option-drag (Mac OS)
+
+# KEYS FOR SELECTING GRAPHICS           ACTION/KEY
+# use last used selection tool          ctrl (Windows), command (Mac OS)
+# add/subtract from selection           alt (Windows), option (Mac OS)
+
+# KEYS FOR MOVING SELECTION/IMAGE       ACTION/KEY
+# move in small increments              arrow keys
+# move in 10x increments                shift- arrow keys
+
+# KEYS FOR USING PANELS                 ACTION/KEY
+# hide all panels                       tab
+# hide all panels except data panel     shift-tab
+
+# FUNCTION KEYS                         ACTION/KEY
+# tbd
+
+
 # special note: maps mouse on the way in; widget on the way out
 class WidgetMapping(object):
     def __init__(self, image_panel):
@@ -448,6 +487,7 @@ class ImagePanel(Panel.Panel):
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
+        self.graphic_drag_item_was_selected = False
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
         if self.data_item:
@@ -458,27 +498,25 @@ class ImagePanel(Panel.Panel):
                 move_only = not already_selected or multiple_items_selected
                 part = graphic.test(WidgetMapping(self), start_drag_pos, move_only)
                 if part:
-                    # if shift is down and item is already selected, toggle selection of item
-                    if modifiers.shift and self.graphic_selection.contains(graphic_index):
-                        self.graphic_selection.remove(graphic_index)
-                    # otherwise, select it and prepare for drag
-                    else:
+                    # select item and prepare for drag
+                    self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
+                    if not self.graphic_drag_item_was_selected:
                         if modifiers.shift:
                             self.graphic_selection.add(graphic_index)
                         elif not already_selected:
                             self.graphic_selection.set(graphic_index)
-                        # keep track of general drag information
-                        self.graphic_drag_start_pos = start_drag_pos
-                        self.graphic_drag_changed = False
-                        # keep track of info for the specific item that was clicked
-                        self.graphic_drag_item = self.data_item.graphics[graphic_index]
-                        self.graphic_drag_part = part
-                        # keep track of drag information for each item in the set
-                        self.graphic_drag_indexes = self.graphic_selection.indexes
-                        for index in self.graphic_drag_indexes:
-                            graphic = self.data_item.graphics[index]
-                            self.graphic_drag_items.append(graphic)
-                            self.graphic_part_data[index] = graphic.begin_drag()
+                    # keep track of general drag information
+                    self.graphic_drag_start_pos = start_drag_pos
+                    self.graphic_drag_changed = False
+                    # keep track of info for the specific item that was clicked
+                    self.graphic_drag_item = self.data_item.graphics[graphic_index]
+                    self.graphic_drag_part = part
+                    # keep track of drag information for each item in the set
+                    self.graphic_drag_indexes = self.graphic_selection.indexes
+                    for index in self.graphic_drag_indexes:
+                        graphic = self.data_item.graphics[index]
+                        self.graphic_drag_items.append(graphic)
+                        self.graphic_part_data[index] = graphic.begin_drag()
                     break
         if not self.graphic_drag_items and not modifiers.shift:
             self.graphic_selection.clear()
@@ -487,9 +525,20 @@ class ImagePanel(Panel.Panel):
         for index in self.graphic_drag_indexes:
             graphic = self.data_item.graphics[index]
             graphic.end_drag(self.graphic_part_data[index])
-        if self.graphic_drag_items and not self.graphic_drag_changed and not modifiers.shift:
-            assert self.data_item
-            self.graphic_selection.set(self.data_item.graphics.index(self.graphic_drag_item))
+        if self.graphic_drag_items and not self.graphic_drag_changed:
+            graphic_index = self.data_item.graphics.index(self.graphic_drag_item)
+            # user didn't move graphic
+            if not modifiers.shift:
+                # user clicked on a single graphic
+                assert self.data_item
+                self.graphic_selection.set(graphic_index)
+            else:
+                # user shift clicked. toggle selection
+                # if shift is down and item is already selected, toggle selection of item
+                if self.graphic_drag_item_was_selected:
+                    self.graphic_selection.remove(graphic_index)
+                else:
+                    self.graphic_selection.add(graphic_index)
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_part_data = {}

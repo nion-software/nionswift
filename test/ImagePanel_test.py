@@ -148,6 +148,10 @@ class TestImagePanelClass(unittest.TestCase):
         self.simulate_drag((200,200), (300,400))
         self.assertClosePoint(self.data_item.graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.data_item.graphics[0].end, (0.8, 0.8))
+        # shift drag a part, should not deselect and should align horizontally
+        self.simulate_drag((300,400), (350,400), Test.KeyboardModifiers(shift=True))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.35, 0.8))
 
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480
@@ -156,3 +160,20 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.map_widget_to_image((240, 320)), (500.0, 500.0))
         self.assertClosePoint(self.image_panel.map_widget_to_image((0, 80)), (0.0, 0.0))
         self.assertClosePoint(self.image_panel.map_widget_to_image((480, 560)), (1000.0, 1000.0))
+
+    def test_resize_rectangle(self):
+        # add rect (0.25, 0.25), (0.5, 0.5)
+        self.document_controller.add_rectangle_graphic()
+        # make sure items it is in the right place
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.25, 0.25))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.5, 0.5))
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # drag top left corner
+        self.simulate_drag((250,250), (300,250))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.30, 0.25))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.45, 0.5))
+        # drag with shift key
+        self.simulate_drag((300,250), (350,250), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.35, 0.35))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.4, 0.4))
