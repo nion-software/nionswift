@@ -177,3 +177,47 @@ class TestImagePanelClass(unittest.TestCase):
         self.simulate_drag((300,250), (350,250), Test.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.35, 0.35))
         self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.4, 0.4))
+
+    def test_resize_nonsquare_rectangle(self):
+        self.image_panel.canvas.width = 1000
+        self.image_panel.canvas.height = 2000
+        self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((2000, 1000)))
+        # add rect (0.25, 0.25), (0.5, 0.5)
+        self.document_controller.add_rectangle_graphic()
+        # make sure items it is in the right place
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.25, 0.25))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.5, 0.5))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # drag top left corner
+        self.simulate_drag((500,250), (800,250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (700, 500))
+        # drag with shift key
+        self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (1000, 250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (500, 500))
+
+    def test_resize_nonsquare_ellipse(self):
+        self.image_panel.canvas.width = 1000
+        self.image_panel.canvas.height = 2000
+        self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((2000, 1000)))
+        # add rect (0.25, 0.25), (0.5, 0.5)
+        self.document_controller.add_ellipse_graphic()
+        # make sure items it is in the right place
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.25, 0.25))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.5, 0.5))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # drag top left corner
+        self.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (400, 500))
+        # drag with shift key
+        self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (900, 400))
+        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (200, 200))

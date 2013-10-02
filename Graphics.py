@@ -38,6 +38,91 @@ def midpoint(p1, p2):
     return (0.5 * (p1[0] + p2[0]), 0.5 * (p1[1] + p2[1]))
 
 
+def adjust_rectangle_like(mapping, original, current, part, modifiers):
+    # NOTE: all sizes/points are assumed to be in image coordinates
+    o = mapping.map_point_widget_to_image(original)
+    p = mapping.map_point_widget_to_image(current)
+    old_origin = mapping.map_point_image_norm_to_image(part[1][0])
+    old_size = mapping.map_point_image_norm_to_image(part[1][1])
+    old_center = (old_origin[0] + 0.5*old_size[0], old_origin[1] + 0.5*old_size[1])
+    delta = (p[0] - o[0], p[1] - o[1])
+    new_bounds = (old_origin, old_size)
+    if part[0] == "top-left":  # top left
+        if modifiers.alt:
+            new_top_left = (old_origin[0] + delta[0], old_origin[1] + delta[1])
+            if modifiers.shift:  # hold bottom left constant
+                half_size = (old_center[0] - new_top_left[0], old_center[1] - new_top_left[1])
+                if half_size[0] > half_size[1]:  # size will be width
+                    new_top_left = (old_center[0] + half_size[1], new_top_left[1])
+                else:  # size will be height
+                    new_top_left = (new_top_left[0], old_center[1] + half_size[0])
+            new_bottom_right = (2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1])
+            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
+        else:
+            new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), (old_size[0] - delta[0], old_size[1] - delta[1]))
+            if modifiers.shift:  # hold bottom right constant
+                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
+                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+                else:  # size will be height
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
+    elif part[0] == "top-right":  # top right
+        if modifiers.alt:
+            new_top_right = (old_origin[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
+            if modifiers.shift:  # hold bottom left constant
+                half_size = (old_center[0] - new_top_right[0], old_center[1] - new_top_right[1])
+                if half_size[0] > half_size[1]:  # size will be width
+                    new_top_right = (old_center[0] + half_size[1], new_top_right[1])
+                else:  # size will be height
+                    new_top_right = (new_top_right[0], old_center[1] + half_size[0])
+            new_bottom_left = (2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1])
+            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
+        else:
+            new_bounds = ((old_origin[0] + delta[0], old_origin[1]), (old_size[0] - delta[0], old_size[1] + delta[1]))
+            if modifiers.shift:  # hold bottom left constant
+                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
+                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+                else:  # size will be height
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
+    elif part[0] == "bottom-right":  # bottom right
+        if modifiers.alt:
+            new_bottom_right = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
+            if modifiers.shift:  # hold bottom left constant
+                half_size = (old_center[0] - new_bottom_right[0], old_center[1] - new_bottom_right[1])
+                if half_size[0] > half_size[1]:  # size will be width
+                    new_bottom_right = (old_center[0] + half_size[1], new_bottom_right[1])
+                else:  # size will be height
+                    new_bottom_right = (new_bottom_right[0], old_center[1] + half_size[0])
+            new_top_left = (2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1])
+            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
+        else:
+            new_bounds = ((old_origin[0], old_origin[1]), (old_size[0] + delta[0], old_size[1] + delta[1]))
+            if modifiers.shift:  # hold bottom left constant
+                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+                else:  # size will be height
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
+    elif part[0] == "bottom-left":  # bottom left
+        if modifiers.alt:
+            new_bottom_left = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + delta[1])
+            if modifiers.shift:  # hold bottom left constant
+                half_size = (old_center[0] - new_bottom_left[0], old_center[1] - new_bottom_left[1])
+                if half_size[0] > half_size[1]:  # size will be width
+                    new_bottom_left = (old_center[0] + half_size[1], new_bottom_left[1])
+                else:  # size will be height
+                    new_bottom_left = (new_bottom_left[0], old_center[1] + half_size[0])
+            new_top_right = (2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1])
+            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
+        else:
+            new_bounds = ((old_origin[0], old_origin[1] + delta[1]), (old_size[0] + delta[0], old_size[1] - delta[1]))
+            if modifiers.shift:  # hold bottom left constant
+                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+                else:  # size will be height
+                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
+    elif part[0] == "all":
+        new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), old_size)
+    return (mapping.map_point_image_to_image_norm(new_bounds[0]), mapping.map_size_image_to_image_norm(new_bounds[1]))
+
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Storage.StorageBase):
     def __init__(self):
@@ -129,8 +214,8 @@ class RectangleGraphic(Graphic):
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        origin = mapping.map_point_graphic_to_container(self.bounds[0])
-        size = mapping.map_size_graphic_to_container(self.bounds[1])
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         # top left
         if not move_only and self.test_point(origin, test_point, 4):
             return "top-left"
@@ -161,53 +246,13 @@ class RectangleGraphic(Graphic):
         return (self.bounds, )
     def end_drag(self, part_data):
         pass
+    # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        #logging.debug("adjust part %s %s %s %s", original, current, part, modifiers)
-        o = mapping.map_point_container_to_graphic(original)
-        p = mapping.map_point_container_to_graphic(current)
-        old_bounds = part[1]
-        old_origin = part[1][0]
-        old_size = part[1][1]
-        delta = (p[0] - o[0], p[1] - o[1])
-        if part[0] == "top-left":  # top left
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), (old_size[0] - delta[0], old_size[1] - delta[1]))
-            if modifiers.shift:  # hold bottom right constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
-                else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
-            self.bounds = new_bounds
-        elif part[0] == "top-right":  # top right
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1]), (old_size[0] - delta[0], old_size[1] + delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
-                else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
-            self.bounds = new_bounds
-        elif part[0] == "bottom-right":  # bottom right
-            new_bounds = ((old_origin[0], old_origin[1]), (old_size[0] + delta[0], old_size[1] + delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
-                else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
-            self.bounds = new_bounds
-        elif part[0] == "bottom-left":  # bottom left
-            new_bounds = ((old_origin[0], old_origin[1] + delta[1]), (old_size[0] + delta[0], old_size[1] - delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
-                else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
-            self.bounds = new_bounds
-        elif part[0] == "all":
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), old_size)
-            self.bounds = new_bounds
+        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
-        origin = mapping.map_point_graphic_to_container(self.bounds[0])
-        size = mapping.map_size_graphic_to_container(self.bounds[1])
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         ctx.save()
         ctx.beginPath()
         ctx.moveTo(origin[1], origin[0])
@@ -285,8 +330,8 @@ class EllipseGraphic(Graphic):
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        origin = mapping.map_point_graphic_to_container(self.bounds[0])
-        size = mapping.map_size_graphic_to_container(self.bounds[1])
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         # top left
         if not move_only and self.test_point(origin, test_point, 4):
             return "top-left"
@@ -317,65 +362,13 @@ class EllipseGraphic(Graphic):
         return (self.bounds, )
     def end_drag(self, part_data):
         pass
+    # ellipse
     def adjust_part(self, mapping, original, current, part, modifiers):
-        o = mapping.map_point_container_to_graphic(original)
-        p = mapping.map_point_container_to_graphic(current)
-        old_bounds = part[1]
-        old_origin = part[1][0]
-        old_size = part[1][1]
-        old_center = (part[1][0][0] + 0.5*part[1][1][0], part[1][0][1] + 0.5*part[1][1][1])
-        delta = (p[0] - o[0], p[1] - o[1])
-        if part[0] == "top-left":  # top left
-            new_top_left = (old_origin[0] + delta[0], old_origin[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_top_left[0], old_center[1] - new_top_left[1])
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_top_left = (old_center[0] + half_size[1], new_top_left[1])
-                else:  # size will be height
-                    new_top_left = (new_top_left[0], old_center[1] + half_size[0])
-            new_bottom_right = (2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1])
-            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
-            self.bounds = new_bounds
-        elif part[0] == "top-right":  # top right
-            new_top_right = (old_origin[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_top_right[0], old_center[1] - new_top_right[1])
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_top_right = (old_center[0] + half_size[1], new_top_right[1])
-                else:  # size will be height
-                    new_top_right = (new_top_right[0], old_center[1] + half_size[0])
-            new_bottom_left = (2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1])
-            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
-            self.bounds = new_bounds
-        elif part[0] == "bottom-right":  # bottom right
-            new_bottom_right = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_bottom_right[0], old_center[1] - new_bottom_right[1])
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_right = (old_center[0] + half_size[1], new_bottom_right[1])
-                else:  # size will be height
-                    new_bottom_right = (new_bottom_right[0], old_center[1] + half_size[0])
-            new_top_left = (2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1])
-            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
-            self.bounds = new_bounds
-        elif part[0] == "bottom-left":  # bottom left
-            new_bottom_left = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_bottom_left[0], old_center[1] - new_bottom_left[1])
-                if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_left = (old_center[0] + half_size[1], new_bottom_left[1])
-                else:  # size will be height
-                    new_bottom_left = (new_bottom_left[0], old_center[1] + half_size[0])
-            new_top_right = (2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1])
-            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
-            self.bounds = new_bounds
-        elif part[0] == "all":
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), old_size)
-            self.bounds = new_bounds
+        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
-        origin = mapping.map_point_graphic_to_container(self.bounds[0])
-        size = mapping.map_size_graphic_to_container(self.bounds[1])
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         ctx.save()
         ctx.lineWidth = 1
         ctx.strokeStyle = '#FF0000'
@@ -453,8 +446,8 @@ class LineGraphic(Graphic):
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        p1 = mapping.map_point_graphic_to_container(self.start)
-        p2 = mapping.map_point_graphic_to_container(self.end)
+        p1 = mapping.map_point_image_norm_to_widget(self.start)
+        p2 = mapping.map_point_image_norm_to_widget(self.end)
         # start point
         if not move_only and self.test_point(p1, test_point, 4):
             return "start"
@@ -479,28 +472,32 @@ class LineGraphic(Graphic):
     def end_drag(self, part_data):
         pass
     def adjust_part(self, mapping, original, current, part, modifiers):
-        o = mapping.map_point_container_to_graphic(original)
-        p = mapping.map_point_container_to_graphic(current)
+        o_image = mapping.map_point_widget_to_image(original)
+        p_image = mapping.map_point_widget_to_image(current)
+        end_image = mapping.map_point_image_norm_to_image(self.end)
+        start_image = mapping.map_point_image_norm_to_image(self.start)
         if part[0] == "start":
             if modifiers.shift:
-                if abs(p[0] - self.end[0]) > abs(p[1] - self.end[1]):
-                    p = (p[0], self.end[1])
+                if abs(p_image[0] - end_image[0]) > abs(p_image[1] - end_image[1]):
+                    p_image = (p_image[0], end_image[1])
                 else:
-                    p = (self.end[0], p[1])
-            self.start = p
+                    p_image = (end_image[0], p_image[1])
+            self.start = mapping.map_point_image_to_image_norm(p_image)
         elif part[0] == "end":
             if modifiers.shift:
-                if abs(p[0] - self.start[0]) > abs(p[1] - self.start[1]):
-                    p = (p[0], self.start[1])
+                if abs(p_image[0] - start_image[0]) > abs(p_image[1] - start_image[1]):
+                    p_image = (p_image[0], start_image[1])
                 else:
-                    p = (self.start[0], p[1])
-            self.end = p
+                    p_image = (start_image[0], p_image[1])
+            self.end = mapping.map_point_image_to_image_norm(p_image)
         elif part[0] == "all":
+            o = mapping.map_point_widget_to_image_norm(original)
+            p = mapping.map_point_widget_to_image_norm(current)
             self.start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
             self.end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
     def draw(self, ctx, mapping, is_selected=False):
-        p1 = mapping.map_point_graphic_to_container(self.start)
-        p2 = mapping.map_point_graphic_to_container(self.end)
+        p1 = mapping.map_point_image_norm_to_widget(self.start)
+        p2 = mapping.map_point_image_norm_to_widget(self.end)
         ctx.save()
         ctx.beginPath()
         ctx.moveTo(p1[1], p1[0])

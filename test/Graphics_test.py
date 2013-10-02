@@ -19,11 +19,11 @@ class TestGraphicsClass(unittest.TestCase):
     class Mapping(object):
         def __init__(self, size):
             self.size = size
-        def map_point_graphic_to_container(self, p):
+        def map_point_image_norm_to_widget(self, p):
             return (p[0] * self.size[0], p[1] * self.size[1])
-        def map_size_graphic_to_container(self, s):
+        def map_size_image_norm_to_widget(self, s):
             return (s[0] * self.size[0], s[1] * self.size[1])
-        def map_point_container_to_graphic(self, p):
+        def map_point_widget_to_image_norm(self, p):
             return (s[0]/self.size[0], s[1]/self.size[1])
 
     def test_copy_graphic(self):

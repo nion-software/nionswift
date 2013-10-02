@@ -73,19 +73,27 @@ _ = gettext.gettext
 # tbd
 
 
-# special note: maps mouse on the way in; widget on the way out
 class WidgetMapping(object):
     def __init__(self, image_panel):
         self.image_panel = image_panel
-    def map_point_graphic_to_container(self, p):
+    def map_point_image_norm_to_widget(self, p):
         return self.image_panel.map_image_norm_to_widget(p)
-    def map_size_graphic_to_container(self, s):
-        ms = self.map_point_graphic_to_container(s)
-        ms0 = self.map_point_graphic_to_container((0,0))
+    def map_size_image_norm_to_widget(self, s):
+        ms = self.map_point_image_norm_to_widget(s)
+        ms0 = self.map_point_image_norm_to_widget((0,0))
         return (ms[0] - ms0[0], ms[1] - ms0[1])
-    def map_point_container_to_graphic(self, p):
+    def map_size_image_to_image_norm(self, s):
+        ms = self.map_point_image_to_image_norm(s)
+        ms0 = self.map_point_image_to_image_norm((0,0))
+        return (ms[0] - ms0[0], ms[1] - ms0[1])
+    def map_point_widget_to_image_norm(self, p):
         return self.image_panel.map_widget_to_image_norm(p)
-
+    def map_point_widget_to_image(self, p):
+        return self.image_panel.map_widget_to_image(p)
+    def map_point_image_norm_to_image(self, p):
+        return self.image_panel.map_image_norm_to_image(p)
+    def map_point_image_to_image_norm(self, p):
+        return self.image_panel.map_image_to_image_norm(p)
 
 class GraphicSelection(object):
     def __init__(self):
@@ -276,7 +284,7 @@ class ImagePanel(Panel.Panel):
             ctx.restore()
             if False:  # display scale marker?
                 ctx.beginPath()
-                origin = widget_mapping.map_point_graphic_to_container((0.95, 0.05))
+                origin = widget_mapping.map_point_image_norm_to_widget((0.95, 0.05))
                 ctx.moveTo(origin[1], origin[0])
                 ctx.lineTo(origin[1] + 100, origin[0])
                 ctx.lineTo(origin[1] + 100, origin[0] - 10)
@@ -628,6 +636,20 @@ class ImagePanel(Panel.Panel):
         if image_size:
             p_image = self.map_widget_to_image(p)
             return (float(p_image[0]) / image_size[0], float(p_image[1]) / image_size[1])
+        return None
+
+    # map from image normalized coordinates to image coordinates
+    def map_image_norm_to_image(self, p):
+        image_size = self.image_size
+        if image_size:
+            return (p[0] * image_size[0], p[1] * image_size[1])
+        return None
+
+    # map from image normalized coordinates to image coordinates
+    def map_image_to_image_norm(self, p):
+        image_size = self.image_size
+        if image_size:
+            return (p[0] / image_size[0], p[1] / image_size[1])
         return None
 
     # ths message comes from the widget
