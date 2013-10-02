@@ -505,7 +505,7 @@ class QtBoxWidget(QtWidget):
         return self.children.index(child)
 
     def insert(self, child, before):
-        if isinstance(before, int):
+        if isinstance(before, numbers.Integral):
             index = before
         else:
             index = self.index(before) if before else self.count()

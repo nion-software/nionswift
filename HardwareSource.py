@@ -28,6 +28,7 @@ import collections
 import copy
 import gettext
 import logging
+import numbers
 import threading
 import weakref
 
@@ -144,7 +145,7 @@ class HardwareSource(object):
             self.on_new_images = None
             self.last_images = None
             self.filter = filter
-            if isinstance(self.filter, int):
+            if isinstance(self.filter, numbers.Integral):
                 self.filter = (self.filter, )
 
         def want_image(self, props):
