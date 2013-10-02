@@ -164,3 +164,17 @@ class TestOperationClass(unittest.TestCase):
             self.assertIsNotNone(data_item.calculated_calibrations)
 
         data_item_rgb.remove_ref()
+
+    def test_crop_2d(self):
+        data_item_real = DataItem.DataItem()
+        data_item_real.master_data = numpy.zeros((2000,1000), numpy.double)
+        data_item_real.add_ref()
+        graphic = Graphics.RectangleGraphic()
+        graphic.bounds = ((0.2, 0.3), (0.5, 0.5))
+        operation = Operation.Crop2dOperation()
+        operation.graphic = graphic
+        data_item_real.operations.append(operation)
+        # make sure we get the right shape
+        self.assertEqual(data_item_real.spatial_shape, (1000, 500))
+        self.assertEqual(data_item_real.data.shape, (1000, 500))
+        data_item_real.remove_ref()

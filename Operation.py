@@ -226,7 +226,7 @@ class Crop2dOperation(Operation):
         graphic = self.graphic
         shape = data_shape
         bounds = graphic.bounds
-        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return bounds_int[1], data_dtype
 
     def process_data_copy(self, data_copy):
@@ -234,7 +234,7 @@ class Crop2dOperation(Operation):
         assert isinstance(graphic, Graphics.RectangleGraphic)
         shape = data_copy.shape
         bounds = graphic.bounds
-        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[0] * bounds[0][1])), (int(shape[1] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
 
 
