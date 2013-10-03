@@ -156,6 +156,14 @@ class Widget:
     def set_current_row(self, index, parent_row, parent_id):
         pass
 
+class Menu:
+    def __init__(self):
+        pass
+    def add_menu_item(self, title, callback, key_sequence=None, role=None):
+        pass
+    def add_separator(self):
+        pass
+
 class DocumentWindow:
     def __init__(self):
         self.has_event_loop = False
@@ -166,6 +174,8 @@ class DocumentWindow:
         return Widget()
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
+    def add_menu(self, title):
+        return Menu()
 
 class ItemModelController:
     DRAG = 0
@@ -262,18 +272,6 @@ class ListModelController:
     def data_changed(self):
         pass
 
-class MenuManager:
-    def __init__(self):
-        pass
-    def add_document_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
-        pass
-    def insert_document_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
-        pass
-    def insert_menu(self, menu_id, title, before_menu_id, use_existing=True):
-        pass
-    def insert_separator(self, menu_id, before_action_id):
-        pass
-
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
@@ -284,7 +282,7 @@ class UserInterface:
         return ItemModelController()
     def create_list_model_controller(self, keys):
         return ListModelController()
-    def create_document_window(self, native_document_window):
+    def create_document_window(self):
         return DocumentWindow()
     def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
         pass
@@ -324,8 +322,6 @@ class UserInterface:
         pass
     def get_data_location(self):
         pass
-    def create_menu_manager(self):
-        return MenuManager()
 
 
 class KeyboardModifiers(object):

@@ -24,7 +24,6 @@ from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import ImagePanel
-from nion.swift import Menu
 from nion.swift import Inspector
 from nion.swift import Operation
 from nion.swift import Panel
@@ -43,8 +42,9 @@ class DocumentController(Storage.StorageBase):
         super(DocumentController, self).__init__()
         self.__weak_application = weakref.ref(application)
         self.ui = application.ui
-        self.document_window = document_window if document_window else self.ui.create_document_window(None)
-        self.menu_manager = self.ui.create_menu_manager()  # used only on Windows
+        self.document_window = document_window if document_window else self.ui.create_document_window()
+        self.document_window.on_periodic = lambda: self.periodic()
+        self.document_window.on_about_to_close = lambda: self.close()
         self.workspace = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
@@ -55,7 +55,6 @@ class DocumentController(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        Menu.build_menus(self.menu_manager)
         self.application.register_document_window(self)
         if storage_reader:
             storage_writer.disconnected = True
@@ -69,6 +68,7 @@ class DocumentController(Storage.StorageBase):
         else:
             storage_writer.set_root(self)
             self.write()
+        self.create_menus()
         if _create_workspace:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self)
 
@@ -81,6 +81,7 @@ class DocumentController(Storage.StorageBase):
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
+        self.document_window = None
         # this isn't ideal since this effectively binds one workspace per document window.
         # TODO: revisit Workspace vs. DocumentController lifetimes
         if self.workspace:
@@ -106,6 +107,71 @@ class DocumentController(Storage.StorageBase):
             self.default_data_group.data_items.extend(data_items)
             need_rewrite = True
         return need_rewrite
+
+    def create_menus(self):
+
+        file_menu = self.document_window.add_menu(_("File"))
+
+        edit_menu = self.document_window.add_menu(_("Edit"))
+
+        processing_menu = self.document_window.add_menu(_("Processing"))
+
+        layout_menu = self.document_window.add_menu(_("Layout"))
+
+        graphic_menu = self.document_window.add_menu(_("Graphic"))
+
+        ### window_menu = self.document_window.add_menu(_("Window"))
+
+        help_menu = self.document_window.add_menu(_("Help"))
+
+        file_menu.add_menu_item(_("New"), lambda: self.no_operation(), key_sequence="new")
+        file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
+        file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
+        file_menu.add_separator()
+        file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
+        file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
+        file_menu.add_separator()
+        file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
+        file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
+        file_menu.add_menu_item(_("Add Green"), lambda: self.add_green_data_item(), key_sequence="Ctrl+Shift+G")
+        file_menu.add_separator()
+        file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
+
+        edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
+        edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")
+        edit_menu.add_separator()
+        edit_menu.add_menu_item(_("Cut"), lambda: self.no_operation(), key_sequence="cut")
+        edit_menu.add_menu_item(_("Copy"), lambda: self.no_operation(), key_sequence="copy")
+        edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
+        edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
+        edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
+        edit_menu.add_separator()
+        edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
+
+        processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
+        processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
+        processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
+        processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
+        processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
+        processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
+        processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
+        processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
+        processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+Shift+S")
+        processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
+        processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
+
+        layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
+        layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
+        layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
+        layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
+
+        graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
+        graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
+        graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
+        graphic_menu.add_menu_item(_("Remove Graphic"), lambda: self.remove_graphic())
+
+        help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
+        help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
 
     def create_default_data_groups(self):
         # ensure there is at least one group

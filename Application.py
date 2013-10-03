@@ -18,7 +18,6 @@ from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
 from nion.swift import ImportExportManager
 from nion.swift import Inspector
-from nion.swift import Menu
 from nion.swift import Panel
 from nion.swift import PlugInManager
 from nion.swift import Storage
@@ -37,11 +36,8 @@ class Application(object):
         global app
 
         self.ui = ui
-        self.menu_manager = self.ui.create_menu_manager()  # used only on Mac OS
         self.hardware_source_manager = HardwareSource.HardwareSourceManager()
         self.import_export_manager = ImportExportManager.ImportExportManager()
-
-        Menu.build_menus(self.menu_manager)
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -67,9 +63,7 @@ class Application(object):
         PlugInManager.loadPlugIns()
         Test.load_tests()  # after plug-ins are loaded
 
-    # this method is invoked from the host application
-    def make_document_controller(self, native_document_window):
-        document_window = self.ui.create_document_window(native_document_window)
+    def start(self):
         documents_dir = self.ui.get_data_location()
         filename = os.path.join(documents_dir, "Swift Workspace.nswrk")
         #filename = ":memory:"
@@ -77,15 +71,16 @@ class Application(object):
         if create_new_document:
             logging.debug("Creating new document: %s", filename)
             storage_writer = Storage.DbStorageWriter(filename, create=True)
-            document_controller = DocumentController.DocumentController(self, document_window, storage_writer)
+            document_controller = DocumentController.DocumentController(self, None, storage_writer)
             document_controller.create_default_data_groups()
             document_controller.create_test_images()
         else:
             logging.debug("Using existing document %s", filename)
             storage_writer = Storage.DbStorageWriter(filename)
             storage_reader = Storage.DbStorageReader(filename)
-            document_controller = DocumentController.DocumentController(self, document_window, storage_writer, storage_reader)
+            document_controller = DocumentController.DocumentController(self, None, storage_writer, storage_reader)
             document_controller.create_default_data_groups()
+        document_controller.document_window.show()
         logging.info("Welcome to Nion Swift.")
         return document_controller
 
@@ -94,7 +89,7 @@ class Application(object):
         self.__document_windows.append(document_window)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
-            menu_handler(document_window.menu_manager)
+            menu_handler(None)
         return document_window
     def unregister_document_window(self, document_window):
         self.__document_windows.remove(document_window)
@@ -106,9 +101,9 @@ class Application(object):
         assert new_menu_handler not in self.__menu_handlers
         self.__menu_handlers.append(new_menu_handler)
         # when a menu handler is registered, let it immediately know about existing menu handlers
-        new_menu_handler(self.menu_manager)
+        new_menu_handler(None)
         for document_window in self.__document_windows:
-            new_menu_handler(document_window.menu_manager)
+            new_menu_handler(None)
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
     def unregister_menu_handler(self, menu_handler):

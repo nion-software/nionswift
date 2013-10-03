@@ -1079,13 +1079,51 @@ class QtConsoleWidget(QtWidget):
         return "", 0, "?"
 
 
+class QtAction(object):
+
+    def __init__(self, proxy, document_window, title, key_sequence, role):
+        self.proxy = proxy
+        self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
+        self.proxy.Action_connect(self.native_action, self)
+        self.on_triggered = None
+
+    def triggered(self):
+        if self.on_triggered:
+            self.on_triggered()
+
+class QtMenu(object):
+
+    def __init__(self, proxy, document_window, native_menu):
+        self.proxy = proxy
+        self.document_window = document_window
+        self.native_menu = native_menu
+        self.proxy.Menu_connect(self.native_menu, self)
+        self.on_about_to_show = None
+
+    def aboutToShow(self):
+        if self.on_about_to_show:
+            self.on_about_to_show()
+
+    def add_menu_item(self, title, callback, key_sequence=None, role=None):
+        action = QtAction(self.proxy, self.document_window, title, key_sequence, role)
+        action.on_triggered = callback
+        self.proxy.Menu_addAction(self.native_menu, action.native_action)
+        return action
+
+    def add_separator(self):
+        self.proxy.Menu_addSeparator(self.native_menu)
+
+
 class QtDocumentWindow(object):
 
-    def __init__(self, proxy, native_document_window):
+    def __init__(self, proxy):
         self.proxy = proxy
-        self.native_document_window = native_document_window
+        self.native_document_window = self.proxy.DocumentWindow_create()
+        self.proxy.DocumentWindow_connect(self.native_document_window, self)
         self.root_widget = None
         self.has_event_loop = True
+        self.on_periodic = None
+        self.on_about_to_close = None
 
     def attach(self, root_widget):
         self.root_widget = root_widget
@@ -1103,6 +1141,25 @@ class QtDocumentWindow(object):
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         self.proxy.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
 
+    def show(self):
+        self.proxy.DocumentWindow_show(self.native_document_window)
+
+    def periodic(self):
+        if self.on_periodic:
+            self.on_periodic()
+
+    def aboutToClose(self):
+        if self.on_about_to_close:
+            self.on_about_to_close()
+
+    def close(self):
+        self.proxy.DocumentWindow_close(self.native_document_window)
+
+    def add_menu(self, title):
+        native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, title)
+        menu = QtMenu(self.proxy, self, native_menu)
+        return menu
+
 
 class QtDockWidget(object):
 
@@ -1115,295 +1172,13 @@ class QtDockWidget(object):
         self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
 
 
-class QtAction(object):
-
-    def __init__(self, proxy, action_id, title):
-        self.proxy = proxy
-        self.action_id = action_id
-        self.title = title
-        self._qt_action = None
-        self.qt_action_manager = None
-        self.key_sequence = None
-
-    def create(self):
-        pass
-
-    def __get_qt_action(self):
-        self.create()
-        return self._qt_action
-    qt_action = property(__get_qt_action)
-
-    def configure(self):
-        if self.key_sequence:
-            self.proxy.Actions_setShortcut(self.qt_action_manager, self.action_id, self.key_sequence)
-
-
-class QtApplicationAction(QtAction):
-
-    def __init__(self, proxy, action_id, title, callback):
-        super(QtApplicationAction, self).__init__(proxy, action_id, title)
-        self.callback = callback
-
-    def create(self):
-        if self._qt_action is None:
-            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, True)
-
-    def adjustApplicationAction(self):
-        self.proxy.Actions_enableAction(self.qt_action_manager, self.action_id)
-
-    def adjustDocumentAction(self, document_controller):
-        pass
-
-    def execute(self):
-        self.callback()
-
-
-class QtDocumentAction(QtAction):
-
-    def __init__(self, proxy, action_id, title, callback):
-        super(QtDocumentAction, self).__init__(proxy, action_id, title)
-        self.callback = callback
-
-    def create(self):
-        if self._qt_action is None:
-            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
-
-    def adjustApplicationAction(self):
-        pass
-
-    def adjustDocumentAction(self, document_controller):
-        self.proxy.Actions_enableAction(self.qt_action_manager, self.action_id)
-
-    def execute(self, document_controller):
-        self.callback(document_controller)
-
-
-class QtPanelAction(QtAction):
-
-    def __init__(self, proxy, action_id, title, callback):
-        super(QtPanelAction, self).__init__(proxy, action_id, title)
-        self.callback = callback
-
-    def create(self):
-        if self._qt_action is None:
-            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
-
-    def adjustApplicationAction(self):
-        pass
-
-    def adjustDocumentAction(self, document_controller):
-        pass # self.proxy.Actions_enableAction(qt_action_manager, self.action_id)
-
-    def execute(self, document_controller):
-        self.callback(document_controller.selected_image_panel)
-
-
-class QtMenu(object):
-
-    def __init__(self, proxy, menu_id, title):
-        self.proxy = proxy
-        self.menu_id = menu_id
-        self.title = title
-        self.qt_action_manager = None
-        self.__qt_menu = None
-        self.action_ids = []
-        self.__action_map = {}
-        self.__build_items = []  # used to delay building menus
-
-    def __create(self):
-        if self.__qt_menu is None:
-            self.__qt_menu = self.proxy.Actions_findMenu(self.qt_action_manager, self.menu_id)
-            if not self.__qt_menu:
-                self.__qt_menu = self.proxy.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
-
-    def get_qt_menu(self):
-        self.__create()
-        return self.__qt_menu
-    qt_menu = property(get_qt_menu)
-
-    def createActions(self):
-        for build_item in self.__build_items:
-            insert_before_action_id = build_item["insert"] if "insert" in build_item else None
-            if "action" in build_item:
-                action = build_item["action"]
-                action.qt_action_manager = self.qt_action_manager
-                qt_action = action.qt_action  # need to set action.qt_action_manager before this call
-                self.proxy.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
-                action.configure()
-            else:
-                self.proxy.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, insert_before_action_id)
-
-    def insertAction(self, action, before_action_id):
-        action_id = action.action_id
-        assert action_id not in self.action_ids
-        self.action_ids.append(action_id)
-        self.__build_items.append({ "action": action, "insert": before_action_id })
-        self.__action_map[action_id] = action
-        if self.__qt_menu:
-            action.qt_action_manager = self.qt_action_manager
-            qt_action = action.qt_action  # need to set action.qt_action_manager before this call
-            self.proxy.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, before_action_id)
-
-    def insertSeparator(self, before_action_id):
-        self.__build_items.append({ "separator": True, "insert": before_action_id })
-        if self.__qt_menu:
-            action.qt_action_manager = self.qt_action_manager
-            self.proxy.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, before_action_id)
-
-    def adjustApplicationActions(self):
-        for action_id in self.action_ids:
-            action = self.__action_map[action_id]
-            action.adjustApplicationAction()
-
-    def adjustDocumentActions(self, document_controller):
-        for action_id in self.action_ids:
-            action = self.__action_map[action_id]
-            action.adjustDocumentAction(document_controller)
-
-    def findAction(self, action_id):
-        return self.__action_map[action_id] if action_id in self.__action_map else None
-
-
-class QtMenuManager(object):
-
-    def __init__(self, proxy):
-        self.proxy = proxy
-        self.menu_ids = []  # ordering of menus
-        self.__menu_dicts = {}  # map from id to menu dict
-        self.qt_menu_bar = None
-        self.qt_action_manager = None
-
-    def createMenus(self, qt_menu_bar, qt_action_manager):
-        self.qt_menu_bar = qt_menu_bar
-        self.qt_action_manager = qt_action_manager
-        for menu_id in self.menu_ids:
-            menu_dict = self.__menu_dicts[menu_id]
-            menu = menu_dict["menu"]
-            menu.qt_action_manager = self.qt_action_manager
-            qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
-            insert_before_id = menu_dict["insert"]
-            self.proxy.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, insert_before_id)
-            menu.createActions()
-
-    # Menu will be inserted immediately if menu_bar is not None.
-    # Otherwise, menu will be inserted when createMenus is called.
-    def insert_menu(self, menu_id, title, before_menu_id, use_existing=True):
-        assert use_existing or menu_id not in self.menu_ids
-        if not use_existing or menu_id not in self.menu_ids:
-            menu = QtMenu(self.proxy, menu_id, title)
-            self.menu_ids.append(menu_id)
-            self.__menu_dicts[menu_id] = { "menu": menu, "insert": before_menu_id }
-            if self.qt_menu_bar and self.qt_action_manager:
-                menu.qt_action_manager = self.qt_action_manager
-                qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
-                self.proxy.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, before_menu_id)
-                menu.createActions()
-
-    def add_menu(self, menu_id, title):
-        self.insert_menu(menu_id, title, None)
-
-    def insert_separator(self, menu_id, before_action_id):
-        assert menu_id in self.__menu_dicts
-        menu_dict = self.__menu_dicts[menu_id]
-        menu = menu_dict["menu"]
-        assert menu is not None
-        menu.insertSeparator(before_action_id)
-
-    def insert_action(self, menu_id, action, before_action_id):
-        assert menu_id in self.__menu_dicts
-        menu_dict = self.__menu_dicts[menu_id]
-        menu = menu_dict["menu"]
-        assert menu is not None
-        menu.insertAction(action, before_action_id)
-
-    def insert_application_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None):
-        action = self.findAction(action_id)
-        assert action is None, "action already exists"
-        action = QtApplicationAction(self.proxy, action_id, title, callback)
-        action.key_sequence = key_sequence
-        self.insert_action(menu_id, action, before_action_id)
-
-    def insert_document_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
-        action = self.findAction(action_id)
-        assert action is None, "action already exists"
-        action = QtDocumentAction(self.proxy, action_id, title, callback)
-        action.key_sequence = key_sequence
-        self.insert_action(menu_id, action, before_action_id)
-
-    def add_action(self, menu_id, action):
-        assert not self.findAction(action.action_id)
-        self.insert_action(menu_id, action, None)
-
-    def add_application_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
-        action = self.findAction(action_id)
-        assert replace_existing or (action is None), "action already exists"
-        if replace_existing and action:
-            action.title = title
-            action.callback = callback
-        else:
-            action = QtApplicationAction(self.proxy, action_id, title, callback)
-            action.key_sequence = key_sequence
-            self.add_action(menu_id, action)
-
-    def add_document_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
-        action = self.findAction(action_id)
-        assert replace_existing or (action is None), "action already exists"
-        if replace_existing and action:
-            action.title = title
-            action.callback = callback
-        else:
-            action = QtDocumentAction(self.proxy, action_id, title, callback)
-            action.key_sequence = key_sequence
-            self.add_action(menu_id, action)
-
-    def add_panel_action(self, menu_id, action_id, title, callback, key_sequence=None, replace_existing=False):
-        action = self.findAction(action_id)
-        assert replace_existing or (action is None), "action already exists"
-        if replace_existing and action:
-            action.title = title
-            action.callback = callback
-        else:
-            action = QtPanelAction(self.proxy, action_id, title, callback)
-            action.key_sequence = key_sequence
-            self.add_action(menu_id, action)
-
-    def adjustApplicationActions(self):
-        for menu_id in self.menu_ids:
-            menu_dict = self.__menu_dicts[menu_id]
-            menu = menu_dict["menu"]
-            menu.adjustApplicationActions()
-
-    def adjustDocumentActions(self, document_controller):
-        for menu_id in self.menu_ids:
-            menu_dict = self.__menu_dicts[menu_id]
-            menu = menu_dict["menu"]
-            menu.adjustDocumentActions(document_controller)
-
-    # search through each menu and look for a matching action
-    def findAction(self, action_id):
-        for menu_id in self.menu_ids:
-            menu_dict = self.__menu_dicts[menu_id]
-            menu = menu_dict["menu"]
-            action = menu.findAction(action_id)
-            if action:
-                return action
-        return None
-
-    def dispatchApplicationAction(self, action_id):
-        action = self.findAction(action_id)
-        if action:
-            action.execute()
-
-    def dispatchDocumentAction(self, document_controller, action_id):
-        action = self.findAction(action_id)
-        if action:
-            action.execute(document_controller)
-
-
 class QtUserInterface(object):
 
     def __init__(self, proxy):
         self.proxy = proxy
+
+    def close(self):
+        self.proxy.Application_close()
 
     # data objects
 
@@ -1418,8 +1193,8 @@ class QtUserInterface(object):
 
     # window elements
 
-    def create_document_window(self, native_document_window):
-        return QtDocumentWindow(self.proxy, native_document_window)
+    def create_document_window(self):
+        return QtDocumentWindow(self.proxy)
 
     # user interface elements
 
@@ -1481,8 +1256,3 @@ class QtUserInterface(object):
 
     def set_persistent_string(self, key, value):
         self.proxy.Settings_setString(key, value)
-
-    # menus
-
-    def create_menu_manager(self):
-        return QtMenuManager(self.proxy)
