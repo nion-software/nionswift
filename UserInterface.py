@@ -1113,6 +1113,15 @@ class QtMenu(object):
     def add_separator(self):
         self.proxy.Menu_addSeparator(self.native_menu)
 
+    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
+        action = QtAction(self.proxy, self.document_window, title, key_sequence, role)
+        action.on_triggered = callback
+        self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
+        return action
+
+    def insert_separator(self, before_action):
+        self.proxy.Menu_insertSeparator(self.native_menu, before_action.native_action)
+
 
 class QtDocumentWindow(object):
 
@@ -1157,6 +1166,11 @@ class QtDocumentWindow(object):
 
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, title)
+        menu = QtMenu(self.proxy, self, native_menu)
+        return menu
+
+    def insert_menu(self, title, before_menu):
+        native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, title, before_menu.native_menu)
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
 

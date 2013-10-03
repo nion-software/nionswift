@@ -89,7 +89,7 @@ class Application(object):
         self.__document_windows.append(document_window)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
-            menu_handler(None)
+            menu_handler(document_window)
         return document_window
     def unregister_document_window(self, document_window):
         self.__document_windows.remove(document_window)
@@ -101,9 +101,8 @@ class Application(object):
         assert new_menu_handler not in self.__menu_handlers
         self.__menu_handlers.append(new_menu_handler)
         # when a menu handler is registered, let it immediately know about existing menu handlers
-        new_menu_handler(None)
         for document_window in self.__document_windows:
-            new_menu_handler(None)
+            new_menu_handler(document_window)
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
     def unregister_menu_handler(self, menu_handler):

@@ -55,7 +55,6 @@ class DocumentController(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.application.register_document_window(self)
         if storage_reader:
             storage_writer.disconnected = True
             need_rewrite = self.read(storage_reader)
@@ -69,6 +68,7 @@ class DocumentController(Storage.StorageBase):
             storage_writer.set_root(self)
             self.write()
         self.create_menus()
+        self.application.register_document_window(self)  # must go after create_menus
         if _create_workspace:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self)
 
@@ -110,68 +110,70 @@ class DocumentController(Storage.StorageBase):
 
     def create_menus(self):
 
-        file_menu = self.document_window.add_menu(_("File"))
+        self.file_menu = self.document_window.add_menu(_("File"))
 
-        edit_menu = self.document_window.add_menu(_("Edit"))
+        self.edit_menu = self.document_window.add_menu(_("Edit"))
 
-        processing_menu = self.document_window.add_menu(_("Processing"))
+        self.processing_menu = self.document_window.add_menu(_("Processing"))
 
-        layout_menu = self.document_window.add_menu(_("Layout"))
+        self.layout_menu = self.document_window.add_menu(_("Layout"))
 
-        graphic_menu = self.document_window.add_menu(_("Graphic"))
+        self.graphic_menu = self.document_window.add_menu(_("Graphic"))
 
-        ### window_menu = self.document_window.add_menu(_("Window"))
+        self.window_menu = self.document_window.add_menu(_("Window"))
 
-        help_menu = self.document_window.add_menu(_("Help"))
+        self.help_menu = self.document_window.add_menu(_("Help"))
 
-        file_menu.add_menu_item(_("New"), lambda: self.no_operation(), key_sequence="new")
-        file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
-        file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
-        file_menu.add_separator()
-        file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
-        file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
-        file_menu.add_separator()
-        file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
-        file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
-        file_menu.add_menu_item(_("Add Green"), lambda: self.add_green_data_item(), key_sequence="Ctrl+Shift+G")
-        file_menu.add_separator()
-        file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
+        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.no_operation(), key_sequence="new")
+        self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
+        self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
+        self.file_menu.add_separator()
+        self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
+        self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
+        self.file_menu.add_separator()
+        self.add_smart_group_action = self.file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
+        self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
+        self.add_green_action = self.file_menu.add_menu_item(_("Add Green"), lambda: self.add_green_data_item(), key_sequence="Ctrl+Shift+G")
+        self.file_menu.add_separator()
+        self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
 
-        edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
-        edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")
-        edit_menu.add_separator()
-        edit_menu.add_menu_item(_("Cut"), lambda: self.no_operation(), key_sequence="cut")
-        edit_menu.add_menu_item(_("Copy"), lambda: self.no_operation(), key_sequence="copy")
-        edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
-        edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
-        edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
-        edit_menu.add_separator()
-        edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
+        self.undo_action = self.edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
+        self.redo_action = self.edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")
+        self.edit_menu.add_separator()
+        self.cut_action = self.edit_menu.add_menu_item(_("Cut"), lambda: self.no_operation(), key_sequence="cut")
+        self.copy_action = self.edit_menu.add_menu_item(_("Copy"), lambda: self.no_operation(), key_sequence="copy")
+        self.paste_action = self.edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
+        self.delete_action = self.edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
+        self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
+        self.edit_menu.add_separator()
+        self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
 
-        processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
-        processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
-        processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
-        processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
-        processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
-        processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
-        processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
-        processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
-        processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+Shift+S")
-        processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
-        processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
+        self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
+        self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
+        self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
+        self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
+        self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
+        self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
+        self.processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
+        self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
+        self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+Shift+S")
+        self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
+        self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
 
-        layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
-        layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
-        layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
-        layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
+        # these are temporary menu items, so don't need to assign them to variables, for now
+        self.layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
+        self.layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
+        self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
+        self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
 
-        graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
-        graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
-        graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
-        graphic_menu.add_menu_item(_("Remove Graphic"), lambda: self.remove_graphic())
+        # these are temporary menu items, so don't need to assign them to variables, for now
+        self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
+        self.graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
+        self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
+        self.graphic_menu.add_menu_item(_("Remove Graphic"), lambda: self.remove_graphic())
 
-        help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
-        help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
+        self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
+        self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
 
     def create_default_data_groups(self):
         # ensure there is at least one group
