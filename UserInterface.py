@@ -10,7 +10,7 @@ import uuid
 import weakref
 
 # third party libraries
-import NionLib
+# none
 
 # local libraries
 from nion.swift.Decorators import ProcessingThread
@@ -71,10 +71,11 @@ class QtKeyboardModifiers(object):
 
 
 class QtMimeData(object):
-    def __init__(self, mime_data=None):
-        self.raw_mime_data = mime_data if mime_data else NionLib.MimeData_create()
+    def __init__(self, proxy, mime_data=None):
+        self.proxy = proxy
+        self.raw_mime_data = mime_data if mime_data else self.proxy.MimeData_create()
     def __get_formats(self):
-        return NionLib.MimeData_formats(self.raw_mime_data)
+        return self.proxy.MimeData_formats(self.raw_mime_data)
     formats = property(__get_formats)
     def has_format(self, format):
         return format in self.formats
@@ -90,17 +91,18 @@ class QtMimeData(object):
         urls = self.urls
         file_paths = []
         for url in urls:
-            file_path = NionLib.Core_URLToPath(url)
+            file_path = self.proxy.Core_URLToPath(url)
             if file_path and len(file_path) > 0 and os.path.isfile(file_path) and os.path.exists(file_path):
                 file_paths.append(file_path)
         return file_paths
     file_paths = property(__get_file_paths)
     def data_as_string(self, format):
-        return NionLib.MimeData_dataAsString(self.raw_mime_data, format)
+        return self.proxy.MimeData_dataAsString(self.raw_mime_data, format)
     def set_data_as_string(self, format, text):
-        NionLib.MimeData_setDataAsString(self.raw_mime_data, format, text)
+        self.proxy.MimeData_setDataAsString(self.raw_mime_data, format, text)
 
 
+# pobj
 class QtItemModelController(object):
 
     NONE = 0
@@ -144,8 +146,10 @@ class QtItemModelController(object):
             self.weak_parent = weakref.ref(parent) if parent else None
         parent = property(__get_parent, __set_parent)
 
-    def __init__(self, keys):
-        self.py_item_model = NionLib.PyItemModel_create(self, ["index"] + keys)
+    def __init__(self, proxy, keys):
+        self.proxy = proxy
+        self.py_item_model = self.proxy.PyItemModel_create(["index"] + keys)
+        self.proxy.PyItemModel_connect(self.py_item_model, self)
         self.__next_id = 0
         self.root = self.create_item()
         self.on_item_set_data = None
@@ -156,7 +160,7 @@ class QtItemModelController(object):
         self.mime_types_for_drop = []
 
     def close(self):
-        NionLib.PyItemModel_destroy(self.py_item_model)
+        self.proxy.PyItemModel_destroy(self.py_item_model)
 
     # these methods must be invoked from the client
 
@@ -267,21 +271,22 @@ class QtItemModelController(object):
             self.traverse_depth_first(fn, self.root)
 
     def begin_insert(self, first_row, last_row, parent_row, parent_id):
-        NionLib.PyItemModel_beginInsertRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
+        self.proxy.PyItemModel_beginInsertRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
 
     def end_insert(self):
-        NionLib.PyItemModel_endInsertRow(self.py_item_model)
+        self.proxy.PyItemModel_endInsertRow(self.py_item_model)
 
     def begin_remove(self, first_row, last_row, parent_row, parent_id):
-        NionLib.PyItemModel_beginRemoveRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
+        self.proxy.PyItemModel_beginRemoveRows(self.py_item_model, first_row, last_row, parent_row, parent_id)
 
     def end_remove(self):
-        NionLib.PyItemModel_endRemoveRow(self.py_item_model)
+        self.proxy.PyItemModel_endRemoveRow(self.py_item_model)
 
     def data_changed(self, row, parent_row, parent_id):
-        NionLib.PyItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
+        self.proxy.PyItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
 
 
+# pobj
 class QtListModelController(object):
 
     NONE = 0
@@ -292,8 +297,10 @@ class QtListModelController(object):
     DRAG = 1
     DROP = 2
 
-    def __init__(self, keys):
-        self.py_list_model = NionLib.PyListModel_create(self, ["index"] + keys)
+    def __init__(self, proxy, keys):
+        self.proxy = proxy
+        self.py_list_model = self.proxy.PyListModel_create(["index"] + keys)
+        self.proxy.PyListModel_connect(self.py_list_model, self)
         self.model = []
         self.on_item_drop_mime_data = None
         self.on_item_mime_data = None
@@ -301,7 +308,7 @@ class QtListModelController(object):
         self.supported_drop_actions = 0
         self.mime_types_for_drop = []
     def close(self):
-        NionLib.PyListModel_destroy(self.py_list_model)
+        self.proxy.PyListModel_destroy(self.py_list_model)
     # these methods are invoked from Qt
     def itemCount(self):
         return len(self.model)
@@ -334,15 +341,15 @@ class QtListModelController(object):
         return self.mime_types_for_drop
     # these methods must be invoked from the client when the model changes
     def begin_insert(self, first_row, last_row):
-        NionLib.PyListModel_beginInsertRows(self.py_list_model, first_row, last_row)
+        self.proxy.PyListModel_beginInsertRows(self.py_list_model, first_row, last_row)
     def end_insert(self):
-        NionLib.PyListModel_endInsertRow(self.py_list_model)
+        self.proxy.PyListModel_endInsertRow(self.py_list_model)
     def begin_remove(self, first_row, last_row):
-        NionLib.PyListModel_beginRemoveRows(self.py_list_model, first_row, last_row)
+        self.proxy.PyListModel_beginRemoveRows(self.py_list_model, first_row, last_row)
     def end_remove(self):
-        NionLib.PyListModel_endRemoveRow(self.py_list_model)
+        self.proxy.PyListModel_endRemoveRow(self.py_list_model)
     def data_changed(self):
-        NionLib.PyListModel_dataChanged(self.py_list_model)
+        self.proxy.PyListModel_dataChanged(self.py_list_model)
 
 
 class QtDrawingContext(object):
@@ -471,31 +478,32 @@ class QtDrawingContext(object):
 
 
 class QtWidget(object):
-    def __init__(self, widget_type, properties):
+    def __init__(self, proxy, widget_type, properties):
+        self.proxy = proxy
         self.properties = properties if properties else {}
-        self.widget = NionLib.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
+        self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
 
     def update_properties(self):
         if self.widget:
             for key in self.properties.keys():
-                NionLib.Widget_setWidgetProperty(self.widget, key, self.properties[key])
+                self.proxy.Widget_setWidgetProperty(self.widget, key, self.properties[key])
 
     def __get_focused(self):
-        return NionLib.Widget_hasFocus(self.widget)
+        return self.proxy.Widget_hasFocus(self.widget)
     def __set_focused(self, focused):
         if focused != self.focused:
             if focused:
-                NionLib.Widget_setFocus(self.widget, 7)
+                self.proxy.Widget_setFocus(self.widget, 7)
             else:
-                NionLib.Widget_clearFocus(self.widget)
+                self.proxy.Widget_clearFocus(self.widget)
     focused = property(__get_focused, __set_focused)
 
 
 class QtBoxWidget(QtWidget):
 
-    def __init__(self, widget_type, properties):
-        super(QtBoxWidget, self).__init__(widget_type, properties)
+    def __init__(self, proxy, widget_type, properties):
+        super(QtBoxWidget, self).__init__(proxy, widget_type, properties)
         self.children = []
 
     def count(self):
@@ -513,58 +521,58 @@ class QtBoxWidget(QtWidget):
         self.children.insert(index, child)
         assert self.widget is not None
         assert child.widget is not None
-        NionLib.Widget_insertWidget(self.widget, child.widget, index)
+        self.proxy.Widget_insertWidget(self.widget, child.widget, index)
 
     def add(self, child):
         self.insert(child, None)
 
     def remove(self, child):
         self.children.remove(child)
-        NionLib.Widget_removeWidget(child.widget)
+        self.proxy.Widget_removeWidget(child.widget)
 
     def add_stretch(self):
-        NionLib.Widget_addStretch(self.widget)
+        self.proxy.Widget_addStretch(self.widget)
 
     def add_spacing(self, spacing):
-        NionLib.Widget_addSpacing(self.widget, spacing)
+        self.proxy.Widget_addSpacing(self.widget, spacing)
 
 
 class QtRowWidget(QtBoxWidget):
 
-    def __init__(self, properties):
-        super(QtRowWidget, self).__init__("row", properties)
+    def __init__(self, proxy, properties):
+        super(QtRowWidget, self).__init__(proxy, "row", properties)
 
 
 class QtColumnWidget(QtBoxWidget):
 
-    def __init__(self, properties):
-        super(QtColumnWidget, self).__init__("column", properties)
+    def __init__(self, proxy, properties):
+        super(QtColumnWidget, self).__init__(proxy, "column", properties)
 
 
 class QtSplitterWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtSplitterWidget, self).__init__("splitter", properties)
-        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+    def __init__(self, proxy, properties):
+        super(QtSplitterWidget, self).__init__(proxy, "splitter", properties)
+        self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
     def add(self, child):
-        NionLib.Widget_addWidget(self.widget, child.widget)
+        self.proxy.Widget_addWidget(self.widget, child.widget)
 
     def restore_state(self, tag):
-        NionLib.Splitter_restoreState(self.widget, tag)
+        self.proxy.Splitter_restoreState(self.widget, tag)
 
     def save_state(self, tag):
-        NionLib.Splitter_saveState(self.widget, tag)
+        self.proxy.Splitter_saveState(self.widget, tag)
 
 
 class QtTabWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtTabWidget, self).__init__("group", properties)
-        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+    def __init__(self, proxy, properties):
+        super(QtTabWidget, self).__init__(proxy, "group", properties)
+        self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
 
     def add(self, child, label):
-        NionLib.TabWidget_addTab(self.widget, child.widget, label)
+        self.proxy.TabWidget_addTab(self.widget, child.widget, label)
 
     def restore_state(self, tag):
         pass
@@ -575,16 +583,16 @@ class QtTabWidget(QtWidget):
 
 class QtComboBoxWidget(QtWidget):
 
-    def __init__(self, items, properties):
-        super(QtComboBoxWidget, self).__init__("combobox", properties)
+    def __init__(self, proxy, items, properties):
+        super(QtComboBoxWidget, self).__init__(proxy, "combobox", properties)
         self.__on_current_text_changed = None
         self.items = items if items else []
-        NionLib.ComboBox_connect(self.widget, self)
+        self.proxy.ComboBox_connect(self.widget, self)
 
     def __get_current_text(self):
-        return NionLib.ComboBox_getCurrentText(self.widget)
+        return self.proxy.ComboBox_getCurrentText(self.widget)
     def __set_current_text(self, text):
-        NionLib.ComboBox_setCurrentText(self.widget, text)
+        self.proxy.ComboBox_setCurrentText(self.widget, text)
     current_text = property(__get_current_text, __set_current_text)
 
     def __get_on_current_text_changed(self):
@@ -596,9 +604,9 @@ class QtComboBoxWidget(QtWidget):
     def __get_items(self):
         return self.__items
     def __set_items(self, items):
-        NionLib.ComboBox_removeAllItems(self.widget)
+        self.proxy.ComboBox_removeAllItems(self.widget)
         for item in items:
-            NionLib.ComboBox_addItem(self.widget, item)
+            self.proxy.ComboBox_addItem(self.widget, item)
     items = property(__get_items, __set_items)
 
     # this message comes from Qt implementation
@@ -609,17 +617,17 @@ class QtComboBoxWidget(QtWidget):
 
 class QtPushButtonWidget(QtWidget):
 
-    def __init__(self, text, properties):
-        super(QtPushButtonWidget, self).__init__("pushbutton", properties)
+    def __init__(self, proxy, text, properties):
+        super(QtPushButtonWidget, self).__init__(proxy, "pushbutton", properties)
         self.__on_clicked = None
         self.text = text
-        NionLib.PushButton_connect(self.widget, self)
+        self.proxy.PushButton_connect(self.widget, self)
 
     def __get_text(self):
         return self.__text
     def __set_text(self, text):
         self.__text = text
-        NionLib.PushButton_setText(self.widget, text)
+        self.proxy.PushButton_setText(self.widget, text)
     text = property(__get_text, __set_text)
 
     def __get_on_clicked(self):
@@ -635,8 +643,8 @@ class QtPushButtonWidget(QtWidget):
 
 class QtLabelWidget(QtWidget):
 
-    def __init__(self, text, properties):
-        super(QtLabelWidget, self).__init__("label", properties)
+    def __init__(self, proxy, text, properties):
+        super(QtLabelWidget, self).__init__(proxy, "label", properties)
         self.__text = None
         self.text = text
 
@@ -644,14 +652,14 @@ class QtLabelWidget(QtWidget):
         return self.__text
     def __set_text(self, text):
         self.__text = text if text else ""
-        NionLib.Label_setText(self.widget, self.__text)
+        self.proxy.Label_setText(self.widget, self.__text)
     text = property(__get_text, __set_text)
 
 
 class QtSliderWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtSliderWidget, self).__init__("slider", properties)
+    def __init__(self, proxy, properties):
+        super(QtSliderWidget, self).__init__(proxy, "slider", properties)
         self.__on_value_changed = None
         self.__on_slider_pressed = None
         self.__on_slider_released = None
@@ -659,28 +667,28 @@ class QtSliderWidget(QtWidget):
         self.__pressed = False
         self.__min = 0
         self.__max = 0
-        NionLib.Slider_connect(self.widget, self)
+        self.proxy.Slider_connect(self.widget, self)
         self.minimum = self.__min
         self.maximum = self.__max
 
     def __get_value(self):
-        return NionLib.Slider_getValue(self.widget)
+        return self.proxy.Slider_getValue(self.widget)
     def __set_value(self, value):
-        NionLib.Slider_setValue(self.widget, value)
+        self.proxy.Slider_setValue(self.widget, value)
     value = property(__get_value, __set_value)
 
     def __get_minimum(self):
         return self.__min
     def __set_minimum(self, value):
         self.__min = value
-        NionLib.Slider_setMinimum(self.widget, value)
+        self.proxy.Slider_setMinimum(self.widget, value)
     minimum = property(__get_minimum, __set_minimum)
 
     def __get_maximum(self):
         return self.__max
     def __set_maximum(self, value):
         self.__max = value
-        NionLib.Slider_setMaximum(self.widget, value)
+        self.proxy.Slider_setMaximum(self.widget, value)
     maximum = property(__get_maximum, __set_maximum)
 
     def __get_pressed(self):
@@ -732,17 +740,17 @@ class QtSliderWidget(QtWidget):
 
 class QtLineEditWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtLineEditWidget, self).__init__("lineedit", properties)
+    def __init__(self, proxy, properties):
+        super(QtLineEditWidget, self).__init__(proxy, "lineedit", properties)
         self.__on_editing_finished = None
         self.__on_text_edited = None
         self.__formatter = None
-        NionLib.LineEdit_connect(self.widget, self)
+        self.proxy.LineEdit_connect(self.widget, self)
 
     def __get_text(self):
-        return NionLib.LineEdit_getText(self.widget)
+        return self.proxy.LineEdit_getText(self.widget)
     def __set_text(self, text):
-        NionLib.LineEdit_setText(self.widget, text)
+        self.proxy.LineEdit_setText(self.widget, text)
     text = property(__get_text, __set_text)
 
     def __get_formatter(self):
@@ -766,7 +774,7 @@ class QtLineEditWidget(QtWidget):
     on_text_edited = property(__get_on_text_edited, __set_on_text_edited)
 
     def select_all(self):
-        NionLib.LineEdit_selectAll(self.widget)
+        self.proxy.LineEdit_selectAll(self.widget)
 
     def editing_finished(self, text):
         if self.__formatter:
@@ -781,9 +789,9 @@ class QtLineEditWidget(QtWidget):
 
 class QtCanvasWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtCanvasWidget, self).__init__("canvas", properties)
-        NionLib.Canvas_connect(self.widget, self)
+    def __init__(self, proxy, properties):
+        super(QtCanvasWidget, self).__init__(proxy, "canvas", properties)
+        self.proxy.Canvas_connect(self.widget, self)
         self.__on_mouse_entered = None
         self.__on_mouse_exited = None
         self.__on_mouse_clicked = None
@@ -804,7 +812,7 @@ class QtCanvasWidget(QtWidget):
         return self.__focusable
     def __set_focusable(self, focusable):
         self.__focusable = focusable
-        NionLib.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
+        self.proxy.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
     focusable = property(__get_focusable, __set_focusable)
 
     class Layer(object):
@@ -830,7 +838,7 @@ class QtCanvasWidget(QtWidget):
         for layer in self.layers:
             commands.extend(layer.drawing_context.commands)
             assert layer.drawing_context.save_count == 0
-        NionLib.Canvas_draw(self.widget, commands)
+        self.proxy.Canvas_draw(self.widget, commands)
 
     def __get_on_mouse_entered(self):
         return self.__on_mouse_entered
@@ -940,12 +948,13 @@ class QtCanvasWidget(QtWidget):
         return False
 
 
+# pobj
 class QtTreeWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtTreeWidget, self).__init__("pytree", properties)
-        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
-        NionLib.PyTreeWidget_connect(self.widget, self)
+    def __init__(self, proxy, properties):
+        super(QtTreeWidget, self).__init__(proxy, "pytree", properties)
+        self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyTreeWidget { margin-top: 4px }")
+        self.proxy.PyTreeWidget_connect(self.widget, self)
         self.__item_model_controller = None
         self.on_key_pressed = None
         self.on_current_item_changed = None
@@ -956,7 +965,7 @@ class QtTreeWidget(QtWidget):
         return self.__item_model_controller
     def __set_item_model_controller(self, item_model_controller):
         self.__item_model_controller = item_model_controller
-        NionLib.PyTreeWidget_setModel(self.widget, item_model_controller.py_item_model)
+        self.proxy.PyTreeWidget_setModel(self.widget, item_model_controller.py_item_model)
     item_model_controller = property(__get_item_model_controller, __set_item_model_controller)
 
     def treeItemChanged(self, index, parent_row, parent_id):
@@ -979,15 +988,16 @@ class QtTreeWidget(QtWidget):
         return False
 
     def set_current_row(self, index, parent_row, parent_id):
-        NionLib.PyTreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
+        self.proxy.PyTreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
 
 
+# pobj
 class QtListWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtListWidget, self).__init__("pylist", properties)
-        NionLib.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyListWidget { margin-top: 4px }")
-        NionLib.PyListWidget_connect(self.widget, self)
+    def __init__(self, proxy, properties):
+        super(QtListWidget, self).__init__(proxy, "pylist", properties)
+        self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "* { border: none; background-color: '#EEEEEE'; } PyListWidget { margin-top: 4px }")
+        self.proxy.PyListWidget_connect(self.widget, self)
         self.__list_model_controller = None
         self.__on_paint = None
         self.on_current_item_changed = None
@@ -1000,7 +1010,7 @@ class QtListWidget(QtWidget):
         return self.__list_model_controller
     def __set_list_model_controller(self, list_model_controller):
         self.__list_model_controller = list_model_controller
-        NionLib.PyListWidget_setModel(self.widget, list_model_controller.py_list_model)
+        self.proxy.PyListWidget_setModel(self.widget, list_model_controller.py_list_model)
     list_model_controller = property(__get_list_model_controller, __set_list_model_controller)
 
     def listItemChanged(self, index):
@@ -1023,9 +1033,9 @@ class QtListWidget(QtWidget):
         return False
 
     def __get_current_index(self):
-        return NionLib.PyListWidget_getCurrentRow(self.widget)
+        return self.proxy.PyListWidget_getCurrentRow(self.widget)
     def __set_current_index(self, current_index):
-        return NionLib.PyListWidget_setCurrentRow(self.widget, current_index)
+        return self.proxy.PyListWidget_setCurrentRow(self.widget, current_index)
     current_index = property(__get_current_index, __set_current_index)
 
     def __get_on_paint(self):
@@ -1033,9 +1043,9 @@ class QtListWidget(QtWidget):
     def __set_on_paint(self, fn):
         self.__on_paint = fn
         if not self.__delegate:
-            self.__delegate = NionLib.PyStyledDelegate_create()
-            NionLib.PyStyledDelegate_connect(self.__delegate, self)
-            NionLib.PyListWidget_setItemDelegate(self.widget, self.__delegate)
+            self.__delegate = self.proxy.PyStyledDelegate_create()
+            self.proxy.PyStyledDelegate_connect(self.__delegate, self)
+            self.proxy.PyListWidget_setItemDelegate(self.widget, self.__delegate)
     on_paint = property(__get_on_paint, __set_on_paint)
 
     # this message comes from the styled item delegate
@@ -1043,24 +1053,25 @@ class QtListWidget(QtWidget):
         if self.__on_paint:
             drawing_context = QtDrawingContext()
             self.__on_paint(drawing_context, options)
-            NionLib.DrawingContext_drawCommands(dc, drawing_context.commands)
+            self.proxy.DrawingContext_drawCommands(dc, drawing_context.commands)
 
 
 class QtOutputWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtOutputWidget, self).__init__("output", properties)
+    def __init__(self, proxy, properties):
+        super(QtOutputWidget, self).__init__(proxy, "output", properties)
 
     def send(self, message):
-        NionLib.Output_out(self.widget, message)
+        self.proxy.Output_out(self.widget, message)
 
 
+# pobj
 class QtConsoleWidget(QtWidget):
 
-    def __init__(self, properties):
-        super(QtConsoleWidget, self).__init__("console", properties)
+    def __init__(self, proxy, properties):
+        super(QtConsoleWidget, self).__init__(proxy, "console", properties)
         self.on_interpret_command = None
-        NionLib.Console_setDelegate(self.widget, self)
+        self.proxy.Console_connect(self.widget, self)
 
     def interpretCommand(self, command):
         if self.on_interpret_command:
@@ -1070,41 +1081,44 @@ class QtConsoleWidget(QtWidget):
 
 class QtDocumentWindow(object):
 
-    def __init__(self, native_document_window):
+    def __init__(self, proxy, native_document_window):
+        self.proxy = proxy
         self.native_document_window = native_document_window
         self.root_widget = None
         self.has_event_loop = True
 
     def attach(self, root_widget):
         self.root_widget = root_widget
-        NionLib.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
+        self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
 
     def get_file_paths_dialog(self, title, directory, filter):
-        return NionLib.DocumentWindow_getFilePath(self.native_document_window, "loadmany", title, directory, filter)
+        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", title, directory, filter)
 
     def get_save_file_path(self, title, directory, filter):
-        return NionLib.DocumentWindow_getFilePath(self.native_document_window, "save", title, directory, filter)
+        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", title, directory, filter)
 
     def create_dock_widget(self, widget, panel_id, title, positions, position):
-        return QtDockWidget(self, widget, panel_id, title, positions, position)
+        return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
 
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
-        NionLib.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
+        self.proxy.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
 
 
 class QtDockWidget(object):
 
-    def __init__(self, document_window, widget, panel_id, title, positions, position):
+    def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
+        self.proxy = proxy
         self.document_window = document_window
-        self.native_dock_widget = NionLib.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, title, positions, position)
+        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, title, positions, position)
 
     def close(self):
-        NionLib.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
+        self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
 
 
 class QtAction(object):
 
-    def __init__(self, action_id, title):
+    def __init__(self, proxy, action_id, title):
+        self.proxy = proxy
         self.action_id = action_id
         self.title = title
         self._qt_action = None
@@ -1121,21 +1135,21 @@ class QtAction(object):
 
     def configure(self):
         if self.key_sequence:
-            NionLib.Actions_setShortcut(self.qt_action_manager, self.action_id, self.key_sequence)
+            self.proxy.Actions_setShortcut(self.qt_action_manager, self.action_id, self.key_sequence)
 
 
 class QtApplicationAction(QtAction):
 
-    def __init__(self, action_id, title, callback):
-        super(QtApplicationAction, self).__init__(action_id, title)
+    def __init__(self, proxy, action_id, title, callback):
+        super(QtApplicationAction, self).__init__(proxy, action_id, title)
         self.callback = callback
 
     def create(self):
         if self._qt_action is None:
-            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, True)
+            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, True)
 
     def adjustApplicationAction(self):
-        NionLib.Actions_enableAction(self.qt_action_manager, self.action_id)
+        self.proxy.Actions_enableAction(self.qt_action_manager, self.action_id)
 
     def adjustDocumentAction(self, document_controller):
         pass
@@ -1146,19 +1160,19 @@ class QtApplicationAction(QtAction):
 
 class QtDocumentAction(QtAction):
 
-    def __init__(self, action_id, title, callback):
-        super(QtDocumentAction, self).__init__(action_id, title)
+    def __init__(self, proxy, action_id, title, callback):
+        super(QtDocumentAction, self).__init__(proxy, action_id, title)
         self.callback = callback
 
     def create(self):
         if self._qt_action is None:
-            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
+            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
 
     def adjustApplicationAction(self):
         pass
 
     def adjustDocumentAction(self, document_controller):
-        NionLib.Actions_enableAction(self.qt_action_manager, self.action_id)
+        self.proxy.Actions_enableAction(self.qt_action_manager, self.action_id)
 
     def execute(self, document_controller):
         self.callback(document_controller)
@@ -1166,19 +1180,19 @@ class QtDocumentAction(QtAction):
 
 class QtPanelAction(QtAction):
 
-    def __init__(self, action_id, title, callback):
-        super(QtPanelAction, self).__init__(action_id, title)
+    def __init__(self, proxy, action_id, title, callback):
+        super(QtPanelAction, self).__init__(proxy, action_id, title)
         self.callback = callback
 
     def create(self):
         if self._qt_action is None:
-            self._qt_action = NionLib.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
+            self._qt_action = self.proxy.Actions_createApplicationAction(self.qt_action_manager, self.action_id, self.title, False)
 
     def adjustApplicationAction(self):
         pass
 
     def adjustDocumentAction(self, document_controller):
-        pass # NionLib.Actions_enableAction(qt_action_manager, self.action_id)
+        pass # self.proxy.Actions_enableAction(qt_action_manager, self.action_id)
 
     def execute(self, document_controller):
         self.callback(document_controller.selected_image_panel)
@@ -1186,7 +1200,8 @@ class QtPanelAction(QtAction):
 
 class QtMenu(object):
 
-    def __init__(self, menu_id, title):
+    def __init__(self, proxy, menu_id, title):
+        self.proxy = proxy
         self.menu_id = menu_id
         self.title = title
         self.qt_action_manager = None
@@ -1197,9 +1212,9 @@ class QtMenu(object):
 
     def __create(self):
         if self.__qt_menu is None:
-            self.__qt_menu = NionLib.Actions_findMenu(self.qt_action_manager, self.menu_id)
+            self.__qt_menu = self.proxy.Actions_findMenu(self.qt_action_manager, self.menu_id)
             if not self.__qt_menu:
-                self.__qt_menu = NionLib.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
+                self.__qt_menu = self.proxy.Actions_createMenu(self.qt_action_manager, self.menu_id, self.title)
 
     def get_qt_menu(self):
         self.__create()
@@ -1213,10 +1228,10 @@ class QtMenu(object):
                 action = build_item["action"]
                 action.qt_action_manager = self.qt_action_manager
                 qt_action = action.qt_action  # need to set action.qt_action_manager before this call
-                NionLib.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
+                self.proxy.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, insert_before_action_id)
                 action.configure()
             else:
-                NionLib.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, insert_before_action_id)
+                self.proxy.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, insert_before_action_id)
 
     def insertAction(self, action, before_action_id):
         action_id = action.action_id
@@ -1227,13 +1242,13 @@ class QtMenu(object):
         if self.__qt_menu:
             action.qt_action_manager = self.qt_action_manager
             qt_action = action.qt_action  # need to set action.qt_action_manager before this call
-            NionLib.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, before_action_id)
+            self.proxy.Actions_insertAction(self.qt_action_manager, self.qt_menu, qt_action, before_action_id)
 
     def insertSeparator(self, before_action_id):
         self.__build_items.append({ "separator": True, "insert": before_action_id })
         if self.__qt_menu:
             action.qt_action_manager = self.qt_action_manager
-            NionLib.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, before_action_id)
+            self.proxy.Actions_insertSeparator(self.qt_action_manager, self.qt_menu, before_action_id)
 
     def adjustApplicationActions(self):
         for action_id in self.action_ids:
@@ -1251,7 +1266,8 @@ class QtMenu(object):
 
 class QtMenuManager(object):
 
-    def __init__(self):
+    def __init__(self, proxy):
+        self.proxy = proxy
         self.menu_ids = []  # ordering of menus
         self.__menu_dicts = {}  # map from id to menu dict
         self.qt_menu_bar = None
@@ -1266,7 +1282,7 @@ class QtMenuManager(object):
             menu.qt_action_manager = self.qt_action_manager
             qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
             insert_before_id = menu_dict["insert"]
-            NionLib.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, insert_before_id)
+            self.proxy.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, insert_before_id)
             menu.createActions()
 
     # Menu will be inserted immediately if menu_bar is not None.
@@ -1274,13 +1290,13 @@ class QtMenuManager(object):
     def insert_menu(self, menu_id, title, before_menu_id, use_existing=True):
         assert use_existing or menu_id not in self.menu_ids
         if not use_existing or menu_id not in self.menu_ids:
-            menu = QtMenu(menu_id, title)
+            menu = QtMenu(self.proxy, menu_id, title)
             self.menu_ids.append(menu_id)
             self.__menu_dicts[menu_id] = { "menu": menu, "insert": before_menu_id }
             if self.qt_menu_bar and self.qt_action_manager:
                 menu.qt_action_manager = self.qt_action_manager
                 qt_menu = menu.qt_menu  # need to set menu.qt_action_manager before this call
-                NionLib.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, before_menu_id)
+                self.proxy.Actions_insertMenu(self.qt_action_manager, self.qt_menu_bar, qt_menu, before_menu_id)
                 menu.createActions()
 
     def add_menu(self, menu_id, title):
@@ -1303,14 +1319,14 @@ class QtMenuManager(object):
     def insert_application_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None):
         action = self.findAction(action_id)
         assert action is None, "action already exists"
-        action = QtApplicationAction(action_id, title, callback)
+        action = QtApplicationAction(self.proxy, action_id, title, callback)
         action.key_sequence = key_sequence
         self.insert_action(menu_id, action, before_action_id)
 
     def insert_document_action(self, menu_id, action_id, before_action_id, title, callback, key_sequence=None, replace_existing=False):
         action = self.findAction(action_id)
         assert action is None, "action already exists"
-        action = QtDocumentAction(action_id, title, callback)
+        action = QtDocumentAction(self.proxy, action_id, title, callback)
         action.key_sequence = key_sequence
         self.insert_action(menu_id, action, before_action_id)
 
@@ -1325,7 +1341,7 @@ class QtMenuManager(object):
             action.title = title
             action.callback = callback
         else:
-            action = QtApplicationAction(action_id, title, callback)
+            action = QtApplicationAction(self.proxy, action_id, title, callback)
             action.key_sequence = key_sequence
             self.add_action(menu_id, action)
 
@@ -1336,7 +1352,7 @@ class QtMenuManager(object):
             action.title = title
             action.callback = callback
         else:
-            action = QtDocumentAction(action_id, title, callback)
+            action = QtDocumentAction(self.proxy, action_id, title, callback)
             action.key_sequence = key_sequence
             self.add_action(menu_id, action)
 
@@ -1347,7 +1363,7 @@ class QtMenuManager(object):
             action.title = title
             action.callback = callback
         else:
-            action = QtPanelAction(action_id, title, callback)
+            action = QtPanelAction(self.proxy, action_id, title, callback)
             action.key_sequence = key_sequence
             self.add_action(menu_id, action)
 
@@ -1386,84 +1402,87 @@ class QtMenuManager(object):
 
 class QtUserInterface(object):
 
+    def __init__(self, proxy):
+        self.proxy = proxy
+
     # data objects
 
     def create_mime_data(self):
-        return QtMimeData()
+        return QtMimeData(self.proxy)
 
     def create_item_model_controller(self, keys):
-        return QtItemModelController(keys)
+        return QtItemModelController(self.proxy, keys)
 
     def create_list_model_controller(self, keys):
-        return QtListModelController(keys)
+        return QtListModelController(self.proxy, keys)
 
     # window elements
 
     def create_document_window(self, native_document_window):
-        return QtDocumentWindow(native_document_window)
+        return QtDocumentWindow(self.proxy, native_document_window)
 
     # user interface elements
 
     def create_row_widget(self, properties=None):
-        return QtRowWidget(properties)
+        return QtRowWidget(self.proxy, properties)
 
     def create_column_widget(self, properties=None):
-        return QtColumnWidget(properties)
+        return QtColumnWidget(self.proxy, properties)
 
     def create_splitter_widget(self, properties=None):
-        return QtSplitterWidget(properties)
+        return QtSplitterWidget(self.proxy, properties)
 
     def create_tab_widget(self, properties=None):
-        return QtTabWidget(properties)
+        return QtTabWidget(self.proxy, properties)
 
     def create_combo_box_widget(self, items=None, properties=None):
-        return QtComboBoxWidget(items, properties)
+        return QtComboBoxWidget(self.proxy, items, properties)
 
     def create_push_button_widget(self, text=None, properties=None):
-        return QtPushButtonWidget(text, properties)
+        return QtPushButtonWidget(self.proxy, text, properties)
 
     def create_label_widget(self, text=None, properties=None):
-        return QtLabelWidget(text, properties)
+        return QtLabelWidget(self.proxy, text, properties)
 
     def create_slider_widget(self, properties=None):
-        return QtSliderWidget(properties)
+        return QtSliderWidget(self.proxy, properties)
 
     def create_line_edit_widget(self, properties=None):
-        return QtLineEditWidget(properties)
+        return QtLineEditWidget(self.proxy, properties)
 
     def create_canvas_widget(self, properties=None):
-        return QtCanvasWidget(properties)
+        return QtCanvasWidget(self.proxy, properties)
 
     def create_tree_widget(self, properties=None):
-        return QtTreeWidget(properties)
+        return QtTreeWidget(self.proxy, properties)
 
     def create_list_widget(self, properties=None):
-        return QtListWidget(properties)
+        return QtListWidget(self.proxy, properties)
 
     def create_output_widget(self, properties=None):
-        return QtOutputWidget(properties)
+        return QtOutputWidget(self.proxy, properties)
 
     def create_console_widget(self, properties=None):
-        return QtConsoleWidget(properties)
+        return QtConsoleWidget(self.proxy, properties)
 
     # file i/o
 
     def load_rgba_data_from_file(self, filename):
-        return NionLib.readImageToPyArray(filename)
+        return self.proxy.readImageToPyArray(filename)
 
     # persistence (associated with application)
 
     def get_data_location(self):
-        return NionLib.Core_getLocation("data")
+        return self.proxy.Core_getLocation("data")
 
     def get_persistent_string(self, key, default_value=None):
-        value = NionLib.Settings_getString(key)
+        value = self.proxy.Settings_getString(key)
         return value if value else default_value
 
     def set_persistent_string(self, key, value):
-        NionLib.Settings_setString(key, value)
+        self.proxy.Settings_setString(key, value)
 
     # menus
 
     def create_menu_manager(self):
-        return QtMenuManager()
+        return QtMenuManager(self.proxy)
