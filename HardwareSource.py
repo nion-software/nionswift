@@ -6,7 +6,7 @@ A HardwareSource represents a source of images.
 A client accesses images through the create_port function
 which changes the mode of the source, and starts it, and starts notifying the returned
 port object. The port object should not do any significant processing in its on_new_image
-function buit should instead just notify another thread that new data is available.
+function but should instead just notify another thread that new data is available.
 
 The hardware source does allow processing to happen at acquisition time, by setting its
 filter member to a method that takes an image and returns an image.
@@ -18,7 +18,7 @@ compatible with the Screen, then push the images into it.
 
 There's also a LoggableCodeBlock class showing one way of combining functionality with
 a full description of the code being called. It allows expressions to be added one
-at a time and can be called like any function. It currerntly prints out the function
+at a time and can be called like any function. It currently prints out the function
 it's calling, but could be adapted to log it, or to produce a script with the same
 functionality.
 """
