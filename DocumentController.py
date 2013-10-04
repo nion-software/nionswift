@@ -18,7 +18,6 @@ import scipy
 from nion.swift.Decorators import queue_main_thread
 from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift.Decorators import relative_file
-from nion.swift.Decorators import singleton
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import Graphics
@@ -38,10 +37,9 @@ class DocumentController(Storage.StorageBase):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
-    def __init__(self, application, document_window, storage_writer, storage_reader=None, _create_workspace=True):
+    def __init__(self, ui, document_window, storage_writer, storage_reader=None, _create_workspace=True):
         super(DocumentController, self).__init__()
-        self.__weak_application = weakref.ref(application)
-        self.ui = application.ui
+        self.ui = ui
         self.document_window = document_window if document_window else self.ui.create_document_window()
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_close = lambda: self.close()
@@ -68,14 +66,8 @@ class DocumentController(Storage.StorageBase):
             storage_writer.set_root(self)
             self.write()
         self.create_menus()
-        self.application.register_document_window(self)  # must go after create_menus
         if _create_workspace:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self)
-
-    def __get_application(self):
-        return self.__weak_application()
-    application = property(__get_application)
-    app = property(__get_application)
 
     def close(self):
         # recognize when we're running as test and finish out periodic operations
@@ -89,7 +81,7 @@ class DocumentController(Storage.StorageBase):
         self.storage_writer.disconnected = True
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
-        self.application.unregister_document_window(self)
+        self.notify_listeners("document_controller_did_close", self)
 
     def read(self, storage_reader):
         need_rewrite = False

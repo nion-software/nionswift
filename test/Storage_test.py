@@ -76,12 +76,12 @@ class TestStorageClass(unittest.TestCase):
 
     def test_save_document(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
 
     def test_save_load_document(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
         data_items_count = len(document_controller.default_data_group.data_items)
         data_items_type = type(document_controller.default_data_group.data_items)
@@ -90,7 +90,7 @@ class TestStorageClass(unittest.TestCase):
         node_map_copy = copy.deepcopy(storage_writer.node_map)
         storage_writer = Storage.DictStorageWriter()
         storage_reader = Storage.DictStorageReader(node_map_copy)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, storage_reader)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, storage_reader)
         self.assertEqual(data_items_count, len(document_controller.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.default_data_group.data_items))
         document_controller.close()
@@ -98,7 +98,7 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage(self):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
         storage_str = storage_writer.to_string()
         document_controller_uuid = document_controller.uuid
@@ -111,7 +111,7 @@ class TestStorageClass(unittest.TestCase):
         storage_writer.close()
         # read it back
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.assertNotEqual(document_controller_uuid, document_controller.uuid)
         storage_reader = Storage.DbStorageReader(db_name)
         storage_writer.close()
@@ -131,7 +131,7 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_write_data(self):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         data_item = DataItem.DataItem()
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -146,7 +146,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         storage_reader = Storage.DbStorageReader(db_name)
         storage_reader.from_string(storage_str)
         document_controller.read(storage_reader)
@@ -161,7 +161,7 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_write_on_thread(self):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         data_item = DataItem.DataItem()
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -176,7 +176,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         storage_reader = Storage.DbStorageReader(db_name)
         storage_reader.from_string(storage_str)
         document_controller.read(storage_reader)
@@ -185,7 +185,7 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
         # insert two items at beginning. this generates primary key error unless key updating is carefully handled
         data_item4 = DataItem.DataItem()
@@ -213,7 +213,7 @@ class TestStorageClass(unittest.TestCase):
     def test_copy_data_group(self):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         data_group1 = DataGroup.DataGroup()
         document_controller.data_groups.append(data_group1)
         data_group1a = DataGroup.DataGroup()
@@ -267,14 +267,14 @@ class TestStorageClass(unittest.TestCase):
     def test_dict_storage_set_item(self):
         # write to storage
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
         document_controller.close()
         # read it back
         node_map_copy = copy.deepcopy(storage_writer.node_map)
         storage_writer = Storage.DictStorageWriter()
         storage_reader = Storage.DictStorageReader(node_map_copy)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, storage_reader)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, storage_reader)
         document_controller.rewrite()
         # check that the graphic associated with the operation was read back
         self.verify_and_test_set_item(document_controller)
@@ -285,13 +285,13 @@ class TestStorageClass(unittest.TestCase):
         # write to storage
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         self.save_document(document_controller)
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
         storage_reader = Storage.DbStorageReader(db_name)
         storage_reader.from_string(storage_str)
         document_controller.read(storage_reader)

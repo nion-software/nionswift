@@ -13,10 +13,8 @@ import numpy
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import DocumentController as dc
-from nion.swift import HardwareSource
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
-from nion.swift import ImportExportManager
 from nion.swift import Inspector
 from nion.swift import Panel
 from nion.swift import PlugInManager
@@ -36,8 +34,6 @@ class Application(object):
         global app
 
         self.ui = ui
-        self.hardware_source_manager = HardwareSource.HardwareSourceManager()
-        self.import_export_manager = ImportExportManager.ImportExportManager()
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -71,27 +67,35 @@ class Application(object):
         if create_new_document:
             logging.debug("Creating new document: %s", filename)
             storage_writer = Storage.DbStorageWriter(filename, create=True)
-            document_controller = DocumentController.DocumentController(self, None, storage_writer)
+            document_controller = DocumentController.DocumentController(self.ui, None, storage_writer)
             document_controller.create_default_data_groups()
             document_controller.create_test_images()
+            document_controller.add_listener(self)
+            self.register_document_controller(document_controller)
         else:
             logging.debug("Using existing document %s", filename)
             storage_writer = Storage.DbStorageWriter(filename)
             storage_reader = Storage.DbStorageReader(filename)
-            document_controller = DocumentController.DocumentController(self, None, storage_writer, storage_reader)
+            document_controller = DocumentController.DocumentController(self.ui, None, storage_writer, storage_reader)
             document_controller.create_default_data_groups()
+            document_controller.add_listener(self)
+            self.register_document_controller(document_controller)
         document_controller.document_window.show()
         logging.info("Welcome to Nion Swift.")
         return document_controller
 
-    def register_document_window(self, document_window):
+    def document_controller_did_close(self, document_controller):
+        document_controller.remove_listener(self)
+        self.unregister_document_controller(document_controller)
+
+    def register_document_controller(self, document_window):
         assert document_window not in self.__document_windows
         self.__document_windows.append(document_window)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
             menu_handler(document_window)
         return document_window
-    def unregister_document_window(self, document_window):
+    def unregister_document_controller(self, document_window):
         self.__document_windows.remove(document_window)
     def __get_document_windows(self):
         return copy.copy(self.__document_windows)

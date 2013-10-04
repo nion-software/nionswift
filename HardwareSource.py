@@ -33,12 +33,14 @@ import threading
 import weakref
 
 # local imports
+from nion.swift import Decorators
 from nion.swift import DataGroup
 from nion.swift import DataItem
 
 _ = gettext.gettext
 
 
+@Decorators.singleton
 class HardwareSourceManager(object):
     """
     Keeps track of all registered hardware sources.
@@ -266,7 +268,7 @@ class HardwareSourceDataBuffer(object):
     def __init__(self, hardware_source, document_controller):
         self.hardware_source = hardware_source
         self.document_controller = document_controller
-        self.hardware_source_man = document_controller.application.hardware_source_manager
+        self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
         self.data_group = self.document_controller.get_or_create_data_group(self.data_group_name)
         self.first_data = False

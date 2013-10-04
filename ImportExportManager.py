@@ -5,13 +5,14 @@ import os
 # None
 
 # local libraries
-# None
+from nion.swift import Decorators
 
 
 class ImportExportIncompatibleDataError(Exception):
     pass
 
 
+@Decorators.singleton
 class ImportExportManager(object):
     """
     Keeps track of import/export plugins.

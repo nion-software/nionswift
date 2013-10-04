@@ -21,7 +21,7 @@ from nion.swift import UserInterface
 
 def construct_test_document(app, create_workspace=False):
     storage_writer = Storage.DictStorageWriter()
-    document_controller = DocumentController.DocumentController(app, None, storage_writer, _create_workspace=create_workspace)
+    document_controller = DocumentController.DocumentController(app.ui, None, storage_writer, _create_workspace=create_workspace)
     data_group1 = DataGroup.DataGroup()
     document_controller.data_groups.append(data_group1)
     data_item1a = DataItem.DataItem()
@@ -57,7 +57,7 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_delete_document_controller(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         weak_document_controller = weakref.ref(document_controller)
         document_controller.close()
         document_controller = None
@@ -65,7 +65,7 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_image_panel_releases_data_item(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         document_controller.create_default_data_groups()
         default_data_group = document_controller.data_groups[0]
         data_item = DataItem.DataItem()
@@ -82,7 +82,7 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_main_thread_sync(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         data_group = DataGroup.DataGroup()
         document_controller.data_groups.append(data_group)
         data_item = DataItem.DataItem()

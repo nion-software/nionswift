@@ -45,7 +45,7 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_counted_data_items(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         data_group = DataGroup.DataGroup()
         document_controller.data_groups.append(data_group)
         self.assertEqual(len(data_group.counted_data_items), 0)
@@ -117,7 +117,7 @@ class TestDataGroupClass(unittest.TestCase):
     # make sure that smart groups that get added have their counted set updated with any existing data items
     def test_counted_data_items_order(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()
@@ -133,7 +133,7 @@ class TestDataGroupClass(unittest.TestCase):
     # make sure that property changes (title) trigger the smart group to update
     def test_smart_group_property_change(self):
         storage_writer = Storage.DictStorageWriter()
-        document_controller = DocumentController.DocumentController(self.app, None, storage_writer, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()
