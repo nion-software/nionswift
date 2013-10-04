@@ -36,27 +36,7 @@ def timeit(method):
     return timed
 
 
-# classes which use this decorator on a method are required
-# to define two properties: main_thread and delay_queue.
-# if the method is called on a thread that does not match
-# main_thread, the function is queued into the delay_queue.
-def ensure_main_thread(f):
-
-    class f_obj(object):
-        def __init__(self, f, args, kw):
-            self.f = f
-            self.args = args
-            self.kw = kw
-        def execute(self):
-            self.f(*self.args, **self.kw)
-
-    def new_function(*args, **kw):
-        if True: #threading.current_thread() != args[0].main_thread:
-            f_delay = f_obj(f, args, kw)
-            args[0].delay_queue.put(f_delay)
-        else:
-            f(*args, **kw)
-    return new_function
+require_main_thread = True
 
 
 # classes which use this decorator on a method are required
@@ -64,10 +44,13 @@ def ensure_main_thread(f):
 def queue_main_thread(f):
     @functools.wraps(f)
     def new_function(self, *args, **kw):
-        # using wraps we still get useful info about the function we're calling
-        # eg the name
-        wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-        self.delay_queue.put(wrapped_f)
+        if require_main_thread:
+            # using wraps we still get useful info about the function we're calling
+            # eg the name
+            wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
+            self.delay_queue.put(wrapped_f)
+        else:
+            f(self, *args, **kw)
     return new_function
 
 
@@ -76,22 +59,25 @@ def queue_main_thread(f):
 def queue_main_thread_sync(f):
     @functools.wraps(f)
     def new_function(self, *args, **kw):
-        # using wraps we still get useful info about the function we're calling
-        # eg the name
-        e = threading.Event()
-        def sync_f(f, event):
-            try:
-                f()
-            finally:
-                event.set()
-        wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-        synced_f = functools.partial(sync_f, wrapped_f, e)
-        self.delay_queue.put(synced_f)
-        # how do we tell if this is the main (presumably UI) thread?
-        # the order from threading.enumerate() is not reliable
-        if threading.current_thread().getName() != "MainThread":
-            if not e.wait(5):
-                logging.debug("TIMEOUT %s", f)
+        if require_main_thread:
+            # using wraps we still get useful info about the function we're calling
+            # eg the name
+            e = threading.Event()
+            def sync_f(f, event):
+                try:
+                    f()
+                finally:
+                    event.set()
+            wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
+            synced_f = functools.partial(sync_f, wrapped_f, e)
+            self.delay_queue.put(synced_f)
+            # how do we tell if this is the main (presumably UI) thread?
+            # the order from threading.enumerate() is not reliable
+            if threading.current_thread().getName() != "MainThread":
+                if not e.wait(5):
+                    logging.debug("TIMEOUT %s", f)
+        else:
+            f(self, *args, **kw)
     return new_function
 
 
