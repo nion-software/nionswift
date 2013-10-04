@@ -63,6 +63,11 @@ class HardwareSourceManager(object):
         # source is added or removed
         self.hardware_source_added_removed = []
 
+    def _reset(self):  # used for testing to start from scratch
+        self._all_hw_ports = []
+        self._aliases = {}
+        self.hardware_source_added_removed = []
+
     def register_hardware_source(self, hw_src):
         self._all_hw_ports.append(hw_src)
         for f in self.hardware_source_added_removed:

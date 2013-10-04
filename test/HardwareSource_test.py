@@ -20,6 +20,7 @@ SimpleHWSource.image = np.zeros(256)
 class TestHardwareSourceClass(unittest.TestCase):
     def test_registration(self):
         man = HardwareSource.HardwareSourceManager()
+        man._reset()
         source = SimpleHWSource()
         man.register_hardware_source(source)
         self.assertEqual(len(man._all_hw_ports), 1)
@@ -32,6 +33,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_alias(self):
         man = HardwareSource.HardwareSourceManager()
+        man._reset()
         source = SimpleHWSource()
         man.register_hardware_source(source)
         man.make_hardware_source_alias("testalias", source)
@@ -46,6 +48,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_events(self):
         SimpleHWSource.image = np.zeros(256)
         man = HardwareSource.HardwareSourceManager()
+        man._reset()
         source = SimpleHWSource()
         man.register_hardware_source(source)
         self.assertEqual(len(man._all_hw_ports), 1)

@@ -12,7 +12,6 @@ import numpy
 # local libraries
 from nion.swift import DataPanel
 from nion.swift import DocumentController
-from nion.swift import DocumentController as dc
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
 from nion.swift import Inspector
@@ -20,7 +19,6 @@ from nion.swift import Panel
 from nion.swift import PlugInManager
 from nion.swift import Storage
 from nion.swift import Test
-from nion.swift import UserInterface
 from nion.swift import Workspace
 
 _ = gettext.gettext
