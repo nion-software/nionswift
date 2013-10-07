@@ -1,24 +1,14 @@
 # standard libraries
 import logging
-import math
 import numbers
 import os
-import Queue
-import threading
-import time
-import uuid
 import weakref
 
 # third party libraries
 # none
 
 # local libraries
-from nion.swift.Decorators import ProcessingThread
-from nion.swift.Decorators import queue_main_thread
-from nion.swift.Decorators import queue_main_thread_sync
-from nion.swift.Decorators import relative_file
-from nion.swift import Graphics
-from nion.swift import Image
+# none
 
 
 class QtKeyboardModifiers(object):

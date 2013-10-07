@@ -9,6 +9,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DataItem
 from nion.swift import DocumentController
+from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImagePanel
 from nion.swift import Storage
@@ -36,7 +37,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
-        self.document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
+        document_model = DocumentModel.DocumentModel(storage_writer)
+        self.document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         self.document_controller.document_model.create_default_data_groups()
         default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel

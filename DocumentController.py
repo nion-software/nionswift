@@ -26,12 +26,12 @@ class DocumentController(object):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
-    def __init__(self, ui, document_window, storage_writer, storage_reader=None, _create_workspace=True):
+    def __init__(self, ui, document_model, _create_workspace=True):
         super(DocumentController, self).__init__()
         self.ui = ui
-        self.document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
+        self.document_model = document_model
         self.document_model.add_ref()
-        self.document_window = document_window if document_window else self.ui.create_document_window()
+        self.document_window = self.ui.create_document_window()
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_close = lambda: self.close()
         self.workspace = None
@@ -52,9 +52,9 @@ class DocumentController(object):
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
+        for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
+            image_panel.close()
         self.document_window = None
-        # this isn't ideal since this effectively binds one workspace per document window.
-        # TODO: revisit Workspace vs. DocumentController lifetimes
         if self.workspace:
             self.workspace.close()
         self.document_model.remove_ref()
@@ -100,7 +100,7 @@ class DocumentController(object):
 
         self.help_menu = self.document_window.add_menu(_("Help"))
 
-        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.no_operation(), key_sequence="new")
+        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window(), key_sequence="new")
         self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
         self.file_menu.add_separator()
@@ -251,6 +251,10 @@ class DocumentController(object):
     def image_panel_data_item_changed(self, image_panel, info):
         data_item = image_panel.data_item if image_panel else None
         self.notify_listeners("selected_data_item_changed", data_item, info)
+
+    def new_window(self):
+        # hack to work around Application <-> DocumentController interdependency.
+        self.notify_listeners("create_document_controller", self.document_model)
 
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()

@@ -12,6 +12,7 @@ import numpy
 # local libraries
 from nion.swift import DataPanel
 from nion.swift import DocumentController
+from nion.swift import DocumentModel
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
 from nion.swift import Inspector
@@ -40,7 +41,7 @@ class Application(object):
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
 
-        self.__document_windows = []
+        self.__document_controllers = []
         self.__menu_handlers = []
 
         workspace_manager = Workspace.WorkspaceManager()
@@ -65,21 +66,24 @@ class Application(object):
         if create_new_document:
             logging.debug("Creating new document: %s", filename)
             storage_writer = Storage.DbStorageWriter(filename, create=True)
-            document_controller = DocumentController.DocumentController(self.ui, None, storage_writer)
-            document_controller.document_model.create_default_data_groups()
-            document_controller.document_model.create_test_images()
-            document_controller.add_listener(self)
-            self.register_document_controller(document_controller)
+            document_model = DocumentModel.DocumentModel(storage_writer)
+            document_model.create_default_data_groups()
+            document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", filename)
             storage_writer = Storage.DbStorageWriter(filename)
             storage_reader = Storage.DbStorageReader(filename)
-            document_controller = DocumentController.DocumentController(self.ui, None, storage_writer, storage_reader)
-            document_controller.document_model.create_default_data_groups()
-            document_controller.add_listener(self)
-            self.register_document_controller(document_controller)
-        document_controller.document_window.show()
+            document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
+            document_model.create_default_data_groups()
+        document_controller = self.create_document_controller(document_model)
         logging.info("Welcome to Nion Swift.")
+        return document_controller
+
+    def create_document_controller(self, document_model):
+        document_controller = DocumentController.DocumentController(self.ui, document_model)
+        document_controller.add_listener(self)
+        self.register_document_controller(document_controller)
+        document_controller.document_window.show()
         return document_controller
 
     def document_controller_did_close(self, document_controller):
@@ -87,24 +91,24 @@ class Application(object):
         self.unregister_document_controller(document_controller)
 
     def register_document_controller(self, document_window):
-        assert document_window not in self.__document_windows
-        self.__document_windows.append(document_window)
+        assert document_window not in self.__document_controllers
+        self.__document_controllers.append(document_window)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
             menu_handler(document_window)
         return document_window
-    def unregister_document_controller(self, document_window):
-        self.__document_windows.remove(document_window)
-    def __get_document_windows(self):
-        return copy.copy(self.__document_windows)
-    document_windows = property(__get_document_windows)
+    def unregister_document_controller(self, document_controller):
+        self.__document_controllers.remove(document_controller)
+    def __get_document_controllers(self):
+        return copy.copy(self.__document_controllers)
+    document_controllers = property(__get_document_controllers)
 
     def register_menu_handler(self, new_menu_handler):
         assert new_menu_handler not in self.__menu_handlers
         self.__menu_handlers.append(new_menu_handler)
         # when a menu handler is registered, let it immediately know about existing menu handlers
-        for document_window in self.__document_windows:
-            new_menu_handler(document_window)
+        for document_controller in self.__document_controllers:
+            new_menu_handler(document_controller)
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
     def unregister_menu_handler(self, menu_handler):
