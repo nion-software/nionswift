@@ -275,7 +275,7 @@ class HardwareSourceDataBuffer(object):
         self.document_controller = document_controller
         self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
-        self.data_group = self.document_controller.get_or_create_data_group(self.data_group_name)
+        self.data_group = self.document_controller.document_model.get_or_create_data_group(self.data_group_name)
         self.first_data = False
         self.last_channel_to_data_item_dict = {}
         self.__snapshots = collections.deque(maxlen=30)

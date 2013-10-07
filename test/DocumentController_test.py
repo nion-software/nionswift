@@ -23,7 +23,7 @@ def construct_test_document(app, create_workspace=False):
     storage_writer = Storage.DictStorageWriter()
     document_controller = DocumentController.DocumentController(app.ui, None, storage_writer, _create_workspace=create_workspace)
     data_group1 = DataGroup.DataGroup()
-    document_controller.data_groups.append(data_group1)
+    document_controller.document_model.data_groups.append(data_group1)
     data_item1a = DataItem.DataItem()
     data_item1a.master_data = numpy.zeros((256, 256), numpy.uint32)
     data_group1.data_items.append(data_item1a)
@@ -35,7 +35,7 @@ def construct_test_document(app, create_workspace=False):
     data_group1b = DataGroup.DataGroup()
     data_group1.data_groups.append(data_group1b)
     data_group2 = DataGroup.DataGroup()
-    document_controller.data_groups.append(data_group2)
+    document_controller.document_model.data_groups.append(data_group2)
     data_group2a = DataGroup.DataGroup()
     data_group2.data_groups.append(data_group2a)
     data_group2b = DataGroup.DataGroup()
@@ -66,8 +66,8 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_image_panel_releases_data_item(self):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
-        document_controller.create_default_data_groups()
-        default_data_group = document_controller.data_groups[0]
+        document_controller.document_model.create_default_data_groups()
+        default_data_group = document_controller.document_model.data_groups[0]
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         default_data_group.data_items.append(data_item)
@@ -84,7 +84,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         storage_writer = Storage.DictStorageWriter()
         document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer, _create_workspace=False)
         data_group = DataGroup.DataGroup()
-        document_controller.data_groups.append(data_group)
+        document_controller.document_model.data_groups.append(data_group)
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         # make sure this works when called from the main thread
@@ -92,8 +92,8 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_flat_data_groups(self):
         document_controller = construct_test_document(self.app)
-        self.assertEqual(len(list(document_controller.get_flat_data_group_generator())), 7)
-        self.assertEqual(len(list(document_controller.get_flat_data_item_generator())), 3)
-        self.assertEqual(document_controller.get_data_item_by_key(0), document_controller.data_groups[0].data_items[0])
-        self.assertEqual(document_controller.get_data_item_by_key(1), document_controller.data_groups[0].data_items[1])
-        self.assertEqual(document_controller.get_data_item_by_key(2), document_controller.data_groups[1].data_groups[1].data_groups[0].data_items[0])
+        self.assertEqual(len(list(document_controller.document_model.get_flat_data_group_generator())), 7)
+        self.assertEqual(len(list(document_controller.document_model.get_flat_data_item_generator())), 3)
+        self.assertEqual(document_controller.document_model.get_data_item_by_key(0), document_controller.document_model.data_groups[0].data_items[0])
+        self.assertEqual(document_controller.document_model.get_data_item_by_key(1), document_controller.document_model.data_groups[0].data_items[1])
+        self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])

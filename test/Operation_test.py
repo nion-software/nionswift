@@ -22,10 +22,10 @@ class TestOperationClass(unittest.TestCase):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
         self.document_controller = DocumentController.DocumentController(self.app.ui, None, storage_writer)
-        self.document_controller.create_default_data_groups()
-        default_data_group = self.document_controller.data_groups[0]
+        self.document_controller.document_model.create_default_data_groups()
+        default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
-        self.data_item = self.document_controller.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, self.data_item)
 
     def tearDown(self):

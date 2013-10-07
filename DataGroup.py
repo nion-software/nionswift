@@ -42,7 +42,7 @@ _ = gettext.gettext
     Smart Groups
 
     Smart groups work on sibling data groups (aka the data items in the smart group's
-    parent). A smart group at the top level of groups will be able to filter
+    container). A smart group at the top level of groups will be able to filter
     and sort data items contained in other top level groups.
     Is there a need for smart groups anywhere except at the top level?
 
@@ -61,9 +61,9 @@ _ = gettext.gettext
     Data Item A1b1 (A1b1a: 1) [B, A1b]
     Data Item A1b1a [A1b1]
 
-    Data item A1b1b gets added to A1b1. A1b1 counted_data_items gets updated, then tells its parents B, A1b
-    that they have been updated. B, A1b counted_data_items get updated, then tell their parents, etc.
-    When each group gets the counted_data_items_updated message, it tells any smart parent children
+    Data item A1b1b gets added to A1b1. A1b1 counted_data_items gets updated, then tells its containers B, A1b
+    that they have been updated. B, A1b counted_data_items get updated, then tell their containers, etc.
+    When each group gets the counted_data_items_updated message, it tells any smart container children
     that they need to re-filter.
 
     Data item A2 gets added to Group A.

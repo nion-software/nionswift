@@ -61,17 +61,17 @@ class DataPanel(Panel.Panel):
             self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
-            self.document_controller.add_observer(self)
-            self.mapping = { document_controller: self.item_model_controller.root }
+            self.document_controller.document_model.add_observer(self)
+            self.mapping = { document_controller.document_model: self.item_model_controller.root }
             self._index = -1
             self._parent_row = -1
             self._parent_id = 0
             self.__block_image_panel_update = False
             self.on_receive_files = None
             # add items that already exist
-            data_groups = document_controller.data_groups
+            data_groups = document_controller.document_model.data_groups
             for index, data_group in enumerate(data_groups):
-                self.item_inserted(document_controller, "data_groups", data_group, index)
+                self.item_inserted(document_controller.document_model, "data_groups", data_group, index)
 
         def close(self):
             # cheap way to unlisten to everything
@@ -80,7 +80,7 @@ class DataPanel(Panel.Panel):
                     object.remove_listener(self)
                     object.remove_observer(self)
                     object.remove_ref()
-            self.document_controller.remove_observer(self)
+            self.document_controller.document_model.remove_observer(self)
             self.item_model_controller.close()
             self.item_model_controller = None
 
@@ -174,8 +174,8 @@ class DataPanel(Panel.Panel):
                 data_group = self.item_model_controller.item_value("data_group", index, parent_id)
                 if data_group:
                     parent_item = self.item_model_controller.item_from_id(self._parent_id)
-                    parent = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller
-                    self.document_controller.remove_data_group_from_parent(data_group, parent)
+                    container = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller.document_model
+                    self.document_controller.remove_data_group_from_container(data_group, container)
             return False
 
         def item_set_data(self, data, index, parent_row, parent_id):
@@ -191,7 +191,7 @@ class DataPanel(Panel.Panel):
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
             data_group = self.__get_data_group_of_parent(parent_row, parent_id)
-            container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
+            container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                     return self.item_model_controller.NONE
@@ -204,7 +204,7 @@ class DataPanel(Panel.Panel):
                 # target group. if it doesn't exist in this document, then it is coming
                 # from another document and can't be handled here.
                 data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-                data_item = self.document_controller.get_data_item_by_key(data_item_uuid)
+                data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                 if data_item:
                     data_item_copy = data_item.copy()
                     data_group.data_items.append(data_item_copy)
@@ -212,7 +212,7 @@ class DataPanel(Panel.Panel):
                 return self.item_model_controller.NONE
             if mime_data.has_format("text/data_group_uuid"):
                 data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
-                data_group = self.document_controller.get_data_group_by_uuid(data_group_uuid)
+                data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
                 if data_group:
                     data_group_copy = data_group.copy()
                     if row >= 0:
@@ -233,7 +233,7 @@ class DataPanel(Panel.Panel):
 
         def remove_rows(self, row, count, parent_row, parent_id):
             data_group = self.__get_data_group_of_parent(parent_row, parent_id)
-            container = self.document_controller if parent_row < 0 and parent_id == 0 else data_group
+            container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
             for i in range(count):
                 del container.data_groups[row]
             return True
@@ -454,7 +454,7 @@ class DataPanel(Panel.Panel):
                 # don't allow copying of items in smart groups
                 if data_group and isinstance(data_group, DataGroup.DataGroup):
                     data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-                    data_item = self.document_controller.get_data_item_by_key(data_item_uuid)
+                    data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                     if data_item:
                         data_item_copy = data_item.copy()
                         if row >= 0:

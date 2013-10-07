@@ -253,14 +253,14 @@ class Workspace(object):
                             break
                 # search in another group
                 if not data_panel_selection:
-                    for data_group in self.document_controller.data_groups:
+                    for data_group in self.document_controller.document_model.data_groups:
                         for data_item in data_group.data_items:
                             if data_item not in displayed_data_items:
                                 data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
                                 break
             else:
                 # search for next undisplayed data item
-                for data_group in self.document_controller.data_groups:
+                for data_group in self.document_controller.document_model.data_groups:
                     if data_panel_selection:
                         break
                     for data_item in data_group.data_items:

@@ -97,7 +97,7 @@ class ConsolePanel(Panel):
                  "import logging",
                  "import numpy as np",
                  "import numpy as numpy",
-                 "_d = DocumentController.DocumentController.DataAccessor(dc)"]
+                 "_d = DocumentController.DocumentController.DataAccessor(dc.document_model)"]
         for l in lines:
             self.interpret_command(l)
 

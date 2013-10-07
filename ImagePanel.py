@@ -261,7 +261,7 @@ class ImagePanel(Panel.Panel):
             data_item_uuid = content["data-item"]
             data_group = DataGroup.get_data_group_in_container_by_uuid(document_controller, data_group_uuid)
             if data_group:
-                data_item = document_controller.get_data_item_by_key(data_item_uuid)
+                data_item = document_controller.document_model.get_data_item_by_key(data_item_uuid)
                 if data_item:
                     self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
