@@ -152,6 +152,23 @@ class DocumentController(object):
         self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
         self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
 
+        self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
+        self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
+        self.window_menu.add_separator()
+
+        self.__dynamic_window_actions = []
+
+        def adjust_window_menu():
+            for dynamic_window_action in self.__dynamic_window_actions:
+                self.window_menu.remove_action(dynamic_window_action)
+            self.__dynamic_window_actions = []
+            for dock_widget in self.workspace.dock_widgets:
+                toggle_action = dock_widget.toggle_action
+                self.window_menu.add_action(toggle_action)
+                self.__dynamic_window_actions.append(toggle_action)
+
+        self.window_menu.on_about_to_show = adjust_window_menu
+
     def periodic(self):
         # perform any pending operations
         while not self.delay_queue.empty():

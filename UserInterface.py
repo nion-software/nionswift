@@ -1071,11 +1071,14 @@ class QtConsoleWidget(QtWidget):
 
 class QtAction(object):
 
-    def __init__(self, proxy, document_window, title, key_sequence, role):
+    def __init__(self, proxy, native_action=None):
         self.proxy = proxy
+        self.native_action = native_action
+        self.on_triggered = None
+
+    def create(self, document_window, title, key_sequence, role):
         self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
-        self.on_triggered = None
 
     def triggered(self):
         if self.on_triggered:
@@ -1095,22 +1098,30 @@ class QtMenu(object):
             self.on_about_to_show()
 
     def add_menu_item(self, title, callback, key_sequence=None, role=None):
-        action = QtAction(self.proxy, self.document_window, title, key_sequence, role)
+        action = QtAction(self.proxy)
+        action.create(self.document_window, title, key_sequence, role)
         action.on_triggered = callback
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
         return action
+
+    def add_action(self, action):
+        self.proxy.Menu_addAction(self.native_menu, action.native_action)
 
     def add_separator(self):
         self.proxy.Menu_addSeparator(self.native_menu)
 
     def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
-        action = QtAction(self.proxy, self.document_window, title, key_sequence, role)
+        action = QtAction(self.proxy)
+        action.create(self.document_window, title, key_sequence, role)
         action.on_triggered = callback
         self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
         return action
 
     def insert_separator(self, before_action):
         self.proxy.Menu_insertSeparator(self.native_menu, before_action.native_action)
+
+    def remove_action(self, action):
+        self.proxy.Menu_removeAction(self.native_menu, action.native_action)
 
 
 class QtDocumentWindow(object):
@@ -1174,6 +1185,10 @@ class QtDockWidget(object):
 
     def close(self):
         self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
+
+    def __get_toggle_action(self):
+        return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
+    toggle_action = property(__get_toggle_action)
 
 
 class QtUserInterface(object):
