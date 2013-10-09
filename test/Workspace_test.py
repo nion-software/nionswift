@@ -28,4 +28,5 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace.change_layout("2x1")
         document_controller.workspace.change_layout("3x1")
         document_controller.workspace.change_layout("2x2")
+        document_controller.workspace.change_layout("1x2")
         document_controller.workspace.change_layout("1x1")
