@@ -12,7 +12,6 @@ import numpy
 # local libraries
 from nion.swift import DataItem
 from nion.swift.Decorators import queue_main_thread
-from nion.swift.Decorators import relative_file
 from nion.swift import DataGroup
 from nion.swift import Graphics
 from nion.swift import Image
@@ -223,7 +222,6 @@ class DataPanel(Panel.Panel):
             return self.item_model_controller.NONE
 
         def item_mime_data(self, row, parent_row, parent_id):
-            parent_item = self.item_model_controller.item_from_id(self._parent_id)
             data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
             if data_group:
                 mime_data = self.ui.create_mime_data()
@@ -239,7 +237,6 @@ class DataPanel(Panel.Panel):
             return True
 
         def __get_data_panel_selection(self):
-            parent_item = self.item_model_controller.item_from_id(self._parent_id)
             data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
             return DataItem.DataItemSpecifier(data_group)
         data_panel_selection = property(__get_data_panel_selection)
