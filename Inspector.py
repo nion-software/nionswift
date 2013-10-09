@@ -228,6 +228,7 @@ class PropertyEditorController(object):
                 self.__controllers[property] = controller
             else:
                 logging.debug("Unknown controller type %s", type)
+        self.widget.add_stretch()
 
     def close(self):
         # stop observing
