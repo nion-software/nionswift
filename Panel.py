@@ -93,11 +93,11 @@ class ConsolePanel(Panel):
 
         locals = {'__name__': None, '__console__': None, '__doc__': None, 'dc': document_controller}
         self.console = code.InteractiveConsole(locals)
-        lines = ["from nion.swift import DocumentController, DataItem, Image",
+        lines = ["from nion.swift import DocumentController, DocumentModel, DataItem, Image",
                  "import logging",
                  "import numpy as np",
                  "import numpy as numpy",
-                 "_d = DocumentController.DocumentController.DataAccessor(dc.document_model)"]
+                 "_d = DocumentModel.DocumentModel.DataAccessor(dc.document_model)"]
         for l in lines:
             self.interpret_command(l)
 
