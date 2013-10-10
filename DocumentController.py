@@ -58,6 +58,7 @@ class DocumentController(object):
         if self.workspace:
             self.workspace.close()
         self.document_model.remove_ref()
+        self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
 
     # Add a listener. Listeners will receive data_item_changed message when this

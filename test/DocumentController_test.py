@@ -61,10 +61,18 @@ class TestDocumentControllerClass(unittest.TestCase):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_model = None
+        weak_document_model = weakref.ref(document_controller.document_model)
+        weak_document_window = weakref.ref(document_controller.document_window)
         weak_document_controller = weakref.ref(document_controller)
+        self.assertIsNotNone(weak_document_controller())
+        self.assertIsNotNone(weak_document_window())
+        self.assertIsNotNone(weak_document_model())
         document_controller.close()
         document_controller = None
         self.assertIsNone(weak_document_controller())
+        self.assertIsNone(weak_document_window())
+        self.assertIsNone(weak_document_model())
 
     def test_image_panel_releases_data_item(self):
         storage_writer = Storage.DictStorageWriter()
