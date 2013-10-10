@@ -135,6 +135,10 @@ class Widget:
         self.height = 480
         self.current_index = 0
         self.children = []
+        self.index = -1
+        self.parent_row = -1
+        self.parent_id = 0
+        self.current_index = -1
     def close(self):
         pass
     def add(self, widget):
@@ -154,7 +158,9 @@ class Widget:
     def restore_state(self, tag):
         pass
     def set_current_row(self, index, parent_row, parent_id):
-        pass
+        self.index = index
+        self.parent_row = parent_row
+        self.parent_id = parent_id
 
 class Menu:
     def __init__(self):

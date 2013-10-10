@@ -41,6 +41,12 @@ _ = gettext.gettext
 #       What if image panel selection becomes just a folder, it displays a blank, but retains the selection
 # TODO: What happens when a group/item selected in a different image panel is deleted?
 
+"""
+    User clicks on data item -> update data_panel_selection, highlight data group and data item
+    User clicks on data group -> highlight data group, highlight data item if data_panel_selection matches data group
+    User switches image panels -> highlight data group and data item to match new data_panel_selection
+"""
+
 
 class DataPanel(Panel.Panel):
 
@@ -62,10 +68,6 @@ class DataPanel(Panel.Panel):
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.document_controller.document_model.add_observer(self)
             self.mapping = { document_controller.document_model: self.item_model_controller.root }
-            self._index = -1
-            self._parent_row = -1
-            self._parent_id = 0
-            self.__block_image_panel_update = False
             self.on_receive_files = None
             # add items that already exist
             data_groups = document_controller.document_model.data_groups
@@ -168,15 +170,6 @@ class DataPanel(Panel.Panel):
         def data_item_removed(self, container, data_item, index):
             self.__update_item_count(container)
 
-        def item_key_pressed(self, index, parent_row, parent_id, text, modifiers):
-            if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
-                data_group = self.item_model_controller.item_value("data_group", index, parent_id)
-                if data_group:
-                    parent_item = self.item_model_controller.item_from_id(self._parent_id)
-                    container = parent_item.data["data_group"] if "data_group" in parent_item.data else self.document_controller.document_model
-                    self.document_controller.remove_data_group_from_container(data_group, container)
-            return False
-
         def item_set_data(self, data, index, parent_row, parent_id):
             data_group = self.item_model_controller.item_value("data_group", index, parent_id)
             if data_group:
@@ -184,12 +177,30 @@ class DataPanel(Panel.Panel):
                 return True
             return False
 
-        def __get_data_group_of_parent(self, parent_row, parent_id):
+        def get_data_group(self, index, parent_row, parent_id):
+            return self.item_model_controller.item_value("data_group", index, parent_id)
+
+        def get_data_group_of_parent(self, parent_row, parent_id):
             parent_item = self.item_model_controller.item_from_id(parent_id)
             return parent_item.data["data_group"] if "data_group" in parent_item.data else None
 
+        def get_data_group_index(self, data_group):
+            item = None
+            data_group_item = self.mapping.get(data_group)
+            parent_item = data_group_item.parent if data_group_item else self.item_model_controller.root
+            assert parent_item is not None
+            for child in parent_item.children:
+                child_data_group = child.data.get("data_group")
+                if child_data_group == data_group:
+                    item = child
+                    break
+            if item:
+                return item.row, item.parent.row, item.parent.id
+            else:
+                return -1, -1, 0
+
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            data_group = self.__get_data_group_of_parent(parent_row, parent_id)
+            data_group = self.get_data_group_of_parent(parent_row, parent_id)
             container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
@@ -221,8 +232,8 @@ class DataPanel(Panel.Panel):
                     return action
             return self.item_model_controller.NONE
 
-        def item_mime_data(self, row, parent_row, parent_id):
-            data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
+        def item_mime_data(self, index, parent_row, parent_id):
+            data_group = self.get_data_group(index, parent_row, parent_id)
             if data_group:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
@@ -230,32 +241,11 @@ class DataPanel(Panel.Panel):
             return None
 
         def remove_rows(self, row, count, parent_row, parent_id):
-            data_group = self.__get_data_group_of_parent(parent_row, parent_id)
+            data_group = self.get_data_group_of_parent(parent_row, parent_id)
             container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
             for i in range(count):
                 del container.data_groups[row]
             return True
-
-        def __get_data_panel_selection(self):
-            data_group = self.item_model_controller.item_value("data_group", self._index, self._parent_id)
-            return DataItem.DataItemSpecifier(data_group)
-        data_panel_selection = property(__get_data_panel_selection)
-
-        def set_block_image_panel_update(self, block):
-            old_block_image_panel_update = self.__block_image_panel_update
-            self.__block_image_panel_update = block
-            return old_block_image_panel_update
-
-        def current_item_changed(self, index, parent_row, parent_id):
-            # record the change
-            self._index = index
-            self._parent_row = parent_row
-            self._parent_id = parent_id
-            # update the selected image panel
-            if not self.__block_image_panel_update:
-                image_panel = self.document_controller.selected_image_panel
-                if image_panel:
-                    image_panel.data_panel_selection = self.data_panel_selection
 
     # a list model of the data items. data items are actually hierarchical in nature,
     # but we don't use a tree view since the hierarchy is always visible and represented
@@ -273,8 +263,6 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.__data_group = None
-            self._index = -1
-            self.__block_item_changed = False
             self.on_receive_files = None
 
         def close(self):
@@ -360,7 +348,6 @@ class DataPanel(Panel.Panel):
         # the connection is established in add_data_item using add_listener.
         @queue_main_thread
         def data_item_changed(self, data_item, info):
-            # update the url so that it gets reloaded
             data_items_flat = self.get_data_items_flat()
             # we might be receiving this message for an item that is no longer in the list
             # if the item updates and the user switches panels. check and skip it if so.
@@ -374,47 +361,25 @@ class DataPanel(Panel.Panel):
         # the data item might be a processed data item and the container would be the
         # source data item. this is a recursive function, so pass the container in which
         # to search as first parameter.
-        def __get_data_item_container(self, container, query_data_item):
+        def get_data_item_container(self, container, query_data_item):
             if hasattr(container, "data_items") and query_data_item in container.data_items:
                 return container
             if hasattr(container, "data_groups"):
                 for data_group in container.data_groups:
-                    container = self.__get_data_item_container(data_group, query_data_item)
+                    container = self.get_data_item_container(data_group, query_data_item)
                     if container:
                         return container
             if hasattr(container, "data_items"):
                 for data_item in container.data_items:
-                    container = self.__get_data_item_container(data_item, query_data_item)
+                    container = self.get_data_item_container(data_item, query_data_item)
                     if container:
                         return container
             return None
-
-        def item_key_pressed(self, index, text, modifiers):
-            data_item = self.get_data_items_flat()[index] if index >= 0 else None
-            if data_item:
-                if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
-                    container = self.__get_data_item_container(self.data_group, data_item)
-                    assert data_item in container.data_items
-                    container.data_items.remove(data_item)
-            return False
-
-        def current_item_changed(self, index):
-            if not self.__block_item_changed:
-                self._index = index
-                data_items = self.get_data_items_flat()
-                # check the proper index; there are some cases where it gets out of sync
-                data_item = data_items[index] if index >= 0 and index < len(data_items) else None
-                # update the selected image panel
-                image_panel = self.document_controller.selected_image_panel
-                if image_panel:
-                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_group, data_item)
 
         def __get_data_group(self):
             return self.__data_group
         def __set_data_group(self, data_group):
             if data_group != self.__data_group:
-                old_block_item_changed = self.__block_item_changed
-                self.__block_item_changed = True
                 if self.__data_group:
                     # no longer watch for changes
                     self.__data_group.remove_listener(self)
@@ -429,18 +394,12 @@ class DataPanel(Panel.Panel):
                         self.data_item_inserted(self.__data_group, child_data_item, index)
                     # watch fo changes
                     self.__data_group.add_listener(self)
-                self.__block_item_changed = old_block_item_changed
         data_group = property(__get_data_group, __set_data_group)
 
         def get_data_item_index(self, data_item):
             data_items_flat = self.get_data_items_flat()
             index = data_items_flat.index(data_item) if data_item in data_items_flat else -1
             return index
-
-        def __get_data_panel_selection(self):
-            data_item = self.get_data_items_flat()[self._index] if self._index >= 0 else None
-            return DataItem.DataItemSpecifier(self.data_group, data_item)
-        data_panel_selection = property(__get_data_panel_selection)
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row):
             if mime_data.has_file_paths:
@@ -479,26 +438,26 @@ class DataPanel(Panel.Panel):
                     data_group.data_items.remove(data_item)
             return True
 
-    # this message comes from the styled item delegate
-    def paint(self, ctx, options):
-        rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
-        index = options["index"]["row"]
-        data_item = self.data_item_model_controller.get_data_items_flat()[index]
-        thumbnail_data = data_item.get_thumbnail_data(72, 72)
-        data = self.data_item_model_controller.get_model_data(index)
-        level = data["level"]
-        display = data["display"]
-        display2 = data["display2"]
-        ctx.save()
-        if thumbnail_data is not None:
-            draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
-            draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
-            ctx.drawImage(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-        ctx.fillStyle = "#000"
-        ctx.fillText(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
-        ctx.font = "italic"
-        ctx.fillText(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
-        ctx.restore()
+        # this message comes from the styled item delegate
+        def paint(self, ctx, options):
+            rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
+            index = options["index"]["row"]
+            data_item = self.get_data_items_flat()[index]
+            thumbnail_data = data_item.get_thumbnail_data(72, 72)
+            data = self.get_model_data(index)
+            level = data["level"]
+            display = data["display"]
+            display2 = data["display2"]
+            ctx.save()
+            if thumbnail_data is not None:
+                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
+                draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
+                ctx.drawImage(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+            ctx.fillStyle = "#000"
+            ctx.fillText(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
+            ctx.font = "italic"
+            ctx.fillText(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
+            ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
@@ -519,20 +478,59 @@ class DataPanel(Panel.Panel):
 
         self.data_item_model_controller.on_receive_files = data_item_model_receive_files
 
-        self.__block_current_item_changed = False
-
         ui = document_controller.ui
+
+        def data_group_widget_current_item_changed(index, parent_row, parent_id):
+            saved_block1 = self.__block1
+            self.__block1 = True
+            data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+            self.data_item_model_controller.data_group = data_group
+            # if the new data group matches the one in the image panel, make sure to select the data item too
+            image_panel = self.document_controller.selected_image_panel
+            if image_panel and data_group == image_panel.data_panel_selection.data_group:
+                self.update_data_panel_selection(image_panel.data_panel_selection)
+            self.__block1 = saved_block1
+
+        def data_group_widget_key_pressed(index, parent_row, parent_id, text, modifiers):
+            if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
+                data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+                if data_group:
+                    container = self.data_group_model_controller.get_data_group_of_parent(parent_row, parent_id)
+                    container = container if container else self.document_controller.document_model
+                    self.document_controller.remove_data_group_from_container(data_group, container)
+            return False
 
         self.data_group_widget = ui.create_tree_widget(properties={"min-height": 80})
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
-        self.data_group_widget.on_current_item_changed = lambda index, parent_row, parent_id: self.data_group_model_controller.current_item_changed(index, parent_row, parent_id)
-        self.data_group_widget.on_item_key_pressed = lambda index, parent_row, parent_id, text, modifiers: self.data_group_model_controller.item_key_pressed(index, parent_row, parent_id, text, modifiers)
+        self.data_group_widget.on_current_item_changed = data_group_widget_current_item_changed
+        self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
+
+        # this message is received when the current item changes in the widget
+        self.__block1 = False
+        def data_item_widget_current_item_changed(index):
+            if not self.__block1:
+                data_items = self.data_item_model_controller.get_data_items_flat()
+                # check the proper index; there are some cases where it gets out of sync
+                data_item = data_items[index] if index >= 0 and index < len(data_items) else None
+                # update the selected image panel
+                image_panel = self.document_controller.selected_image_panel
+                if image_panel:
+                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
+
+        def data_item_widget_key_pressed(index, text, modifiers):
+            data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
+            if data_item:
+                if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
+                    container = self.data_item_model_controller.get_data_item_container(self.data_item_model_controller.data_group, data_item)
+                    assert data_item in container.data_items
+                    container.data_items.remove(data_item)
+            return False
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
-        self.data_item_widget.on_paint = lambda dc, options: self.paint(dc, options)
-        self.data_item_widget.on_current_item_changed = lambda index: self.data_item_model_controller.current_item_changed(index)
-        self.data_item_widget.on_item_key_pressed = lambda index, text, modifiers: self.data_item_model_controller.item_key_pressed(index, text, modifiers)
+        self.data_item_widget.on_paint = lambda dc, options: self.data_item_model_controller.paint(dc, options)
+        self.data_item_widget.on_current_item_changed = data_item_widget_current_item_changed
+        self.data_item_widget.on_item_key_pressed = data_item_widget_key_pressed
 
         self.splitter = ui.create_splitter_widget(properties)
         self.splitter.add(self.data_group_widget)
@@ -555,56 +553,36 @@ class DataPanel(Panel.Panel):
         # finish closing
         super(DataPanel, self).close()
 
-    # if the data panel selection gets changed, the data group tree and data item list need
+    # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
-    # update cycles, so ignore 
+    # update cycles.
     def update_data_panel_selection(self, data_panel_selection):
-        old_block_current_item_changed = self.__block_current_item_changed
-        self.__block_current_item_changed = True
+        saved_block1 = self.__block1
+        self.__block1 = True
         data_group = data_panel_selection.data_group
         data_item = data_panel_selection.data_item
-        item = None
-        data_group_item = self.data_group_model_controller.mapping.get(data_group)
-        parent_item = data_group_item.parent if data_group_item else self.data_group_model_controller.item_model_controller.root
-        assert parent_item is not None
-        for child in parent_item.children:
-            child_data_group = child.data.get("data_group")
-            if child_data_group == data_group:
-                item = child
-                break
-        if item:
-            self.data_group_model_controller._index = item.row
-            self.data_group_model_controller._parent_row = item.parent.row
-            self.data_group_model_controller._parent_id = item.parent.id
-            self.set_group_current_row(item.row, item.parent.row, item.parent.id)
-        else:
-            self.data_group_model_controller._index = -1
-            self.data_group_model_controller._parent_row = -1
-            self.data_group_model_controller._parent_id = 0
-            self.set_group_current_row(-1, -1, 0)
-        self.data_item_model_controller.data_group = data_group
-        self.data_item_model_controller._index = self.data_item_model_controller.get_data_item_index(data_item)
-        # restore the selected item
-        prev_current_index = self.data_item_widget.current_index
-        if prev_current_index != self.data_item_model_controller._index:
-            self.data_item_widget.current_index = self.data_item_model_controller._index
-        self.__block_current_item_changed = old_block_current_item_changed
-
-    # used for queue_main_thread decorator
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
-
-    @queue_main_thread
-    def set_group_current_row(self, index, parent_row, parent_id):
-        old = self.data_group_model_controller.set_block_image_panel_update(True)
+        # first select the right row in the data group widget
+        index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
         self.data_group_widget.set_current_row(index, parent_row, parent_id)
-        self.data_group_model_controller.set_block_image_panel_update(old)
+        # update the data group that the data item model is tracking
+        self.data_item_model_controller.data_group = data_group
+        # update the data item selection
+        self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
+        self.__block1 = saved_block1
 
-    # this message is received from the document controller.
-    # it is established using add_listener
+    # this message is received from the document controller when the user or program selects
+    # a new image panel by clicking on it or otherwise selecting it.
+    # the connection to the document controller is established using add_listener
     def selected_image_panel_changed(self, image_panel):
         data_panel_selection = image_panel.data_panel_selection if image_panel else DataItem.DataItemSpecifier()
         self.update_data_panel_selection(data_panel_selection)
 
+    # this message is received from the document controller when the user or program selects
+    # a new data item to be displayed in the current image panel. this can happen when the user
+    # selects a new data item in this data panel which will send a message to the current image
+    # panel to set the data item, which in turn will result in this message, leading to the selection
+    # being updated in this data panel.
+    # the connection to the document controller is established using add_listener
     def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
         self.update_data_panel_selection(data_panel_selection)
 
