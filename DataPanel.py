@@ -67,7 +67,7 @@ class DataPanel(Panel.Panel):
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.document_controller.document_model.add_observer(self)
-            self.mapping = { document_controller.document_model: self.item_model_controller.root }
+            self.__mapping = { document_controller.document_model: self.item_model_controller.root }
             self.on_receive_files = None
             # add items that already exist
             data_groups = document_controller.document_model.data_groups
@@ -76,7 +76,7 @@ class DataPanel(Panel.Panel):
 
         def close(self):
             # cheap way to unlisten to everything
-            for object in self.mapping.keys():
+            for object in self.__mapping.keys():
                 if isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup):
                     object.remove_listener(self)
                     object.remove_observer(self)
@@ -114,7 +114,7 @@ class DataPanel(Panel.Panel):
         def item_inserted(self, container, key, object, before_index):
             if key == "data_groups":
                 # manage the item model
-                parent_item = self.mapping[container]
+                parent_item = self.__mapping[container]
                 self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
                 count = self.__get_data_item_count_flat(object)
                 properties = {
@@ -124,7 +124,7 @@ class DataPanel(Panel.Panel):
                 }
                 item = self.item_model_controller.create_item(properties)
                 parent_item.insert_child(before_index, item)
-                self.mapping[object] = item
+                self.__mapping[object] = item
                 object.add_observer(self)
                 object.add_listener(self)
                 object.add_ref()
@@ -140,20 +140,20 @@ class DataPanel(Panel.Panel):
             if key == "data_groups":
                 assert isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup)
                 # get parent and item
-                parent_item = self.mapping[container]
+                parent_item = self.__mapping[container]
                 # manage the item model
                 self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
                 object.remove_listener(self)
                 object.remove_observer(self)
                 object.remove_ref()
                 parent_item.remove_child(parent_item.children[index])
-                self.mapping.pop(object)
+                self.__mapping.pop(object)
                 self.item_model_controller.end_remove()
 
         def __update_item_count(self, data_group):
             assert isinstance(data_group, DataGroup.DataGroup) or isinstance(data_group, DataGroup.SmartDataGroup)
             count = self.__get_data_item_count_flat(data_group)
-            item = self.mapping[data_group]
+            item = self.__mapping[data_group]
             item.data["display"] = str(data_group) + (" (%i)" % count)
             item.data["edit"] = data_group.title
             self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
@@ -186,7 +186,7 @@ class DataPanel(Panel.Panel):
 
         def get_data_group_index(self, data_group):
             item = None
-            data_group_item = self.mapping.get(data_group)
+            data_group_item = self.__mapping.get(data_group)
             parent_item = data_group_item.parent if data_group_item else self.item_model_controller.root
             assert parent_item is not None
             for child in parent_item.children:
