@@ -115,7 +115,7 @@ def createRGBAImageFromColor(size, r, g, b, a=255):
 def spatial_shape_from_shape_and_dtype(shape, dtype):
     if shape is None or dtype is None:
         return None
-    return shape[:-1] if dtype == numpy.uint8 and shape[-1] == 3 and len(shape) > 1 else shape
+    return shape[:-1] if dtype == numpy.uint8 and shape[-1] in (3,4) and len(shape) > 1 else shape
 def spatial_shape_from_data(data):
     return spatial_shape_from_shape_and_dtype(data.shape, data.dtype)
 

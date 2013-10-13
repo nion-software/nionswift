@@ -130,6 +130,9 @@ class FFTOperation(Operation):
         else:
             raise NotImplementedError()
 
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return data_shape, numpy.complex128
+
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [DataItem.Calibration(0.0,
@@ -164,7 +167,10 @@ class InvertOperation(Operation):
         self.storage_type = "invert-operation"
 
     def process_data_in_place(self, data_copy):
-        return 1.0 - data_copy[:]
+        if Image.is_data_rgba(data_copy) or Image.is_data_rgb(data_copy):
+            return 255 - data_copy[:]
+        else:
+            return 1.0 - data_copy[:]
 
 
 class GaussianBlurOperation(Operation):
@@ -227,7 +233,10 @@ class Crop2dOperation(Operation):
         shape = data_shape
         bounds = graphic.bounds
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
-        return bounds_int[1], data_dtype
+        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+            return bounds_int[1] + (data_shape[-1], ), data_dtype
+        else:
+            return bounds_int[1], data_dtype
 
     def process_data_copy(self, data_copy):
         graphic = self.graphic
@@ -264,7 +273,10 @@ class Resample2dOperation(Operation):
                                      source_calibrations[i].units) for i in range(len(source_calibrations))]
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        return (self.height, self.width), data_dtype
+        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+            return (self.height, self.width, data_shape[-1]), data_dtype
+        else:
+            return (self.height, self.width), data_dtype
 
     def update_data_shape_and_dtype(self, data_shape, data_dtype):
         self.description[1]["default"] = data_shape[0]  # height = height
@@ -343,8 +355,8 @@ class LineProfileOperation(Operation):
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
         length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
-        if data_shape[-1] == 3:
-            return (length, 3), numpy.uint8
+        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+            return (length, data_shape[-1]), data_dtype
         else:
             return (length, ), numpy.double
 

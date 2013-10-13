@@ -108,6 +108,8 @@ class TestOperationClass(unittest.TestCase):
             source_data_item.data_items.append(data_item)
             self.assertIsNotNone(data_item.data)
             self.assertIsNotNone(data_item.calculated_calibrations)
+            self.assertEqual(data_item.data_shape_and_dtype[0], data_item.data.shape)
+            self.assertEqual(data_item.data_shape_and_dtype[1], data_item.data.dtype)
 
         data_item_real.remove_ref()
         data_item_complex.remove_ref()
@@ -118,13 +120,8 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.master_data = numpy.zeros((256,256), numpy.double)
         data_item_real.add_ref()
 
-        data_item_complex = DataItem.DataItem()
-        data_item_complex.master_data = numpy.zeros((256,256), numpy.complex128)
-        data_item_complex.add_ref()
-
         operation_list = []
         operation_list.append((data_item_real, Operation.FFTOperation()))
-        operation_list.append((data_item_complex, Operation.IFFTOperation()))
         operation_list.append((data_item_real, Operation.InvertOperation()))
         operation_list.append((data_item_real, Operation.GaussianBlurOperation()))
         operation_list.append((data_item_real, Operation.Crop2dOperation(Graphics.RectangleGraphic())))
@@ -139,14 +136,15 @@ class TestOperationClass(unittest.TestCase):
             source_data_item.data_items.append(data_item)
             self.assertIsNotNone(data_item.data)
             self.assertIsNotNone(data_item.calculated_calibrations)
+            self.assertEqual(data_item.data_shape_and_dtype[0], data_item.data.shape)
+            self.assertEqual(data_item.data_shape_and_dtype[1], data_item.data.dtype)
 
         data_item_real.remove_ref()
-        data_item_complex.remove_ref()
 
     # test operations against 2d data. doesn't test for correctness of the operation.
-    def test_operations_2d(self):
+    def test_operations_2d_rgb(self):
         data_item_rgb = DataItem.DataItem()
-        data_item_rgb.master_data = numpy.zeros((256,256), numpy.double)
+        data_item_rgb.master_data = numpy.zeros((256,256,3), numpy.uint8)
         data_item_rgb.add_ref()
 
         operation_list = []
@@ -164,8 +162,55 @@ class TestOperationClass(unittest.TestCase):
             source_data_item.data_items.append(data_item)
             self.assertIsNotNone(data_item.data)
             self.assertIsNotNone(data_item.calculated_calibrations)
+            self.assertEqual(data_item.data_shape_and_dtype[0], data_item.data.shape)
+            self.assertEqual(data_item.data_shape_and_dtype[1], data_item.data.dtype)
 
         data_item_rgb.remove_ref()
+
+    # test operations against 2d data. doesn't test for correctness of the operation.
+    def test_operations_2d_rgba(self):
+        data_item_rgb = DataItem.DataItem()
+        data_item_rgb.master_data = numpy.zeros((256,256,4), numpy.uint8)
+        data_item_rgb.add_ref()
+
+        operation_list = []
+        operation_list.append((data_item_rgb, Operation.InvertOperation()))
+        operation_list.append((data_item_rgb, Operation.GaussianBlurOperation()))
+        operation_list.append((data_item_rgb, Operation.Crop2dOperation(Graphics.RectangleGraphic())))
+        operation_list.append((data_item_rgb, Operation.Resample2dOperation(128,128)))
+        operation_list.append((data_item_rgb, Operation.HistogramOperation()))
+        operation_list.append((data_item_rgb, Operation.LineProfileOperation(Graphics.LineGraphic())))
+        operation_list.append((data_item_rgb, Operation.ConvertToScalarOperation()))
+
+        for source_data_item, operation in operation_list:
+            data_item = DataItem.DataItem()
+            data_item.operations.append(operation)
+            source_data_item.data_items.append(data_item)
+            self.assertIsNotNone(data_item.data)
+            self.assertIsNotNone(data_item.calculated_calibrations)
+            self.assertEqual(data_item.data_shape_and_dtype[0], data_item.data.shape)
+            self.assertEqual(data_item.data_shape_and_dtype[1], data_item.data.dtype)
+
+        data_item_rgb.remove_ref()
+
+    def test_operations_2d_complex(self):
+        data_item_complex = DataItem.DataItem()
+        data_item_complex.master_data = numpy.zeros((256,256), numpy.complex128)
+        data_item_complex.add_ref()
+
+        operation_list = []
+        operation_list.append((data_item_complex, Operation.IFFTOperation()))
+
+        for source_data_item, operation in operation_list:
+            data_item = DataItem.DataItem()
+            data_item.operations.append(operation)
+            source_data_item.data_items.append(data_item)
+            self.assertIsNotNone(data_item.data)
+            self.assertIsNotNone(data_item.calculated_calibrations)
+            self.assertEqual(data_item.data_shape_and_dtype[0], data_item.data.shape)
+            self.assertEqual(data_item.data_shape_and_dtype[1], data_item.data.dtype)
+
+        data_item_complex.remove_ref()
 
     def test_crop_2d(self):
         data_item_real = DataItem.DataItem()
@@ -180,3 +225,15 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
         self.assertEqual(data_item_real.data.shape, (1000, 500))
         data_item_real.remove_ref()
+
+    def test_fft_2d_dtype(self):
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((512,512), numpy.float64)
+        data_item.add_ref()
+
+        fft_data_item = DataItem.DataItem()
+        fft_data_item.operations.append(Operation.FFTOperation())
+        data_item.data_items.append(fft_data_item)
+
+        self.assertEqual(fft_data_item.data.shape, (512, 512))
+        self.assertEqual(fft_data_item.data.dtype, numpy.complex128)

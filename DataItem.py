@@ -370,7 +370,8 @@ class DataItem(Storage.StorageBase):
         assert data is None or self.__data_source is None  # can't have master data and data source
         with self.__data_mutex:
             self.__master_data = data
-            self.sync_calibrations(numpy.ndim(data))
+            spatial_ndim = len(self.spatial_shape) if data is not None else 0
+            self.sync_calibrations(spatial_ndim)
         if not self.live_data:
             self.notify_set_data("master_data", self.__master_data)
         self.notify_data_item_changed({"property": "data"})
