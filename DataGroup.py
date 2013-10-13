@@ -104,12 +104,6 @@ class DataGroup(Storage.StorageBase):
             self.data_items.remove(data_item)
         super(DataGroup, self).about_to_delete()
 
-    # call this when the listeners need to be updated
-    # (via data_item_changed). Calling this method will send the data_item_changed
-    # method to each listener.
-    def notify_data_item_changed(self, info):
-        self.notify_listeners("data_item_changed", self, info)
-
     # smart groups don't participate in the storage model directly. so allow
     # listeners an alternative way of hearing about data items being inserted
     # or removed via data_item_inserted and data_item_removed messages.
