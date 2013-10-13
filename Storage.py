@@ -809,14 +809,14 @@ class DbStorageWriterProxy(object):
             action_name = action[2]
             if item:
                 try:
-                    logging.debug("EXECUTE %s", action_name)
+                    #logging.debug("EXECUTE %s", action_name)
                     item()
                 except Exception as e:
                     import traceback
                     traceback.print_stack()
                     logging.debug("DB Error: %s", e)
                 finally:
-                    logging.debug("FINISH")
+                    #logging.debug("FINISH")
                     event.set()
             self.queue.task_done()
             if not item:
