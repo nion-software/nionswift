@@ -474,6 +474,11 @@ class QtWidget(object):
         self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
 
+    # subclasses should override to clear their variable.
+    # subclsases should NOT call Qt code to delete anything here... that is done by the Qt code
+    def close(self):
+        self.widget = None
+
     def update_properties(self):
         if self.widget:
             for key in self.properties.keys():
@@ -495,6 +500,10 @@ class QtBoxWidget(QtWidget):
     def __init__(self, proxy, widget_type, properties):
         super(QtBoxWidget, self).__init__(proxy, widget_type, properties)
         self.children = []
+
+    def close(self):
+        for child in self.children:
+            child.close()
 
     def count(self):
         return len(self.children)
@@ -519,6 +528,7 @@ class QtBoxWidget(QtWidget):
     def remove(self, child):
         self.children.remove(child)
         self.proxy.Widget_removeWidget(child.widget)
+        child.close()
 
     def add_stretch(self):
         self.proxy.Widget_addStretch(self.widget)
@@ -544,9 +554,15 @@ class QtSplitterWidget(QtWidget):
     def __init__(self, proxy, properties):
         super(QtSplitterWidget, self).__init__(proxy, "splitter", properties)
         self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+        self.children = []
+
+    def close(self):
+        for child in self.children:
+            child.close()
 
     def add(self, child):
         self.proxy.Widget_addWidget(self.widget, child.widget)
+        self.children.append(child)
 
     def restore_state(self, tag):
         self.proxy.Splitter_restoreState(self.widget, tag)
@@ -560,9 +576,15 @@ class QtTabWidget(QtWidget):
     def __init__(self, proxy, properties):
         super(QtTabWidget, self).__init__(proxy, "group", properties)
         self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
+        self.children = []
+
+    def close(self):
+        for child in self.children:
+            child.close()
 
     def add(self, child, label):
         self.proxy.TabWidget_addTab(self.widget, child.widget, label)
+        self.children.append(child)
 
     def restore_state(self, tag):
         pass
@@ -1164,6 +1186,7 @@ class QtDocumentWindow(object):
 
     def close(self):
         self.proxy.DocumentWindow_close(self.native_document_window)
+        self.root_widget.close()
 
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, title)
@@ -1181,10 +1204,12 @@ class QtDockWidget(object):
     def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
         self.proxy = proxy
         self.document_window = document_window
+        self.widget = widget
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, title, positions, position)
 
     def close(self):
         self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
+        self.widget.close()
 
     def __get_toggle_action(self):
         return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))

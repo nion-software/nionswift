@@ -412,14 +412,15 @@ class ImagePanel(Panel.Panel):
 
     # call this when zoom or translation changes
     def display_changed(self):
-        if self.data_item and self.__display_thread:
-            self.__display_thread.update_data(self.data_item)
-        else:
-            ctx = self.__display_layer.drawing_context
-            ctx.clear()
-            self.__repaint_graphics()
-            if self.ui and self.widget:
-                self.canvas.draw()
+        if not self.closed:
+            if self.data_item and self.__display_thread:
+                self.__display_thread.update_data(self.data_item)
+            else:
+                ctx = self.__display_layer.drawing_context
+                ctx.clear()
+                self.__repaint_graphics()
+                if self.ui and self.widget:
+                    self.canvas.draw()
 
     def selection_changed(self, graphic_selection):
         self.display_changed()
