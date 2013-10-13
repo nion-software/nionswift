@@ -693,6 +693,8 @@ class InfoPanel(Panel.Panel):
 
         ui = document_controller.ui
 
+        self.closed = False
+
         position_label = ui.create_label_widget(_("Position:"))
         self.position_text = ui.create_label_widget()
         value_label = ui.create_label_widget(_("Value:"))
@@ -727,6 +729,7 @@ class InfoPanel(Panel.Panel):
         self.document_controller.add_listener(self)
 
     def close(self):
+        self.closed = True
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -736,6 +739,8 @@ class InfoPanel(Panel.Panel):
     # it is established using add_listener
     @queue_main_thread
     def cursor_changed(self, data_item, pos, selected_graphics, image_size):
+        if self.closed:  # may close from underneat since this is queued to main thread
+            return
         position_text = ""
         value_text = ""
         graphic_text = ""
