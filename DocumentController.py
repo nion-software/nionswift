@@ -52,11 +52,12 @@ class DocumentController(object):
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
+        # close the workspace before closing the image panels, to save their position
+        if self.workspace:
+            self.workspace.close()
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.close()
         self.document_window = None
-        if self.workspace:
-            self.workspace.close()
         self.document_model.remove_ref()
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
