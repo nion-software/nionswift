@@ -14,15 +14,11 @@ import numpy
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
-from nion.swift.Decorators import relative_file
 from nion.swift.Decorators import queue_main_thread
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import Inspector
-from nion.swift import Operation
 from nion.swift import Panel
-from nion.swift import Storage
-from nion.swift import UserInterface
 
 _ = gettext.gettext
 
