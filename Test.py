@@ -62,26 +62,6 @@ def run_test(test_name):
     unittest.TextTestRunner(verbosity=2).run(suite_dict[test_name])
 
 
-class ImageView:
-    def __init__(self, image_panel):
-        self.image_panel = image_panel
-        self.widget = None
-        self.image_source = None
-        self.rect = ((0,0), (640,480))
-    def close(self):
-        pass
-    def set_focused(self, focused):
-        pass
-    def set_overlay_script(self, js):
-        pass
-    def set_underlay_script(self, js, finish_event=None):
-        if finish_event:
-            finish_event.set()
-    def map_image_norm_to_widget(self, image_size, p):
-        return (p[0]*image_size[0], p[1]*image_size[1])
-    def map_widget_to_image(self, image_size, p):
-        return p
-
 class DrawingContext(object):
     def __init__(self):
         self.fillStyle = None
@@ -127,6 +107,10 @@ class DrawingContext(object):
     def add_color_stop(self, a, b):
         pass
 
+class Layer:
+    def __init__(self):
+        self.drawing_context = DrawingContext()
+
 class Widget:
     def __init__(self):
         self.widget = ()
@@ -140,6 +124,8 @@ class Widget:
         self.parent_id = 0
         self.current_index = -1
         self.viewport = ((0, 0), (480, 640))
+        self.layers = []
+        self.layers.append(Layer())
     def close(self):
         pass
     def add(self, widget, fill=False, alignment=None):
@@ -163,6 +149,8 @@ class Widget:
         self.parent_row = parent_row
         self.parent_id = parent_id
     def scroll_to(self, x, y):
+        pass
+    def add_overlay(self, overlay):
         pass
 
 class Menu:

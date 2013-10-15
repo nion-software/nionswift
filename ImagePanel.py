@@ -265,13 +265,21 @@ class ImagePanel(Panel.Panel):
         self.line_plot_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
 
+        self.image_focus_ring_canvas = self.ui.create_canvas_widget()
+        self.line_plot_focus_ring_canvas = self.ui.create_canvas_widget()
+
         self.widget = self.ui.create_stack_widget()
         self.widget.add(self.image_widget)
         self.widget.add(self.line_plot_canvas)
 
+        self.line_plot_canvas.add_overlay(self.line_plot_focus_ring_canvas)
+        self.image_canvas_scroll.add_overlay(self.image_focus_ring_canvas)
+
         self.__display_layer = self.image_canvas.create_layer()
         self.__graphics_layer = self.image_canvas.create_layer()
         self.__line_plot_layer = self.line_plot_canvas.create_layer()
+        self.__line_plot_focus_ring_layer = self.line_plot_focus_ring_canvas.create_layer()
+        self.__image_focus_ring_layer = self.image_focus_ring_canvas.create_layer()
 
         self.document_controller.register_image_panel(self)
 
@@ -374,6 +382,7 @@ class ImagePanel(Panel.Panel):
     def set_focused(self, focused):
         if self.closed: return  # argh
         self.image_canvas.focused = focused
+        self.line_plot_canvas.focused = focused
         self.display_changed()
 
     # this will only be called from the drawing thread (via _repaint)
@@ -405,6 +414,19 @@ class ImagePanel(Panel.Panel):
                 ctx.fillStyle = "#FFF"
                 ctx.fillText("60nm", origin[1], origin[0] - 12)
 
+    def __repaint_focus_ring(self, canvas, focused, size):
+        ctx = canvas.layers[0].drawing_context
+        ctx.clear()
+        stroke_style = "#CCC"  # TODO: platform dependent
+        if focused:
+            stroke_style = "#3876D6"  # TODO: platform dependent
+        ctx.beginPath()
+        ctx.rect(2, 2, size[1] - 4, size[0] - 4)
+        ctx.lineJoin = "miter"
+        ctx.strokeStyle = stroke_style
+        ctx.lineWidth = 4.0
+        ctx.stroke()
+
     # this will only be called from the drawing thread
     def _repaint(self, data_item):
         if self.closed: return  # argh
@@ -412,25 +434,28 @@ class ImagePanel(Panel.Panel):
             self.__repaint_line_plot(data_item)
             self.__graphics_layer.drawing_context.clear()
             self.__display_layer.drawing_context.clear()
+            self.__line_plot_focus_ring_layer.drawing_context.clear()
+            self.__image_focus_ring_layer.drawing_context.clear()
+            if self.document_controller.selected_image_panel == self:
+                self.__repaint_focus_ring(self.line_plot_focus_ring_canvas, self.line_plot_canvas.focused, self.line_plot_focus_ring_canvas.canvas_size)
+            if self.ui and self.line_plot_canvas:
+                self.line_plot_canvas.draw()
+            if self.ui and self.line_plot_focus_ring_canvas:
+                self.line_plot_focus_ring_canvas.draw()
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
             self.__repaint_graphics()
             self.__line_plot_layer.drawing_context.clear()
-        if self.document_controller.selected_image_panel == self:
-            ctx = self.__graphics_layer.drawing_context
-            stroke_style = "#CCC"  # TODO: platform dependent
-            if self.image_canvas.focused:
-                stroke_style = "#3876D6"  # TODO: platform dependent
-            ctx.beginPath()
-            ctx.rect(2, 2, self.image_canvas.width - 4, self.image_canvas.height - 4)
-            ctx.lineJoin = "miter"
-            ctx.strokeStyle = stroke_style
-            ctx.lineWidth = 4.0
-            ctx.stroke()
-        if self.ui and self.image_canvas:
-            self.image_canvas.draw()
-        if self.ui and self.line_plot_canvas:
-            self.line_plot_canvas.draw()
+            self.__line_plot_focus_ring_layer.drawing_context.clear()
+            self.__image_focus_ring_layer.drawing_context.clear()
+            if self.document_controller.selected_image_panel == self:
+                viewport_size = self.image_canvas_scroll.viewport[1]
+                viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
+                self.__repaint_focus_ring(self.image_focus_ring_canvas, self.image_canvas.focused, viewport_size)
+            if self.ui and self.image_canvas:
+                self.image_canvas.draw()
+            if self.ui and self.image_focus_ring_canvas:
+                self.image_focus_ring_canvas.draw()
 
     # this will only be called from the drawing thread (via _repaint)
     def __repaint_line_plot(self, data_item):

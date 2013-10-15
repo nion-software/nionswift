@@ -500,6 +500,9 @@ class QtWidget(object):
         self.proxy.Widget_setWidgetSize(self.widget, int(size[1]), int(size[0]))
     size = property(__get_size, __set_size)
 
+    def add_overlay(self, overlay):
+        self.proxy.Widget_addOverlay(self.widget, overlay.widget)
+
 
 class QtBoxWidget(QtWidget):
 
@@ -900,6 +903,10 @@ class QtCanvasWidget(QtWidget):
         self.height = 0
         self.__focusable = False
         self.layers = []
+
+    def __get_canvas_size(self):
+        return (self.height, self.width)
+    canvas_size = property(__get_canvas_size)
 
     def __get_focusable(self):
         return self.__focusable
