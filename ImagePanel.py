@@ -41,6 +41,11 @@ _ = gettext.gettext
 #     be impossible when the shape of the view changes radically.
 #   when the user zooms in/out, the canvas is made larger or smaller by the appropriate amount.
 
+# how to make sure it works:
+#   if the new view default is 'fill' or '1:1', do the scroll bars come up in the center?
+#   for new view, does zoom go into the center point?
+#   switch to 'fit', does zoom still go into center point?
+
 
 # refer to Illustrator / Default keyboard shortcuts
 # http://help.adobe.com/en_US/illustrator/cs/using/WS714a382cdf7d304e7e07d0100196cbc5f-6426a.html
@@ -319,18 +324,43 @@ class ImagePanel(Panel.Panel):
                     canvas_size = (canvas_size[0] * self.canvas_zoom, canvas_size[1] * self.canvas_zoom)
                 else:  # fit
                     canvas_size = (viewport_size[0] * self.canvas_zoom, viewport_size[1] * self.canvas_zoom)
-                self.canvas.size = canvas_size
                 old_block_scrollers = self.__block_scrollers
                 self.__block_scrollers = True
+                #logging.debug("before")
+                #self.canvas_scroll.info()
+                self.canvas.size = canvas_size
+                #logging.debug("after")
+                #self.canvas_scroll.info()
                 if not self.canvas_first and self.canvas_preserve_pos:
-                    self.canvas_scroll.scroll_to(self.canvas_center[1], self.canvas_center[0])
+# scroll bar has a range of 0 to canvas_size - viewport_size
+# when scroll bar is minimum, viewport ranges from 0 to viewport_size/canvas_zoom
+# when scroll bar is maximum, viewport ranges from (canvas_size - viewportsize)/canvas_zoom to canvas_size/canvas_zoom
+# when scroll bar has value, viewport ranges from value/canvas_zoom to (value + viewport_size)/canvas_zoom
+# and viewport center is (value + value + viewport_size)/2 / canvas_zoom = (value + viewport_size / 2) / canvas_zoom
+# which means value = canvas_center * canvas_zoom - viewport_size / 2
+# center = viewport_center / (canvas_size * canvas_zoom)
+                    viewport_center = self.map_image_norm_to_widget(self.canvas_center)
+                    h_range = canvas_size[1] - viewport_size[1]
+                    v_range = canvas_size[0] - viewport_size[0]
+                    h_offset = (viewport_center[1] - viewport_size[1]*0.5) / h_range if h_range else 0.0
+                    v_offset = (viewport_center[0] - viewport_size[0]*0.5) / v_range if v_range else 0.0
+                    h_offset = min(max(h_offset, 0.0), 1.0)
+                    v_offset = min(max(v_offset, 0.0), 1.0)
+                    #logging.debug("self.canvas_center %s", self.canvas_center)
+                    #logging.debug("viewport_center %s", viewport_center)
+                    #logging.debug("canvas_size %s  self.canvas_zoom %s", canvas_size, self.canvas_zoom)
+                    #logging.debug("h_offset %s  v_offset %s", h_offset, v_offset)
+                    self.canvas_scroll.scroll_to(h_offset, v_offset)
                     self.canvas_preserve_pos = False
-                self.__block_scrollers = old_block_scrollers
-                if not self.canvas_first:
+                elif not self.canvas_first:
                     viewport = self.canvas_scroll.viewport
                     viewport_center = (viewport[0][0] + viewport[1][0]*0.5, viewport[0][1] + viewport[1][1]*0.5)
                     self.canvas_center = self.map_widget_to_image_norm(viewport_center)
+                    #logging.debug("viewport %s", viewport)
+                    #logging.debug("viewport_center %s", viewport_center)
+                    #logging.debug("SET self.canvas_center %s", self.canvas_center)
                 self.canvas_first = False
+                self.__block_scrollers = old_block_scrollers
         else:
             self.canvas.size = viewport_size
 
@@ -746,18 +776,21 @@ class ImagePanel(Panel.Panel):
             self.canvas_preserve_pos = True
             self.update_canvas_size()
         if text == "1":
+            #logging.debug("---------> 1:1")
             self.canvas_mode = "1:1"
             self.canvas_preserve_pos = True
             self.canvas_zoom = 1.0
             self.canvas_center = (0.5, 0.5)
             self.update_canvas_size()
         if text == "0":
+            #logging.debug("---------> fit")
             self.canvas_mode = "fit"
             self.canvas_preserve_pos = True
             self.canvas_zoom = 1.0
             self.canvas_center = (0.5, 0.5)
             self.update_canvas_size()
         if text == ")":
+            #logging.debug("---------> fill")
             self.canvas_mode = "fill"
             self.canvas_preserve_pos = True
             self.canvas_zoom = 1.0

@@ -642,6 +642,10 @@ class QtScrollAreaWidget(QtWidget):
         self.proxy.ScrollArea_setHorizontal(self.widget, float(x))
         self.proxy.ScrollArea_setVertical(self.widget, float(y))
 
+    def info(self):
+        self.proxy.ScrollArea_info(self.widget)
+
+
 class QtComboBoxWidget(QtWidget):
 
     def __init__(self, proxy, items, properties):
