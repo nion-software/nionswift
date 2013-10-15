@@ -226,6 +226,11 @@ class ImagePanel(Panel.Panel):
         self.canvas_center = (0.5, 0.5)
         self.canvas_mode = "fill"
         self.canvas_preserve_pos = True
+        # the first time that this object receives the viewport_changed message,
+        # the canvas will be exactly the same size as the viewport. this variable
+        # helps to avoid setting the scrollbar positions until after the canvas
+        # size is set.
+        self.canvas_first = True
 
         self.canvas = self.ui.create_canvas_widget()
         self.canvas.focusable = True
@@ -317,17 +322,15 @@ class ImagePanel(Panel.Panel):
                 self.canvas.size = canvas_size
                 old_block_scrollers = self.__block_scrollers
                 self.__block_scrollers = True
-                if self.canvas_preserve_pos:
+                if not self.canvas_first and self.canvas_preserve_pos:
                     self.canvas_scroll.scroll_to(self.canvas_center[1], self.canvas_center[0])
-                    import traceback
-                    #traceback.print_stack()
-                    #logging.debug("SCROLL TO %s", self.canvas_center)
-                    # TODO: why is this not working on first pass?
                     self.canvas_preserve_pos = False
                 self.__block_scrollers = old_block_scrollers
-                viewport = self.canvas_scroll.viewport
-                viewport_center = (viewport[0][0] + viewport[1][0]*0.5, viewport[0][1] + viewport[1][1]*0.5)
-                self.canvas_center = self.map_widget_to_image_norm(viewport_center)
+                if not self.canvas_first:
+                    viewport = self.canvas_scroll.viewport
+                    viewport_center = (viewport[0][0] + viewport[1][0]*0.5, viewport[0][1] + viewport[1][1]*0.5)
+                    self.canvas_center = self.map_widget_to_image_norm(viewport_center)
+                self.canvas_first = False
         else:
             self.canvas.size = viewport_size
 
