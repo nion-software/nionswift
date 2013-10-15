@@ -494,6 +494,12 @@ class QtWidget(object):
                 self.proxy.Widget_clearFocus(self.widget)
     focused = property(__get_focused, __set_focused)
 
+    def __get_size(self):
+        raise NotImplementedError()
+    def __set_size(self, size):
+        self.proxy.Widget_setWidgetSize(self.widget, int(size[1]), int(size[0]))
+    size = property(__get_size, __set_size)
+
 
 class QtBoxWidget(QtWidget):
 
@@ -512,7 +518,7 @@ class QtBoxWidget(QtWidget):
         assert child in self.children
         return self.children.index(child)
 
-    def insert(self, child, before):
+    def insert(self, child, before, fill=False, alignment=None):
         if isinstance(before, numbers.Integral):
             index = before
         else:
@@ -520,10 +526,10 @@ class QtBoxWidget(QtWidget):
         self.children.insert(index, child)
         assert self.widget is not None
         assert child.widget is not None
-        self.proxy.Widget_insertWidget(self.widget, child.widget, index)
+        self.proxy.Widget_insertWidget(self.widget, child.widget, index, fill, alignment)
 
-    def add(self, child):
-        self.insert(child, None)
+    def add(self, child, fill=False, alignment=None):
+        self.insert(child, None, fill, alignment)
 
     def remove(self, child):
         self.children.remove(child)
@@ -592,6 +598,49 @@ class QtTabWidget(QtWidget):
     def save_state(self, tag):
         pass
 
+
+class QtScrollAreaWidget(QtWidget):
+
+    def __init__(self, proxy, properties):
+        super(QtScrollAreaWidget, self).__init__(proxy, "scrollarea", properties)
+        self.__content = None
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        self.viewport = ((0, 0), (0, 0))
+        self.width = 0
+        self.height = 0
+        self.proxy.ScrollArea_connect(self.widget, self)
+
+    def close(self):
+        self.__content.close()
+
+    def __get_content(self):
+        return self.__content
+    def __set_content(self, content):
+        self.proxy.ScrollArea_setWidget(self.widget, content.widget)
+        self.__content = content
+    content = property(__get_content, __set_content)
+
+    def restore_state(self, tag):
+        pass
+
+    def save_state(self, tag):
+        pass
+
+    def sizeChanged(self, width, height):
+        self.width = width
+        self.height = height
+        if self.on_size_changed:
+            self.on_size_changed(self.width, self.height)
+
+    def viewportChanged(self, left, top, width, height):
+        self.viewport = ((top, left), (height, width))
+        if self.on_viewport_changed:
+            self.on_viewport_changed(self.viewport)
+
+    def scroll_to(self, x, y):
+        self.proxy.ScrollArea_setHorizontal(self.widget, float(x))
+        self.proxy.ScrollArea_setVertical(self.widget, float(y))
 
 class QtComboBoxWidget(QtWidget):
 
@@ -818,7 +867,6 @@ class QtCanvasWidget(QtWidget):
         self.height = 0
         self.__focusable = False
         self.layers = []
-        self.update_properties()
 
     def __get_focusable(self):
         return self.__focusable
@@ -1253,6 +1301,9 @@ class QtUserInterface(object):
 
     def create_tab_widget(self, properties=None):
         return QtTabWidget(self.proxy, properties)
+
+    def create_scroll_area_widget(self, properties=None):
+        return QtScrollAreaWidget(self.proxy, properties)
 
     def create_combo_box_widget(self, items=None, properties=None):
         return QtComboBoxWidget(self.proxy, items, properties)

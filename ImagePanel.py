@@ -34,6 +34,14 @@ _ = gettext.gettext
 #   calibrated
 
 
+# how sizing works:
+#   the canvas is initially set to fit to the space, meaning all of it is visible
+#   when the user presses the fit, fill, or 1:1 buttons, the canvas is resized to match that choice
+#   when the window is resized, a best attempt is made to keep the view roughly the same. this may
+#     be impossible when the shape of the view changes radically.
+#   when the user zooms in/out, the canvas is made larger or smaller by the appropriate amount.
+
+
 # refer to Illustrator / Default keyboard shortcuts
 # http://help.adobe.com/en_US/illustrator/cs/using/WS714a382cdf7d304e7e07d0100196cbc5f-6426a.html
 
@@ -212,7 +220,14 @@ class ImagePanel(Panel.Panel):
 
         self.__mouse_in = False
 
-        self.canvas = self.ui.create_canvas_widget(properties)
+        self.__block_scrollers = False
+
+        self.canvas_zoom = 1.0
+        self.canvas_center = (0.5, 0.5)
+        self.canvas_mode = "fill"
+        self.canvas_preserve_pos = True
+
+        self.canvas = self.ui.create_canvas_widget()
         self.canvas.focusable = True
         self.canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
@@ -224,7 +239,19 @@ class ImagePanel(Panel.Panel):
         self.canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
         self.canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
-        self.widget = self.canvas
+        self.controls = self.ui.create_row_widget()
+        self.controls.add(self.ui.create_push_button_widget("Fit"))
+        self.controls.add(self.ui.create_push_button_widget("Fill"))
+        self.controls.add(self.ui.create_push_button_widget("1:1"))
+        self.controls.add_stretch()
+
+        self.canvas_scroll = self.ui.create_scroll_area_widget()
+        self.canvas_scroll.content = self.canvas
+        self.canvas_scroll.on_viewport_changed = lambda rect: self.update_canvas_size()
+
+        self.widget = self.ui.create_column_widget()
+        self.widget.add(self.controls)
+        self.widget.add(self.canvas_scroll, fill=True)
 
         self.__display_layer = self.canvas.create_layer()
         self.__graphics_layer = self.canvas.create_layer()
@@ -265,7 +292,47 @@ class ImagePanel(Panel.Panel):
                 if data_item:
                     self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
+    def update_canvas_size(self):
+        if self.closed: return  # argh
+        if self.__block_scrollers: return  # argh2
+        viewport_size = self.canvas_scroll.viewport[1]
+        if viewport_size[0] == 0 or viewport_size[1] == 0: return
+        if self.data_item:
+            if self.data_item.is_data_1d:
+                self.canvas.size = viewport_size
+            else:
+                if self.canvas_mode == "fill":
+                    spatial_size = self.data_item.spatial_shape
+                    scale_h = float(spatial_size[1]) / viewport_size[1]
+                    scale_v = float(spatial_size[0]) / viewport_size[0]
+                    if scale_v < scale_h:
+                        canvas_size = (viewport_size[0] * self.canvas_zoom, viewport_size[0] * spatial_size[1] / spatial_size[0] * self.canvas_zoom)
+                    else:
+                        canvas_size = (viewport_size[1] * spatial_size[0] / spatial_size[1] * self.canvas_zoom, viewport_size[1] * self.canvas_zoom)
+                elif self.canvas_mode == "1:1":
+                    canvas_size = self.data_item.spatial_shape
+                    canvas_size = (canvas_size[0] * self.canvas_zoom, canvas_size[1] * self.canvas_zoom)
+                else:  # fit
+                    canvas_size = (viewport_size[0] * self.canvas_zoom, viewport_size[1] * self.canvas_zoom)
+                self.canvas.size = canvas_size
+                old_block_scrollers = self.__block_scrollers
+                self.__block_scrollers = True
+                if self.canvas_preserve_pos:
+                    self.canvas_scroll.scroll_to(self.canvas_center[1], self.canvas_center[0])
+                    import traceback
+                    #traceback.print_stack()
+                    #logging.debug("SCROLL TO %s", self.canvas_center)
+                    # TODO: why is this not working on first pass?
+                    self.canvas_preserve_pos = False
+                self.__block_scrollers = old_block_scrollers
+                viewport = self.canvas_scroll.viewport
+                viewport_center = (viewport[0][0] + viewport[1][0]*0.5, viewport[0][1] + viewport[1][1]*0.5)
+                self.canvas_center = self.map_widget_to_image_norm(viewport_center)
+        else:
+            self.canvas.size = viewport_size
+
     def set_focused(self, focused):
+        if self.closed: return  # argh
         self.canvas.focused = focused
         self.display_changed()
 
@@ -300,6 +367,7 @@ class ImagePanel(Panel.Panel):
 
     # this will only be called from the drawing thread
     def _repaint(self, data_item):
+        if self.closed: return  # argh
         if data_item and data_item.is_data_1d:
             self.__repaint_line_plot(data_item)
             ctx = self.__graphics_layer.drawing_context
@@ -318,7 +386,7 @@ class ImagePanel(Panel.Panel):
             ctx.strokeStyle = stroke_style
             ctx.lineWidth = 4.0
             ctx.stroke()
-        if self.ui and self.widget:
+        if self.ui and self.canvas:
             self.canvas.draw()
 
     # this will only be called from the drawing thread (via _repaint)
@@ -412,15 +480,15 @@ class ImagePanel(Panel.Panel):
 
     # call this when zoom or translation changes
     def display_changed(self):
-        if not self.closed:
-            if self.data_item and self.__display_thread:
-                self.__display_thread.update_data(self.data_item)
-            else:
-                ctx = self.__display_layer.drawing_context
-                ctx.clear()
-                self.__repaint_graphics()
-                if self.ui and self.widget:
-                    self.canvas.draw()
+        if self.closed: return  # argh
+        if self.data_item and self.__display_thread:
+            self.__display_thread.update_data(self.data_item)
+        else:
+            ctx = self.__display_layer.drawing_context
+            ctx.clear()
+            self.__repaint_graphics()
+            if self.ui and self.canvas:
+                self.canvas.draw()
 
     def selection_changed(self, graphic_selection):
         self.display_changed()
@@ -461,6 +529,7 @@ class ImagePanel(Panel.Panel):
             listener = weak_listener()
             listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
         self.data_item_changed(self.data_item, {"property": "source"})
+        self.update_canvas_size()
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
 
     def data_item_removed(self, container, data_item, index):
@@ -597,7 +666,8 @@ class ImagePanel(Panel.Panel):
     image_size = property(__get_image_size)
 
     def __calculate_transform_image_for_image_size(self, image_size):
-        if self.canvas and image_size:
+        if self.closed: return  # argh
+        if image_size:
             rect = ((0, 0), (self.canvas.height, self.canvas.width))
             image_rect = Graphics.fit_to_size(rect, image_size)
             image_y = image_rect[0][0] + self.ty*self.zoom - 0.5*image_rect[1][0]*(self.zoom - 1)
@@ -628,8 +698,14 @@ class ImagePanel(Panel.Panel):
         transformed_image_rect = self.transformed_image_rect
         image_size = self.image_size
         if transformed_image_rect and image_size:
-            image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
-            image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
+            if transformed_image_rect[1][0] != 0.0:
+                image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
+            else:
+                image_y = 0
+            if transformed_image_rect[1][1] != 0.0:
+                image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
+            else:
+                image_x = 0
             return (image_y, image_x) # c-indexing
         return None
 
@@ -658,31 +734,32 @@ class ImagePanel(Panel.Panel):
     # ths message comes from the widget
     def key_pressed(self, text, key, modifiers):
         #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
-        if key == 0x1000012:  # left arrow
-            self.tx = self.tx - self.zoom * (10.0 if modifiers.shift else 1.0)
-            self.display_changed()
-        if key == 0x1000014:  # right arrow
-            self.tx = self.tx + self.zoom * (10.0 if modifiers.shift else 1.0)
-            self.display_changed()
-        if key == 0x1000013:  # up arrow
-            self.ty = self.ty - self.zoom * (10.0 if modifiers.shift else 1.0)
-            self.display_changed()
-        if key == 0x1000015:  # down arrow
-            self.ty = self.ty + self.zoom * (10.0 if modifiers.shift else 1.0)
-            self.display_changed()
         if text == "-":
-            zoom = self.zoom
-            self.zoom = zoom / 1.05
-            self.display_changed()
+            self.canvas_zoom = self.canvas_zoom / 1.05
+            self.canvas_preserve_pos = True
+            self.update_canvas_size()
         if text == "+":
-            zoom = self.zoom
-            self.zoom = zoom * 1.05
-            self.display_changed()
+            self.canvas_zoom = self.canvas_zoom * 1.05
+            self.canvas_preserve_pos = True
+            self.update_canvas_size()
+        if text == "1":
+            self.canvas_mode = "1:1"
+            self.canvas_preserve_pos = True
+            self.canvas_zoom = 1.0
+            self.canvas_center = (0.5, 0.5)
+            self.update_canvas_size()
         if text == "0":
-            self.zoom = 1.0
-            self.tx = 0.0
-            self.ty = 0.0
-            self.display_changed()
+            self.canvas_mode = "fit"
+            self.canvas_preserve_pos = True
+            self.canvas_zoom = 1.0
+            self.canvas_center = (0.5, 0.5)
+            self.update_canvas_size()
+        if text == ")":
+            self.canvas_mode = "fill"
+            self.canvas_preserve_pos = True
+            self.canvas_zoom = 1.0
+            self.canvas_center = (0.5, 0.5)
+            self.update_canvas_size()
         return False
 
 
@@ -811,6 +888,7 @@ class InspectorPanel(Panel.Panel):
         if self.__data_item != data_item:
             self.__data_item = data_item
             self.__update_property_editor_controller()
+            self.canvas_zoom = 1.0
     data_item = property(__get_data_item, __set_data_item)
 
     # this message is received from the document controller.

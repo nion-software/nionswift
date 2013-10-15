@@ -139,11 +139,12 @@ class Widget:
         self.parent_row = -1
         self.parent_id = 0
         self.current_index = -1
+        self.viewport = ((0, 0), (480, 640))
     def close(self):
         pass
-    def add(self, widget):
+    def add(self, widget, fill=False, alignment=None):
         self.children.append(widget)
-    def insert(self, widget, before):
+    def insert(self, widget, before, fill=False, alignment=None):
         self.children.insert(before, widget)
     def remove(self, widget):
         self.children.remove(widget)
@@ -161,6 +162,8 @@ class Widget:
         self.index = index
         self.parent_row = parent_row
         self.parent_id = parent_id
+    def scroll_to(self, x, y):
+        pass
 
 class Menu:
     def __init__(self):
@@ -299,6 +302,8 @@ class UserInterface:
     def create_splitter_widget(self, properties=None):
         return Widget()
     def create_tab_widget(self, properties=None):
+        return Widget()
+    def create_scroll_area_widget(self, properties=None):
         return Widget()
     def create_combo_box_widget(self, items=None, properties=None):
         return Widget()
