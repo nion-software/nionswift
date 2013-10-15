@@ -561,6 +561,8 @@ class ImagePanel(Panel.Panel):
         self.mouse_position_changed((0, 0), 0)
 
     def mouse_position_changed(self, p, modifiers):
+        if self.closed:  # prevent the last message from sneaking through when closing the window
+            return
         # x,y already have transform applied
         self.last_mouse = p
         self.update_cursor_info()
