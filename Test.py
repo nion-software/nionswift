@@ -303,6 +303,8 @@ class UserInterface:
         return Widget()
     def create_tab_widget(self, properties=None):
         return Widget()
+    def create_stack_widget(self, properties=None):
+        return Widget()
     def create_scroll_area_widget(self, properties=None):
         return Widget()
     def create_combo_box_widget(self, items=None, properties=None):

@@ -599,6 +599,35 @@ class QtTabWidget(QtWidget):
         pass
 
 
+class QtStackWidget(QtWidget):
+
+    def __init__(self, proxy, properties):
+        super(QtStackWidget, self).__init__(proxy, "stack", properties)
+        self.children = []
+        self.__current_index = -1
+
+    def close(self):
+        for child in self.children:
+            child.close()
+
+    def add(self, child):
+        self.proxy.StackWidget_addWidget(self.widget, child.widget)
+        self.children.append(child)
+
+    def restore_state(self, tag):
+        pass
+
+    def save_state(self, tag):
+        pass
+
+    def __get_current_index(self):
+        return self.__current_index
+    def __set_current_index(self, index):
+        self.__current_index = index
+        self.proxy.StackWidget_setCurrentIndex(self.widget, index)
+    current_index = property(__get_current_index, __set_current_index)
+
+
 class QtScrollAreaWidget(QtWidget):
 
     def __init__(self, proxy, properties):
@@ -1305,6 +1334,9 @@ class QtUserInterface(object):
 
     def create_tab_widget(self, properties=None):
         return QtTabWidget(self.proxy, properties)
+
+    def create_stack_widget(self, properties=None):
+        return QtStackWidget(self.proxy, properties)
 
     def create_scroll_area_widget(self, properties=None):
         return QtScrollAreaWidget(self.proxy, properties)
