@@ -117,7 +117,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "data_range"]
+        self.storage_properties += ["title", "param", "data_range", "display_limits"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -152,6 +152,7 @@ class DataItem(Storage.StorageBase):
         title = storage_reader.get_property(item_node, "title")
         param = storage_reader.get_property(item_node, "param")
         data_range = storage_reader.get_property(item_node, "data_range")
+        display_limits = storage_reader.get_property(item_node, "display_limits")
         calibrations = storage_reader.get_items(item_node, "calibrations")
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
@@ -167,7 +168,10 @@ class DataItem(Storage.StorageBase):
         while len(data_item.calibrations):
             data_item.calibrations.pop()
         data_item.calibrations.extend(calibrations)
-        data_item.data_range = data_range
+        if data_range:
+            data_item.data_range = data_range
+        if display_limits:
+            data_item.display_limits = display_limits
         data_item.graphics.extend(graphics)
         return data_item
 
@@ -211,6 +215,7 @@ class DataItem(Storage.StorageBase):
     def __set_display_limits(self, display_limits):
         if self.__display_limits != display_limits:
             self.__display_limits = display_limits
+            self.notify_set_property("display_limits", display_limits)
             self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
 
@@ -552,6 +557,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy.title = self.title
         data_item_copy.param = self.param
         data_item_copy.data_range = self.data_range
+        data_item_copy.display_limits = self.display_limits
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(calibration.copy())
         for operation in self.operations:

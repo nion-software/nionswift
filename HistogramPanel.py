@@ -74,8 +74,6 @@ class HistogramPanel(Panel.Panel):
 
         self.__data_item = None
 
-        self.__display_limits = (0,1)
-
         self.pressed = False
 
         self.__histogram_data = None
@@ -101,11 +99,14 @@ class HistogramPanel(Panel.Panel):
         super(HistogramPanel, self).close()
 
     def __get_display_limits(self):
-        return self.__display_limits
+        data_item = self.data_item
+        return data_item.display_limits if data_item else (0, 1)
     def __set_display_limits(self, display_limits):
-        self.__display_limits = display_limits
-        self.__adornments_dirty = True
-        self.__update_histogram()
+        data_item = self.data_item
+        if data_item:
+            data_item.display_limits = display_limits
+            self.__adornments_dirty = True
+            self.__update_histogram()
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def size_changed(self, width, height):
@@ -251,6 +252,7 @@ class HistogramPanel(Panel.Panel):
         self.__data_item = data_item
         self.__histogram_data = None
         self.__histogram_dirty = True
+        self.__adornments_dirty = True
         self.__update_histogram()
     data_item = property(__get_data_item, __set_data_item)
 
