@@ -60,6 +60,10 @@ _ = gettext.gettext
 # KEYS FOR VIEWING IMAGES               ACTION/KEY
 # fit image to area                     double w/ hand tool
 # magnify to 100%                       double w/ zoom tool
+# fit image to area                     0
+# fill image to area                    Shift-0
+# make image 1:1                        1
+# display original image                o
 
 # KEYS FOR DRAWING GRAPHICS             ACTION/KEY
 # constrain shape                       shift-drag
@@ -248,15 +252,19 @@ class ImagePanel(Panel.Panel):
         fit_button = self.ui.create_push_button_widget("Fit")
         fill_button = self.ui.create_push_button_widget("Fill")
         one_to_one_button = self.ui.create_push_button_widget("1:1")
+        show_source_button = self.ui.create_push_button_widget("Up")
 
         fit_button.on_clicked = self.__set_fit_mode
         fill_button.on_clicked = self.__set_fill_mode
         one_to_one_button.on_clicked = self.__set_one_to_one_mode
+        show_source_button.on_clicked = self.__show_data_source
 
         self.image_controls = self.ui.create_row_widget()
         self.image_controls.add(fit_button)
         self.image_controls.add(fill_button)
         self.image_controls.add(one_to_one_button)
+        self.image_controls.add_spacing(12)
+        self.image_controls.add(show_source_button)
         self.image_controls.add_stretch()
 
         self.image_canvas_scroll = self.ui.create_scroll_area_widget()
@@ -272,6 +280,7 @@ class ImagePanel(Panel.Panel):
         self.line_plot_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.line_plot_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
+        self.line_plot_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
         self.image_focus_ring_canvas = self.ui.create_canvas_widget()
         self.line_plot_focus_ring_canvas = self.ui.create_canvas_widget()
@@ -845,6 +854,11 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_preserve_pos = True
         self.update_image_canvas_size()
 
+    def __show_data_source(self):
+        data_source = self.data_item.data_source
+        if data_source:
+            self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group, data_source)
+
     # ths message comes from the widget
     def key_pressed(self, text, key, modifiers):
         #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
@@ -858,6 +872,8 @@ class ImagePanel(Panel.Panel):
             self.__set_fit_mode()
         if text == ")":
             self.__set_fill_mode()
+        if text == "o":
+            self.__show_data_source()
         return False
 
 
