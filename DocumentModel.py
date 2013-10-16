@@ -144,7 +144,7 @@ class DocumentModel(Storage.StorageBase):
             return self
         def next(self):
             data_item = self.iter.next()
-            return data_item.image if data_item else None
+            return data_item.data if data_item else None
 
     class DataAccessor(object):
         def __init__(self, document_model):
@@ -201,7 +201,7 @@ class DocumentModel(Storage.StorageBase):
         return self.get_data_item_by_title(str(key))
     def get_data_by_key(self, key):
         data_item = self.get_data_item_by_key(key)
-        return data_item.image if data_item else None
+        return data_item.data if data_item else None
     def set_data_by_key(self, key, data):
         data_item = self.get_data_item_by_key(key)
         if data_item:
@@ -225,7 +225,7 @@ class DocumentModel(Storage.StorageBase):
         return None
     def get_data_by_title(self, title):
         data_item = self.get_data_item_by_title(title)
-        return data_item.image if data_item else None
+        return data_item.data if data_item else None
     def set_data_by_title(self, title, data):
         data_item = self.get_data_item_by_title(title)
         if data_item:
@@ -242,7 +242,7 @@ class DocumentModel(Storage.StorageBase):
         return list(self.get_flat_data_item_generator())[index]
     def get_data_by_index(self, index):
         data_item = self.get_data_item_by_index(index)
-        return data_item.image if data_item else None
+        return data_item.data if data_item else None
     def set_data_by_index(self, index, data):
         data_item = self.get_data_item_by_index(index)
         if data_item:
@@ -260,7 +260,7 @@ class DocumentModel(Storage.StorageBase):
         return None
     def get_data_by_uuid(self, uuid):
         data_item = self.get_data_item_by_uuid(uuid)
-        return data_item.image if data_item else None
+        return data_item.data if data_item else None
     def set_data_by_uuid(self, uuid, data):
         data_item = self.get_data_item_by_uuid(uuid)
         if data_item:

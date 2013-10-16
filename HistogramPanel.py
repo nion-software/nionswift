@@ -140,9 +140,10 @@ class HistogramPanel(Panel.Panel):
 
         if self.__histogram_data is None:
             if self.data_item:
-                image = self.data_item.image
-                if image is not None:
-                    histogram_data = numpy.histogram(image, bins=256)
+                data = self.data_item.data
+                if data is not None:
+                    data_range = self.data_item.calculated_data_range
+                    histogram_data = numpy.histogram(data, range=data_range, bins=256)
                     histogram_data = histogram_data[0]
                     histogram_max = float(numpy.max(histogram_data))
                     self.__histogram_data = histogram_data / histogram_max

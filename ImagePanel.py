@@ -905,7 +905,7 @@ class InfoPanel(Panel.Panel):
                 if pos[0] >= 0 and pos[0] < image_size[0] and pos[1] >= 0 and pos[1] < image_size[1]:
                     position_text = '{0},{1}'.format(calibrations[1].convert_to_calibrated_str(pos[1] - 0.5 * image_size[1]),
                                                      calibrations[0].convert_to_calibrated_str(0.5 * image_size[0] - pos[0]))
-                    value = data_item.image[pos[0], pos[1]]
+                    value = data_item.data[pos[0], pos[1]]
                     if isinstance(value, numbers.Integral):
                         value_text = '{0:d}'.format(value)
                     elif isinstance(value, numbers.Real) or isinstance(value, numbers.Complex):

@@ -92,6 +92,9 @@ class Operation(Storage.StorageBase):
     # calibrations
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         return source_calibrations
+    # data range
+    def get_processed_data_range(self, data_shape, data_dtype, data_range):
+        return data_range
     # subclasses that change the type or shape of the data must override
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape, data_dtype
@@ -139,6 +142,10 @@ class FFTOperation(Operation):
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
 
+    def get_processed_data_range(self, data_shape, data_dtype, data_range):
+        return None
+
+
 class IFFTOperation(Operation):
     def __init__(self):
         description = []
@@ -158,6 +165,9 @@ class IFFTOperation(Operation):
         return [DataItem.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
+
+    def get_processed_data_range(self, data_shape, data_dtype, data_range):
+        return None
 
 
 class InvertOperation(Operation):
@@ -305,6 +315,9 @@ class HistogramOperation(Operation):
         histogram_data = numpy.histogram(data, bins=512)
         return histogram_data[0].astype(numpy.int)
 
+    def get_processed_data_range(self, data_shape, data_dtype, data_range):
+        return None
+
 
 class LineProfileOperation(Operation):
     def __init__(self, graphic=None):
@@ -374,6 +387,10 @@ class LineProfileOperation(Operation):
             c1 = numpy.linspace(start_data[1], end_data[1]-1, length)
             return data[c0.astype(numpy.int), c1.astype(numpy.int)]
         return numpy.zeros((1))
+
+    def get_processed_data_range(self, data_shape, data_dtype, data_range):
+        return None
+
 
 class ConvertToScalarOperation(Operation):
     def __init__(self):

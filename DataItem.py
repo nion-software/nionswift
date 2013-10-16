@@ -117,7 +117,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param"]
+        self.storage_properties += ["title", "param", "data_range"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -129,6 +129,7 @@ class DataItem(Storage.StorageBase):
         self.__title = None
         self.__param = 0.5
         self.__display_limits = (0, 1)
+        self.__data_range = None
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
@@ -150,6 +151,7 @@ class DataItem(Storage.StorageBase):
     def build(cls, storage_reader, item_node):
         title = storage_reader.get_property(item_node, "title")
         param = storage_reader.get_property(item_node, "param")
+        data_range = storage_reader.get_property(item_node, "data_range")
         calibrations = storage_reader.get_items(item_node, "calibrations")
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
@@ -165,6 +167,7 @@ class DataItem(Storage.StorageBase):
         while len(data_item.calibrations):
             data_item.calibrations.pop()
         data_item.calibrations.extend(calibrations)
+        data_item.data_range = data_range
         data_item.graphics.extend(graphics)
         return data_item
 
@@ -203,17 +206,39 @@ class DataItem(Storage.StorageBase):
         self.__preview = None
         self.notify_listeners("data_item_changed", self, info)
 
-    # compatibility
-    def __get_image(self):
-        return self.data
-    image = property(__get_image)
-
     def __get_display_limits(self):
         return self.__display_limits
     def __set_display_limits(self, display_limits):
         self.__display_limits = display_limits
         self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
+
+    def __get_data_range(self):
+        return self.__data_range
+    def __set_data_range(self, data_range):
+        self.__data_range = data_range
+        self.notify_set_property("data_range", data_range)
+        self.notify_data_item_changed({"property": "display"})
+    data_range = property(__get_data_range, __set_data_range)
+
+    # calculate the data range by starting with the source data range
+    # and then applying data range transformations for each enabled
+    # operation.
+    def __get_calculated_data_range(self):
+        # if data_range is set on this item, use it, giving it precedence
+        data_range = self.data_range
+        # if data range is not set, then try to get it from the data source
+        if not data_range and self.data_source:
+            data_range = self.data_source.calculated_data_range
+        data = self.root_data
+        data_shape = data.shape
+        data_dtype = data.dtype
+        for operation in self.operations:
+            if operation.enabled:
+                data_range = operation.get_processed_data_range(data_shape, data_dtype, data_range)
+                data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        return data_range
+    calculated_data_range = property(__get_calculated_data_range)
 
     # call this when data changes. this makes sure that the right number
     # of calibrations exist in this object. it also propogates the calibrations
@@ -224,9 +249,14 @@ class DataItem(Storage.StorageBase):
         while len(self.calibrations) > ndim:
             self.calibrations.remove(self.calibrations[ndim])
 
+    # calculate the calibrations by starting with the source calibration
+    # and then applying calibration transformations for each enabled
+    # operation.
     def __get_calculated_calibrations(self):
+        # if calibrations are set on this item, use it, giving it precedence
         calibrations = self.calibrations
-        if not calibrations:
+        # if calibrations are not set, then try to get them from the data source
+        if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
         data = self.root_data
         data_shape = data.shape
@@ -453,7 +483,7 @@ class DataItem(Storage.StorageBase):
             data_2d = self.data
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalarFromArray(data_2d)
-                self.__preview = Image.createRGBAImageFromArray(data_2d, display_limits=self.display_limits)
+                self.__preview = Image.createRGBAImageFromArray(data_2d, data_range=self.calculated_data_range, display_limits=self.display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
@@ -517,6 +547,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
+        data_item_copy.data_range = self.data_range
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(calibration.copy())
         for operation in self.operations:

@@ -41,6 +41,7 @@ class TestStorageClass(unittest.TestCase):
     def save_document(self, document_controller):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item.data_range = (50, 2020)
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
@@ -97,6 +98,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
+        self.assertEqual(document_controller.document_model.data_groups[0].data_items[0].data_range, (50, 2020))
         document_controller.close()
 
     def test_db_storage(self):

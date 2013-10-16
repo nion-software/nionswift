@@ -162,7 +162,7 @@ def scalarFromArray(array, normalize=True):
     return array
 
 
-def createRGBAImageFromArray(array, normalize=True, display_limits=None):
+def createRGBAImageFromArray(array, normalize=True, data_range=None, display_limits=None):
     assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
@@ -170,8 +170,8 @@ def createRGBAImageFromArray(array, normalize=True, display_limits=None):
     if numpy.ndim(array) == 2:
         rgba_image = numpy.empty(array.shape, 'uint32')
         if normalize:
-            nmin = numpy.amin(array)
-            nmax = numpy.amax(array)
+            nmin = data_range[0] if data_range else numpy.amin(array)
+            nmax = data_range[1] if data_range else numpy.amax(array)
             if display_limits and (display_limits[0] != 0 or display_limits[1] != 1):
                 nmin_new = nmin + (nmax - nmin)*display_limits[0]
                 nmax_new = nmin + (nmax - nmin)*display_limits[1]

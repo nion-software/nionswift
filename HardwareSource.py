@@ -34,8 +34,6 @@ import weakref
 
 # local imports
 from nion.swift import Decorators
-from nion.swift import DataGroup
-from nion.swift import DataItem
 
 _ = gettext.gettext
 
