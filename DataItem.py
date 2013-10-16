@@ -231,12 +231,13 @@ class DataItem(Storage.StorageBase):
         if not data_range and self.data_source:
             data_range = self.data_source.calculated_data_range
         data = self.root_data
-        data_shape = data.shape
-        data_dtype = data.dtype
-        for operation in self.operations:
-            if operation.enabled:
-                data_range = operation.get_processed_data_range(data_shape, data_dtype, data_range)
-                data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        if data is not None:
+            data_shape = data.shape
+            data_dtype = data.dtype
+            for operation in self.operations:
+                if operation.enabled:
+                    data_range = operation.get_processed_data_range(data_shape, data_dtype, data_range)
+                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
         return data_range
     calculated_data_range = property(__get_calculated_data_range)
 
@@ -259,12 +260,13 @@ class DataItem(Storage.StorageBase):
         if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
         data = self.root_data
-        data_shape = data.shape
-        data_dtype = data.dtype
-        for operation in self.operations:
-            if operation.enabled:
-                calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
-                data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        if data is not None:
+            data_shape = data.shape
+            data_dtype = data.dtype
+            for operation in self.operations:
+                if operation.enabled:
+                    calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
+                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
         return calibrations
     calculated_calibrations = property(__get_calculated_calibrations)
 
