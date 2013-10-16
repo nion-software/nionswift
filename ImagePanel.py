@@ -245,10 +245,18 @@ class ImagePanel(Panel.Panel):
         self.image_canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
         self.image_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
+        fit_button = self.ui.create_push_button_widget("Fit")
+        fill_button = self.ui.create_push_button_widget("Fill")
+        one_to_one_button = self.ui.create_push_button_widget("1:1")
+
+        fit_button.on_clicked = self.__set_fit_mode
+        fill_button.on_clicked = self.__set_fill_mode
+        one_to_one_button.on_clicked = self.__set_one_to_one_mode
+
         self.image_controls = self.ui.create_row_widget()
-        self.image_controls.add(self.ui.create_push_button_widget("Fit"))
-        self.image_controls.add(self.ui.create_push_button_widget("Fill"))
-        self.image_controls.add(self.ui.create_push_button_widget("1:1"))
+        self.image_controls.add(fit_button)
+        self.image_controls.add(fill_button)
+        self.image_controls.add(one_to_one_button)
         self.image_controls.add_stretch()
 
         self.image_canvas_scroll = self.ui.create_scroll_area_widget()
@@ -803,38 +811,53 @@ class ImagePanel(Panel.Panel):
             return (p[0] / image_size[0], p[1] / image_size[1])
         return None
 
+    def __set_fit_mode(self):
+        #logging.debug("---------> fit")
+        self.image_canvas_mode = "fit"
+        self.image_canvas_preserve_pos = True
+        self.image_canvas_zoom = 1.0
+        self.image_canvas_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def __set_fill_mode(self):
+        #logging.debug("---------> fill")
+        self.image_canvas_mode = "fill"
+        self.image_canvas_preserve_pos = True
+        self.image_canvas_zoom = 1.0
+        self.image_canvas_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def __set_one_to_one_mode(self):
+        #logging.debug("---------> 1:1")
+        self.image_canvas_mode = "1:1"
+        self.image_canvas_preserve_pos = True
+        self.image_canvas_zoom = 1.0
+        self.image_canvas_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def __zoom_in(self):
+        self.image_canvas_zoom = self.image_canvas_zoom * 1.05
+        self.image_canvas_preserve_pos = True
+        self.update_image_canvas_size()
+
+    def __zoom_out(self):
+        self.image_canvas_zoom = self.image_canvas_zoom / 1.05
+        self.image_canvas_preserve_pos = True
+        self.update_image_canvas_size()
+
     # ths message comes from the widget
     def key_pressed(self, text, key, modifiers):
         #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
         if text == "-":
-            self.image_canvas_zoom = self.image_canvas_zoom / 1.05
-            self.image_canvas_preserve_pos = True
-            self.update_image_canvas_size()
+            self.__zoom_out()
         if text == "+":
-            self.image_canvas_zoom = self.image_canvas_zoom * 1.05
-            self.image_canvas_preserve_pos = True
-            self.update_image_canvas_size()
+            self.__zoom_in()
         if text == "1":
-            #logging.debug("---------> 1:1")
-            self.image_canvas_mode = "1:1"
-            self.image_canvas_preserve_pos = True
-            self.image_canvas_zoom = 1.0
-            self.image_canvas_center = (0.5, 0.5)
-            self.update_image_canvas_size()
+            self.__set_one_to_one_mode()
         if text == "0":
-            #logging.debug("---------> fit")
-            self.image_canvas_mode = "fit"
-            self.image_canvas_preserve_pos = True
-            self.image_canvas_zoom = 1.0
-            self.image_canvas_center = (0.5, 0.5)
-            self.update_image_canvas_size()
+            self.__set_fit_mode()
         if text == ")":
-            #logging.debug("---------> fill")
-            self.image_canvas_mode = "fill"
-            self.image_canvas_preserve_pos = True
-            self.image_canvas_zoom = 1.0
-            self.image_canvas_center = (0.5, 0.5)
-            self.update_image_canvas_size()
+            self.__set_fill_mode()
         return False
 
 
