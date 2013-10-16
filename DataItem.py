@@ -209,16 +209,18 @@ class DataItem(Storage.StorageBase):
     def __get_display_limits(self):
         return self.__display_limits
     def __set_display_limits(self, display_limits):
-        self.__display_limits = display_limits
-        self.notify_data_item_changed({"property": "display"})
+        if self.__display_limits != display_limits:
+            self.__display_limits = display_limits
+            self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range(self):
         return self.__data_range
     def __set_data_range(self, data_range):
-        self.__data_range = data_range
-        self.notify_set_property("data_range", data_range)
-        self.notify_data_item_changed({"property": "display"})
+        if data_range != self.__data_range:
+            self.__data_range = data_range
+            self.notify_set_property("data_range", data_range)
+            self.notify_data_item_changed({"property": "display"})
     data_range = property(__get_data_range, __set_data_range)
 
     # calculate the data range by starting with the source data range
