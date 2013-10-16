@@ -520,7 +520,7 @@ class DataItem(Storage.StorageBase):
         scaled_width = width if image_width > image_height else width * image_width / image_height
         thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
         if numpy.ndim(thumbnail_image) == 2:
-            return Image.createRGBAImageFromArray(thumbnail_image)
+            return Image.createRGBAImageFromArray(thumbnail_image, data_range=self.calculated_data_range, display_limits=self.display_limits)
         elif numpy.ndim(thumbnail_image) == 3:
             data = thumbnail_image
             if thumbnail_image.shape[2] == 4:
