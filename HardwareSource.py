@@ -378,12 +378,12 @@ class HardwareSourceDataBuffer(object):
 
     def update_data_elements(self, data_elements):
         # build useful data structures (channel -> data)
-        channel_to_data_dict = {}
+        channel_to_data_element_map = {}
         channels = []
         for channel, data_element in enumerate(data_elements):
             if data_element is not None:
                 channels.append(channel)
-                channel_to_data_dict[channel] = data_element["data"]
+                channel_to_data_element_map[channel] = data_element
 
         # sync to data items
         new_channel_to_data_item_dict = self.document_controller.sync_channels_to_data_items(channels, self.data_group, str(self.hardware_source))
@@ -402,7 +402,10 @@ class HardwareSourceDataBuffer(object):
 
         # update the data items with the new data.
         for channel in channels:
-            new_channel_to_data_item_dict[channel].master_data = channel_to_data_dict[channel]
+            data_element = channel_to_data_element_map[channel]
+            data_item = new_channel_to_data_item_dict[channel]
+            data_item.master_data = data_element["data"]
+            data_item.data_range = data_element.get("data_range")
 
         # these items are no longer live. mark live_data as False.
         for channel in list(set(self.last_channel_to_data_item_dict.keys())-set(new_channel_to_data_item_dict.keys())):
