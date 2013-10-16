@@ -162,7 +162,7 @@ def scalarFromArray(array, normalize=True):
     return array
 
 
-def createRGBAImageFromArray(array, normalize=True, data_range=None, display_limits=None):
+def createRGBAImageFromArray(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
     assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
@@ -179,10 +179,18 @@ def createRGBAImageFromArray(array, normalize=True, data_range=None, display_lim
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax_new - nmin_new) if nmax_new != nmin_new else 1
                 rgbView(rgba_image)[:] = m * (a[..., numpy.newaxis] - nmin_new)
+                if overlimit:
+                    rgba_image = numpy.where(numpy.less(array - nmin_new, nmax_new - nmin_new * overlimit), rgba_image, 0xFFFF0000)
+                if underlimit:
+                    rgba_image = numpy.where(numpy.greater(array - nmin_new, nmax_new - nmin_new * underlimit), rgba_image, 0xFF0000FF)
             else:
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax - nmin) if nmax != nmin else 1
                 rgbView(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
+                if overlimit:
+                    rgba_image = numpy.where(numpy.less(array - nmin, (nmax - nmin) * overlimit), rgba_image, 0xFFFF0000)
+                if underlimit:
+                    rgba_image = numpy.where(numpy.greater(array - nmin, (nmax - nmin) * underlimit), rgba_image, 0xFF0000FF)
         else:
             rgbView(rgba_image)[:] = array[..., numpy.newaxis]  # scalar data assigned to each component of rgb view
         alphaView(rgba_image)[:] = 255
