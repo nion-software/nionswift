@@ -4,6 +4,7 @@ import weakref
 
 from nion.swift import DataItem
 from nion.swift import Graphics
+from nion.swift import Image
 from nion.swift import Operation
 
 
@@ -71,6 +72,15 @@ class TestCalibrationClass(unittest.TestCase):
         data_item2.data_items.append(data_item3)
         data_item3.calculated_calibrations
         data_item3.remove_ref()
+        data_item.remove_ref()
+
+    def test_spatial_calibration_on_rgb(self):
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((256, 256, 4), numpy.uint8)
+        data_item.add_ref()
+        self.assertTrue(Image.is_shape_and_dtype_2d(*data_item.data_shape_and_dtype))
+        self.assertTrue(Image.is_shape_and_dtype_rgba(*data_item.data_shape_and_dtype))
+        self.assertEqual(len(data_item.calibrations), 2)
         data_item.remove_ref()
 
 
@@ -181,3 +191,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item_copy.graphics), 1)
         data_item_copy.remove_ref()
         data_item.remove_ref()
+
+if __name__ == '__main__':
+    unittest.main()
