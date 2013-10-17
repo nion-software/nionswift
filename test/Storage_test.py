@@ -317,3 +317,15 @@ class TestStorageClass(unittest.TestCase):
         self.verify_and_test_set_item(document_controller)
         # clean up
         document_controller.close()
+
+    # make sure thumbnail raises exception if a bad operation is involved
+    def test_duplicate_item(self):
+        storage_writer = Storage.DictStorageWriter()
+        document_model = DocumentModel.DocumentModel(storage_writer)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.save_document(document_controller)
+        data_item = DataItem.DataItem()
+        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        document_model.default_data_group.data_items.append(data_item)
+        with self.assertRaises(AssertionError):
+            document_model.default_data_group.data_items.append(data_item)

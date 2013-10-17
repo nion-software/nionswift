@@ -53,6 +53,7 @@ class MutableRelationship(collections.MutableSequence):
         return iter(self.store)
 
     def insert(self, index, value):
+        assert value not in self.store
         # ref count
         value.add_ref()
         # insert in internal list
@@ -498,6 +499,7 @@ class DictStorageReader(object):
     def __init__(self, node_map=None):
         self.__node_map = node_map if node_map else {}
         self.__item_map = {}
+        self.need_rewrite = False
 
     def log(self):
         for key in self.__node_map.keys():
@@ -897,6 +899,7 @@ class DbStorageReader(object):
     def __init__(self, filename):
         self.conn = sqlite3.connect(filename)
         self.__item_map = {}
+        self.need_rewrite = False
 
     def from_string(self, str):
         self.conn.cursor().executescript(str)
@@ -993,7 +996,11 @@ class DbStorageReader(object):
         for row in c.fetchall():
             item = self.build_item(row[0])
             if item:
-                items.append(item)
+                if item not in items:  # this is a recoverable error condition
+                    items.append(item)
+                else:
+                    logging.debug("Duplicate item %s (%s)", item, parent_node)
+                    self.need_rewrite = True
         #items = [self.build_item(row[0]) for row in c.fetchall()]
         return items
 
