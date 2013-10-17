@@ -157,7 +157,7 @@ class Graphic(Storage.StorageBase):
         return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
     def draw_ellipse(self, ctx, cx, cy, rx, ry):
         ctx.save()
-        ctx.beginPath()
+        ctx.begin_path()
         ctx.translate(cx-rx*0.5, cy-ry*0.5)
         ctx.scale(rx*0.5, ry*0.5)
         ctx.arc(1, 1, 1, 0, 2 * math.pi, False)
@@ -165,13 +165,13 @@ class Graphic(Storage.StorageBase):
         ctx.stroke()
     def draw_marker(self, ctx, p):
         ctx.save()
-        ctx.fillStyle = '#00FF00'
-        ctx.beginPath()
-        ctx.moveTo(p[1] - 3, p[0] - 3)
-        ctx.lineTo(p[1] + 3, p[0] - 3)
-        ctx.lineTo(p[1] + 3, p[0] + 3)
-        ctx.lineTo(p[1] - 3, p[0] + 3)
-        ctx.closePath()
+        ctx.fill_style = '#00FF00'
+        ctx.begin_path()
+        ctx.move_to(p[1] - 3, p[0] - 3)
+        ctx.line_to(p[1] + 3, p[0] - 3)
+        ctx.line_to(p[1] + 3, p[0] + 3)
+        ctx.line_to(p[1] - 3, p[0] + 3)
+        ctx.close_path()
         ctx.fill()
         ctx.restore()
 
@@ -254,14 +254,14 @@ class RectangleGraphic(Graphic):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(origin[1], origin[0])
-        ctx.lineTo(origin[1] + size[1], origin[0])
-        ctx.lineTo(origin[1] + size[1], origin[0] + size[0])
-        ctx.lineTo(origin[1], origin[0] + size[0])
-        ctx.closePath()
-        ctx.lineWidth = 1
-        ctx.strokeStyle = '#FF0000'
+        ctx.begin_path()
+        ctx.move_to(origin[1], origin[0])
+        ctx.line_to(origin[1] + size[1], origin[0])
+        ctx.line_to(origin[1] + size[1], origin[0] + size[0])
+        ctx.line_to(origin[1], origin[0] + size[0])
+        ctx.close_path()
+        ctx.line_width = 1
+        ctx.stroke_style = '#FF0000'
         ctx.stroke()
         ctx.restore()
         if is_selected:
@@ -274,20 +274,20 @@ class RectangleGraphic(Graphic):
                 mid_x = origin[1] + 0.5*size[1]
                 mid_y = origin[0] + 0.5*size[0]
                 ctx.save()
-                ctx.beginPath()
-                ctx.moveTo(mid_x - 0.5*mark_size, mid_y)
-                ctx.lineTo(mid_x + 0.5*mark_size, mid_y)
-                ctx.strokeStyle = '#FF0000'
+                ctx.begin_path()
+                ctx.move_to(mid_x - 0.5*mark_size, mid_y)
+                ctx.line_to(mid_x + 0.5*mark_size, mid_y)
+                ctx.stroke_style = '#FF0000'
                 ctx.stroke()
                 ctx.restore()
             if size[1] > mark_size:
                 mid_x = origin[1] + 0.5*size[1]
                 mid_y = origin[0] + 0.5*size[0]
                 ctx.save()
-                ctx.beginPath()
-                ctx.moveTo(mid_x, mid_y - 0.5*mark_size)
-                ctx.lineTo(mid_x, mid_y + 0.5*mark_size)
-                ctx.strokeStyle = '#FF0000'
+                ctx.begin_path()
+                ctx.move_to(mid_x, mid_y - 0.5*mark_size)
+                ctx.line_to(mid_x, mid_y + 0.5*mark_size)
+                ctx.stroke_style = '#FF0000'
                 ctx.stroke()
                 ctx.restore()
 
@@ -370,8 +370,8 @@ class EllipseGraphic(Graphic):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         ctx.save()
-        ctx.lineWidth = 1
-        ctx.strokeStyle = '#FF0000'
+        ctx.line_width = 1
+        ctx.stroke_style = '#FF0000'
         self.draw_ellipse(ctx, origin[1] + size[1]*0.5, origin[0] + size[0]*0.5, size[1], size[0])
         ctx.restore()
         if is_selected:
@@ -384,20 +384,20 @@ class EllipseGraphic(Graphic):
                 mid_x = origin[1] + 0.5*size[1]
                 mid_y = origin[0] + 0.5*size[0]
                 ctx.save()
-                ctx.beginPath()
-                ctx.moveTo(mid_x - 0.5*mark_size, mid_y)
-                ctx.lineTo(mid_x + 0.5*mark_size, mid_y)
-                ctx.strokeStyle = '#FF0000'
+                ctx.begin_path()
+                ctx.move_to(mid_x - 0.5*mark_size, mid_y)
+                ctx.line_to(mid_x + 0.5*mark_size, mid_y)
+                ctx.stroke_style = '#FF0000'
                 ctx.stroke()
                 ctx.restore()
             if size[1] > mark_size:
                 mid_x = origin[1] + 0.5*size[1]
                 mid_y = origin[0] + 0.5*size[0]
                 ctx.save()
-                ctx.beginPath()
-                ctx.moveTo(mid_x, mid_y - 0.5*mark_size)
-                ctx.lineTo(mid_x, mid_y + 0.5*mark_size)
-                ctx.strokeStyle = '#FF0000'
+                ctx.begin_path()
+                ctx.move_to(mid_x, mid_y - 0.5*mark_size)
+                ctx.line_to(mid_x, mid_y + 0.5*mark_size)
+                ctx.stroke_style = '#FF0000'
                 ctx.stroke()
                 ctx.restore()
 
@@ -499,11 +499,11 @@ class LineGraphic(Graphic):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(p1[1], p1[0])
-        ctx.lineTo(p2[1], p2[0])
-        ctx.lineWidth = 1
-        ctx.strokeStyle = '#FF0000'
+        ctx.begin_path()
+        ctx.move_to(p1[1], p1[0])
+        ctx.line_to(p2[1], p2[0])
+        ctx.line_width = 1
+        ctx.stroke_style = '#FF0000'
         ctx.stroke()
         ctx.restore()
         if is_selected:

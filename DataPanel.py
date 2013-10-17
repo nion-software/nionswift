@@ -452,11 +452,11 @@ class DataPanel(Panel.Panel):
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
                 draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
-                ctx.drawImage(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-            ctx.fillStyle = "#000"
-            ctx.fillText(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
+                ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+            ctx.fill_style = "#000"
+            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
             ctx.font = "italic"
-            ctx.fillText(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
+            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
             ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):

@@ -166,17 +166,17 @@ class HistogramPanel(Panel.Panel):
             
             # draw the histogram itself
             ctx.save()
-            ctx.beginPath()
-            ctx.moveTo(0, canvas_height)
-            ctx.lineTo(0, canvas_height * (1 - data[0]))
+            ctx.begin_path()
+            ctx.move_to(0, canvas_height)
+            ctx.line_to(0, canvas_height * (1 - data[0]))
             for i in xrange(1,canvas_width,2):
-                ctx.lineTo(i, canvas_height * (1 - data[int(len(data)*float(i)/canvas_width)]))
-            ctx.lineTo(canvas_width, canvas_height)
-            ctx.closePath()
-            ctx.fillStyle = "#888"
+                ctx.line_to(i, canvas_height * (1 - data[int(len(data)*float(i)/canvas_width)]))
+            ctx.line_to(canvas_width, canvas_height)
+            ctx.close_path()
+            ctx.fill_style = "#888"
             ctx.fill()
-            ctx.lineWidth = 1
-            ctx.strokeStyle = "#00F"
+            ctx.line_width = 1
+            ctx.stroke_style = "#00F"
             ctx.stroke()
             ctx.restore()
 
@@ -198,36 +198,36 @@ class HistogramPanel(Panel.Panel):
 
             # draw left display limit
             ctx.save()
-            ctx.beginPath()
-            ctx.moveTo(left * canvas_width, 0)
-            ctx.lineTo(left * canvas_width, canvas_height)
-            ctx.closePath()
-            ctx.lineWidth = 2
-            ctx.strokeStyle = "#000"
+            ctx.begin_path()
+            ctx.move_to(left * canvas_width, 0)
+            ctx.line_to(left * canvas_width, canvas_height)
+            ctx.close_path()
+            ctx.line_width = 2
+            ctx.stroke_style = "#000"
             ctx.stroke()
             ctx.restore()
 
             # draw right display limit
             ctx.save()
-            ctx.beginPath()
-            ctx.moveTo(right * canvas_width, 0)
-            ctx.lineTo(right * canvas_width, canvas_height)
-            ctx.closePath()
-            ctx.lineWidth = 2
-            ctx.strokeStyle = "#FFF"
+            ctx.begin_path()
+            ctx.move_to(right * canvas_width, 0)
+            ctx.line_to(right * canvas_width, canvas_height)
+            ctx.close_path()
+            ctx.line_width = 2
+            ctx.stroke_style = "#FFF"
             ctx.stroke()
             ctx.restore()
 
             # draw border
             ctx.save()
-            ctx.beginPath()
-            ctx.moveTo(0,0)
-            ctx.lineTo(canvas_width,0)
-            ctx.lineTo(canvas_width,canvas_height)
-            ctx.lineTo(0,canvas_height)
-            ctx.closePath()
-            ctx.lineWidth = 1
-            ctx.strokeStyle = "#000"
+            ctx.begin_path()
+            ctx.move_to(0,0)
+            ctx.line_to(canvas_width,0)
+            ctx.line_to(canvas_width,canvas_height)
+            ctx.line_to(0,canvas_height)
+            ctx.close_path()
+            ctx.line_width = 1
+            ctx.stroke_style = "#000"
             ctx.stroke()
             ctx.restore()
 

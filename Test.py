@@ -64,43 +64,43 @@ def run_test(test_name):
 
 class DrawingContext(object):
     def __init__(self):
-        self.fillStyle = None
+        self.fill_style = None
         self.font = None
-        self.textAlign = None
-        self.textBaseline = None
-        self.strokeStyle = None
-        self.lineWidth = None
-        self.lineCap = None
-        self.lineJoin = None
+        self.text_align = None
+        self.text_baseline = None
+        self.stroke_style = None
+        self.line_width = None
+        self.line_cap = None
+        self.line_join = None
     def clear(self):
         pass
     def save(self):
         pass
     def restore(self):
         pass
-    def beginPath(self):
+    def begin_path(self):
         pass
-    def closePath(self):
+    def close_path(self):
         pass
     def translate(self, x, y):
         pass
     def scale(self, x, y):
         pass
-    def moveTo(self, x, y):
+    def move_to(self, x, y):
         pass
-    def lineTo(self, x, y):
+    def line_to(self, x, y):
         pass
     def rect(self, a, b, c, d):
         pass
     def arc(self, a, b, c, d, e, f):
         pass
-    def drawImage(self, img, a, b, c, d):
+    def draw_image(self, img, a, b, c, d):
         pass
     def stroke(self):
         pass
     def fill(self):
         pass
-    def fillText(self, text, x, y, maxWidth=None):
+    def fill_text(self, text, x, y, maxWidth=None):
         pass
     def create_linear_gradient(self, x, y, width, height):
         return DrawingContext()

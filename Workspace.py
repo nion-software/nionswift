@@ -46,43 +46,43 @@ class Workspace(object):
         ctx.clear()
 
         ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(0, canvas.height)
-        ctx.lineTo(canvas.width, canvas.height)
-        ctx.lineTo(canvas.width, 0)
-        ctx.closePath()
+        ctx.begin_path()
+        ctx.move_to(0, 0)
+        ctx.line_to(0, canvas.height)
+        ctx.line_to(canvas.width, canvas.height)
+        ctx.line_to(canvas.width, 0)
+        ctx.close_path()
         gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height);
         gradient.add_color_stop(0, '#ededed');
         gradient.add_color_stop(1, '#cacaca');
-        ctx.fillStyle = gradient
+        ctx.fill_style = gradient
         ctx.fill()
         ctx.restore()
 
         ctx.save()
-        ctx.beginPath()
+        ctx.begin_path()
         # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.moveTo(0, 0.5)
-        ctx.lineTo(canvas.width, 0.5)
-        ctx.strokeStyle = '#FFF'
+        ctx.move_to(0, 0.5)
+        ctx.line_to(canvas.width, 0.5)
+        ctx.stroke_style = '#FFF'
         ctx.stroke()
         ctx.restore()
 
         ctx.save()
-        ctx.beginPath()
+        ctx.begin_path()
         # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.moveTo(0, canvas.height-0.5)
-        ctx.lineTo(canvas.width, canvas.height-0.5)
-        ctx.strokeStyle = '#b0b0b0'
+        ctx.move_to(0, canvas.height-0.5)
+        ctx.line_to(canvas.width, canvas.height-0.5)
+        ctx.stroke_style = '#b0b0b0'
         ctx.stroke()
         ctx.restore()
 
         ctx.save()
         ctx.font = 'normal 11px serif'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillStyle = '#000'
-        ctx.fillText(_("Data Visualization"), canvas.width/2, canvas.height/2+1)
+        ctx.text_align = 'center'
+        ctx.text_baseline = 'middle'
+        ctx.fill_style = '#000'
+        ctx.fill_text(_("Data Visualization"), canvas.width/2, canvas.height/2+1)
         ctx.restore()
 
         canvas.draw()

@@ -359,10 +359,10 @@ class QtDrawingContext(object):
         self.js += "ctx.restore();"
         self.commands.append(("restore", ))
         self.save_count = self.save_count - 1
-    def beginPath(self):
+    def begin_path(self):
         self.js += "ctx.beginPath();"
         self.commands.append(("beginPath", ))
-    def closePath(self):
+    def close_path(self):
         self.js += "ctx.closePath();"
         self.commands.append(("closePath", ))
     def translate(self, x, y):
@@ -371,10 +371,10 @@ class QtDrawingContext(object):
     def scale(self, x, y):
         self.js += "ctx.scale({0}, {1});".format(x, y)
         self.commands.append(("scale", float(x), float(y)))
-    def moveTo(self, x, y):
+    def move_to(self, x, y):
         self.js += "ctx.moveTo({0}, {1});".format(x, y)
         self.commands.append(("moveTo", float(x), float(y)))
-    def lineTo(self, x, y):
+    def line_to(self, x, y):
         self.js += "ctx.lineTo({0}, {1});".format(x, y)
         self.commands.append(("lineTo", float(x), float(y)))
     def rect(self, a, b, c, d):
@@ -383,7 +383,7 @@ class QtDrawingContext(object):
     def arc(self, a, b, c, d, e, f):
         self.js += "ctx.arc({0}, {1}, {2}, {3}, {4}, {5});".format(a, b, c, d, e, "true" if f else "false")
         self.commands.append(("arc", float(a), float(b), float(c), float(d), float(e), bool(f)))
-    def drawImage(self, img, a, b, c, d):
+    def draw_image(self, img, a, b, c, d):
         self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
         self.commands.append(("image", img, float(a), float(b), float(c), float(d)))
     def stroke(self):
@@ -392,61 +392,61 @@ class QtDrawingContext(object):
     def fill(self):
         self.js += "ctx.fill();"
         self.commands.append(("fill", ))
-    def fillText(self, text, x, y, maxWidth=None):
+    def fill_text(self, text, x, y, maxWidth=None):
         self.js += "ctx.fillText('{0}', {1}, {2}{3});".format(text, x, y, ", {0}".format(maxWidth) if maxWidth else "")
         self.commands.append(("fillText", text, float(x), float(y), float(maxWidth) if maxWidth else None))
-    def __get_fillStyle(self):
+    def __get_fill_style(self):
         raise NotImplementedError()
-    def __set_fillStyle(self, a):
+    def __set_fill_style(self, a):
         if isinstance(a, QtDrawingContext.LinearGradient):
             self.js += "ctx.fillStyle = {0};".format(a.js_var)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
         else:
             self.js += "ctx.fillStyle = '{0}';".format(a)
             self.commands.append(("fillStyle", str(a)))
-    fillStyle = property(__get_fillStyle, __set_fillStyle)
+    fill_style = property(__get_fill_style, __set_fill_style)
     def __get_font(self):
         raise NotImplementedError()
     def __set_font(self, a):
         self.js += "ctx.font = '{0}';".format(a)
         self.commands.append(("font", str(a)))
     font = property(__get_font, __set_font)
-    def __get_textAlign(self):
+    def __get_text_align(self):
         raise NotImplementedError()
-    def __set_textAlign(self, a):
+    def __set_text_align(self, a):
         self.js += "ctx.textAlign = '{0}';".format(a)
         self.commands.append(("textAlign", str(a)))
-    textAlign = property(__get_textAlign, __set_textAlign)
-    def __get_textBaseline(self):
+    text_align = property(__get_text_align, __set_text_align)
+    def __get_text_baseline(self):
         raise NotImplementedError()
-    def __set_textBaseline(self, a):
+    def __set_text_baseline(self, a):
         self.js += "ctx.textBaseline = '{0}';".format(a)
         self.commands.append(("textBaseline", str(a)))
-    textBaseline = property(__get_textBaseline, __set_textBaseline)
-    def __get_strokeStyle(self):
+    text_baseline = property(__get_text_baseline, __set_text_baseline)
+    def __get_stroke_style(self):
         raise NotImplementedError()
-    def __set_strokeStyle(self, a):
+    def __set_stroke_style(self, a):
         self.js += "ctx.strokeStyle = '{0}';".format(a)
         self.commands.append(("strokeStyle", str(a)))
-    strokeStyle = property(__get_strokeStyle, __set_strokeStyle)
-    def __get_lineWidth(self):
+    stroke_style = property(__get_stroke_style, __set_stroke_style)
+    def __get_line_width(self):
         raise NotImplementedError()
-    def __set_lineWidth(self, a):
+    def __set_line_width(self, a):
         self.js += "ctx.lineWidth = {0};".format(a)
         self.commands.append(("lineWidth", float(a)))
-    lineWidth = property(__get_lineWidth, __set_lineWidth)
-    def __get_lineCap(self):
+    line_width = property(__get_line_width, __set_line_width)
+    def __get_line_cap(self):
         raise NotImplementedError()
-    def __set_lineCap(self, a):
+    def __set_line_cap(self, a):
         self.js += "ctx.lineCap = '{0}';".format(a)
         self.commands.append(("lineCap", str(a)))
-    lineCap = property(__get_lineCap, __set_lineCap)
-    def __get_lineJoin(self):
+    line_cap = property(__get_line_cap, __set_line_cap)
+    def __get_line_join(self):
         raise NotImplementedError()
-    def __set_lineJoin(self, a):
+    def __set_line_join(self, a):
         self.js += "ctx.lineJoin = '{0}';".format(a)
         self.commands.append(("lineJoin", str(a)))
-    lineJoin = property(__get_lineJoin, __set_lineJoin)
+    line_join = property(__get_line_join, __set_line_join)
     class LinearGradient:
         next = 1
         def __init__(self, context, x, y, width, height):

@@ -416,20 +416,20 @@ class ImagePanel(Panel.Panel):
                     graphic.draw(ctx, widget_mapping, self.graphic_selection.contains(graphic_index))
             ctx.restore()
             if False:  # display scale marker?
-                ctx.beginPath()
+                ctx.begin_path()
                 origin = widget_mapping.map_point_image_norm_to_widget((0.95, 0.05))
-                ctx.moveTo(origin[1], origin[0])
-                ctx.lineTo(origin[1] + 100, origin[0])
-                ctx.lineTo(origin[1] + 100, origin[0] - 10)
-                ctx.lineTo(origin[1], origin[0] - 10)
-                ctx.closePath()
-                ctx.fillStyle = "#448"
+                ctx.move_to(origin[1], origin[0])
+                ctx.line_to(origin[1] + 100, origin[0])
+                ctx.line_to(origin[1] + 100, origin[0] - 10)
+                ctx.line_to(origin[1], origin[0] - 10)
+                ctx.close_path()
+                ctx.fill_style = "#448"
                 ctx.fill()
-                ctx.strokeStyle="#000"
+                ctx.stroke_style="#000"
                 ctx.stroke()
                 ctx.font = "normal 24px serif"
-                ctx.fillStyle = "#FFF"
-                ctx.fillText("60nm", origin[1], origin[0] - 12)
+                ctx.fill_style = "#FFF"
+                ctx.fill_text("60nm", origin[1], origin[0] - 12)
 
     def __repaint_focus_ring(self, canvas, focused, size):
         ctx = canvas.layers[0].drawing_context
@@ -437,11 +437,11 @@ class ImagePanel(Panel.Panel):
         stroke_style = "#CCC"  # TODO: platform dependent
         if focused:
             stroke_style = "#3876D6"  # TODO: platform dependent
-        ctx.beginPath()
+        ctx.begin_path()
         ctx.rect(2, 2, size[1] - 4, size[0] - 4)
-        ctx.lineJoin = "miter"
-        ctx.strokeStyle = stroke_style
-        ctx.lineWidth = 4.0
+        ctx.line_join = "miter"
+        ctx.stroke_style = stroke_style
+        ctx.line_width = 4.0
         ctx.stroke()
 
     # this will only be called from the drawing thread
@@ -505,27 +505,27 @@ class ImagePanel(Panel.Panel):
         display_height = int(display_rect[1][0])
         display_origin_x = int(display_rect[0][1])
         display_origin_y = int(display_rect[0][0])
-        ctx.beginPath()
-        ctx.moveTo(display_origin_x, display_origin_y + display_height)
+        ctx.begin_path()
+        ctx.move_to(display_origin_x, display_origin_y + display_height)
         for i in xrange(0, display_width,3):
-            ctx.lineTo(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min)))
-        ctx.lineTo(display_origin_x + display_width-1, display_origin_y + display_height)
-        ctx.closePath()
-        ctx.fillStyle = '#AFA'
+            ctx.line_to(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min)))
+        ctx.line_to(display_origin_x + display_width-1, display_origin_y + display_height)
+        ctx.close_path()
+        ctx.fill_style = '#AFA'
         ctx.fill()
-        ctx.lineWidth = 2
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-        ctx.strokeStyle = '#2A2'
+        ctx.line_width = 2
+        ctx.line_cap = 'round'
+        ctx.line_join = 'round'
+        ctx.stroke_style = '#2A2'
         ctx.stroke()
-        ctx.beginPath()
-        ctx.moveTo(display_rect[0][1], display_rect[0][0])
-        ctx.lineTo(display_rect[0][1] + display_rect[1][1], display_rect[0][0])
-        ctx.lineTo(display_rect[0][1] + display_rect[1][1], display_rect[0][0] + display_rect[1][0])
-        ctx.lineTo(display_rect[0][1], display_rect[0][0] + display_rect[1][0])
-        ctx.closePath()
-        ctx.lineWidth = 1
-        ctx.strokeStyle = '#888'
+        ctx.begin_path()
+        ctx.move_to(display_rect[0][1], display_rect[0][0])
+        ctx.line_to(display_rect[0][1] + display_rect[1][1], display_rect[0][0])
+        ctx.line_to(display_rect[0][1] + display_rect[1][1], display_rect[0][0] + display_rect[1][0])
+        ctx.line_to(display_rect[0][1], display_rect[0][0] + display_rect[1][0])
+        ctx.close_path()
+        ctx.line_width = 1
+        ctx.stroke_style = '#888'
         ctx.stroke()
 
         ctx.restore()
@@ -551,7 +551,7 @@ class ImagePanel(Panel.Panel):
         display_rect = self.__calculate_transform_image_for_image_size(data_item.spatial_shape)
 
         if rgba_image is not None and display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
-            ctx.drawImage(rgba_image, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
+            ctx.draw_image(rgba_image, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
 
         ctx.restore()
 
