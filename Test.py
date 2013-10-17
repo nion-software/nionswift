@@ -136,6 +136,8 @@ class Widget:
         self.children.remove(widget)
     def add_stretch(self):
         pass
+    def add_spacing(self, spacing):
+        pass
     def create_layer(self):
         return Widget()
     def draw(self):
