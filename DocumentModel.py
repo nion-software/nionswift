@@ -175,6 +175,33 @@ class DocumentModel(Storage.StorageBase):
         def keys(self):
             return self.uuid_keys()
 
+    class DataItemAccessor(object):
+        def __init__(self, document_model):
+            self.__document_model_weakref = weakref.ref(document_model)
+        def __get_document_model(self):
+            return self.__document_model_weakref()
+        document_model = property(__get_document_model)
+        # access by bracket notation
+        def __len__(self):
+            return self.document_model.get_data_item_count()
+        def __getitem__(self, key):
+            data_item = self.document_model.get_data_item_by_key(key)
+            if data_item is None:
+                raise KeyError
+            return data_item
+        def __delitem__(self, key):
+            data_item = self.document_model.get_data_item_by_key(key)
+            if data_item:
+                self.document_model.all_data_items.remove(data_item)
+        def __iter__(self):
+            return iter(self.document_model.get_flat_data_item_generator())
+        def uuid_keys(self):
+            return [data_item.uuid for data_item in self.document_model.data_items_by_key]
+        def title_keys(self):
+            return [str(data_item) for data_item in self.document_model.data_items_by_key]
+        def keys(self):
+            return self.uuid_keys()
+
     # Return a generator over all data items
     def get_flat_data_item_generator(self):
         return DataGroup.get_flat_data_item_generator_in_container(self)

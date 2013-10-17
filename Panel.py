@@ -91,13 +91,21 @@ class ConsolePanel(Panel):
         self.ps1 = getattr(sys, "ps1", ">>> ")
         self.ps2 = getattr(sys, "ps2", "... ")
 
-        locals = {'__name__': None, '__console__': None, '__doc__': None, 'dc': document_controller}
+        locals = {'__name__': None, '__console__': None, '__doc__': None, '_document_controller': document_controller}
         self.console = code.InteractiveConsole(locals)
-        lines = ["from nion.swift import DocumentController, DocumentModel, DataItem, Image",
-                 "import logging",
-                 "import numpy as np",
-                 "import numpy as numpy",
-                 "_d = DocumentModel.DocumentModel.DataAccessor(dc.document_model)"]
+        lines = [
+            "from nion.swift import DocumentController, DocumentModel, DataItem, Image",
+            "import logging",
+            "import numpy as np",
+            "import numpy as numpy",
+            "_data = DocumentModel.DocumentModel.DataAccessor(_document_controller.document_model)",
+            "_data_item = DocumentModel.DocumentModel.DataItemAccessor(_document_controller.document_model)",
+            "_document_model = _document_controller.document_model",
+            # deprecated abbreviations
+            "_d = _data",
+            "_di = _data_item",
+            "dc = _document_controller",
+            ]
         for l in lines:
             self.interpret_command(l)
 
