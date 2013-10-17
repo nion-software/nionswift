@@ -1243,6 +1243,7 @@ class QtDocumentWindow(object):
         self.root_widget = None
         self.has_event_loop = True
         self.on_periodic = None
+        self.on_about_to_show = None
         self.on_about_to_close = None
 
     def attach(self, root_widget):
@@ -1268,9 +1269,13 @@ class QtDocumentWindow(object):
         if self.on_periodic:
             self.on_periodic()
 
-    def aboutToClose(self):
+    def aboutToShow(self):
+        if self.on_about_to_show:
+            self.on_about_to_show()
+
+    def aboutToClose(self, geometry, state):
         if self.on_about_to_close:
-            self.on_about_to_close()
+            self.on_about_to_close(geometry, state)
 
     def close(self):
         self.proxy.DocumentWindow_close(self.native_document_window)
@@ -1285,6 +1290,9 @@ class QtDocumentWindow(object):
         native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, title, before_menu.native_menu)
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
+
+    def restore(self, geometry, state):
+        self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
 
 
 class QtDockWidget(object):
@@ -1302,6 +1310,12 @@ class QtDockWidget(object):
     def __get_toggle_action(self):
         return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
     toggle_action = property(__get_toggle_action)
+
+    def show(self):
+        self.proxy.Widget_show(self.native_dock_widget)
+
+    def hide(self):
+        self.proxy.Widget_close(self.native_dock_widget)
 
 
 class QtUserInterface(object):
@@ -1394,3 +1408,10 @@ class QtUserInterface(object):
 
     def set_persistent_string(self, key, value):
         self.proxy.Settings_setString(key, value)
+
+    def get_persistent_byte_array(self, key, default_value=None):
+        value = self.proxy.Settings_getByteArray(key)
+        return value if value else default_value
+
+    def set_persistent_byte_array(self, key, value):
+        self.proxy.Settings_setByteArray(key, value)

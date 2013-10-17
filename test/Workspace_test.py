@@ -22,7 +22,7 @@ class TestWorkspaceClass(unittest.TestCase):
         pass
 
     def test_change_layout(self):
-        document_controller = DocumentController_test.construct_test_document(self.app, create_workspace=True)
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.change_layout("2x1")

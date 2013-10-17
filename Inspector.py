@@ -8,8 +8,6 @@ import weakref
 # None
 
 # local libraries
-from nion.swift.Decorators import queue_main_thread
-from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -271,6 +269,7 @@ class ProcessingPanel(Panel.Panel):
 
     def close(self):
         # first set the data item to None
+        # this has the side effect of closing the stack groups.
         self.selected_data_item_changed(None, {"property": "source"})
         # disconnect self as listener
         self.document_controller.remove_listener(self)
@@ -329,10 +328,6 @@ class ProcessingPanel(Panel.Panel):
         def remove_pressed(self):
             self.document_controller.remove_operation(self.operation)
 
-    # used for queue_main_thread decorator
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
-
-    @queue_main_thread
     def rebuild_panel(self, operations):
         if self.column:
             for stack_group in copy.copy(self.__stack_groups):
@@ -350,3 +345,54 @@ class ProcessingPanel(Panel.Panel):
         operations = data_item.operations if data_item and data_item else []
         if info["property"] != "data":
             self.rebuild_panel(operations)
+
+
+class InspectorPanel(Panel.Panel):
+    def __init__(self, document_controller, panel_id, properties):
+        super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
+
+        self.column = self.ui.create_column_widget(properties)
+
+        self.__data_item = None
+        self.__pec = None
+
+        self.data_item = None
+
+        # connect self as listener. this will result in calls to selected_data_item_changed
+        self.document_controller.add_listener(self)
+
+        self.widget = self.column
+
+    def close(self):
+        # close the property controller
+        self.data_item = None
+        # first set the data item to None
+        self.selected_data_item_changed(None, {"property": "source"})
+        # disconnect self as listener
+        self.document_controller.remove_listener(self)
+        # finish closing
+        super(InspectorPanel, self).close()
+
+    def __update_property_editor_controller(self):
+        if self.__pec:
+            self.column.remove(self.__pec.widget)
+            self.__pec.close()
+            self.__pec = None
+        if self.__data_item:
+            self.__pec = PropertyEditorController(self.ui, self.__data_item)
+            self.column.add(self.__pec.widget)
+
+    def __get_data_item(self):
+        return self.__data_item
+    def __set_data_item(self, data_item):
+        if self.__data_item != data_item:
+            self.__data_item = data_item
+            self.__update_property_editor_controller()
+            self.image_canvas_zoom = 1.0
+    data_item = property(__get_data_item, __set_data_item)
+
+    # this message is received from the document controller.
+    # it is established using add_listener
+    def selected_data_item_changed(self, data_item, info):
+        if self.data_item != data_item:
+            self.data_item = data_item

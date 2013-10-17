@@ -26,14 +26,15 @@ class DocumentController(object):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
-    def __init__(self, ui, document_model, _create_workspace=True):
+    def __init__(self, ui, document_model, workspace_id=None):
         super(DocumentController, self).__init__()
         self.ui = ui
         self.document_model = document_model
         self.document_model.add_ref()
         self.document_window = self.ui.create_document_window()
         self.document_window.on_periodic = lambda: self.periodic()
-        self.document_window.on_about_to_close = lambda: self.close()
+        self.document_window.on_about_to_show = lambda: self.about_to_show()
+        self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
         self.workspace = None
         self.__weak_listeners = []
         self.__weak_image_panels = []
@@ -41,8 +42,8 @@ class DocumentController(object):
         self.__cursor_weak_listeners = []
         self.delay_queue = Queue.Queue()
         self.create_menus()
-        if _create_workspace:  # used only when testing reference counting
-            self.workspace = Workspace.Workspace(self)
+        if workspace_id:  # used only when testing reference counting
+            self.workspace = Workspace.Workspace(self, workspace_id)
 
     def __del__(self):
         # There should not be listeners or references at this point.
@@ -61,6 +62,14 @@ class DocumentController(object):
         self.document_model.remove_ref()
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
+
+    def about_to_show(self):
+        geometry, state = self.workspace.restore_geometry_state()
+        self.document_window.restore(geometry, state)
+
+    def about_to_close(self, geometry, state):
+        self.workspace.save_geometry_state(geometry, state)
+        self.close()
 
     # Add a listener. Listeners will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
@@ -274,7 +283,7 @@ class DocumentController(object):
 
     def new_window(self):
         # hack to work around Application <-> DocumentController interdependency.
-        self.notify_listeners("create_document_controller", self.document_model)
+        self.notify_listeners("create_document_controller", self.document_model, "data")
 
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()

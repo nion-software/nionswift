@@ -154,6 +154,10 @@ class Widget:
         pass
     def add_overlay(self, overlay):
         pass
+    def show(self):
+        pass
+    def hide(self):
+        pass
 
 class Menu:
     def __init__(self):

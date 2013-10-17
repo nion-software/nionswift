@@ -91,12 +91,14 @@ class Workspace(object):
         if width > 0 and height > 0:
             self.__update_header(canvas, layer)
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller, workspace_id):
         self.__document_controller_weakref = weakref.ref(document_controller)
 
         self.ui = self.document_controller.ui
 
         self.workspace_manager = WorkspaceManager()
+
+        self.workspace_id = workspace_id
 
         header_height = 20 if sys.platform == "win32" else 22
 
@@ -112,9 +114,13 @@ class Workspace(object):
         # configure the document window (central widget)
         document_controller.document_window.attach(root_widget)
 
-        self.create_panels()
+        visible_panels = []
+        if self.workspace_id == "library":
+            visible_panels = ["image-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "output-panel"]
 
-        layout_id = self.ui.get_persistent_string("Workspace/Layout")
+        self.create_panels(visible_panels)
+
+        layout_id = self.ui.get_persistent_string("Workspace/%s/Layout" % self.workspace_id)
 
         self.change_layout(layout_id)
 
@@ -124,15 +130,24 @@ class Workspace(object):
         content_map = {}
         for image_panel in self.image_panels:
             content_map[image_panel.element_id] = image_panel.save_content()
-        self.ui.set_persistent_string("Workspace/Content", pickle.dumps(content_map))
-        self.ui.set_persistent_string("Workspace/Layout", self.__current_layout_id)
+        self.ui.set_persistent_string("Workspace/%s/Content" % self.workspace_id, pickle.dumps(content_map))
+        self.ui.set_persistent_string("Workspace/%s/Layout" % self.workspace_id, self.__current_layout_id)
         for dock_widget in copy.copy(self.dock_widgets):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = []
 
+    def restore_geometry_state(self):
+        geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
+        state = self.ui.get_persistent_string("Workspace/%s/State" % self.workspace_id)
+        return geometry, state
+
+    def save_geometry_state(self, geometry, state):
+        self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
+        self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
+
     def restore_content(self):
-        content_string = self.ui.get_persistent_string("Workspace/Content")
+        content_string = self.ui.get_persistent_string("Workspace/%s/Content" % self.workspace_id)
         if content_string:
             content_map = pickle.loads(content_string)
             for image_panel in self.image_panels:
@@ -149,7 +164,7 @@ class Workspace(object):
                 return dock_widget
         return None
 
-    def create_panels(self):
+    def create_panels(self, visible_panels=None):
         # get the document controller
         document_controller = self.document_controller
 
@@ -157,18 +172,23 @@ class Workspace(object):
         for panel_id in self.workspace_manager.panel_ids:
             title, positions, position, properties = self.workspace_manager.get_panel_info(panel_id)
             if position != "central":
-                self.create_panel(document_controller, panel_id, title, positions, position, properties)
+                dock_widget = self.create_panel(document_controller, panel_id, title, positions, position, properties)
+                if visible_panels is None or panel_id in visible_panels:
+                    dock_widget.show()
+                else:
+                    dock_widget.hide()
 
         # clean up panels (tabify console/output)
         document_controller.document_window.tabify_dock_widgets(self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
 
-    def create_panel(self, document_controller, panel_id, title, positions, position, properties=None):
+    def create_panel(self, document_controller, panel_id, title, positions, position, properties):
         panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
         assert panel is not None, "panel is None [%s]" % panel_id
         assert panel.widget is not None, "panel widget is None [%s]" % panel_id
         dock_widget = document_controller.document_window.create_dock_widget(panel.widget, panel_id, title, positions, position)
         dock_widget.panel = panel
         self.dock_widgets.append(dock_widget)
+        return dock_widget
 
     def __create_image_panel(self, element_id):
         image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)
@@ -239,6 +259,7 @@ class Workspace(object):
             image_panel = self.__create_image_panel("primary-image")
             self.image_row.add(image_panel.widget)
             self.document_controller.selected_image_panel = image_panel
+            layout_id = "1x1"  # set this in case it was something else
         # restore what was displayed
         displayed_data_items = []
         last_data_panel_selection = None
@@ -293,13 +314,12 @@ class WorkspaceManager(object):
         """
     def __init__(self):
         self.__panel_tuples = {}
-        self.__workspace_tuples = {}
 
-    def registerPanel(self, panel_class, panel_id, name, positions, position, properties=None):
+    def register_panel(self, panel_class, panel_id, name, positions, position, properties=None):
         panel_tuple = panel_class, panel_id, name, positions, position, properties
         self.__panel_tuples[panel_id] = panel_tuple
 
-    def unregisterPanel(self, panel_id):
+    def unregister_panel(self, panel_id):
         del self.__panel_tuples[panel_id]
 
     def create_panel_content(self, panel_id, document_controller, properties=None):
@@ -324,15 +344,3 @@ class WorkspaceManager(object):
     def __get_panel_ids(self):
         return self.__panel_tuples.keys()
     panel_ids = property(__get_panel_ids)
-
-    def registerWorkspace(self, workspace):
-        workspace_tuple = workspace, workspace.id, workspace.name
-        self.__workspace_tuples[workspace.id] = workspace_tuple
-
-    def unregisterWorkspace(self, id):
-        del self.__workspace_tuples[id]
-
-    def get_workspace(self):
-        tuple = self.__workspace_tuples["default"]
-        return tuple[0]
-    workspace = property(get_workspace)

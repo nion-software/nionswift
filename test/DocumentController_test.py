@@ -20,10 +20,10 @@ from nion.swift import Test
 from nion.swift import UserInterface
 
 
-def construct_test_document(app, create_workspace=False):
+def construct_test_document(app, workspace_id=None):
     storage_writer = Storage.DictStorageWriter()
     document_model = DocumentModel.DocumentModel(storage_writer)
-    document_controller = DocumentController.DocumentController(app.ui, document_model, _create_workspace=create_workspace)
+    document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
     data_group1 = DataGroup.DataGroup()
     document_controller.document_model.data_groups.append(data_group1)
     data_item1a = DataItem.DataItem()
@@ -60,7 +60,7 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_delete_document_controller(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_model = None
         weak_document_model = weakref.ref(document_controller.document_model)
         weak_document_window = weakref.ref(document_controller.document_window)
@@ -77,7 +77,7 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_image_panel_releases_data_item(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_controller.document_model.create_default_data_groups()
         default_data_group = document_controller.document_model.data_groups[0]
         data_item = DataItem.DataItem()
@@ -95,7 +95,7 @@ class TestDocumentControllerClass(unittest.TestCase):
     def test_main_thread_sync(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
         document_controller.document_model.data_groups.append(data_group)
         data_item = DataItem.DataItem()

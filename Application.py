@@ -45,14 +45,14 @@ class Application(object):
         self.__menu_handlers = []
 
         workspace_manager = Workspace.WorkspaceManager()
-        workspace_manager.registerPanel(ImagePanel.ImagePanel, "image-panel", _("Image Panel"), ["central"], "central")
-        workspace_manager.registerPanel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 300, "height": 400})
-        workspace_manager.registerPanel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 300, "height": 80})
-        workspace_manager.registerPanel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 300, "height": 96})
-        workspace_manager.registerPanel(ImagePanel.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"width": 300, "height": 320})
-        workspace_manager.registerPanel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
-        workspace_manager.registerPanel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
-        workspace_manager.registerPanel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
+        workspace_manager.register_panel(ImagePanel.ImagePanel, "image-panel", _("Image Panel"), ["central"], "central")
+        workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 300, "height": 400})
+        workspace_manager.register_panel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 300, "height": 80})
+        workspace_manager.register_panel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 300, "height": 96})
+        workspace_manager.register_panel(Inspector.InspectorPanel, "inspector-panel", _("Inspector"), ["left", "right"], "right", {"width": 300, "height": 320})
+        workspace_manager.register_panel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 300})
+        workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
+        workspace_manager.register_panel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
 
     def initialize(self):
         PlugInManager.loadPlugIns()
@@ -75,12 +75,12 @@ class Application(object):
             storage_reader = Storage.DbStorageReader(filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
             document_model.create_default_data_groups()
-        document_controller = self.create_document_controller(document_model)
+        document_controller = self.create_document_controller(document_model, "library")
         logging.info("Welcome to Nion Swift.")
         return document_controller
 
-    def create_document_controller(self, document_model):
-        document_controller = DocumentController.DocumentController(self.ui, document_model)
+    def create_document_controller(self, document_model, workspace_id):
+        document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id)
         document_controller.add_listener(self)
         self.register_document_controller(document_controller)
         document_controller.document_window.show()

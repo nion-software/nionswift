@@ -47,7 +47,7 @@ class TestDataGroupClass(unittest.TestCase):
     def test_counted_data_items(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
         document_controller.document_model.data_groups.append(data_group)
         self.assertEqual(len(data_group.counted_data_items), 0)
@@ -120,7 +120,7 @@ class TestDataGroupClass(unittest.TestCase):
     def test_counted_data_items_order(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()
@@ -137,7 +137,7 @@ class TestDataGroupClass(unittest.TestCase):
     def test_smart_group_property_change(self):
         storage_writer = Storage.DictStorageWriter()
         document_model = DocumentModel.DocumentModel(storage_writer)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, _create_workspace=False)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
         data_item1 = DataItem.DataItem()

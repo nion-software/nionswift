@@ -38,7 +38,7 @@ class TestImagePanelClass(unittest.TestCase):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
-        self.document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.document_controller.document_model.create_default_data_groups()
         default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
