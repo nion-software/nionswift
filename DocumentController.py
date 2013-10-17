@@ -111,7 +111,7 @@ class DocumentController(object):
 
         self.help_menu = self.document_window.add_menu(_("Help"))
 
-        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window(), key_sequence="new")
+        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window("library"), key_sequence="new")
         self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
         self.file_menu.add_separator()
@@ -281,9 +281,9 @@ class DocumentController(object):
         data_item = image_panel.data_item if image_panel else None
         self.notify_listeners("selected_data_item_changed", data_item, info)
 
-    def new_window(self):
+    def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.notify_listeners("create_document_controller", self.document_model, "data")
+        self.notify_listeners("create_document_controller", self.document_model, workspace_id, data_panel_selection)
 
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()

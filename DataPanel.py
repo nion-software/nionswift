@@ -526,11 +526,17 @@ class DataPanel(Panel.Panel):
                     container.data_items.remove(data_item)
             return False
 
+        def data_item_double_clicked(index):
+            data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
+            if data_item:
+                self.document_controller.new_window("data", DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item))
+
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
         self.data_item_widget.on_paint = lambda dc, options: self.data_item_model_controller.paint(dc, options)
         self.data_item_widget.on_current_item_changed = data_item_widget_current_item_changed
         self.data_item_widget.on_item_key_pressed = data_item_widget_key_pressed
+        self.data_item_widget.on_item_double_clicked = data_item_double_clicked
 
         self.splitter = ui.create_splitter_widget(properties)
         self.splitter.add(self.data_group_widget)
