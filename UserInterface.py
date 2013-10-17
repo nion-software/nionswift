@@ -389,6 +389,8 @@ class QtDrawingContext(object):
     def stroke(self):
         self.js += "ctx.stroke();"
         self.commands.append(("stroke", ))
+    def sleep(self, duration):
+        self.commands.append(("sleep", duration))
     def fill(self):
         self.js += "ctx.fill();"
         self.commands.append(("fill", ))
