@@ -280,6 +280,7 @@ class HardwareSourceDataBuffer(object):
         self.__snapshots = collections.deque(maxlen=30)
         self.__current_snapshot = 0
         self.__weak_listeners = []
+        self.__weak_listeners_mutex = threading.RLock()
 
     def close(self):
         logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
@@ -296,21 +297,21 @@ class HardwareSourceDataBuffer(object):
     # Add a listener. Listeners will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
     def add_listener(self, listener):
-        assert listener is not None
-        self.__weak_listeners.append(weakref.ref(listener))
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.append(weakref.ref(listener))
     # Remove a listener.
     def remove_listener(self, listener):
-        assert listener is not None
-        self.__weak_listeners.remove(weakref.ref(listener))
-    # Return a copy of listeners array
-    def __get_listeners(self):
-        return [weak_listener() for weak_listener in self.__weak_listeners]
-    listeners = property(__get_listeners)
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.remove(weakref.ref(listener))
     # Send a message to the listeners
     def notify_listeners(self, fn, *args, **keywords):
-        for listener in self.listeners:
-            if hasattr(listener, fn):
-                getattr(listener, fn)(*args, **keywords)
+        with self.__weak_listeners_mutex:
+            listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    getattr(listener, fn)(*args, **keywords)
 
     def __get_is_playing(self):
         return self.hardware_port is not None

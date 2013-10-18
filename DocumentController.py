@@ -3,6 +3,7 @@ import gettext
 import logging
 import Queue
 import random
+import threading
 import weakref
 
 # third party libraries
@@ -37,6 +38,7 @@ class DocumentController(object):
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
         self.workspace = None
         self.__weak_listeners = []
+        self.__weak_listeners_mutex = threading.RLock()
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.__cursor_weak_listeners = []
@@ -74,26 +76,23 @@ class DocumentController(object):
     # Add a listener. Listeners will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
     def add_listener(self, listener):
-        assert listener is not None
-        self.__weak_listeners.append(weakref.ref(listener))
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.append(weakref.ref(listener))
 
     # Remove a listener.
     def remove_listener(self, listener):
-        assert listener is not None
-        self.__weak_listeners.remove(weakref.ref(listener))
-
-    # Return a copy of listeners array
-    def get_weak_listeners(self):
-        return self.__weak_listeners  # TODO: Return a copy
-    def __get_listeners(self):
-        return [weak_listener() for weak_listener in self.__weak_listeners]
-    listeners = property(__get_listeners)
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.remove(weakref.ref(listener))
 
     # Send a message to the listeners
     def notify_listeners(self, fn, *args, **keywords):
-        for listener in self.listeners:
-            if hasattr(listener, fn):
-                getattr(listener, fn)(*args, **keywords)
+        with self.__weak_listeners_mutex:
+            listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    getattr(listener, fn)(*args, **keywords)
 
     def create_menus(self):
 
