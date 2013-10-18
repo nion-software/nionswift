@@ -140,7 +140,7 @@ class HistogramPanel(Panel.Panel):
 
         if self.__histogram_data is None:
             if self.data_item:
-                data = self.data_item.data
+                data = self.data_item.best_data
                 if data is not None:
                     data_range = self.data_item.calculated_data_range
                     histogram_data = numpy.histogram(data, range=data_range, bins=256)

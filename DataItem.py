@@ -108,6 +108,10 @@ class Calibration(Storage.StorageBase):
 
 # cached data: holds last result of data calculation
 
+# last cached data: holds last valid cached data
+
+# best data: returns the best data available without doing a calculation
+
 # preview_2d: a 2d visual representation of data
 
 # live data: a bool indicating whether the data is live
@@ -136,6 +140,7 @@ class DataItem(Storage.StorageBase):
         self.operations = Storage.MutableRelationship(self, "operations")
         self.__data_mutex = threading.RLock()  # access to the image
         self.__cached_data = None
+        self.__last_cached_data = None
         self.__master_data = None
         self.__data_source = None
         self.__preview = None
@@ -204,10 +209,8 @@ class DataItem(Storage.StorageBase):
     # method to each listener.
     def notify_data_item_changed(self, info):
         # clear the thumbnail too
-        self.thumbnail_data = None
         self.thumbnail_data_valid = False
-        self.__cached_data = None
-        self.__preview = None
+        self.__clear_cached_data()
         self.notify_listeners("data_item_changed", self, info)
 
     def __get_display_limits(self):
@@ -237,10 +240,8 @@ class DataItem(Storage.StorageBase):
         # if data range is not set, then try to get it from the data source
         if not data_range and self.data_source:
             data_range = self.data_source.calculated_data_range
-        data = self.root_data
-        if data is not None:
-            data_shape = data.shape
-            data_dtype = data.dtype
+        data_shape, data_dtype = self.root_data_shape_and_dtype
+        if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 if operation.enabled:
                     data_range = operation.get_processed_data_range(data_shape, data_dtype, data_range)
@@ -266,10 +267,8 @@ class DataItem(Storage.StorageBase):
         # if calibrations are not set, then try to get them from the data source
         if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
-        data = self.root_data
-        if data is not None:
-            data_shape = data.shape
-            data_dtype = data.dtype
+        data_shape, data_dtype = self.root_data_shape_and_dtype
+        if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 if operation.enabled:
                     calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
@@ -278,12 +277,10 @@ class DataItem(Storage.StorageBase):
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # call this when operations change or data souce changes
-    # this allows operations to update their defaut values
+    # this allows operations to update their default values
     def sync_operations(self):
-        data = self.root_data
-        if data is not None:
-            data_shape = data.shape
-            data_dtype = data.dtype
+        data_shape, data_dtype = self.root_data_shape_and_dtype
+        if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 operation.update_data_shape_and_dtype(data_shape, data_dtype)
                 if operation.enabled:
@@ -356,23 +353,20 @@ class DataItem(Storage.StorageBase):
     # comes from data_source and operations to indicate that parameters have
     # changed. the connection is established in operation.add_observer.
     def property_changed(self, operation, property, value):
-        self.__cached_data = None
-        self.__preview = None
+        self.__clear_cached_data()
         self.notify_data_item_changed({"property": "data"})
 
     # this message comes from the operation. the connection is established
     # using add_listener.
     def operation_changed(self, operation):
-        self.__cached_data = None
-        self.__preview = None
+        self.__clear_cached_data()
         self.notify_data_item_changed({"property": "data"})
 
     # data_item_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
     def data_item_changed(self, data_source, info):
         assert data_source == self.data_source
-        self.__cached_data = None
-        self.__preview = None
+        self.__clear_cached_data()
         self.notify_data_item_changed(info)
 
     # use a property here to correct add_ref/remove_ref
@@ -426,7 +420,25 @@ class DataItem(Storage.StorageBase):
             return data
     root_data = property(__get_root_data)
 
-    # data property. read only.
+    def __get_root_data_shape_and_dtype(self):
+        with self.__data_mutex:
+            master_data = self.master_data
+            if master_data is not None:
+                return master_data.shape, master_data.dtype
+            data_source = self.data_source
+            if data_source:
+                return data_source.data_shape_and_dtype
+        return None, None
+    root_data_shape_and_dtype = property(__get_root_data_shape_and_dtype)
+
+    def __clear_cached_data(self):
+        if self.__cached_data is not None:
+            self.__last_cached_data = self.__cached_data
+        self.__cached_data = None
+        self.__preview = None
+
+    # data property. read only. this method should almost *never* be called on the main thread since
+    # it takes an unpredictable amount of time.
     def __get_data(self):
         with self.__data_mutex:
             if self.__cached_data is None:
@@ -487,6 +499,16 @@ class DataItem(Storage.StorageBase):
         return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
     is_data_2d = property(__is_data_2d)
 
+    def get_data_value(self, pos):
+        # do not force data calculation here
+        with self.__data_mutex:
+            if self.is_data_2d:
+                if self.__cached_data is not None:
+                    return self.__cached_data[pos[0], pos[1]]
+                elif self.__last_cached_data is not None:
+                    return self.__last_cached_data[pos[0], pos[1]]
+        return None
+
     def __get_preview_2d(self):
         if self.__preview is None:
             data_2d = self.data
@@ -516,7 +538,7 @@ class DataItem(Storage.StorageBase):
         rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))
         return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
-    def __get_thumbnail_2d_data(self, image, height, width):
+    def __get_thumbnail_2d_data(self, image, height, width, data_range, display_limits):
         assert image is not None
         assert image.ndim in (2,3)
         image = Image.scalarFromArray(image)
@@ -527,7 +549,7 @@ class DataItem(Storage.StorageBase):
         scaled_width = width if image_width > image_height else width * image_width / image_height
         thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
         if numpy.ndim(thumbnail_image) == 2:
-            return Image.createRGBAImageFromArray(thumbnail_image, data_range=self.calculated_data_range, display_limits=self.display_limits)
+            return Image.createRGBAImageFromArray(thumbnail_image, data_range=data_range, display_limits=display_limits)
         elif numpy.ndim(thumbnail_image) == 3:
             data = thumbnail_image
             if thumbnail_image.shape[2] == 4:
@@ -538,18 +560,29 @@ class DataItem(Storage.StorageBase):
                 rgba[:,:,3] = 255
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
+    # returns the best data available without doing a calculation. may return None.
+    def __get_best_data(self):
+        with self.__data_mutex:
+            data = self.__cached_data
+            if data is None:
+                data = self.__last_cached_data
+        return data
+    best_data = property(__get_best_data)
+
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
         if not self.thumbnail_data_valid:
-            data = self.data
+            data = self.best_data
             if data is not None:
                 if Image.is_data_1d(data):
                     self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
                 elif Image.is_data_2d(data):
-                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width)
+                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, self.calculated_data_range, self.display_limits)
                 else:
                     pass
                 self.thumbnail_data_valid = self.thumbnail_data is not None
+            else:
+                return numpy.zeros((height, width), dtype=numpy.double)
         return self.thumbnail_data
 
     def copy(self):

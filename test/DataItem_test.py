@@ -140,6 +140,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item.add_ref()
         self.assertFalse(data_item.thumbnail_data_valid)
+        data_item.data  # trigger the data calculation
         self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
         self.assertTrue(data_item.thumbnail_data_valid)
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
@@ -165,6 +166,11 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.operations.append(BadOperation())
         data_item.data_items.append(data_item2)
         with self.assertRaises(NotImplementedError):
+            data_item2.data  # trigger the data calculation
+            # NOTE: this test is no longer quite valid since the data call
+            # is required to trigger the thumbnail data functionality.
+            # thumbnails no longer trigger a call to data.
+            # CEM 2013-10-18
             data_item2.get_thumbnail_data(64, 64)
         data_item.remove_ref()
 

@@ -959,11 +959,13 @@ class InfoPanel(Panel.Panel):
                 if pos[0] >= 0 and pos[0] < image_size[0] and pos[1] >= 0 and pos[1] < image_size[1]:
                     position_text = '{0},{1}'.format(calibrations[1].convert_to_calibrated_str(pos[1] - 0.5 * image_size[1]),
                                                      calibrations[0].convert_to_calibrated_str(0.5 * image_size[0] - pos[0]))
-                    value = data_item.data[pos[0], pos[1]]
+                    value = data_item.get_data_value(pos)
                     if isinstance(value, numbers.Integral):
                         value_text = '{0:d}'.format(value)
                     elif isinstance(value, numbers.Real) or isinstance(value, numbers.Complex):
                         value_text = '{0:f}'.format(value)
+                    elif value is None:
+                        value_text = _("N/A")
                     else:
                         value_text = str(value)
             if len(selected_graphics) == 1:
