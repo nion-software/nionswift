@@ -562,10 +562,10 @@ class QtColumnWidget(QtBoxWidget):
 
 class QtSplitterWidget(QtWidget):
 
-    def __init__(self, proxy, properties):
+    def __init__(self, proxy, orientation, properties):
         super(QtSplitterWidget, self).__init__(proxy, "splitter", properties)
         self.children = []
-        self.__orientation = "vertical"
+        self.orientation = orientation
 
     def close(self):
         for child in self.children:
@@ -1359,8 +1359,8 @@ class QtUserInterface(object):
     def create_column_widget(self, properties=None):
         return QtColumnWidget(self.proxy, properties)
 
-    def create_splitter_widget(self, properties=None):
-        return QtSplitterWidget(self.proxy, properties)
+    def create_splitter_widget(self, orientation="vertical", properties=None):
+        return QtSplitterWidget(self.proxy, orientation, properties)
 
     def create_tab_widget(self, properties=None):
         return QtTabWidget(self.proxy, properties)

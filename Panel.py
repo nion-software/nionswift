@@ -69,12 +69,14 @@ class OutputPanel(Panel):
         logging.getLogger().removeHandler(self.__output_panel_handler)
         super(OutputPanel, self).close()
 
+
 @contextmanager
 def reassign_stdout(new_stdout, new_stderr):
     oldstdout, oldtsderr = sys.stdout, sys.stderr
     sys.stdout, sys.stderr = new_stdout, new_stderr
     yield
     sys.stdout, sys.stderr = oldstdout, oldtsderr
+
 
 class ConsolePanel(Panel):
     # TODO: Replace this with a proper console. As it is, basic functionality
@@ -124,3 +126,80 @@ class ConsolePanel(Panel):
         self.other_stdout.truncate(0)
         self.other_stderr.truncate(0)
         return result, error_code, prompt
+
+
+class HeaderWidgetController(object):
+
+    def __init__(self, ui, title=None):
+        self.ui = ui
+        self.__title = title if title else ""
+        header_height = 20 if sys.platform == "win32" else 22
+        self.canvas_widget = self.ui.create_canvas_widget(properties={"height": header_height})
+        self.__layer = self.canvas_widget.create_layer()
+        self.canvas_widget.on_size_changed = lambda width, height: self.__header_size_changed(width, height)
+        self.__update_header()
+
+    def __str__(self):
+        return self.__title
+
+    def __get_title(self):
+        return self.__title
+    def __set_title(self, title):
+        if self.__title != title:
+            self.__title = title
+            self.__update_header()
+    title = property(__get_title, __set_title)
+
+    def __update_header(self):
+
+        canvas = self.canvas_widget
+
+        ctx = self.__layer.drawing_context
+
+        ctx.clear()
+
+        ctx.save()
+        ctx.begin_path()
+        ctx.move_to(0, 0)
+        ctx.line_to(0, canvas.height)
+        ctx.line_to(canvas.width, canvas.height)
+        ctx.line_to(canvas.width, 0)
+        ctx.close_path()
+        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height);
+        gradient.add_color_stop(0, '#ededed');
+        gradient.add_color_stop(1, '#cacaca');
+        ctx.fill_style = gradient
+        ctx.fill()
+        ctx.restore()
+
+        ctx.save()
+        ctx.begin_path()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.move_to(0, 0.5)
+        ctx.line_to(canvas.width, 0.5)
+        ctx.stroke_style = '#FFF'
+        ctx.stroke()
+        ctx.restore()
+
+        ctx.save()
+        ctx.begin_path()
+        # line is adjust 1/2 pixel down to align to pixel boundary
+        ctx.move_to(0, canvas.height-0.5)
+        ctx.line_to(canvas.width, canvas.height-0.5)
+        ctx.stroke_style = '#b0b0b0'
+        ctx.stroke()
+        ctx.restore()
+
+        ctx.save()
+        ctx.font = 'normal 11px serif'
+        ctx.text_align = 'center'
+        ctx.text_baseline = 'middle'
+        ctx.fill_style = '#000'
+        ctx.fill_text(self.title, canvas.width/2, canvas.height/2+1)
+        ctx.restore()
+
+        canvas.draw()
+
+    def __header_size_changed(self, width, height):
+        if width > 0 and height > 0:
+            self.__update_header()

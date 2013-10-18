@@ -31,66 +31,6 @@ class Workspace(object):
         from its original size/shape when saved.
     """
 
-    def __create_header_widget(self):
-        header_height = 20 if sys.platform == "win32" else 22
-        canvas = self.ui.create_canvas_widget(properties={"height": header_height})
-        layer = canvas.create_layer()
-        canvas.on_size_changed = lambda width, height: self.__header_size_changed(canvas, layer, width, height)
-        self.__update_header(canvas, layer)
-        return canvas
-
-    def __update_header(self, canvas, layer):
-
-        ctx = layer.drawing_context
-
-        ctx.clear()
-
-        ctx.save()
-        ctx.begin_path()
-        ctx.move_to(0, 0)
-        ctx.line_to(0, canvas.height)
-        ctx.line_to(canvas.width, canvas.height)
-        ctx.line_to(canvas.width, 0)
-        ctx.close_path()
-        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height);
-        gradient.add_color_stop(0, '#ededed');
-        gradient.add_color_stop(1, '#cacaca');
-        ctx.fill_style = gradient
-        ctx.fill()
-        ctx.restore()
-
-        ctx.save()
-        ctx.begin_path()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.move_to(0, 0.5)
-        ctx.line_to(canvas.width, 0.5)
-        ctx.stroke_style = '#FFF'
-        ctx.stroke()
-        ctx.restore()
-
-        ctx.save()
-        ctx.begin_path()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.move_to(0, canvas.height-0.5)
-        ctx.line_to(canvas.width, canvas.height-0.5)
-        ctx.stroke_style = '#b0b0b0'
-        ctx.stroke()
-        ctx.restore()
-
-        ctx.save()
-        ctx.font = 'normal 11px serif'
-        ctx.text_align = 'center'
-        ctx.text_baseline = 'middle'
-        ctx.fill_style = '#000'
-        ctx.fill_text(_("Data Visualization"), canvas.width/2, canvas.height/2+1)
-        ctx.restore()
-
-        canvas.draw()
-
-    def __header_size_changed(self, canvas, layer, width, height):
-        if width > 0 and height > 0:
-            self.__update_header(canvas, layer)
-
     def __init__(self, document_controller, workspace_id):
         self.__document_controller_weakref = weakref.ref(document_controller)
 
@@ -108,7 +48,6 @@ class Workspace(object):
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
         self.image_row = self.ui.create_column_widget()
-        root_widget.add(self.__create_header_widget())
         root_widget.add(self.image_row)
 
         # configure the document window (central widget)
@@ -214,8 +153,7 @@ class Workspace(object):
             self.image_row.remove(child)
         # create the new layout
         if layout_id == "2x1":
-            image_row = self.ui.create_splitter_widget()
-            image_row.orientation = "horizontal"
+            image_row = self.ui.create_splitter_widget("horizontal")
             image_panel = self.__create_image_panel("primary-image")
             image_row.add(image_panel.widget)
             image_panel2 = self.__create_image_panel("secondary-image")
@@ -223,8 +161,7 @@ class Workspace(object):
             self.image_row.add(image_row)
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "1x2":
-            image_column = self.ui.create_splitter_widget()
-            image_column.orientation = "vertical"
+            image_column = self.ui.create_splitter_widget("vertical")
             image_panel = self.__create_image_panel("primary-image")
             image_column.add(image_panel.widget)
             image_panel2 = self.__create_image_panel("secondary-image")
@@ -232,7 +169,7 @@ class Workspace(object):
             self.image_row.add(image_column)
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "3x1":
-            image_row = self.ui.create_row_widget()
+            image_row = self.ui.create_splitter_widget("horizontal")
             image_panel = self.__create_image_panel("primary-image")
             image_row.add(image_panel.widget)
             image_panel2 = self.__create_image_panel("secondary-image")
@@ -242,9 +179,9 @@ class Workspace(object):
             self.image_row.add(image_row)
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "2x2":
-            image_row = self.ui.create_row_widget()
-            image_column1 = self.ui.create_column_widget()
-            image_column2 = self.ui.create_column_widget()
+            image_row = self.ui.create_splitter_widget("horizontal")
+            image_column1 = self.ui.create_splitter_widget("vertical")
+            image_column2 = self.ui.create_splitter_widget("vertical")
             image_row.add(image_column1)
             image_row.add(image_column2)
             image_panel = self.__create_image_panel("primary-image")

@@ -293,7 +293,7 @@ class UserInterface:
         return Widget()
     def create_column_widget(self, properties=None):
         return Widget()
-    def create_splitter_widget(self, properties=None):
+    def create_splitter_widget(self, orientation="vertical", properties=None):
         return Widget()
     def create_tab_widget(self, properties=None):
         return Widget()

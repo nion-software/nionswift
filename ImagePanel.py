@@ -271,8 +271,12 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_scroll.content = self.image_canvas
         self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
 
+        self.image_header_controller = Panel.HeaderWidgetController(self.ui)
+        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui)
+
         self.image_widget = self.ui.create_column_widget()
-        self.image_widget.add(self.image_controls)
+        self.image_widget.add(self.image_header_controller.canvas_widget)
+        # self.image_widget.add(self.image_controls)  # disable these for now
         self.image_widget.add(self.image_canvas_scroll, fill=True)
 
         self.line_plot_canvas = self.ui.create_canvas_widget()
@@ -282,12 +286,16 @@ class ImagePanel(Panel.Panel):
         self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
         self.line_plot_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
 
+        self.line_plot_widget = self.ui.create_column_widget()
+        self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
+        self.line_plot_widget.add(self.line_plot_canvas, fill=True)
+
         self.image_focus_ring_canvas = self.ui.create_canvas_widget()
         self.line_plot_focus_ring_canvas = self.ui.create_canvas_widget()
 
         self.widget = self.ui.create_stack_widget()
         self.widget.add(self.image_widget)
-        self.widget.add(self.line_plot_canvas)
+        self.widget.add(self.line_plot_widget)
 
         self.line_plot_canvas.add_overlay(self.line_plot_focus_ring_canvas)
         self.image_canvas_scroll.add_overlay(self.image_focus_ring_canvas)
@@ -643,9 +651,12 @@ class ImagePanel(Panel.Panel):
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.
     def data_item_changed(self, data_item, info):
-        self.notify_image_panel_data_item_changed(info)
-        self.update_cursor_info()
-        self.display_changed()
+        if data_item == self.data_item:  # we can get messages from our source data items too
+            self.notify_image_panel_data_item_changed(info)
+            self.update_cursor_info()
+            self.image_header_controller.title = str(data_item)
+            self.line_plot_header_controller.title = str(data_item)
+            self.display_changed()
 
     def mouse_clicked(self, p, modifiers):
         # activate this view. this has the side effect of grabbing focus.
