@@ -568,7 +568,7 @@ class ImagePanel(Panel.Panel):
 
     # message comes from the view
     def size_changed(self, width, height):
-        self.update_image_canvas_size()
+        self.display_changed()
     def focus_changed(self, focused):
         self.display_changed()
 
