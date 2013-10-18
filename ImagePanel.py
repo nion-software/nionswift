@@ -239,6 +239,7 @@ class ImagePanel(Panel.Panel):
 
         self.image_canvas = self.ui.create_canvas_widget()
         self.image_canvas.focusable = True
+        self.image_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.image_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.image_canvas.on_mouse_entered = lambda: self.mouse_entered()
         self.image_canvas.on_mouse_exited = lambda: self.mouse_exited()
@@ -276,6 +277,7 @@ class ImagePanel(Panel.Panel):
 
         self.line_plot_canvas = self.ui.create_canvas_widget()
         self.line_plot_canvas.focusable = True
+        self.line_plot_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.line_plot_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
         self.line_plot_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
@@ -557,6 +559,8 @@ class ImagePanel(Panel.Panel):
         #logging.debug("exit %s %s", self, time.time())
 
     # message comes from the view
+    def size_changed(self, width, height):
+        self.update_image_canvas_size()
     def focus_changed(self, focused):
         self.display_changed()
 

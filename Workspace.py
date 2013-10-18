@@ -214,7 +214,8 @@ class Workspace(object):
             self.image_row.remove(child)
         # create the new layout
         if layout_id == "2x1":
-            image_row = self.ui.create_row_widget()
+            image_row = self.ui.create_splitter_widget()
+            image_row.orientation = "horizontal"
             image_panel = self.__create_image_panel("primary-image")
             image_row.add(image_panel.widget)
             image_panel2 = self.__create_image_panel("secondary-image")
@@ -222,7 +223,8 @@ class Workspace(object):
             self.image_row.add(image_row)
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "1x2":
-            image_column = self.ui.create_column_widget()
+            image_column = self.ui.create_splitter_widget()
+            image_column.orientation = "vertical"
             image_panel = self.__create_image_panel("primary-image")
             image_column.add(image_panel.widget)
             image_panel2 = self.__create_image_panel("secondary-image")
