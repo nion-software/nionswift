@@ -615,6 +615,14 @@ class ImagePanel(Panel.Panel):
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
         self.__data_panel_selection = data_panel_selection
+        # send out messages telling everyone we changed
+        for weak_listener in self.__weak_listeners:
+            listener = weak_listener()
+            listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
+        self.data_item_changed(self.data_item, {"property": "source"})
+        self.update_image_canvas_size()
+        # these connections should be configured after the messages above.
+        # the instant these are added, we may be receiving messages from threads.
         data_item = self.data_item
         data_item_container = self.data_item_container
         if data_item:
@@ -623,11 +631,6 @@ class ImagePanel(Panel.Panel):
         if data_item_container:
             data_item_container.add_ref()
             data_item_container.add_listener(self)
-        for weak_listener in self.__weak_listeners:
-            listener = weak_listener()
-            listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
-        self.data_item_changed(self.data_item, {"property": "source"})
-        self.update_image_canvas_size()
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
 
     def data_item_removed(self, container, data_item, index):
