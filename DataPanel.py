@@ -539,6 +539,7 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
 
         self.splitter = ui.create_splitter_widget(properties)
+        self.splitter.orientation = "vertical"
         self.splitter.add(self.data_group_widget)
         self.splitter.add(self.data_item_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")

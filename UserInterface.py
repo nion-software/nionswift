@@ -564,12 +564,19 @@ class QtSplitterWidget(QtWidget):
 
     def __init__(self, proxy, properties):
         super(QtSplitterWidget, self).__init__(proxy, "splitter", properties)
-        self.proxy.Widget_setWidgetProperty(self.widget, "stylesheet", "background-color: '#FFF'")
         self.children = []
+        self.__orientation = "vertical"
 
     def close(self):
         for child in self.children:
             child.close()
+
+    def __get_orientation(self):
+        return self.__orientation
+    def __set_orientation(self, orientation):
+        self.__orientation = orientation
+        self.proxy.Splitter_setOrientation(self.widget, self.__orientation)
+    orientation = property(__get_orientation, __set_orientation)
 
     def add(self, child):
         self.proxy.Widget_addWidget(self.widget, child.widget)
