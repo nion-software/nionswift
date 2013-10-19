@@ -291,6 +291,7 @@ class ImagePanel(Panel.Panel):
         self.line_plot_widget.add(self.line_plot_canvas, fill=True)
 
         self.image_focus_ring_canvas = self.ui.create_canvas_widget()
+        self.image_info_canvas = self.ui.create_canvas_widget()
         self.line_plot_focus_ring_canvas = self.ui.create_canvas_widget()
 
         self.widget = self.ui.create_stack_widget()
@@ -298,10 +299,12 @@ class ImagePanel(Panel.Panel):
         self.widget.add(self.line_plot_widget)
 
         self.line_plot_canvas.add_overlay(self.line_plot_focus_ring_canvas)
+        self.image_canvas_scroll.add_overlay(self.image_info_canvas)
         self.image_canvas_scroll.add_overlay(self.image_focus_ring_canvas)
 
         self.__display_layer = self.image_canvas.create_layer()
         self.__graphics_layer = self.image_canvas.create_layer()
+        self.__info_layer = self.image_info_canvas.create_layer()
         self.__line_plot_layer = self.line_plot_canvas.create_layer()
         self.__line_plot_focus_ring_layer = self.line_plot_focus_ring_canvas.create_layer()
         self.__image_focus_ring_layer = self.image_focus_ring_canvas.create_layer()
@@ -412,6 +415,33 @@ class ImagePanel(Panel.Panel):
         self.display_changed()
 
     # this will only be called from the drawing thread (via _repaint)
+    def __repaint_info(self):
+        data_item = self.data_item
+        if not self.closed:
+            ctx = self.__info_layer.drawing_context
+            ctx.clear()
+            ctx.save()
+            ctx.begin_path()
+            # TODO: this is a hack. the viewport value is wrong (but the size is Ok)
+            viewport = self.image_canvas_scroll.viewport
+            origin = (0, 0)
+            if False:
+                ctx.move_to(origin[1] + 20, origin[0] + 20)
+                ctx.line_to(origin[1] + 260, origin[0] + 20)
+                ctx.line_to(origin[1] + 260, origin[0] + 80)
+                ctx.line_to(origin[1] + 20, origin[0] + 80)
+                ctx.close_path()
+                ctx.fill_style = "rgba(255,255,255,0.5)"
+                ctx.fill()
+                ctx.stroke_style = "#CCC"
+                ctx.stroke()
+                ctx.font = "normal 14px serif"
+                ctx.fill_style = "#444"
+                ctx.text_baseline = "bottom"
+                ctx.fill_text("Position: 2.0, 1.0", origin[1] + 28, origin[0] + 36)
+            ctx.restore()
+
+    # this will only be called from the drawing thread (via _repaint)
     def __repaint_graphics(self):
         data_item = self.data_item
         graphics = data_item.graphics if data_item else None
@@ -459,6 +489,7 @@ class ImagePanel(Panel.Panel):
         if data_item and data_item.is_data_1d:
             self.__repaint_line_plot(data_item)
             self.__graphics_layer.drawing_context.clear()
+            self.__info_layer.drawing_context.clear()
             self.__display_layer.drawing_context.clear()
             self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
@@ -471,6 +502,7 @@ class ImagePanel(Panel.Panel):
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
             self.__repaint_graphics()
+            self.__repaint_info()
             self.__line_plot_layer.drawing_context.clear()
             self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
@@ -480,6 +512,8 @@ class ImagePanel(Panel.Panel):
                 self.__repaint_focus_ring(self.image_focus_ring_canvas, self.image_canvas.focused, viewport_size)
             if self.ui and self.image_canvas:
                 self.image_canvas.draw()
+            if self.ui and self.image_info_canvas:
+                self.image_info_canvas.draw()
             if self.ui and self.image_focus_ring_canvas:
                 self.image_focus_ring_canvas.draw()
 
