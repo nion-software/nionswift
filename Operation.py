@@ -317,7 +317,7 @@ class HistogramOperation(Operation):
         return (512, ), numpy.int
 
     def process_data_in_place(self, data):
-        histogram_data = numpy.histogram(data, bins=512)
+        histogram_data = numpy.histogram(data, bins=256)
         return histogram_data[0].astype(numpy.int)
 
     def get_processed_data_range(self, data_shape, data_dtype, data_range):

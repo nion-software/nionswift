@@ -582,7 +582,6 @@ class ImagePanel(Panel.Panel):
             self.widget.current_index = 0
             ctx = self.__display_layer.drawing_context
             ctx.clear()
-            self.__repaint_graphics()
             if self.ui and self.image_canvas:
                 self.image_canvas.draw()
             if self.ui and self.line_plot_canvas:
