@@ -486,6 +486,7 @@ class ImagePanel(Panel.Panel):
     # this will only be called from the drawing thread
     def _repaint(self, data_item):
         if self.closed: return  # argh
+        focused = self.line_plot_canvas.focused or self.image_canvas.focused
         if data_item and data_item.is_data_1d:
             self.__repaint_line_plot(data_item)
             self.__graphics_layer.drawing_context.clear()
@@ -494,7 +495,7 @@ class ImagePanel(Panel.Panel):
             self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
             if self.document_controller.selected_image_panel == self:
-                self.__repaint_focus_ring(self.line_plot_focus_ring_canvas, self.line_plot_canvas.focused, self.line_plot_focus_ring_canvas.canvas_size)
+                self.__repaint_focus_ring(self.line_plot_focus_ring_canvas, focused, self.line_plot_focus_ring_canvas.canvas_size)
             if self.ui and self.line_plot_canvas:
                 self.line_plot_canvas.draw()
             if self.ui and self.line_plot_focus_ring_canvas:
@@ -509,7 +510,7 @@ class ImagePanel(Panel.Panel):
             if self.document_controller.selected_image_panel == self:
                 viewport_size = self.image_canvas_scroll.viewport[1]
                 viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
-                self.__repaint_focus_ring(self.image_focus_ring_canvas, self.image_canvas.focused, viewport_size)
+                self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
             if self.ui and self.image_canvas:
                 self.image_canvas.draw()
             if self.ui and self.image_info_canvas:
@@ -539,6 +540,11 @@ class ImagePanel(Panel.Panel):
         ctx.clear()
         ctx.save()
 
+        ctx.begin_path()
+        ctx.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+        ctx.fill_style = "#888"
+        ctx.fill()
+
         data_min = numpy.amin(data)
         data_max = numpy.amax(data)
         data_len = data.shape[0]
@@ -548,6 +554,12 @@ class ImagePanel(Panel.Panel):
         display_height = int(display_rect[1][0])
         display_origin_x = int(display_rect[0][1])
         display_origin_y = int(display_rect[0][0])
+        # draw the background
+        ctx.begin_path()
+        ctx.rect(display_origin_x, display_origin_y, display_width, display_height)
+        ctx.fill_style = "#FFF"
+        ctx.fill()
+        # draw the line plot itself
         ctx.begin_path()
         ctx.move_to(display_origin_x, display_origin_y + display_height)
         for i in xrange(0, display_width,3):
@@ -562,11 +574,7 @@ class ImagePanel(Panel.Panel):
         ctx.stroke_style = '#2A2'
         ctx.stroke()
         ctx.begin_path()
-        ctx.move_to(display_rect[0][1], display_rect[0][0])
-        ctx.line_to(display_rect[0][1] + display_rect[1][1], display_rect[0][0])
-        ctx.line_to(display_rect[0][1] + display_rect[1][1], display_rect[0][0] + display_rect[1][0])
-        ctx.line_to(display_rect[0][1], display_rect[0][0] + display_rect[1][0])
-        ctx.close_path()
+        ctx.rect(display_origin_x, display_origin_y, display_width, display_height)
         ctx.line_width = 1
         ctx.stroke_style = '#888'
         ctx.stroke()

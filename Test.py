@@ -126,6 +126,7 @@ class Widget:
         self.viewport = ((0, 0), (480, 640))
         self.layers = []
         self.layers.append(Layer())
+        self.focused = False
     def close(self):
         pass
     def add(self, widget, fill=False, alignment=None):
