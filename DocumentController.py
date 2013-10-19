@@ -90,9 +90,9 @@ class DocumentController(object):
     def notify_listeners(self, fn, *args, **keywords):
         with self.__weak_listeners_mutex:
             listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
+        for listener in listeners:
+            if hasattr(listener, fn):
+                getattr(listener, fn)(*args, **keywords)
 
     def create_menus(self):
 
@@ -278,6 +278,7 @@ class DocumentController(object):
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
     # this message can mean that the data itself changed, a property changed, a source
     # changed, or the data item displayed in the image panel changed.
+    @queue_main_thread
     def image_panel_data_item_changed(self, image_panel, info):
         data_item = image_panel.data_item if image_panel else None
         self.notify_listeners("selected_data_item_changed", data_item, info)

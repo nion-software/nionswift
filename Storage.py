@@ -152,9 +152,9 @@ class StorageBase(object):
     def notify_listeners(self, fn, *args, **keywords):
         with self.__weak_listeners_mutex:
             listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
+        for listener in listeners:
+            if hasattr(listener, fn):
+                getattr(listener, fn)(*args, **keywords)
 
     # Add a parent. Parents will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
