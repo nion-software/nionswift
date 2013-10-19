@@ -106,7 +106,7 @@ def createColor(size, r, g, b, a = 255):
 
 
 def createRGBAImageFromColor(size, r, g, b, a=255):
-    rgba_image = numpy.empty(size, 'uint32')
+    rgba_image = numpy.empty(size, dtype=numpy.uint32)
     rgbView(rgba_image)[:] = (b,g,r)  # scalar data assigned to each component of rgb view
     alphaView(rgba_image)[:] = a
     return rgba_image

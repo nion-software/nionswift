@@ -385,6 +385,7 @@ class QtDrawingContext(object):
         self.commands.append(("arc", float(a), float(b), float(c), float(d), float(e), bool(f)))
     def draw_image(self, img, a, b, c, d):
         self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
+        assert str(img.dtype) == 'uint32'
         self.commands.append(("image", img, float(a), float(b), float(c), float(d)))
     def stroke(self):
         self.js += "ctx.stroke();"

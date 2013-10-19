@@ -648,7 +648,7 @@ class DataItem(Storage.StorageBase):
             else:
                 if self.__thumbnail_thread:
                     self.__thumbnail_thread.update_data(self)
-                return numpy.zeros((height, width), dtype=numpy.double)
+                return numpy.zeros((height, width), dtype=numpy.uint32)
         return self.thumbnail_data
 
     def copy(self):
