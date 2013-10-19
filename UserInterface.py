@@ -733,7 +733,7 @@ class QtPushButtonWidget(QtWidget):
         return self.__text
     def __set_text(self, text):
         self.__text = text
-        self.proxy.PushButton_setText(self.widget, text)
+        self.proxy.PushButton_setText(self.widget, unicode(text))
     text = property(__get_text, __set_text)
 
     def __get_on_clicked(self):
