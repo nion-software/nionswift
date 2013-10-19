@@ -267,7 +267,7 @@ class ImagePanel(Panel.Panel):
         self.image_controls.add(show_source_button)
         self.image_controls.add_stretch()
 
-        self.image_canvas_scroll = self.ui.create_scroll_area_widget()
+        self.image_canvas_scroll = self.ui.create_scroll_area_widget(properties={"stylesheet": "background: '#888'"})
         self.image_canvas_scroll.content = self.image_canvas
         self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
 
