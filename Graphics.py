@@ -174,6 +174,9 @@ class Graphic(Storage.StorageBase):
         ctx.close_path()
         ctx.fill()
         ctx.restore()
+    def notify_set_property(self, key, value):
+        super(Graphic, self).notify_set_property(key, value)
+        self.notify_listeners("graphic_changed", self)
 
 
 class RectangleGraphic(Graphic):

@@ -118,6 +118,10 @@ class Operation(Storage.StorageBase):
         if key in self.properties:
             return self.values[key]
         return Storage.StorageBase.get_storage_property(self, key)
+    def notify_set_property(self, key, value):
+        super(Operation, self).notify_set_property(key, value)
+        self.notify_listeners("operation_changed", self)
+
 
 class FFTOperation(Operation):
     def __init__(self):

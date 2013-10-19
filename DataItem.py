@@ -86,6 +86,10 @@ class Calibration(Storage.StorageBase):
         result = '{0:.1f}'.format(self.convert_to_calibrated(value)) + ((" " + self.units) if self.__units else "")
         return result
 
+    def notify_set_property(self, key, value):
+        super(Calibration, self).notify_set_property(key, value)
+        self.notify_listeners("calibration_changed", self)
+
 
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
@@ -115,6 +119,9 @@ class Calibration(Storage.StorageBase):
 # preview_2d: a 2d visual representation of data
 
 # live data: a bool indicating whether the data is live
+
+# data is calculated when requested. this makes it imperative that callers
+# do not ask for data to be calculated on the main thread.
 
 
 class DataItem(Storage.StorageBase):
@@ -295,15 +302,17 @@ class DataItem(Storage.StorageBase):
         if key == "operations":
             value.add_listener(self)
             self.sync_operations()
-            self.notify_data_item_changed({"property": "operation"})
+            self.notify_data_item_changed({"property": "data"})
         elif key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index)  # see note about smart groups
             value.data_source = self
-            self.notify_data_item_changed({"property": "data_item"})
+            self.notify_data_item_changed({"property": "children"})
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
         elif key == "calibrations":
-            self.notify_data_item_changed({"property": "calibration"})
+            value.add_listener(self)
+            self.notify_data_item_changed({"property": "display"})
         elif key == "graphics":
+            value.add_listener(self)
             self.notify_data_item_changed({"property": "display"})
 
     def notify_remove_item(self, key, value, index):
@@ -311,15 +320,17 @@ class DataItem(Storage.StorageBase):
         if key == "operations":
             value.remove_listener(self)
             self.sync_operations()
-            self.notify_data_item_changed({"property": "operation"})
+            self.notify_data_item_changed({"property": "data"})
         elif key == "data_items":
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
             self.notify_listeners("data_item_removed", self, value, index)  # see note about smart groups
             value.data_source = None
-            self.notify_data_item_changed({"property": "data_item"})
+            self.notify_data_item_changed({"property": "children"})
         elif key == "calibrations":
-            self.notify_data_item_changed({"property": "calibration"})
+            value.remove_listener(self)
+            self.notify_data_item_changed({"property": "display"})
         elif key == "graphics":
+            value.remove_listener(self)
             self.notify_data_item_changed({"property": "display"})
 
     def __get_counted_data_items(self):
@@ -350,14 +361,24 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
-    # comes from data_source and operations to indicate that parameters have
-    # changed. the connection is established in operation.add_observer.
-    def property_changed(self, operation, property, value):
-        self.__clear_cached_data()
-        self.notify_data_item_changed({"property": "data"})
+    # override from storage to watch for changes to this data item. notify observers.
+    def notify_set_property(self, key, value):
+        super(DataItem, self).notify_set_property(key, value)
+        self.notify_data_item_changed({"property": "display"})
 
-    # this message comes from the operation. the connection is established
-    # using add_listener.
+    # this message comes from the graphic. the connection is established when a graphic
+    # is added or removed from this object.
+    def graphic_changed(self, graphic):
+        self.notify_data_item_changed({"property": "display"})
+
+    # this message comes from the calibration. the connection is established when a calibration
+    # is added or removed from this object.
+    def calibration_changed(self, calibration):
+        self.notify_data_item_changed({"property": "display"})
+
+    # this message comes from the operation. the connection is managed
+    # by watching for changes to the operations relationship. when an operation
+    # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         self.__clear_cached_data()
         self.notify_data_item_changed({"property": "data"})
@@ -366,8 +387,11 @@ class DataItem(Storage.StorageBase):
     # has changed. the connection is established in __set_data_source.
     def data_item_changed(self, data_source, info):
         assert data_source == self.data_source
-        self.__clear_cached_data()
-        self.notify_data_item_changed(info)
+        # we don't care about display changes to the data source; only data changes.
+        if info["property"] == "data":
+            self.__clear_cached_data()
+            # propogate to listeners
+            self.notify_data_item_changed(info)
 
     # use a property here to correct add_ref/remove_ref
     # also manage connection to data source.
@@ -379,7 +403,6 @@ class DataItem(Storage.StorageBase):
         if self.__data_source:
             with self.__data_mutex:
                 self.__data_source.remove_listener(self)
-                self.__data_source.remove_observer(self)
                 self.__data_source.remove_ref()
                 self.__data_source = None
                 self.sync_operations()
@@ -389,7 +412,6 @@ class DataItem(Storage.StorageBase):
                 self.__data_source = data_source
                 # we will receive data_item_changed from data_source
                 self.__data_source.add_listener(self)
-                self.__data_source.add_observer(self)
                 self.__data_source.add_ref()
                 self.sync_operations()
             self.data_item_changed(self.__data_source, {"property": "source"})
