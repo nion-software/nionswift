@@ -1,6 +1,7 @@
 # standard libraries
 import logging
 import math
+import numpy  # for arange
 import uuid
 
 # third party libraries
@@ -157,12 +158,18 @@ class Graphic(Storage.StorageBase):
         return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
     def draw_ellipse(self, ctx, cx, cy, rx, ry):
         ctx.save()
+        ra = 0.0  # rotation angle
         ctx.begin_path()
-        ctx.translate(cx-rx*0.5, cy-ry*0.5)
-        ctx.scale(rx*0.5, ry*0.5)
-        ctx.arc(1, 1, 1, 0, 2 * math.pi, False)
-        ctx.restore()
+        for i in numpy.arange(0, 2*math.pi, 0.1):
+            x = cx - (ry * 0.5 * math.sin(i)) * math.sin(ra * math.pi) + (rx * 0.5 * math.cos(i)) * math.cos(ra * math.pi)
+            y = cy + (rx * 0.5 * math.cos(i)) * math.sin(ra * math.pi) + (ry * 0.5 * math.sin(i)) * math.cos(ra * math.pi)
+            if i == 0:
+                ctx.move_to(x, y)
+            else:
+                ctx.line_to(x, y)
+        ctx.close_path()
         ctx.stroke()
+        ctx.restore()
     def draw_marker(self, ctx, p):
         ctx.save()
         ctx.fill_style = '#00FF00'
