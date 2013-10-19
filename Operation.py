@@ -307,6 +307,7 @@ class HistogramOperation(Operation):
         description = []
         super(HistogramOperation, self).__init__(_("Histogram"), description)
         self.storage_type = "histogram-operation"
+        self.bins = 256
 
     @classmethod
     def build(cls, storage_reader, item_node):
@@ -314,10 +315,10 @@ class HistogramOperation(Operation):
         return histogram_operation
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        return (512, ), numpy.int
+        return (self.bins, ), numpy.int
 
     def process_data_in_place(self, data):
-        histogram_data = numpy.histogram(data, bins=256)
+        histogram_data = numpy.histogram(data, bins=self.bins)
         return histogram_data[0].astype(numpy.int)
 
     def get_processed_data_range(self, data_shape, data_dtype, data_range):
