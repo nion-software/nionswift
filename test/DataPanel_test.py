@@ -69,12 +69,12 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(data_item1.data_items), 1)
         data_panel.data_group_widget.on_current_item_changed(0, -1, 0)
         data_panel.data_item_widget.on_current_item_changed(1)
-        data_panel.data_item_widget.on_item_key_pressed(1, chr(127), 0)
+        data_panel.data_item_widget.on_item_key_pressed(1, self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_item1.data_items), 0)
         # now delete a child of a data group
         self.assertEqual(len(data_group.data_items), 3)
         data_panel.data_item_widget.on_current_item_changed(3)
-        data_panel.data_item_widget.on_item_key_pressed(3, chr(127), 0)
+        data_panel.data_item_widget.on_item_key_pressed(3, self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_group.data_items), 2)
         image_panel.close()
         data_panel.close()
@@ -302,7 +302,7 @@ class TestDataPanelClass(unittest.TestCase):
         # verify assumptions
         self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 3)
         # delete 2nd item
-        data_panel.data_item_widget.on_item_key_pressed(1, chr(127), 0)
+        data_panel.data_item_widget.on_item_key_pressed(1, self.app.ui.create_key_by_id("delete"))
         self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 2)
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(0)["uuid"], str(data_item1.uuid))
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(1)["uuid"], str(data_item3.uuid))
@@ -376,5 +376,5 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
         self.assertTrue(data_item1 in data_group1.data_items)
-        data_panel.data_item_widget.on_item_key_pressed(0, chr(127), 0)
+        data_panel.data_item_widget.on_item_key_pressed(0, self.app.ui.create_key_by_id("delete"))
         self.assertFalse(data_item1 in data_group1.data_items)

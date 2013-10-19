@@ -491,8 +491,8 @@ class DataPanel(Panel.Panel):
                 self.update_data_panel_selection(image_panel.data_panel_selection)
             self.__block1 = saved_block1
 
-        def data_group_widget_key_pressed(index, parent_row, parent_id, text, modifiers):
-            if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
+        def data_group_widget_key_pressed(index, parent_row, parent_id, key):
+            if key.is_delete:
                 data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
                 if data_group:
                     container = self.data_group_model_controller.get_data_group_of_parent(parent_row, parent_id)
@@ -517,10 +517,10 @@ class DataPanel(Panel.Panel):
                 if image_panel:
                     image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
 
-        def data_item_widget_key_pressed(index, text, modifiers):
+        def data_item_widget_key_pressed(index, key):
             data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
             if data_item:
-                if len(text) == 1 and (ord(text[0]) == 127 or ord(text[0]) == 8):
+                if key.is_delete:
                     container = self.data_item_model_controller.get_data_item_container(self.data_item_model_controller.data_group, data_item)
                     assert data_item in container.data_items
                     container.data_items.remove(data_item)

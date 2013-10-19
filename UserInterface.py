@@ -60,6 +60,17 @@ class QtKeyboardModifiers(object):
     only_keypad = property(__get_only_keypad)
 
 
+class QtKey(object):
+    def __init__(self, text, key, raw_modifiers):
+        self.text = text
+        self.key = key
+        self.modifiers = QtKeyboardModifiers(raw_modifiers)
+
+    def __get_is_delete(self):
+        return len(self.text) == 1 and (ord(self.text[0]) == 127 or ord(self.text[0]) == 8)
+    is_delete = property(__get_is_delete)
+
+
 class QtMimeData(object):
     def __init__(self, proxy, mime_data=None):
         self.proxy = proxy
@@ -1054,7 +1065,7 @@ class QtCanvasWidget(QtWidget):
 
     def keyPressed(self, text, key, raw_modifiers):
         if self.__on_key_pressed:
-            return self.__on_key_pressed(text, key, QtKeyboardModifiers(raw_modifiers))
+            return self.__on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
 
@@ -1082,9 +1093,9 @@ class QtTreeWidget(QtWidget):
         if self.on_current_item_changed:
             self.on_current_item_changed(index, parent_row, parent_id)
 
-    def treeItemKeyPress(self, index, parent_row, parent_id, text, raw_modifiers):
+    def treeItemKeyPress(self, index, parent_row, parent_id, text, key, raw_modifiers):
         if self.on_item_key_pressed:
-            return self.on_item_key_pressed(index, parent_row, parent_id, text, QtKeyboardModifiers(raw_modifiers))
+            return self.on_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
         return False
 
     def treeItemClicked(self, index, parent_row, parent_id):
@@ -1127,9 +1138,9 @@ class QtListWidget(QtWidget):
         if self.on_current_item_changed:
             self.on_current_item_changed(index)
 
-    def listItemKeyPress(self, index, text, raw_modifiers):
+    def listItemKeyPress(self, index, text, key, raw_modifiers):
         if self.on_item_key_pressed:
-            return self.on_item_key_pressed(index, text, QtKeyboardModifiers(raw_modifiers))
+            return self.on_item_key_pressed(index, QtKey(text, key, raw_modifiers))
         return False
 
     def listItemClicked(self, index):
@@ -1425,3 +1436,9 @@ class QtUserInterface(object):
 
     def set_persistent_byte_array(self, key, value):
         self.proxy.Settings_setByteArray(key, value)
+
+    # misc
+
+    def create_key_by_id(self, key_id):
+        if key_id == "delete": return QtKey(chr(127), 0, 0)
+        return None

@@ -247,7 +247,7 @@ class ImagePanel(Panel.Panel):
         self.image_canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed((y, x), modifiers)
         self.image_canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released((y, x), modifiers)
         self.image_canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
-        self.image_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
+        self.image_canvas.on_key_pressed = lambda key: self.key_pressed(key)
 
         fit_button = self.ui.create_push_button_widget("Fit")
         fill_button = self.ui.create_push_button_widget("Fill")
@@ -284,7 +284,7 @@ class ImagePanel(Panel.Panel):
         self.line_plot_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
         self.line_plot_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
         self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
-        self.line_plot_canvas.on_key_pressed = lambda text, key, modifiers: self.key_pressed(text, key, modifiers)
+        self.line_plot_canvas.on_key_pressed = lambda key: self.key_pressed(key)
 
         self.line_plot_widget = self.ui.create_column_widget()
         self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
@@ -916,19 +916,19 @@ class ImagePanel(Panel.Panel):
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group, data_source)
 
     # ths message comes from the widget
-    def key_pressed(self, text, key, modifiers):
-        #logging.debug("text=%s key=%s mod=%s", text, hex(key), modifiers)
-        if text == "-":
+    def key_pressed(self, key):
+        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+        if key.text == "-":
             self.__zoom_out()
-        if text == "+":
+        if key.text == "+":
             self.__zoom_in()
-        if text == "1":
+        if key.text == "1":
             self.__set_one_to_one_mode()
-        if text == "0":
+        if key.text == "0":
             self.__set_fit_mode()
-        if text == ")":
+        if key.text == ")":
             self.__set_fill_mode()
-        if text == "o":
+        if key.text == "o":
             self.__show_data_source()
         return False
 

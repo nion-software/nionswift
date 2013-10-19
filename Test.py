@@ -276,6 +276,18 @@ class ListModelController:
     def data_changed(self):
         pass
 
+
+class Key(object):
+    def __init__(self, text, key, raw_modifiers):
+        self.text = text
+        self.key = key
+        self.modifiers = KeyboardModifiers()
+
+    def __get_is_delete(self):
+        return self.text == "delete"
+    is_delete = property(__get_is_delete)
+
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
@@ -330,6 +342,8 @@ class UserInterface:
         pass
     def get_data_location(self):
         pass
+    def create_key_by_id(self, key_id):
+        return Key(key_id, 0, 0)
 
 
 class KeyboardModifiers(object):
