@@ -133,7 +133,8 @@ class FFTOperation(Operation):
         if Image.is_data_1d(data):
             return scipy.fftpack.fftshift(scipy.fftpack.fft(data))
         elif Image.is_data_2d(data):
-            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data))
+            data_copy = data.copy()  # let other threads use data while we're processing
+            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_copy))
         else:
             raise NotImplementedError()
 
@@ -252,13 +253,13 @@ class Crop2dOperation(Operation):
         else:
             return bounds_int[1], data_dtype
 
-    def process_data_copy(self, data_copy):
+    def process_data_in_place(self, data):
         graphic = self.graphic
         assert isinstance(graphic, Graphics.RectangleGraphic)
-        shape = data_copy.shape
+        shape = data.shape
         bounds = graphic.bounds
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
-        return data_copy[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]]
+        return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
 
 class Resample2dOperation(Operation):
