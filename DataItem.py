@@ -12,6 +12,7 @@ import numpy
 import scipy.interpolate
 
 # local libraries
+from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
 from nion.swift import Storage
 
@@ -91,6 +92,38 @@ class Calibration(Storage.StorageBase):
         self.notify_listeners("calibration_changed", self)
 
 
+class ThumbnailThread(ProcessingThread):
+
+    def __init__(self):
+        super(ThumbnailThread, self).__init__()
+        self.__data_item = None
+        # don't start until everything is initialized
+        self.start()
+
+    def close(self):
+        if self.__data_item:
+            self.__data_item.remove_ref()
+        super(ThumbnailThread, self).close()
+
+    def handle_data(self, data_item):
+        if self.__data_item:
+            self.__data_item.remove_ref()
+        self.__data_item = data_item
+        if data_item:
+            data_item.add_ref()
+
+    def grab_data(self):
+        data_item = self.__data_item
+        self.__data_item = None
+        return data_item
+
+    def process_data(self, data_item):
+        data_item.load_thumbnail()
+
+    def release_data(self, data_item):
+        data_item.remove_ref()
+
+
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
 # from another data item (data source).
@@ -155,6 +188,7 @@ class DataItem(Storage.StorageBase):
         self.thumbnail_data_valid = False
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
+        self.__thumbnail_thread = ThumbnailThread()
 
     def __str__(self):
         return self.title if self.title else _("Untitled")
@@ -189,6 +223,8 @@ class DataItem(Storage.StorageBase):
 
     # This gets called when reference count goes to 0, but before deletion.
     def about_to_delete(self):
+        self.__thumbnail_thread.close()
+        self.__thumbnail_thread = None
         self.closed = True
         self.data_source = None
         self.master_data = None
@@ -592,6 +628,11 @@ class DataItem(Storage.StorageBase):
         return data
     best_data = property(__get_best_data)
 
+    # this will be invoked on a thread
+    def load_thumbnail(self):
+        self.data  # for data to load
+        self.notify_data_item_changed({"property": "display"})
+
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
         if not self.thumbnail_data_valid:
@@ -605,6 +646,8 @@ class DataItem(Storage.StorageBase):
                     pass
                 self.thumbnail_data_valid = self.thumbnail_data is not None
             else:
+                if self.__thumbnail_thread:
+                    self.__thumbnail_thread.update_data(self)
                 return numpy.zeros((height, width), dtype=numpy.double)
         return self.thumbnail_data
 
