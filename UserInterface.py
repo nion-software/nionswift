@@ -602,7 +602,7 @@ class QtTabWidget(QtWidget):
             child.close()
 
     def add(self, child, label):
-        self.proxy.TabWidget_addTab(self.widget, child.widget, label)
+        self.proxy.TabWidget_addTab(self.widget, child.widget, unicode(label))
         self.children.append(child)
 
     def restore_state(self, tag):
@@ -699,7 +699,7 @@ class QtComboBoxWidget(QtWidget):
     def __get_current_text(self):
         return self.proxy.ComboBox_getCurrentText(self.widget)
     def __set_current_text(self, text):
-        self.proxy.ComboBox_setCurrentText(self.widget, text)
+        self.proxy.ComboBox_setCurrentText(self.widget, unicode(text))
     current_text = property(__get_current_text, __set_current_text)
 
     def __get_on_current_text_changed(self):
@@ -713,7 +713,7 @@ class QtComboBoxWidget(QtWidget):
     def __set_items(self, items):
         self.proxy.ComboBox_removeAllItems(self.widget)
         for item in items:
-            self.proxy.ComboBox_addItem(self.widget, item)
+            self.proxy.ComboBox_addItem(self.widget, unicode(item))
     items = property(__get_items, __set_items)
 
     # this message comes from Qt implementation
@@ -759,7 +759,7 @@ class QtLabelWidget(QtWidget):
         return self.__text
     def __set_text(self, text):
         self.__text = text if text else ""
-        self.proxy.Label_setText(self.widget, self.__text)
+        self.proxy.Label_setText(self.widget, unicode(self.__text))
     text = property(__get_text, __set_text)
 
 
@@ -857,7 +857,7 @@ class QtLineEditWidget(QtWidget):
     def __get_text(self):
         return self.proxy.LineEdit_getText(self.widget)
     def __set_text(self, text):
-        self.proxy.LineEdit_setText(self.widget, text)
+        self.proxy.LineEdit_setText(self.widget, unicode(text))
     text = property(__get_text, __set_text)
 
     def __get_formatter(self):
@@ -1172,7 +1172,7 @@ class QtOutputWidget(QtWidget):
         super(QtOutputWidget, self).__init__(proxy, "output", properties)
 
     def send(self, message):
-        self.proxy.Output_out(self.widget, message)
+        self.proxy.Output_out(self.widget, unicode(message))
 
 
 # pobj
@@ -1197,7 +1197,7 @@ class QtAction(object):
         self.on_triggered = None
 
     def create(self, document_window, title, key_sequence, role):
-        self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
+        self.native_action = self.proxy.Action_create(document_window.native_document_window, unicode(title), key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
 
     def triggered(self):
@@ -1261,10 +1261,10 @@ class QtDocumentWindow(object):
         self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
 
     def get_file_paths_dialog(self, title, directory, filter):
-        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", title, directory, filter)
+        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", unicode(title), unicode(directory), unicode(filter))
 
     def get_save_file_path(self, title, directory, filter):
-        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", title, directory, filter)
+        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", unicode(title), unicode(directory), unicode(filter))
 
     def create_dock_widget(self, widget, panel_id, title, positions, position):
         return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
@@ -1292,12 +1292,12 @@ class QtDocumentWindow(object):
         self.root_widget.close()
 
     def add_menu(self, title):
-        native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, title)
+        native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, unicode(title))
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
 
     def insert_menu(self, title, before_menu):
-        native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, title, before_menu.native_menu)
+        native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, unicode(title), before_menu.native_menu)
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
 
@@ -1311,7 +1311,7 @@ class QtDockWidget(object):
         self.proxy = proxy
         self.document_window = document_window
         self.widget = widget
-        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, title, positions, position)
+        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, unicode(title), positions, position)
 
     def close(self):
         self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
@@ -1405,7 +1405,7 @@ class QtUserInterface(object):
     # file i/o
 
     def load_rgba_data_from_file(self, filename):
-        return self.proxy.readImageToPyArray(filename)
+        return self.proxy.readImageToPyArray(unicode(filename))
 
     # persistence (associated with application)
 
