@@ -620,11 +620,14 @@ class DataItem(Storage.StorageBase):
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
     # returns the best data available without doing a calculation. may return None.
+    # if the best is not the latest, also triggers the data to calculate
     def __get_best_data(self):
         with self.__data_mutex:
             data = self.__cached_data
             if data is None:
                 data = self.__last_cached_data
+                if self.__thumbnail_thread:  # this will trigger the data to load
+                    self.__thumbnail_thread.update_data(self)
         return data
     best_data = property(__get_best_data)
 
