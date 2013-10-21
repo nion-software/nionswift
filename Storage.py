@@ -72,7 +72,15 @@ class MutableRelationship(collections.MutableSequence):
 #
 # StorageBase supports observers and listeners.
 #
-# Observers watch all serializable changes to the object.
+# Observers can watch all serializable changes to the object by
+# adding themselves as an observer and then overriding one or more
+# of the following methods:
+#   property_changed(object, key, value)
+#   item_set(object, key, value)
+#   item_cleared(object, key)
+#   data_set(object, key, data)
+#   item_inserted(object, key, value, before_index)
+#   item_removed(object, key, value, index)
 #
 # Listeners listen to any notifications broadcast. They
 # take the form of specific method calls on the listeners.
