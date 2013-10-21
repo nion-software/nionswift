@@ -206,6 +206,27 @@ class GraphicSelection(object):
             self._indexes.add(index)
         if old_index != self.__indexes:
             self._notify_listeners()
+    def insert_index(self, new_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index < new_index:
+                new_indexes.add(index)
+            else:
+                new_indexes.add(index+1)
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self._notify_listeners()
+    def remove_index(self, remove_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index != remove_index:
+                if index > remove_index:
+                    new_indexes.add(index-1)
+                else:
+                    new_indexes.add(index)
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self._notify_listeners()
 
 
 class DisplayThread(ProcessingThread):
@@ -688,6 +709,7 @@ class ImagePanel(Panel.Panel):
             self.data_item_container.remove_listener(self)
             self.data_item_container.remove_ref()
         if self.data_item:
+            self.data_item.remove_observer(self)
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
         self.__data_panel_selection = data_panel_selection
@@ -704,6 +726,7 @@ class ImagePanel(Panel.Panel):
         if data_item:
             data_item.add_ref()
             data_item.add_listener(self)
+            data_item.add_observer(self)  # watch for graphics being added/removed
         if data_item_container:
             data_item_container.add_ref()
             data_item_container.add_listener(self)
@@ -713,6 +736,24 @@ class ImagePanel(Panel.Panel):
         # if our item gets deleted, clear the selection
         if container == self.data_item_container and data_item == self.data_item:
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
+
+    # watch for changes to the graphic item list
+    def item_inserted(self, object, key, value, before_index):
+        if object == self.data_item and key == "graphics":
+            # selection is 5,6,7
+            # if inserted at 4, new selection is 6,7,8
+            # if inserted at 6, new selection is 5,7,8
+            # indexes greater or equal to new index are incremented
+            self.graphic_selection.insert_index(before_index)
+            self.display_changed()
+    def item_removed(self, object, key, value, index):
+        if object == self.data_item and key == "graphics":
+            # selection is 5,6,7
+            # if 4 is removed, new selection is 4,5,6
+            # if 6 is removed, new selection is 5,6
+            # the index is removed; and remaining indexes greater than removed one are decremented
+            self.graphic_selection.remove_index(index)
+            self.display_changed()
 
     # tell our listeners the we changed.
     def notify_image_panel_data_item_changed(self, info):
@@ -951,6 +992,11 @@ class ImagePanel(Panel.Panel):
     # ths message comes from the widget
     def key_pressed(self, key):
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+        if key.is_delete:
+            all_graphics = self.data_item.graphics if self.data_item else []
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
+            if len(graphics):
+                self.document_controller.remove_graphic()
         if key.text == "-":
             self.__zoom_out()
         if key.text == "+":

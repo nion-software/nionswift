@@ -224,5 +224,19 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (900, 400))
         self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (200, 200))
 
+    def test_insert_remove_graphics_and_selection(self):
+        self.assertFalse(self.image_panel.graphic_selection.indexes)
+        self.document_controller.add_rectangle_graphic()
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        graphic = Graphics.RectangleGraphic()
+        graphic.bounds = ((0.5,0.5), (0.25,0.25))
+        self.data_item.graphics.insert(0, graphic)
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(1 in self.image_panel.graphic_selection.indexes)
+        del self.data_item.graphics[0]
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+
 if __name__ == '__main__':
     unittest.main()
