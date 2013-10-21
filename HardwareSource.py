@@ -34,6 +34,7 @@ import weakref
 
 # local imports
 from nion.swift import Decorators
+from nion.swift import DataItem
 
 _ = gettext.gettext
 
@@ -406,7 +407,19 @@ class HardwareSourceDataBuffer(object):
             data_element = channel_to_data_element_map[channel]
             data_item = new_channel_to_data_item_dict[channel]
             data_item.master_data = data_element["data"]
-            data_item.data_range = data_element.get("data_range")
+            if "data_range" in data_element:
+                data_item.data_range = data_element.get("data_range")
+            if "spatial_calibration" in data_element:
+                spatial_calibration = data_element.get("spatial_calibration")
+                if len(spatial_calibration) == len(data_item.spatial_shape):
+                    for dimension, dimension_calibration in enumerate(spatial_calibration):
+                        origin = float(dimension_calibration[0])
+                        scale = float(dimension_calibration[1])
+                        units = str(dimension_calibration[2])
+                        if scale != 0.0:
+                            data_item.calibrations[dimension].origin = origin
+                            data_item.calibrations[dimension].scale = scale
+                            data_item.calibrations[dimension].units = units
 
         # these items are no longer live. mark live_data as False.
         for channel in list(set(self.last_channel_to_data_item_dict.keys())-set(new_channel_to_data_item_dict.keys())):

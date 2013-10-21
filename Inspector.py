@@ -8,6 +8,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.Decorators import queue_main_thread
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -49,8 +50,9 @@ class FloatFormatter(object):
 
 
 class ScalarController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
 
@@ -82,8 +84,9 @@ class ScalarController(object):
 
 
 class IntegerFieldController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_row_widget()
@@ -104,8 +107,9 @@ class IntegerFieldController(object):
 
 
 class FloatFieldController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_row_widget()
@@ -126,8 +130,9 @@ class FloatFieldController(object):
 
 
 class StringFieldController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_row_widget()
@@ -150,8 +155,9 @@ class StringFieldController(object):
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
 class FixedArrayController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_column_widget()
@@ -159,7 +165,7 @@ class FixedArrayController(object):
         array = getattr(self.object, property)
         for item in array:
             column_widget = self.ui.create_column_widget()
-            controller = PropertyEditorController(self.ui, item)
+            controller = PropertyEditorController(self.ui, self.document_controller, item)
             column_widget.add(controller.widget)
             self.__columns.append(controller)
             self.widget.add(column_widget)
@@ -175,13 +181,14 @@ class FixedArrayController(object):
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
 class ItemController(object):
-    def __init__(self, ui, object, name, property):
+    def __init__(self, ui, document_controller, object, name, property):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_column_widget()
         item = getattr(self.object, property)
-        self.controller = PropertyEditorController(self.ui, item)
+        self.controller = PropertyEditorController(self.ui, self.document_controller, item)
         self.widget.add(self.controller.widget)
     def close(self):
         if hasattr(self.controller, 'close'):
@@ -190,27 +197,28 @@ class ItemController(object):
         self.controller.update()
 
 
-def construct_controller(ui, object, type, name, property):
+def construct_controller(ui, document_controller, object, type, name, property):
     controller = None
     if type == "scalar":
-        controller = ScalarController(ui, object, name, property)
+        controller = ScalarController(ui, document_controller, object, name, property)
     elif type == "integer-field":
-        controller = IntegerFieldController(ui, object, name, property)
+        controller = IntegerFieldController(ui, document_controller, object, name, property)
     elif type == "float-field":
-        controller = FloatFieldController(ui, object, name, property)
+        controller = FloatFieldController(ui, document_controller, object, name, property)
     elif type == "string-field":
-        controller = StringFieldController(ui, object, name, property)
+        controller = StringFieldController(ui, document_controller, object, name, property)
     elif type == "fixed-array":
-        controller = FixedArrayController(ui, object, name, property)
+        controller = FixedArrayController(ui, document_controller, object, name, property)
     elif type == "item":
-        controller = ItemController(ui, object, name, property)
+        controller = ItemController(ui, document_controller, object, name, property)
     return controller
 
 
 class PropertyEditorController(object):
 
-    def __init__(self, ui, object):
+    def __init__(self, ui, document_controller, object):
         self.ui = ui
+        self.document_controller = document_controller
         self.object = object
         self.__controllers = {}
         self.widget = self.ui.create_column_widget()
@@ -220,7 +228,7 @@ class PropertyEditorController(object):
             name = dict["name"]
             type = dict["type"]
             property = dict["property"]
-            controller = construct_controller(self.ui, self.object, type, name, property)
+            controller = construct_controller(self.ui, document_controller, self.object, type, name, property)
             if controller:
                 self.widget.add(controller.widget)
                 self.__controllers[property] = controller
@@ -237,6 +245,10 @@ class PropertyEditorController(object):
                 controller.close()
         self.__controllers = {}
 
+    # used for queue_main_thread decorator
+    delay_queue = property(lambda self: self.document_controller.delay_queue)
+
+    @queue_main_thread
     def property_changed(self, sender, property, value):
         if property in self.__controllers:
             self.__controllers[property].update()
@@ -299,7 +311,7 @@ class ProcessingPanel(Panel.Panel):
             self.widget.add(self.control_row)
             self.widget.add(self.container_widget)
             self.widget.add_stretch()
-            self.property_editor_controller = PropertyEditorController(self.ui, operation)
+            self.property_editor_controller = PropertyEditorController(self.ui, self.document_controller, operation)
             self.container_widget.add(self.property_editor_controller.widget)
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -379,7 +391,7 @@ class InspectorPanel(Panel.Panel):
             self.__pec.close()
             self.__pec = None
         if self.__data_item:
-            self.__pec = PropertyEditorController(self.ui, self.__data_item)
+            self.__pec = PropertyEditorController(self.ui, self.document_controller, self.__data_item)
             self.column.add(self.__pec.widget)
 
     def __get_data_item(self):
