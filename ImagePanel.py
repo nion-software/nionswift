@@ -15,6 +15,7 @@ from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import queue_main_thread
+from nion.swift.Decorators import singleton
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import Inspector
@@ -730,6 +731,8 @@ class ImagePanel(Panel.Panel):
         if data_item_container:
             data_item_container.add_ref()
             data_item_container.add_listener(self)
+        # let the image panel manager know the data item changed
+        ImagePanelManager().data_item_changed(self)
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
 
     def data_item_removed(self, container, data_item, index):
@@ -997,6 +1000,9 @@ class ImagePanel(Panel.Panel):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
             if len(graphics):
                 self.document_controller.remove_graphic()
+        if key.text == " ":
+            pass
+            # how to convery acquisition start/stop to hardware source?
         if key.text == "-":
             self.__zoom_out()
         if key.text == "+":
@@ -1009,7 +1015,36 @@ class ImagePanel(Panel.Panel):
             self.__set_fill_mode()
         if key.text == "o":
             self.__show_data_source()
+
+        return ImagePanelManager().key_pressed(self, key)
+
+
+# image panel manager acts as a broker for significant events occurring
+# regarding image panels. listeners can attach themselves to this object
+# and receive messages regarding image panels. for instance, when the user
+# presses a key on an image panel that isn't handled directly by the image
+# panel, listeners can be advised of this event.
+@singleton
+class ImagePanelManager(object):
+    def __init__(self):
+        self.__weak_listeners = []
+    # implement listener architecture
+    def notify_listeners(self, fn, *args, **keywords):
+        listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+        for listener in listeners:
+            if hasattr(listener, fn):
+                if getattr(listener, fn)(*args, **keywords):
+                    return True
         return False
+    def add_listener(self, listener):
+        self.__weak_listeners.append(weakref.ref(listener))
+    def remove_listener(self, listener):
+        self.__weak_listeners.remove(weakref.ref(listener))
+    # events from the image panels
+    def key_pressed(self, image_panel, key):
+        return self.notify_listeners("image_panel_key_pressed", image_panel, key)
+    def data_item_changed(self, image_panel):
+        self.notify_listeners("image_panel_data_item_changed", image_panel)
 
 
 class InfoPanel(Panel.Panel):
