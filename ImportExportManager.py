@@ -5,11 +5,60 @@ import os
 # None
 
 # local libraries
+from nion.swift import DataItem
 from nion.swift import Decorators
+from nion.swift import Image
 
 
 class ImportExportIncompatibleDataError(Exception):
     pass
+
+
+class ImportExportHandler(object):
+
+    # Extensions should not include a period.
+    def __init__(self, name, extensions):
+        self.name = name
+        self.extensions = extensions
+
+    def can_read(self):
+        return True
+
+    # return a data item
+    def read(self, ui, path, extension):
+        with open(filepath, 'rb') as f:
+            return self.read_file(extension, f)
+
+    # return a data item
+    def read_file(self, extension, file):
+        data = self.read_data(extension, file)
+        if data is not None:
+            root, filename = os.path.split(path)
+            title, _ = os.path.splitext(filename)
+            data_item = DataItem.DataItem()
+            data_item.master_data = data
+            data_item.title = title
+            return data_item
+        return None
+
+    # return data
+    def read_data(self, extension, file):
+        return None
+
+    def can_write(self, data_item, extension):
+        return False
+
+    def write(self, ui, data_item, path, extension):
+        with open(path, 'wb') as f:
+            self.write_file(data_item, extension, f)
+
+    def write_file(self, data_item, extension, file):
+        data = data_item.data
+        if data is not None:
+            self.write_data(data, extension, file)
+
+    def write_data(self, data, extension, file):
+        pass
 
 
 @Decorators.singleton
@@ -20,68 +69,74 @@ class ImportExportManager(object):
     def __init__(self):
         # we store a of dicts dicts containing extensions,
         # load_func, save_func, keyed by name.
-        self.io_extensions = {}
+        self.__io_handlers = []
 
-    def get_io_for_extension(self, extension):
-        """
-        Return the registerd io name that can handle the extension.
-        Extension should not include a period.
-        """
-        for k, v in self.io_extensions.iteritems():
-            if extension in v["extensions"]:
-                return k
+    def register_io_handler(self, io_handler):
+        self.__io_handlers.append(io_handler)
 
-    def get_io_for_file(self, filepath):
-        root, ext = os.path.splitext(filepath)
-        if ext:
-            # we remove the leading "."
-            return self.get_io_for_extension(ext[1:])
+    def unregister_io_handler(self, io_handler):
+        self.__io_handlers.remove(io_handler)
 
-    def register_io(self, name, extensions, load_func, save_func):
-        """
-        Registers the load_func, save_func functions for handling any files
-        ending with an extension in extensions. Extensions should not include
-        a period.
+    def get_readers(self):
+        readers = []
+        for io_handler in self.__io_handlers:
+            if io_handler.can_read():
+                readers.append(io_handler)
+        return readers
 
-        load_func should take a file-like object and return a numpy array.
+    def get_writers_for_data_item(self, data_item):
+        writers = []
+        for io_handler in self.__io_handlers:
+            for extension in io_handler.extensions:
+                if io_handler.can_write(data_item, extension):
+                    writers.append(io_handler)
+                    break  # from iterating extensions
+        return writers
 
-        save_func takes a numpy array and writable file-like object and should
-        write the array to the file.
-        """
-        self.io_extensions[name] = {"extensions": extensions,
-                                    "load_func": load_func,
-                                    "save_func": save_func}
+    # read file, return data item
+    def read(self, ui, path):
+        root, extension = os.path.splitext(path)
+        if extension:
+            extension = extension[1:]  # remove the leading "."
+            for io_handler in self.__io_handlers:
+                if extension in io_handler.extensions:
+                    return io_handler.read(ui, path, extension)
+        return None
 
-    def unregister_io(self, name):
-        if name in self.io_extensions:
-            del self.io_extensions[name]
+    def write(self, ui, data_item, path):
+        root, extension = os.path.splitext(path)
+        if extension:
+            extension = extension[1:]  # remove the leading "."
+            for io_handler in self.__io_handlers:
+                if extension in io_handler.extensions and io_handler.can_write(data_item, extension):
+                    io_handler.write(ui, data_item, path, extension)
 
-    def get_all_extensions(self, savable, loadable):
-        """
-        Returns a list of (name, extensions) tuples from all registered handlers.
 
-        If savable is True, only plugins supporting saving are returned.
-        If loadable is True, only plugins supported loading are returned.
-        """
-        ret = []
-        for k, v in self.io_extensions.iteritems():
-            if savable and not v["save_func"]:
-                continue
-            if loadable and not v["load_func"]:
-                continue
-            ret.append((k, v["extensions"]))
-        return ret
+class StandardImportExportHandler(ImportExportHandler):
 
-    def load_file(self, filepath):
-        k = self.get_io_for_file(filepath)
-        if k:
-            with open(filepath, 'rb') as f:
-                return self.io_extensions[k]["load_func"](f)
+    def __init__(self, name, extensions):
+        super(StandardImportExportHandler, self).__init__(name, extensions)
 
-    def save_file(self, data, filepath):
-        k = self.get_io_for_file(filepath)
-        if k:
-            with open(filepath, 'wb') as f:
-                return self.io_extensions[k]["save_func"](data, f)
-        return False  # no handler found
+    def read(self, ui, path, extension):
+        data = Image.read_image_from_file(ui, path)
+        if data is not None:
+            root, filename = os.path.split(path)
+            title, _ = os.path.splitext(filename)
+            data_item = DataItem.DataItem()
+            data_item.master_data = data
+            data_item.title = title
+            return data_item
+        return None
 
+    def can_write(self, data_item, extension):
+        return len(data_item.spatial_shape) == 2
+
+    def write(self, ui, data_item, path, extension):
+        data = data_item.preview_2d
+        if data is not None:
+            ui.save_rgba_data_to_file(data, path, extension)
+
+
+ImportExportManager().register_io_handler(StandardImportExportHandler("JPEG", ["jpg", "jpeg"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("PNG", ["png"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))

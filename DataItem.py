@@ -572,8 +572,8 @@ class DataItem(Storage.StorageBase):
         if self.__preview is None:
             data_2d = self.data
             if Image.is_data_2d(data_2d):
-                data_2d = Image.scalarFromArray(data_2d)
-                self.__preview = Image.createRGBAImageFromArray(data_2d, data_range=self.calculated_data_range, display_limits=self.display_limits)
+                data_2d = Image.scalar_from_array(data_2d)
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=self.calculated_data_range, display_limits=self.display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
@@ -584,7 +584,7 @@ class DataItem(Storage.StorageBase):
             # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
             data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
         else:
-            data = Image.scalarFromArray(data)
+            data = Image.scalar_from_array(data)
         rgba = numpy.empty((height, width, 4), numpy.uint8)
         rgba[:] = 64
         data_scaled = Image.scale_multidimensional(data, (width,))
@@ -600,7 +600,7 @@ class DataItem(Storage.StorageBase):
     def __get_thumbnail_2d_data(self, image, height, width, data_range, display_limits):
         assert image is not None
         assert image.ndim in (2,3)
-        image = Image.scalarFromArray(image)
+        image = Image.scalar_from_array(image)
         image_height = image.shape[0]
         image_width = image.shape[1]
         assert image_height > 0 and image_width > 0
@@ -608,7 +608,7 @@ class DataItem(Storage.StorageBase):
         scaled_width = width if image_width > image_height else width * image_width / image_height
         thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
         if numpy.ndim(thumbnail_image) == 2:
-            return Image.createRGBAImageFromArray(thumbnail_image, data_range=data_range, display_limits=display_limits)
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
         elif numpy.ndim(thumbnail_image) == 3:
             data = thumbnail_image
             if thumbnail_image.shape[2] == 4:

@@ -585,7 +585,7 @@ class ImagePanel(Panel.Panel):
 
         data = data_item.data
         assert data is not None
-        data = Image.scalarFromArray(data_item.data)  # make sure complex becomes scalar
+        data = Image.scalar_from_array(data_item.data)  # make sure complex becomes scalar
         assert data is not None
         if Image.is_data_rgb(data) or Image.is_data_rgba(data):
             # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.

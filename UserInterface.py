@@ -1416,7 +1416,10 @@ class QtUserInterface(object):
     # file i/o
 
     def load_rgba_data_from_file(self, filename):
-        return self.proxy.readImageToPyArray(unicode(filename))
+        return self.proxy.Core_readImageToPyArray(unicode(filename))
+
+    def save_rgba_data_to_file(self, data, filename, format):
+        return self.proxy.Core_writePyArrayToImage(data, unicode(filename), str(format))
 
     # persistence (associated with application)
 

@@ -17,6 +17,7 @@ from nion.swift import DataItem
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import Image
+from nion.swift import ImportExportManager
 from nion.swift import Operation
 from nion.swift import Workspace
 
@@ -113,6 +114,9 @@ class DocumentController(object):
         self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window("library"), key_sequence="new")
         self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
+        self.file_menu.add_separator()
+        self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
+        self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_file())
         self.file_menu.add_separator()
         self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
@@ -287,6 +291,33 @@ class DocumentController(object):
         # hack to work around Application <-> DocumentController interdependency.
         self.notify_listeners("create_document_controller", self.document_model, workspace_id, data_panel_selection)
 
+    def import_file(self):
+        # present a loadfile dialog to the user
+        readers = ImportExportManager.ImportExportManager().get_readers()
+        filter = ";;".join(
+            [reader.name + " files (" + " ".join(
+                ["*."+extension for extension in reader.extensions])
+             + ")" for reader in readers])
+        filter += ";;All Files (*.*)"
+        paths = self.document_window.get_file_paths_dialog(_("Import File(s)"), "", filter)
+        for path in paths:
+            data_item = ImportExportManager.ImportExportManager().read(self.ui, path)
+            if data_item:
+                self.document_model.default_data_group.data_items.append(data_item)
+
+    def export_file(self):
+        # present a loadfile dialog to the user
+        data_item = self.selected_data_item
+        writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        filter = ";;".join(
+            [writer.name + " files (" + " ".join(
+                ["*."+extension for extension in writer.extensions])
+             + ")" for writer in writers])
+        filter += ";;All Files (*.*)"
+        path = self.document_window.get_save_file_path(_("Export File"), "", filter)
+        if path:
+            return ImportExportManager.ImportExportManager().write(self.ui, data_item, path)
+
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()
         smart_data_group.title = _("Untitled Smart Group")
@@ -306,7 +337,7 @@ class DocumentController(object):
     def add_green_data_item(self):
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green " + str(random.randint(1,1000000))
-        color_image_source.master_data = Image.createColor((512, 512), 128, 255, 128)
+        color_image_source.master_data = Image.create_color_image((512, 512), 128, 255, 128)
         self.document_model.default_data_group.data_items.append(color_image_source)
 
     def add_line_graphic(self):

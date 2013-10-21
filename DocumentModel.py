@@ -75,12 +75,12 @@ class DocumentModel(Storage.StorageBase):
         # for testing, add a checkerboard image data item
         checkerboard_image_source = DataItem.DataItem()
         checkerboard_image_source.title = "Checkerboard"
-        checkerboard_image_source.master_data = Image.createCheckerboard((512, 512))
+        checkerboard_image_source.master_data = Image.create_checkerboard((512, 512))
         self.default_data_group.data_items.append(checkerboard_image_source)
         # for testing, add a color image data item
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green Color"
-        color_image_source.master_data = Image.createColor((512, 512), 128, 255, 128)
+        color_image_source.master_data = Image.create_color_image((512, 512), 128, 255, 128)
         self.default_data_group.data_items.append(color_image_source)
         # for testing, add a color image data item
         lena_image_source = DataItem.DataItem()

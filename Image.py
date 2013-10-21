@@ -68,14 +68,14 @@ def scaled(image, size, method='linear'):
     return None
 
 
-def byteView(rgba_image):
+def get_byte_view(rgba_image):
     return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (-1, ))
 
 
-def rgbView(rgba_image, byteorder=None):
+def get_rgb_view(rgba_image, byteorder=None):
     if byteorder is None:
         byteorder = sys.byteorder
-    bytes = byteView(rgba_image)
+    bytes = get_byte_view(rgba_image)
     assert bytes.shape[2] == 4
     if byteorder == 'little':
         return bytes[..., :3]  # strip A off BGRA
@@ -83,10 +83,10 @@ def rgbView(rgba_image, byteorder=None):
         return bytes[..., 1:]  # strip A off ARGB
 
 
-def alphaView(rgba_image, byteorder=None):
+def get_alpha_view(rgba_image, byteorder=None):
     if byteorder is None:
         byteorder = sys.byteorder
-    bytes = byteView(rgba_image)
+    bytes = get_byte_view(rgba_image)
     assert bytes.shape[2] == 4
     if byteorder == 'little':
         return bytes[..., 3]  # A of BGRA
@@ -94,21 +94,21 @@ def alphaView(rgba_image, byteorder=None):
         return bytes[..., 0]  # A of ARGB
 
 
-def createCheckerboard(size):
+def create_checkerboard(size):
     data = numpy.zeros(size, numpy.uint32)
     xx, yy = numpy.meshgrid(numpy.linspace(0,1,size[0]), numpy.linspace(0,1,size[1]))
     data[:] = numpy.sin(12*math.pi*xx)*numpy.sin(12*math.pi*yy) > 0
     return data
 
 
-def createColor(size, r, g, b, a = 255):
-    return byteView(createRGBAImageFromColor(size, r, g, b, a))
+def create_color_image(size, r, g, b, a = 255):
+    return get_byte_view(create_rgba_image_from_color(size, r, g, b, a))
 
 
-def createRGBAImageFromColor(size, r, g, b, a=255):
+def create_rgba_image_from_color(size, r, g, b, a=255):
     rgba_image = numpy.empty(size, dtype=numpy.uint32)
-    rgbView(rgba_image)[:] = (b,g,r)  # scalar data assigned to each component of rgb view
-    alphaView(rgba_image)[:] = a
+    get_rgb_view(rgba_image)[:] = (b,g,r)  # scalar data assigned to each component of rgb view
+    get_alpha_view(rgba_image)[:] = a
     return rgba_image
 
 
@@ -155,14 +155,14 @@ def is_data_2d(data):
     return data is not None and is_shape_and_dtype_2d(data.shape, data.dtype)
 
 
-def scalarFromArray(array, normalize=True):
+def scalar_from_array(array, normalize=True):
     if numpy.iscomplexobj(array):
         res = numpy.log(numpy.abs(array) + 1)
         return res
     return array
 
 
-def createRGBAImageFromArray(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
+def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
     assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
@@ -178,7 +178,7 @@ def createRGBAImageFromArray(array, normalize=True, data_range=None, display_lim
                 a = numpy.maximum(numpy.minimum(array, nmax_new), nmin_new)
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax_new - nmin_new) if nmax_new != nmin_new else 1
-                rgbView(rgba_image)[:] = m * (a[..., numpy.newaxis] - nmin_new)
+                get_rgb_view(rgba_image)[:] = m * (a[..., numpy.newaxis] - nmin_new)
                 if overlimit:
                     rgba_image = numpy.where(numpy.less(array - nmin_new, nmax_new - nmin_new * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:
@@ -186,14 +186,14 @@ def createRGBAImageFromArray(array, normalize=True, data_range=None, display_lim
             else:
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax - nmin) if nmax != nmin else 1
-                rgbView(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
+                get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
                 if overlimit:
                     rgba_image = numpy.where(numpy.less(array - nmin, (nmax - nmin) * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:
                     rgba_image = numpy.where(numpy.greater(array - nmin, (nmax - nmin) * underlimit), rgba_image, 0xFF0000FF)
         else:
-            rgbView(rgba_image)[:] = array[..., numpy.newaxis]  # scalar data assigned to each component of rgb view
-        alphaView(rgba_image)[:] = 255
+            get_rgb_view(rgba_image)[:] = array[..., numpy.newaxis]  # scalar data assigned to each component of rgb view
+        get_alpha_view(rgba_image)[:] = 255
         return rgba_image
     elif numpy.ndim(array) == 3:
         assert array.shape[2] in (3,4)  # rgb, rgba
@@ -208,9 +208,12 @@ def createRGBAImageFromArray(array, normalize=True, data_range=None, display_lim
     return None
 
 
-def readImageFromFile(ui, filename, dtype=numpy.uint32):
+def read_image_from_file(ui, filename, dtype=numpy.uint32):
     rgba_image = ui.load_rgba_data_from_file(filename)
     assert rgba_image is not None
-    image = numpy.zeros(rgba_image.shape, dtype)
-    image[:, :] = numpy.mean(rgbView(rgba_image), 2)
-    return image
+    if dtype != numpy.uint32:
+        image = numpy.zeros(rgba_image.shape, dtype)
+        image[:, :] = numpy.mean(get_rgb_view(rgba_image), 2)
+        return image
+    else:
+        return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (4,))  # expand the color into uint8s

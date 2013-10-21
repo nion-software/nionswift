@@ -600,7 +600,7 @@ class DataPanel(Panel.Panel):
             for file_path in file_paths:
                 try:
                     raw_image = self.ui.load_rgba_data_from_file(file_path)
-                    rgba_image = Image.rgbView(raw_image)
+                    rgba_image = Image.get_rgb_view(raw_image)
                     if numpy.array_equal(rgba_image[..., 0],rgba_image[..., 1]) and numpy.array_equal(rgba_image[..., 1],rgba_image[..., 2]):
                         image_data = numpy.zeros(raw_image.shape, numpy.uint32)
                         image_data[:, :] = numpy.mean(rgba_image, 2)
