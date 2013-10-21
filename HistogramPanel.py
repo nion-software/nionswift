@@ -115,6 +115,8 @@ class HistogramPanel(Panel.Panel):
 
     def mouse_double_clicked(self, x, y, modifiers):
         self.display_limits = (0, 1)
+        if self.data_item:
+            self.data_item.display_limits = self.display_limits
 
     def mouse_pressed(self, x, y, modifiers):
         self.pressed = True
@@ -248,9 +250,13 @@ class HistogramPanel(Panel.Panel):
     def __get_data_item(self):
         return self.__data_item
     def __set_data_item(self, data_item):
+        # this will get invoked whenever the data item changes too. it gets invoked
+        # from the histogram thread which gets triggered via the selected_data_item_changed
+        # message below.
         self.__data_item = data_item
-        data_item_display_limits = data_item.display_limits if data_item else None
-        self.__display_limits = data_item_display_limits if data_item_display_limits else (0, 1)
+        if not self.pressed:
+            data_item_display_limits = data_item.display_limits if data_item else None
+            self.__display_limits = data_item_display_limits if data_item_display_limits else (0, 1)
         self.__histogram_data = None
         self.__histogram_dirty = True
         self.__adornments_dirty = True
