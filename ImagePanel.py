@@ -87,26 +87,64 @@ _ = gettext.gettext
 
 
 class WidgetMapping(object):
-    def __init__(self, image_panel):
-        self.image_panel = image_panel
+
+    def __init__(self, data_shape, canvas_size):
+        self.data_shape = data_shape
+        # double check dimensions are not zero
+        if self.data_shape:
+            for d in self.data_shape:
+                if not d > 0:
+                    self.data_shape = None
+        # calculate transformed image rect
+        self.data_rect = None
+        if self.data_shape:
+            rect = ((0, 0), canvas_size)
+            self.data_rect = Graphics.fit_to_size(rect, self.data_shape)
+
     def map_point_image_norm_to_widget(self, p):
-        return self.image_panel.map_image_norm_to_widget(p)
+        if self.data_shape:
+            return (float(p[0])*self.data_rect[1][0] + self.data_rect[0][0], float(p[1])*self.data_rect[1][1] + self.data_rect[0][1])
+        return None
+
     def map_size_image_norm_to_widget(self, s):
         ms = self.map_point_image_norm_to_widget(s)
         ms0 = self.map_point_image_norm_to_widget((0,0))
         return (ms[0] - ms0[0], ms[1] - ms0[1])
+
     def map_size_image_to_image_norm(self, s):
         ms = self.map_point_image_to_image_norm(s)
         ms0 = self.map_point_image_to_image_norm((0,0))
         return (ms[0] - ms0[0], ms[1] - ms0[1])
+
     def map_point_widget_to_image_norm(self, p):
-        return self.image_panel.map_widget_to_image_norm(p)
+        if self.data_shape:
+            p_image = self.map_point_widget_to_image(p)
+            return (float(p_image[0]) / self.data_shape[0], float(p_image[1]) / self.data_shape[1])
+        return None
+
     def map_point_widget_to_image(self, p):
-        return self.image_panel.map_widget_to_image(p)
+        if self.data_rect and self.data_shape:
+            if self.data_rect[1][0] != 0.0:
+                image_y = self.data_shape[0] * (float(p[0]) - self.data_rect[0][0])/self.data_rect[1][0]
+            else:
+                image_y = 0
+            if self.data_rect[1][1] != 0.0:
+                image_x = self.data_shape[1] * (float(p[1]) - self.data_rect[0][1])/self.data_rect[1][1]
+            else:
+                image_x = 0
+            return (image_y, image_x) # c-indexing
+        return None
+
     def map_point_image_norm_to_image(self, p):
-        return self.image_panel.map_image_norm_to_image(p)
+        if self.data_shape:
+            return (float(p[0]) * self.data_shape[0], float(p[1]) * self.data_shape[1])
+        return None
+
     def map_point_image_to_image_norm(self, p):
-        return self.image_panel.map_image_to_image_norm(p)
+        if self.data_shape:
+            return (float(p[0]) / self.data_shape[0], float(p[1]) / self.data_shape[1])
+        return None
+
 
 class GraphicSelection(object):
     def __init__(self):
@@ -214,10 +252,6 @@ class ImagePanel(Panel.Panel):
         self.graphic_selection.add_listener(self)
 
         self.last_mouse = None
-
-        self.zoom = 1.0
-        self.tx = 0.0
-        self.ty = 0.0
 
         self.__data_panel_selection = DataItem.DataItemSpecifier()
 
@@ -442,11 +476,11 @@ class ImagePanel(Panel.Panel):
             ctx.restore()
 
     # this will only be called from the drawing thread (via _repaint)
-    def __repaint_graphics(self):
-        data_item = self.data_item
+    # this method is not allowed to access self.data_item
+    def __repaint_graphics(self, data_item):
         graphics = data_item.graphics if data_item else None
         if not self.closed:
-            widget_mapping = WidgetMapping(self)
+            widget_mapping = WidgetMapping(data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
             ctx = self.__graphics_layer.drawing_context
             ctx.clear()
             ctx.save()
@@ -483,7 +517,8 @@ class ImagePanel(Panel.Panel):
         ctx.line_width = 4.0
         ctx.stroke()
 
-    # this will only be called from the drawing thread
+    # this will only be called from the drawing thread. this means that neithher this method nor any of the
+    # ones it calls should access self.data_item, which may be changed out from underneath the drawing code.
     def _repaint(self, data_item):
         if self.closed: return  # argh
         focused = self.line_plot_canvas.focused or self.image_canvas.focused
@@ -502,7 +537,7 @@ class ImagePanel(Panel.Panel):
                 self.line_plot_focus_ring_canvas.draw()
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
-            self.__repaint_graphics()
+            self.__repaint_graphics(data_item)
             self.__repaint_info()
             self.__line_plot_layer.drawing_context.clear()
             self.__line_plot_focus_ring_layer.drawing_context.clear()
@@ -719,7 +754,8 @@ class ImagePanel(Panel.Panel):
                 already_selected = self.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(self.graphic_selection.indexes) > 1
                 move_only = not already_selected or multiple_items_selected
-                part = graphic.test(WidgetMapping(self), start_drag_pos, move_only)
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
+                part = graphic.test(widget_mapping, start_drag_pos, move_only)
                 if part:
                     # select item and prepare for drag
                     self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
@@ -784,7 +820,8 @@ class ImagePanel(Panel.Panel):
             for graphic in self.graphic_drag_items:
                 index = self.data_item.graphics.index(graphic)
                 part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                graphic.adjust_part(WidgetMapping(self), self.graphic_drag_start_pos, p, part_data, modifiers)
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
+                graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, p, part_data, modifiers)
                 self.graphic_drag_changed = True
                 self.display_changed()
 
@@ -814,11 +851,7 @@ class ImagePanel(Panel.Panel):
         if self.closed: return  # argh
         if image_size:
             rect = ((0, 0), (self.image_canvas.height, self.image_canvas.width))
-            image_rect = Graphics.fit_to_size(rect, image_size)
-            image_y = image_rect[0][0] + self.ty*self.zoom - 0.5*image_rect[1][0]*(self.zoom - 1)
-            image_x = image_rect[0][1] + self.tx*self.zoom - 0.5*image_rect[1][1]*(self.zoom - 1)
-            image_rect = ((image_y, image_x), (image_rect[1][0]*self.zoom, image_rect[1][1]*self.zoom))
-            return image_rect
+            return Graphics.fit_to_size(rect, image_size)
         return None
     def __get_transformed_image_rect(self):
         return self.__calculate_transform_image_for_image_size(self.image_size)

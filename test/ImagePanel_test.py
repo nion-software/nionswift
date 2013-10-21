@@ -223,3 +223,6 @@ class TestImagePanelClass(unittest.TestCase):
         self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
         self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (900, 400))
         self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (200, 200))
+
+if __name__ == '__main__':
+    unittest.main()
