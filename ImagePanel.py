@@ -1,6 +1,7 @@
 # standard libraries
 import gettext
 import logging
+import math
 import numbers
 import random
 import threading
@@ -471,8 +472,10 @@ class ImagePanel(Panel.Panel):
         self.display_changed()
 
     # this will only be called from the drawing thread (via _repaint)
-    def __repaint_info(self):
-        data_item = self.data_item
+    # this method is not allowed to access self.data_item
+    def __repaint_info(self, data_item):
+        # note: viewport is the part of the image canvas that is displayed
+        # the bounds of this layer are the bounds of the visible area
         if not self.closed:
             ctx = self.__info_layer.drawing_context
             ctx.clear()
@@ -480,8 +483,8 @@ class ImagePanel(Panel.Panel):
             ctx.begin_path()
             # TODO: this is a hack. the viewport value is wrong (but the size is Ok)
             viewport = self.image_canvas_scroll.viewport
-            origin = (0, 0)
             if False:
+                origin = (0, 0)
                 ctx.move_to(origin[1] + 20, origin[0] + 20)
                 ctx.line_to(origin[1] + 260, origin[0] + 20)
                 ctx.line_to(origin[1] + 260, origin[0] + 80)
@@ -495,6 +498,32 @@ class ImagePanel(Panel.Panel):
                 ctx.fill_style = "#444"
                 ctx.text_baseline = "bottom"
                 ctx.fill_text("Position: 2.0, 1.0", origin[1] + 28, origin[0] + 36)
+            if True:  # display scale marker?
+                origin = (viewport[1][0] - 30, 20)
+                scale_marker_width = 120
+                scale_marker_height = 6
+                widget_mapping = WidgetMapping(data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_item.spatial_shape[1]
+                if screen_pixel_per_image_pixel > 0:
+                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                    calibrated_scale_marked_width = make_pretty(scale_marker_image_width * data_item.calibrations[0].scale)
+                    # update the scale marker width
+                    scale_marker_image_width = calibrated_scale_marked_width / data_item.calibrations[0].scale
+                    scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                    ctx.begin_path()
+                    ctx.move_to(origin[1], origin[0])
+                    ctx.line_to(origin[1] + scale_marker_width, origin[0])
+                    ctx.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
+                    ctx.line_to(origin[1], origin[0] - scale_marker_height)
+                    ctx.close_path()
+                    ctx.fill_style = "#448"
+                    ctx.fill()
+                    ctx.stroke_style="#000"
+                    ctx.stroke()
+                    ctx.font = "normal 14px serif"
+                    ctx.text_baseline = "bottom"
+                    ctx.fill_style = "#FFF"
+                    ctx.fill_text(data_item.calibrations[0].convert_to_calibrated_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
             ctx.restore()
 
     # this will only be called from the drawing thread (via _repaint)
@@ -510,21 +539,6 @@ class ImagePanel(Panel.Panel):
                 for graphic_index, graphic in enumerate(graphics):
                     graphic.draw(ctx, widget_mapping, self.graphic_selection.contains(graphic_index))
             ctx.restore()
-            if False:  # display scale marker?
-                ctx.begin_path()
-                origin = widget_mapping.map_point_image_norm_to_widget((0.95, 0.05))
-                ctx.move_to(origin[1], origin[0])
-                ctx.line_to(origin[1] + 100, origin[0])
-                ctx.line_to(origin[1] + 100, origin[0] - 10)
-                ctx.line_to(origin[1], origin[0] - 10)
-                ctx.close_path()
-                ctx.fill_style = "#448"
-                ctx.fill()
-                ctx.stroke_style="#000"
-                ctx.stroke()
-                ctx.font = "normal 24px serif"
-                ctx.fill_style = "#FFF"
-                ctx.fill_text("60nm", origin[1], origin[0] - 12)
 
     def __repaint_focus_ring(self, canvas, focused, size):
         ctx = canvas.layers[0].drawing_context
@@ -560,7 +574,7 @@ class ImagePanel(Panel.Panel):
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
             self.__repaint_graphics(data_item)
-            self.__repaint_info()
+            self.__repaint_info(data_item)
             self.__line_plot_layer.drawing_context.clear()
             self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
@@ -1129,3 +1143,17 @@ class InfoPanel(Panel.Panel):
         self.position_text.text = position_text
         self.value_text.text = value_text
         self.graphic_text.text = graphic_text
+
+
+# make val into a pretty number
+def make_pretty(val):
+    factor10 = math.pow(10, int(math.log10(abs(val))))
+    val_norm = val/factor10
+    if val_norm < 1.0:
+        val_norm = val_norm * 10
+        factor10 = factor10 / 10
+    # val_norm is now between 1 and 10
+    if val_norm < 5.0:
+        return 0.5 * round(val_norm/0.5) * factor10
+    else:
+        return round(val_norm) * factor10
