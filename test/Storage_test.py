@@ -42,6 +42,8 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((16, 16), numpy.uint32)
         data_item.data_range = (50, 2020)
+        data_item.display_limits = (0.25, 0.8)
+        data_item.set_properties({ "one": 1 })
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
@@ -133,6 +135,11 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item0_uuid, document_controller.document_model.default_data_group.data_items[0].uuid)
         self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].calibrations))
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
+        # check over the data item
+        data_item = document_controller.document_model.default_data_group.data_items[0]
+        self.assertEqual(data_item.data_range, (50, 2020))
+        self.assertEqual(data_item.display_limits, (0.25, 0.8))
+        self.assertEqual(data_item.properties, { "one": 1 })
         document_controller.close()
 
     # test whether we can update master_data and have it written to the db
@@ -329,3 +336,6 @@ class TestStorageClass(unittest.TestCase):
         document_model.default_data_group.data_items.append(data_item)
         with self.assertRaises(AssertionError):
             document_model.default_data_group.data_items.append(data_item)
+
+if __name__ == '__main__':
+    unittest.main()

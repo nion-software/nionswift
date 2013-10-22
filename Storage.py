@@ -64,6 +64,37 @@ class MutableRelationship(collections.MutableSequence):
         self.parent_weak_ref().notify_insert_item(self.relationship_name, value, index)
 
 
+class MutableMapping(collections.MutableMapping):
+
+    def __init__(self, parent, property_name):
+        self.mapping = dict()
+        self.property_name = property_name
+        self.parent_weak_ref = weakref.ref(parent) if parent else None
+
+    def __copy__(self):
+        return copy.copy(self.mapping)
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __iter__(self):
+        return iter(self.mapping)
+
+    def __contains__(self, item):
+        return item in self.mapping
+
+    def __getitem__(self, key):
+        return self.mapping[key]
+
+    def __setitem__(self, key, value):
+        self.mapping[key] = value
+        print("set %s = %s" % (key, value))
+
+    def __delitem__(self, key):
+        del self.mapping[key]
+        print("del %s" % key)
+
+
 #
 # StorageBase is reference counted. Clients should always
 # add_ref and remove_ref when storing these objects.

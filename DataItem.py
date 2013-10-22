@@ -161,7 +161,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "data_range", "display_limits"]
+        self.storage_properties += ["title", "param", "data_range", "display_limits", "properties"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -178,6 +178,7 @@ class DataItem(Storage.StorageBase):
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
+        self.__properties = dict()
         self.__data_mutex = threading.RLock()  # access to the image
         self.__cached_data = None
         self.__last_cached_data = None
@@ -197,6 +198,7 @@ class DataItem(Storage.StorageBase):
     def build(cls, storage_reader, item_node):
         title = storage_reader.get_property(item_node, "title")
         param = storage_reader.get_property(item_node, "param")
+        properties = storage_reader.get_property(item_node, "properties")
         data_range = storage_reader.get_property(item_node, "data_range")
         display_limits = storage_reader.get_property(item_node, "display_limits")
         calibrations = storage_reader.get_items(item_node, "calibrations")
@@ -207,6 +209,7 @@ class DataItem(Storage.StorageBase):
         data_item = cls()
         data_item.title = title
         data_item.param = param
+        data_item.set_properties(properties if properties else dict())
         data_item.master_data = master_data
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
@@ -273,6 +276,26 @@ class DataItem(Storage.StorageBase):
             self.notify_set_property("data_range", data_range)
             self.notify_data_item_changed({"property": "display"})
     data_range = property(__get_data_range, __set_data_range)
+
+    def __is_calibrated(self):
+        return len(self.calibrations) == len(self.spatial_shape)
+    is_calibrated = property(__is_calibrated)
+
+    # access properties
+
+    def __get_properties(self):
+        return self.__properties.copy()
+    properties = property(__get_properties)
+
+    def set_properties(self, properties):
+        self.__properties = properties
+
+    def grab_properties(self):
+        return self.__properties
+    def release_properties(self, properties):
+        self.__properties = properties
+        self.notify_set_property("properties", properties)
+        self.notify_data_item_changed({"property": "display"})
 
     # calculate the data range by starting with the source data range
     # and then applying data range transformations for each enabled
