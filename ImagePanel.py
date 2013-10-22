@@ -498,7 +498,7 @@ class ImagePanel(Panel.Panel):
                 ctx.fill_style = "#444"
                 ctx.text_baseline = "bottom"
                 ctx.fill_text("Position: 2.0, 1.0", origin[1] + 28, origin[0] + 36)
-            if True:  # display scale marker?
+            if data_item.is_calibrated:  # display scale marker?
                 origin = (viewport[1][0] - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
@@ -524,6 +524,19 @@ class ImagePanel(Panel.Panel):
                     ctx.text_baseline = "bottom"
                     ctx.fill_style = "#FFF"
                     ctx.fill_text(data_item.calibrations[0].convert_to_calibrated_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                    data_item_properties = data_item.properties
+                    info_items = list()
+                    voltage = data_item_properties.get("voltage", 0)
+                    if voltage:
+                        units = "V"
+                        if voltage % 1000 == 0:
+                            voltage = voltage / 1000
+                            units = "kV"
+                        info_items.append("{0} {1}".format(voltage, units))
+                    source = data_item_properties.get("source")
+                    if source:
+                        info_items.append(str(source))
+                    ctx.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
             ctx.restore()
 
     # this will only be called from the drawing thread (via _repaint)

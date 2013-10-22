@@ -420,6 +420,11 @@ class HardwareSourceDataBuffer(object):
                             data_item.calibrations[dimension].origin = origin
                             data_item.calibrations[dimension].scale = scale
                             data_item.calibrations[dimension].units = units
+            if "properties" in data_element:
+                properties = data_item.grab_properties()
+                for key, value in data_element.get("properties").iteritems():
+                    properties[key] = value
+                data_item.release_properties(properties)
 
         # these items are no longer live. mark live_data as False.
         for channel in list(set(self.last_channel_to_data_item_dict.keys())-set(new_channel_to_data_item_dict.keys())):
