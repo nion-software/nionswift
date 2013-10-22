@@ -1199,6 +1199,8 @@ class QtConsoleWidget(QtWidget):
             return self.on_interpret_command(command)
         return "", 0, "?"
 
+    def insert_lines(self, lines):
+        self.proxy.Console_insertFromStringList(self.widget, lines)
 
 class QtAction(object):
 

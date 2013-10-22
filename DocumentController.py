@@ -44,6 +44,7 @@ class DocumentController(object):
         self.__weak_selected_image_panel = None
         self.__cursor_weak_listeners = []
         self.delay_queue = Queue.Queue()
+        self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self, workspace_id)
@@ -95,6 +96,12 @@ class DocumentController(object):
             if hasattr(listener, fn):
                 getattr(listener, fn)(*args, **keywords)
 
+    def register_console(self, console):
+        self.console = console
+
+    def unregister_console(self, console):
+        self.console = None
+
     def create_menus(self):
 
         self.file_menu = self.document_window.add_menu(_("File"))
@@ -135,6 +142,8 @@ class DocumentController(object):
         self.paste_action = self.edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
         self.delete_action = self.edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
         self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
+        self.edit_menu.add_separator()
+        self.script_action = self.edit_menu.add_menu_item(_("Script"), lambda: self.prepare_data_item_script(), key_sequence="Ctrl+Shift+K")
         self.edit_menu.add_separator()
         self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
 
@@ -462,3 +471,17 @@ class DocumentController(object):
             def process_data_copy(self, data_array):
                 return self.fn(data_array)
         self.add_processing_operation(ZOperation(fn))
+
+    def prepare_data_item_script(self):
+        def find_var():
+            while True:
+                r = random.randint(100,999)
+                r_var = "r%d" % r
+                if r_var not in globals():
+                    return r_var
+            return None
+        lines = list()
+        lines.append("%s = _data_item[uuid.UUID(\"%s\")]" % (find_var(), self.selected_data_item.uuid))
+        logging.debug(lines)
+        if self.console:
+            self.console.insert_lines(lines)

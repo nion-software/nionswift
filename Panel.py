@@ -100,6 +100,7 @@ class ConsolePanel(Panel):
             "import logging",
             "import numpy as np",
             "import numpy as numpy",
+            "import uuid",
             "_data = DocumentModel.DocumentModel.DataAccessor(_document_controller.document_model)",
             "_data_item = DocumentModel.DocumentModel.DataItemAccessor(_document_controller.document_model)",
             "_document_model = _document_controller.document_model",
@@ -110,6 +111,13 @@ class ConsolePanel(Panel):
             ]
         for l in lines:
             self.interpret_command(l)
+        self.document_controller.register_console(self)
+
+    def close(self):
+        self.document_controller.unregister_console(self)
+
+    def insert_lines(self, lines):
+        self.widget.insert_lines(lines)
 
     # interpretCommand is called from the intrinsic widget.
     def interpret_command(self, command):
