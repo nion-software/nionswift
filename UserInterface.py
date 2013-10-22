@@ -407,8 +407,8 @@ class QtDrawingContext(object):
         self.js += "ctx.fill();"
         self.commands.append(("fill", ))
     def fill_text(self, text, x, y, maxWidth=None):
-        self.js += "ctx.fillText('{0}', {1}, {2}{3});".format(text, x, y, ", {0}".format(maxWidth) if maxWidth else "")
-        self.commands.append(("fillText", text, float(x), float(y), float(maxWidth) if maxWidth else None))
+        self.js += "ctx.fillText('{0}', {1}, {2}{3});".format(text.encode(errors='ignore'), x, y, ", {0}".format(maxWidth) if maxWidth else "")
+        self.commands.append(("fillText", unicode(text), float(x), float(y), float(maxWidth) if maxWidth else None))
     def __get_fill_style(self):
         raise NotImplementedError()
     def __set_fill_style(self, a):

@@ -145,7 +145,7 @@ class StringFieldController(object):
         self.update()
     def update(self):
         value = getattr(self.object, self.property)
-        self.field.text = str(value) if value else ""
+        self.field.text = unicode(value) if value else unicode()
     def editing_finished(self, text):
         setattr(self.object, self.property, text)
         if self.field.focused:

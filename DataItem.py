@@ -73,7 +73,7 @@ class Calibration(Storage.StorageBase):
     scale = property(__get_scale, __set_scale)
 
     def __get_units(self):
-        return self.__units if self.__units else ""
+        return self.__units if self.__units else unicode()
     def __set_units(self, value):
         self.__units = value
         self.notify_set_property("units", value)
@@ -84,7 +84,7 @@ class Calibration(Storage.StorageBase):
     def convert_from_calibrated(self, value):
         return (value - self.origin) / self.scale
     def convert_to_calibrated_str(self, value):
-        result = '{0:.1f}'.format(self.convert_to_calibrated(value)) + ((" " + self.units) if self.__units else "")
+        result = u"{0:.1f}".format(self.convert_to_calibrated(value)) + ((" " + self.units) if self.__units else "")
         return result
 
     def notify_set_property(self, key, value):

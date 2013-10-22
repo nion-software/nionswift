@@ -1139,7 +1139,7 @@ class InfoPanel(Panel.Panel):
             if pos:
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < image_size[0] and pos[1] >= 0 and pos[1] < image_size[1]:
-                    position_text = '{0},{1}'.format(calibrations[1].convert_to_calibrated_str(pos[1] - 0.5 * image_size[1]),
+                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_str(pos[1] - 0.5 * image_size[1]),
                                                      calibrations[0].convert_to_calibrated_str(0.5 * image_size[0] - pos[0]))
                     value = data_item.get_data_value(pos)
                     if isinstance(value, numbers.Integral):
