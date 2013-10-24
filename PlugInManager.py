@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import unittest
+import traceback
 
 _testSuites = []
 
