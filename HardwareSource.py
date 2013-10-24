@@ -61,19 +61,31 @@ class HardwareSourceManager(object):
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_removed = []
+        self.__document_model = None
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
         self._aliases = {}
         self.hardware_source_added_removed = []
+        self.document_model = None
 
-    def register_hardware_source(self, hw_src):
-        self.hardware_sources.append(hw_src)
+    def __get_document_model(self):
+        return self.__document_model
+    def __set_document_model(self, document_model):
+        self.__document_model = document_model
+        for hardware_source in self.hardware_sources:
+            hardware_source.document_model = document_model
+    document_model = property(__get_document_model, __set_document_model)
+
+    def register_hardware_source(self, hardware_source):
+        self.hardware_sources.append(hardware_source)
+        hardware_source.document_model = self.document_model
         for f in self.hardware_source_added_removed:
             f(self, None)
 
-    def unregister_hardware_source(self, hw_src):
-        self.hardware_sources.remove(hw_src)
+    def unregister_hardware_source(self, hardware_source):
+        self.hardware_sources.remove(hardware_source)
+        hardware_source.document_model = None
         for f in self.hardware_source_added_removed:
             f(self, None)
 
@@ -173,6 +185,23 @@ class HardwareSource(object):
         self.filter = None
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
+        self.__document_model = None
+        self.__data_buffer = None
+
+    def __get_document_model(self):
+        return self.__document_model
+    def __set_document_model(self, document_model):
+        assert not self.__document_model  # eventually need to be able to switch document models; placeholder until then.
+        self.__document_model = document_model
+        if self.__data_buffer:
+            self.__data_buffer.document_model = document_model
+    document_model = property(__get_document_model, __set_document_model)
+
+    def __get_data_buffer(self):
+        if not self.__data_buffer:
+            self.__data_buffer = HardwareSourceDataBuffer(self, self.document_model)
+        return self.__data_buffer
+    data_buffer = property(__get_data_buffer)
 
     def create_port(self, properties=None, filter=None):
         with self.__portlock:
@@ -262,11 +291,12 @@ class HardwareSourceDataBuffer(object):
     data_group_name = _("Sources")
 
     def __init__(self, hardware_source, document_model):
+        assert hardware_source
         self.hardware_source = hardware_source
         self.document_model = document_model
         self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
-        self.data_group = self.document_model.get_or_create_data_group(self.data_group_name)
+        self.__data_group = None
         self.first_data = False
         self.last_channel_to_data_item_dict = {}
         self.__snapshots = collections.deque(maxlen=30)
@@ -285,6 +315,12 @@ class HardwareSourceDataBuffer(object):
             # now that we've set hardware_port to None
             # if we do want to keep data items, it should be done in on_new_data_elements
             self.on_new_data_elements([])
+
+    def __get_data_group(self):
+        if not self.__data_group:
+            self.__data_group = self.document_model.get_or_create_data_group(self.data_group_name)
+        return self.__data_group
+    data_group = property(__get_data_group)
 
     # Add a listener. Listeners will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
@@ -334,6 +370,7 @@ class HardwareSourceDataBuffer(object):
 
     def start(self):
         logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        assert self.document_model
         if self.hardware_port is None:
             if hasattr(self.hardware_source, "create_port"):
                 self.hardware_port = self.hardware_source.create_port()
@@ -345,6 +382,7 @@ class HardwareSourceDataBuffer(object):
 
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        assert self.document_model
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
