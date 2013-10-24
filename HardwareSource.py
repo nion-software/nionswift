@@ -56,76 +56,98 @@ class HardwareSourceManager(object):
 
     """
     def __init__(self):
-        self._hardware_ports = []
+        self.hardware_sources = []
         self._aliases = {}
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_removed = []
 
     def _reset(self):  # used for testing to start from scratch
-        self._hardware_ports = []
+        self.hardware_sources = []
         self._aliases = {}
         self.hardware_source_added_removed = []
 
     def register_hardware_source(self, hw_src):
-        self._hardware_ports.append(hw_src)
+        self.hardware_sources.append(hw_src)
         for f in self.hardware_source_added_removed:
             f(self, None)
 
     def unregister_hardware_source(self, hw_src):
-        self._hardware_ports.remove(hw_src)
+        self.hardware_sources.remove(hw_src)
         for f in self.hardware_source_added_removed:
             f(self, None)
 
-    def create_port_for_name(self, owner, hardware_source_name, override_props=None):
+    def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
         """
         Alias for HardwareSource.create_port, with the added benefit
         of looking up aliases.
 
-        Returns a newly created port for the given hardware_source_name.
-        If hardware_source_name is the name of a hardware source,
+        Returns a newly created port for the given hardware_source_id.
         it will return that source, with the port listening for all channels.
-        If hardware_source_name is an alias, it will return the hardware source it
-        refers to with the filter and props registered for that alias.
-
-        Owner is an object whose string representation is used to indicate
-        ownership of the hardware port, and should be set to something
-        descriptive of where the port is being used.
+        If hardware_source_id is an alias, it will return the hardware source it
+        refers to with the filter and properties registered for that alias.
 
         Eg:
-        manager.make_hardware_source_alias(
-            "ronchigramcamera", "Tuning", 0)
-        port = manager.create_port_for_name("example_script", "ronchigramcamera")
+        manager.make_hardware_source_alias("existing_hw_src_id", "new_hw_src_id", _("New Camera"))
+        port = manager.create_port_for_hardware_source_id("ronchigramcamera")
         ...
         port.close()
         """
-        if hardware_source_name in self._aliases:
-            hardware_source_name, props, filter = self._aliases[hardware_source_name]
-        else:
-            props, filter = "Default", None
 
-        if override_props:
-            props = override_props
+        display_name, properties, filter = (unicode(), None, None)
 
-        hardware_source_name = str(hardware_source_name)
-        for hardware_port in self._hardware_ports:
-            if str(hardware_port) == hardware_source_name:
-                return hardware_port.create_port(owner, props, filter)
+        seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
+        while hardware_source_id in self._aliases and hardware_source_id not in seen_hardware_source_ids:
+            seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
+            hardware_source_id, display_name, properties, filter = self._aliases[hardware_source_id]
 
+        if override_properties:
+            properties = override_properties
+
+        for hardware_source in self.hardware_sources:
+            if hardware_source.hardware_source_id == hardware_source_id:
+                return hardware_source.create_port(properties, filter)
         return None
 
-    def make_hardware_source_alias(self, alias, hardware_source, props="Default", filter=None):
-        self._aliases[alias] = (str(hardware_source), props, filter)
+    def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name, properties=None, filter=None):
+        if isinstance(filter, numbers.Integral):
+            filter = (filter, )
+        self._aliases[alias_hardware_source_id] = (hardware_source_id, display_name, properties, filter)
 
-    def get_all_sources(self, include_aliases=False):
+
+class HardwareSourcePort(object):
+
+    def __init__(self, hardware_source, properties, filter):
+        self.properties = properties
+        self.hardware_source = hardware_source
+        self.on_new_data_elements = None
+        self.last_data_elements = None
+        self.filter = filter
+        if isinstance(self.filter, numbers.Integral):
+            self.filter = (self.filter, )
+
+    def want_data_element(self, properties):
         """
-        Returns a string representation of all registered sources.
-        If include_aliases is true, also includes the registered aliases.
+            Return True if we will accept a data element with the given properties.
+            """
+        return True
+
+    def get_last_data_elements(self):
+        return self.last_data_elements
+
+    def _set_new_data_elements(self, data_elements):
+        if self.filter:
+            self.last_data_elements = [data_element for i, data_element in enumerate(data_elements) if i in self.filter]
+        else:
+            self.last_data_elements = data_elements
+        if self.on_new_data_elements:
+            self.on_new_data_elements(self.last_data_elements)
+
+    def close(self):
         """
-        ret = [str(s) for s in self._hardware_ports]
-        if include_aliases:
-            ret += self._aliases.keys()
-        return ret
+            Closes the port. Identical to calling HardwareSource.remove_port(self).
+            """
+        self.hardware_source.remove_port(self)
 
 
 class HardwareSource(object):
@@ -141,60 +163,29 @@ class HardwareSource(object):
     A separate acquisition thread is used for acquiring all data and
     passing on to the ports. When a HardwareSource has no ports, this
     thread can stop running (when appropriate). The start_acquisition,
-    stop_acquisition and set_from_props functions are always only ever
+    stop_acquisition, and set_from_properties functions are always only ever
     called from the acquisition thread
     """
-    class HardwareSourcePort():
-        def __init__(self, name, props, parent, filter):
-            self.name = name
-            self.props = props
-            self.parent_source = parent
-            self.on_new_data_elements = None
-            self.last_data_elements = None
-            self.filter = filter
-            if isinstance(self.filter, numbers.Integral):
-                self.filter = (self.filter, )
 
-        def want_data_element(self, props):
-            """
-            Return True if we will accept a data element with the given properties.
-            """
-            return True
-
-        def get_last_data_elements(self):
-            return self.last_data_elements
-
-        def _set_new_data_elements(self, data_elements):
-            if self.filter:
-                self.last_data_elements = [data_element for i, data_element in enumerate(data_elements) if i in self.filter]
-            else:
-                self.last_data_elements = data_elements
-            if self.on_new_data_elements:
-                self.on_new_data_elements(self.last_data_elements)
-
-        def close(self):
-            """
-            Closes the port. Identical to calling HardwareSource.remove_port(self).
-            """
-            self.parent_source.remove_port(self)
-
-    def __init__(self):
+    def __init__(self, hardware_source_id, display_name):
         self.ports = []
         self.__portlock = threading.Lock()
         self.filter = None
+        self.hardware_source_id = hardware_source_id
+        self.display_name = display_name
 
-    def create_port(self, name, props, filter=None):
+    def create_port(self, properties=None, filter=None):
         with self.__portlock:
-            ret = HardwareSource.HardwareSourcePort(name, props, self, filter)
+            port = HardwareSourcePort(self, properties, filter)
             start_thread = len(self.ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
-            self.ports.append(ret)
-            self.set_from_props(props)
+            self.ports.append(port)
+            self.set_from_properties(properties)
         if start_thread:
             # we should do this a little nicer. Specifically, if we start a new thread
             # the existing one could carry on two. We should make sure we can only have one
             self.acquire_thread = threading.Thread(target=self.acquire_thread_loop)
             self.acquire_thread.start()
-        return ret
+        return port
 
     def remove_port(self, lst):
         """
@@ -206,7 +197,7 @@ class HardwareSource(object):
     def acquire_thread_loop(self):
         self.start_acquisition()
         try:
-            last_props = None
+            last_properties = None
             new_data_elements = None
 
             while True:
@@ -214,16 +205,16 @@ class HardwareSource(object):
                     if not self.ports:
                         break
 
-                    if last_props != self.ports[-1].props:
-                        last_props = self.ports[-1].props
-                        self.set_from_props(last_props)
+                    if last_properties != self.ports[-1].properties:
+                        last_properties = self.ports[-1].properties
+                        self.set_from_properties(last_properties)
 
                     for port in self.ports:
                         # check to make sure we actually have new data elements,
                         # since this might be the first time through the loop.
                         # otherwise the data element list gets cleared and new data elements
                         # get created when the data elements become available.
-                        if port.want_data_element(last_props) and new_data_elements:
+                        if port.want_data_element(last_properties) and new_data_elements:
                             port._set_new_data_elements(new_data_elements)
 
                 new_data_elements = self.acquire_data_elements()
@@ -246,17 +237,17 @@ class HardwareSource(object):
     def acquire_data_elements(self):
         raise NotImplementedError()
 
-    def set_from_props(self, props):
+    def set_from_properties(self, properties):
         pass
 
     def __str__(self):
-        return "unnamed hwsource"
+        raise NotImplementedError()
 
 
 class HardwareSourceDataBuffer(object):
     """
     For the given HWSource (which can either be an object with a create_port function, or a name. If
-    a name, ports are created using the HardwareSourceManager.create_port_for_name function,
+    a name, ports are created using the HardwareSourceManager.create_port_for_hardware_source_id function,
     and aliases can be supplied), creates a port and listens for any data_elements.
     Manages a collection of DataItems for all data_elements returned.
     The DataItems are owned by this, and persist while the acquisition is live,
@@ -284,7 +275,7 @@ class HardwareSourceDataBuffer(object):
         self.__weak_listeners_mutex = threading.RLock()
 
     def close(self):
-        logging.info("Closing HardwareSourceDataBuffer for %s", str(self.hardware_source))
+        logging.info("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.pause()
             # we should be consistent about how we stop live acquisitions:
@@ -337,18 +328,17 @@ class HardwareSourceDataBuffer(object):
     snapshot_count = property(__get_snapshot_count)
 
     def start(self):
-        logging.info("Starting HardwareSourceDataBuffer for %s", str(self.hardware_source))
+        logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is None:
             if hasattr(self.hardware_source, "create_port"):
-                self.hardware_port = self.hardware_source.create_port("ui", "default")
+                self.hardware_port = self.hardware_source.create_port()
             else:
-                self.hardware_port = self.hardware_source_man.create_port_for_name(
-                    "LiveHWPortToImageSource", str(self.hardware_source))
+                self.hardware_port = self.hardware_source_man.create_port_for_hardware_source_id(self.hardware_source.hardware_source_id)
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
             self.first_data = True
 
     def pause(self):
-        logging.info("Pausing HardwareSourceDataBuffer for %s", str(self.hardware_source))
+        logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
@@ -388,7 +378,7 @@ class HardwareSourceDataBuffer(object):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.document_controller.sync_channels_to_data_items(channels, self.data_group, str(self.hardware_source))
+        new_channel_to_data_item_dict = self.document_controller.sync_channels_to_data_items(channels, self.data_group, self.hardware_source.display_name)
 
         # these items are now live if we're playing right now. mark as such.
         for channel in list(set(new_channel_to_data_item_dict.keys())-set(self.last_channel_to_data_item_dict.keys())):
