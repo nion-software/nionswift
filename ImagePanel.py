@@ -1066,7 +1066,7 @@ class ImagePanelManager(object):
             return False
         except Exception as e:
             import traceback
-            traceback.print_stack()
+            traceback.print_exc()
             logging.debug("Notify Error: %s", e)
     def add_listener(self, listener):
         self.__weak_listeners.append(weakref.ref(listener))

@@ -343,7 +343,7 @@ class HardwareSourceDataBuffer(object):
                     getattr(listener, fn)(*args, **keywords)
         except Exception as e:
             import traceback
-            traceback.print_stack()
+            traceback.print_exc()
             logging.debug("Notify Error: %s", e)
 
     def __get_is_playing(self):

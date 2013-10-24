@@ -98,7 +98,7 @@ class DocumentController(object):
                     getattr(listener, fn)(*args, **keywords)
         except Exception as e:
             import traceback
-            traceback.print_stack()
+            traceback.print_exc()
             logging.debug("Notify Error: %s", e)
 
     def register_console(self, console):

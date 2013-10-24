@@ -197,7 +197,7 @@ class StorageBase(object):
                     getattr(listener, fn)(*args, **keywords)
         except Exception as e:
             import traceback
-            traceback.print_stack()
+            traceback.print_exc()
             logging.debug("Notify Error: %s", e)
 
     # Add a parent. Parents will receive data_item_changed message when this
@@ -857,7 +857,7 @@ class DbStorageWriterProxy(object):
                     item()
                 except Exception as e:
                     import traceback
-                    traceback.print_stack()
+                    traceback.print_exc()
                     logging.debug("DB Error: %s", e)
                 finally:
                     #logging.debug("FINISH")
