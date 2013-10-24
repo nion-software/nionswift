@@ -1057,12 +1057,17 @@ class ImagePanelManager(object):
         self.__weak_listeners = []
     # implement listener architecture
     def notify_listeners(self, fn, *args, **keywords):
-        listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-        for listener in listeners:
-            if hasattr(listener, fn):
-                if getattr(listener, fn)(*args, **keywords):
-                    return True
-        return False
+        try:
+            listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    if getattr(listener, fn)(*args, **keywords):
+                        return True
+            return False
+        except Exception as e:
+            import traceback
+            traceback.print_stack()
+            logging.debug("Notify Error: %s", e)
     def add_listener(self, listener):
         self.__weak_listeners.append(weakref.ref(listener))
     def remove_listener(self, listener):

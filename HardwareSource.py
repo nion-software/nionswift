@@ -299,11 +299,16 @@ class HardwareSourceDataBuffer(object):
             self.__weak_listeners.remove(weakref.ref(listener))
     # Send a message to the listeners
     def notify_listeners(self, fn, *args, **keywords):
-        with self.__weak_listeners_mutex:
-            listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-        for listener in listeners:
-            if hasattr(listener, fn):
-                getattr(listener, fn)(*args, **keywords)
+        try:
+            with self.__weak_listeners_mutex:
+                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    getattr(listener, fn)(*args, **keywords)
+        except Exception as e:
+            import traceback
+            traceback.print_stack()
+            logging.debug("Notify Error: %s", e)
 
     def __get_is_playing(self):
         return self.hardware_port is not None
