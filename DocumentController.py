@@ -203,37 +203,9 @@ class DocumentController(object):
                 task()
                 self.delay_queue.task_done()
 
-    # TODO: get rid of this. it is used in HardwareSource.py and this functionality
-    # should be thread safe by default.
-    @queue_main_thread_sync
-    def add_data_item_on_main_thread(self, data_group, data_item):
-        data_group.data_items.append(data_item)
-
     @queue_main_thread
     def select_data_item(self, data_group, data_item):
         self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
-
-    # TODO: get rid of this
-    @queue_main_thread_sync
-    def remove_data_item_on_main_thread(self, data_group, data_item):
-        data_group.data_items.remove(data_item)
-
-    # TODO: move this to document model once document model is thread safe
-    def sync_channels_to_data_items(self, channels, data_group, prefix):
-        data_item_set = {}
-        for channel in channels:
-            data_item_name = "%s.%s" % (prefix, channel)
-            # only use existing data item if it has a data buffer that matches
-            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
-            if not data_item:
-                data_item = DataItem.DataItem()
-                data_item.title = data_item_name
-                # the following function call needs to happen on the main thread,
-                # but it also needs to be synchronized to finish before returning
-                # from this method. add_data_item_on_main_thread does that.
-                self.add_data_item_on_main_thread(data_group, data_item)
-            data_item_set[channel] = data_item
-        return data_item_set
 
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)

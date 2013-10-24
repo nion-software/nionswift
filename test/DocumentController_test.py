@@ -101,7 +101,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         # make sure this works when called from the main thread
-        document_controller.add_data_item_on_main_thread(data_group, data_item)
+        document_controller.select_data_item(data_group, data_item)
 
     def test_flat_data_groups(self):
         document_controller = construct_test_document(self.app)

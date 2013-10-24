@@ -261,12 +261,12 @@ class HardwareSourceDataBuffer(object):
     """
     data_group_name = _("Sources")
 
-    def __init__(self, hardware_source, document_controller):
+    def __init__(self, hardware_source, document_model):
         self.hardware_source = hardware_source
-        self.document_controller = document_controller
+        self.document_model = document_model
         self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
-        self.data_group = self.document_controller.document_model.get_or_create_data_group(self.data_group_name)
+        self.data_group = self.document_model.get_or_create_data_group(self.data_group_name)
         self.first_data = False
         self.last_channel_to_data_item_dict = {}
         self.__snapshots = collections.deque(maxlen=30)
@@ -380,7 +380,7 @@ class HardwareSourceDataBuffer(object):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.document_controller.sync_channels_to_data_items(channels, self.data_group, self.hardware_source.display_name)
+        new_channel_to_data_item_dict = self.document_model.sync_channels_to_data_items(channels, self.data_group, self.hardware_source.display_name)
 
         # these items are now live if we're playing right now. mark as such.
         for channel in list(set(new_channel_to_data_item_dict.keys())-set(self.last_channel_to_data_item_dict.keys())):
@@ -390,8 +390,7 @@ class HardwareSourceDataBuffer(object):
         # select the preferred item.
         # TODO: better mechanism for selecting preferred item at start of acquisition.
         if self.first_data:
-            data_item = new_channel_to_data_item_dict[0]
-            self.document_controller.select_data_item(self.data_group, data_item)
+            self.notify_listeners("acquisition_started", self.data_group, new_channel_to_data_item_dict)
             self.first_data = False
 
         # update the data items with the new data.
