@@ -336,6 +336,7 @@ class HardwareSourceDataBuffer(object):
                 self.hardware_port = self.hardware_source_man.create_port_for_hardware_source_id(self.hardware_source.hardware_source_id)
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
             self.first_data = True
+            self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
@@ -345,6 +346,7 @@ class HardwareSourceDataBuffer(object):
             # finally we remove the reference to the port. on_new_data_elements needs it around
             # above to get the name of any existing data_items
             self.hardware_port = None
+            self.notify_listeners("playing_state_changed", self.hardware_source, False)
         for channel in self.last_channel_to_data_item_dict.keys():
             data_item = self.last_channel_to_data_item_dict[channel]
             data_item.live_data = False
