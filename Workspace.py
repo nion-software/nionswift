@@ -112,22 +112,29 @@ class Workspace(object):
             title, positions, position, properties = self.workspace_manager.get_panel_info(panel_id)
             if position != "central":
                 dock_widget = self.create_panel(document_controller, panel_id, title, positions, position, properties)
-                if visible_panels is None or panel_id in visible_panels:
-                    dock_widget.show()
-                else:
-                    dock_widget.hide()
+                if dock_widget:  # could have failed to create due to exception
+                    if visible_panels is None or panel_id in visible_panels:
+                        dock_widget.show()
+                    else:
+                        dock_widget.hide()
 
         # clean up panels (tabify console/output)
         document_controller.document_window.tabify_dock_widgets(self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties):
-        panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
-        assert panel is not None, "panel is None [%s]" % panel_id
-        assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-        dock_widget = document_controller.document_window.create_dock_widget(panel.widget, panel_id, title, positions, position)
-        dock_widget.panel = panel
-        self.dock_widgets.append(dock_widget)
-        return dock_widget
+        try:
+            panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
+            assert panel is not None, "panel is None [%s]" % panel_id
+            assert panel.widget is not None, "panel widget is None [%s]" % panel_id
+            dock_widget = document_controller.document_window.create_dock_widget(panel.widget, panel_id, title, positions, position)
+            dock_widget.panel = panel
+            self.dock_widgets.append(dock_widget)
+            return dock_widget
+        except Exception, e:
+            import traceback
+            traceback.print_exc()
+            print "Exception creating panel '" + panel_id + "': " + str(e)
+            return None
 
     def __create_image_panel(self, element_id):
         image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)
