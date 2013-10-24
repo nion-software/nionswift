@@ -74,7 +74,9 @@ def loadPlugIns():
                                 _testSuites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
                 logging.info("Plug-in '" + plugin_dir + "' loaded." + (" Tests: " + ",".join(tests) if len(tests) > 0 else ""))
             except ImportError, ex:
-                logging.info("Plug-in '" + plugin_dir + "' NOT loaded. " + str(ex))
+                logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
+                logging.info(traceback.format_exc())
+                logging.info("--------")
 
 def appendTestSuites(suites):
     _testSuites.extend(suites)
