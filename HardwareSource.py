@@ -433,7 +433,7 @@ class HardwareSourceDataBuffer(object):
         # select the preferred item.
         # TODO: better mechanism for selecting preferred item at start of acquisition.
         if self.first_data:
-            self.notify_listeners("acquisition_started", self.data_group, new_channel_to_data_item_dict)
+            self.notify_listeners("acquisition_started", self.hardware_source, self.data_group, new_channel_to_data_item_dict)
             self.first_data = False
 
         # update the data items with the new data.
