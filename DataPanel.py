@@ -150,9 +150,6 @@ class DataPanel(Panel.Panel):
                 self.__mapping.pop(object)
                 self.item_model_controller.end_remove()
 
-        delay_queue = property(lambda self: self.document_controller.delay_queue)
-
-        @queue_main_thread
         def __update_item_count(self, data_group):
             assert isinstance(data_group, DataGroup.DataGroup) or isinstance(data_group, DataGroup.SmartDataGroup)
             count = self.__get_data_item_count_flat(data_group)
@@ -304,7 +301,6 @@ class DataPanel(Panel.Panel):
             return len(self.list_model_controller.model)
 
         # this method if called when one of our listened to items changes
-        @queue_main_thread
         def data_item_inserted(self, container, data_item, before_index):
             data_items_flat = self.get_data_items_flat()
             before_data_item = container.get_storage_relationship("data_items", before_index)
@@ -327,7 +323,6 @@ class DataPanel(Panel.Panel):
                 self.data_item_inserted(data_item, child_data_item, index)
 
         # this method if called when one of our listened to items changes
-        @queue_main_thread
         def data_item_removed(self, container, data_item, index):
             assert isinstance(data_item, DataItem.DataItem)
             # recursively remove child items

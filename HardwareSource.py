@@ -10,17 +10,6 @@ function but should instead just notify another thread that new data is availabl
 
 The hardware source does allow processing to happen at acquisition time, by setting its
 filter member to a method that takes a data element and returns a data element.
-
-One idea is that there would be a Screen class, containing multiple ports, which would
-contain a single pre-display processing thread. This thread would listen to messages posted
-by the ports getting a new data element, then get the data from the port, process to make
-compatible with the Screen, then push the data_elements into it.
-
-There's also a LoggableCodeBlock class showing one way of combining functionality with
-a full description of the code being called. It allows expressions to be added one
-at a time and can be called like any function. It currently prints out the function
-it's calling, but could be adapted to log it, or to produce a script with the same
-functionality.
 """
 
 # system imports
@@ -33,13 +22,13 @@ import threading
 import weakref
 
 # local imports
-from nion.swift import Decorators
+from nion.swift.Decorators import singleton
 from nion.swift import DataItem
 
 _ = gettext.gettext
 
 
-@Decorators.singleton
+@singleton
 class HardwareSourceManager(object):
     """
     Keeps track of all registered hardware sources.
@@ -203,6 +192,7 @@ class HardwareSource(object):
         return self.__data_buffer
     data_buffer = property(__get_data_buffer)
 
+    # only a single acquisition thread is created per hardware source
     def create_port(self, properties=None, filter=None):
         with self.__portlock:
             port = HardwareSourcePort(self, properties, filter)
@@ -288,7 +278,6 @@ class HardwareSourceDataBuffer(object):
     future f necessary).
 
     """
-    data_group_name = _("Sources")
 
     def __init__(self, hardware_source, document_model):
         assert hardware_source
@@ -296,7 +285,6 @@ class HardwareSourceDataBuffer(object):
         self.document_model = document_model
         self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
-        self.__data_group = None
         self.first_data = False
         self.last_channel_to_data_item_dict = {}
         self.__snapshots = collections.deque(maxlen=30)
@@ -315,12 +303,6 @@ class HardwareSourceDataBuffer(object):
             # now that we've set hardware_port to None
             # if we do want to keep data items, it should be done in on_new_data_elements
             self.on_new_data_elements([])
-
-    def __get_data_group(self):
-        if not self.__data_group:
-            self.__data_group = self.document_model.get_or_create_data_group(self.data_group_name)
-        return self.__data_group
-    data_group = property(__get_data_group)
 
     # Add a listener. Listeners will receive data_item_changed message when this
     # DataItem is notified of a change via the notify_data_item_changed() method.
@@ -360,7 +342,8 @@ class HardwareSourceDataBuffer(object):
             current_snapshot = len(self.__snapshots) - 1
         if self.__current_snapshot != current_snapshot:
             self.__current_snapshot = current_snapshot
-            self.update_data_elements(self.__snapshots[self.__current_snapshot])
+            #self.update_data_elements(self.__snapshots[self.__current_snapshot])
+            self.notify_listeners("data_elements_changed", self.hardware_source, self.__snapshots[self.__current_snapshot])
             self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
     current_snapshot = property(__get_current_snapshot, __set_current_snapshot)
 
@@ -368,6 +351,11 @@ class HardwareSourceDataBuffer(object):
         return len(self.__snapshots)
     snapshot_count = property(__get_snapshot_count)
 
+    def __get_snapshots(self):
+        return self.__snapshots
+    snapshots = property(__get_snapshots)
+
+    # must be called on the UI thread
     def start(self):
         logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         assert self.document_model
@@ -380,6 +368,7 @@ class HardwareSourceDataBuffer(object):
             self.first_data = True
             self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
+    # must be called on the UI thread
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         assert self.document_model
@@ -394,6 +383,7 @@ class HardwareSourceDataBuffer(object):
             data_item = self.last_channel_to_data_item_dict[channel]
             data_item.live_data = False
 
+    # this will typically happen on the acquisition thread
     def on_new_data_elements(self, data_elements):
         if not self.hardware_port:
             data_elements = []
@@ -405,7 +395,8 @@ class HardwareSourceDataBuffer(object):
             self.notify_listeners("snapshot_count_changed", self.hardware_source, len(self.__snapshots))
 
         # update the data on the data items
-        self.update_data_elements(data_elements)
+        #self.update_data_elements(data_elements)
+        self.notify_listeners("data_elements_changed", self.hardware_source, data_elements)
 
         # notify listeners if we change current snapshot
         current_snapshot = len(self.__snapshots) - 1
@@ -413,7 +404,8 @@ class HardwareSourceDataBuffer(object):
             self.__current_snapshot = current_snapshot
             self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
 
-    def update_data_elements(self, data_elements):
+    # self.__data_group = self.document_model.get_or_create_data_group(_("Sources"))
+    def update_data_elements(self, data_group, data_elements):
         # build useful data structures (channel -> data)
         channel_to_data_element_map = {}
         channels = []
@@ -423,7 +415,7 @@ class HardwareSourceDataBuffer(object):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.document_model.sync_channels_to_data_items(channels, self.data_group, self.hardware_source.display_name)
+        new_channel_to_data_item_dict = self.document_model.sync_channels_to_data_items(channels, data_group, self.hardware_source.display_name)
 
         # these items are now live if we're playing right now. mark as such.
         for channel in list(set(new_channel_to_data_item_dict.keys())-set(self.last_channel_to_data_item_dict.keys())):
@@ -433,7 +425,7 @@ class HardwareSourceDataBuffer(object):
         # select the preferred item.
         # TODO: better mechanism for selecting preferred item at start of acquisition.
         if self.first_data:
-            self.notify_listeners("acquisition_started", self.hardware_source, self.data_group, new_channel_to_data_item_dict)
+            self.notify_listeners("acquisition_started", self.hardware_source, data_group, new_channel_to_data_item_dict)
             self.first_data = False
 
         # update the data items with the new data.
