@@ -14,14 +14,17 @@ filter member to a method that takes a data element and returns a data element.
 
 # system imports
 import collections
+from contextlib import contextmanager
 import gettext
 import logging
 import numbers
 import threading
+import time
 import weakref
 
 # local imports
 from nion.swift.Decorators import singleton
+from nion.swift import DataItem
 
 _ = gettext.gettext
 
@@ -66,7 +69,7 @@ class HardwareSourceManager(object):
 
     def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
         """
-        Alias for HardwareSource.create_port, with the added benefit
+        Alias for create_port, with the added benefit
         of looking up aliases.
 
         Returns a newly created port for the given hardware_source_id.
@@ -131,9 +134,6 @@ class HardwareSourcePort(object):
             self.on_new_data_elements(self.last_data_elements)
 
     def close(self):
-        """
-            Closes the port. Identical to calling HardwareSource.remove_port(self).
-            """
         self.hardware_source.remove_port(self)
 
 
@@ -361,3 +361,60 @@ class HardwareSourceDataBuffer(object):
         if self.__current_snapshot != current_snapshot:
             self.__current_snapshot = current_snapshot
             self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
+
+
+@contextmanager
+def get_data_element_generator_by_id(hardware_source_id):
+    port = __find_hardware_port_by_id(hardware_source_id)
+    def get_last_data_element():
+        return port.get_last_data_elements()[0]
+    # exceptions thrown by the caller of the generator will end up here.
+    # handle them by making sure to close the port.
+    try:
+        yield get_last_data_element
+    finally:
+        port.close()
+
+
+# Creates a port for the hardware source, and waits until it has received data
+def __find_hardware_port_by_id(hardware_source_id):
+
+    port = HardwareSourceManager().create_port_for_hardware_source_id(hardware_source_id)
+
+    # our port is not guaranteed to return data straight away. We
+    # can either let the tuning handle this or wait here.
+    max_times = 20
+    while port.get_last_data_elements() is None and max_times > 0:
+        time.sleep(0.1)
+    if port.get_last_data_elements() is None:
+        logging.warn("Could not start data_source %s", image_source_name)
+    return port
+
+
+# data element is a dict which can be processed into a data item
+def create_data_item_from_data_element(data_element):
+    data_item = DataItem.DataItem()
+    update_data_item_from_data_element(data_item, data_element)
+    return data_item
+
+
+def update_data_item_from_data_element(data_item, data_element):
+    data_item.master_data = data_element["data"]
+    if "data_range" in data_element:
+        data_item.data_range = data_element.get("data_range")
+    if "spatial_calibration" in data_element:
+        spatial_calibration = data_element.get("spatial_calibration")
+        if len(spatial_calibration) == len(data_item.spatial_shape):
+            for dimension, dimension_calibration in enumerate(spatial_calibration):
+                origin = float(dimension_calibration[0])
+                scale = float(dimension_calibration[1])
+                units = unicode(dimension_calibration[2])
+                if scale != 0.0:
+                    data_item.calibrations[dimension].origin = origin
+                    data_item.calibrations[dimension].scale = scale
+                    data_item.calibrations[dimension].units = units
+    if "properties" in data_element:
+        properties = data_item.grab_properties()
+        for key, value in data_element.get("properties").iteritems():
+            properties[key] = value
+        data_item.release_properties(properties)
