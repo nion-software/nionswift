@@ -14,7 +14,6 @@ filter member to a method that takes a data element and returns a data element.
 
 # system imports
 import collections
-import copy
 import gettext
 import logging
 import numbers
@@ -23,7 +22,6 @@ import weakref
 
 # local imports
 from nion.swift.Decorators import singleton
-from nion.swift import DataItem
 
 _ = gettext.gettext
 
@@ -50,31 +48,19 @@ class HardwareSourceManager(object):
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_removed = []
-        self.__document_model = None
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
         self._aliases = {}
         self.hardware_source_added_removed = []
-        self.document_model = None
-
-    def __get_document_model(self):
-        return self.__document_model
-    def __set_document_model(self, document_model):
-        self.__document_model = document_model
-        for hardware_source in self.hardware_sources:
-            hardware_source.document_model = document_model
-    document_model = property(__get_document_model, __set_document_model)
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
-        hardware_source.document_model = self.document_model
         for f in self.hardware_source_added_removed:
             f(self, None)
 
     def unregister_hardware_source(self, hardware_source):
         self.hardware_sources.remove(hardware_source)
-        hardware_source.document_model = None
         for f in self.hardware_source_added_removed:
             f(self, None)
 
@@ -174,21 +160,11 @@ class HardwareSource(object):
         self.filter = None
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
-        self.__document_model = None
         self.__data_buffer = None
-
-    def __get_document_model(self):
-        return self.__document_model
-    def __set_document_model(self, document_model):
-        assert not self.__document_model  # eventually need to be able to switch document models; placeholder until then.
-        self.__document_model = document_model
-        if self.__data_buffer:
-            self.__data_buffer.document_model = document_model
-    document_model = property(__get_document_model, __set_document_model)
 
     def __get_data_buffer(self):
         if not self.__data_buffer:
-            self.__data_buffer = HardwareSourceDataBuffer(self, self.document_model)
+            self.__data_buffer = HardwareSourceDataBuffer(self)
         return self.__data_buffer
     data_buffer = property(__get_data_buffer)
 
@@ -279,14 +255,10 @@ class HardwareSourceDataBuffer(object):
 
     """
 
-    def __init__(self, hardware_source, document_model):
+    def __init__(self, hardware_source):
         assert hardware_source
         self.hardware_source = hardware_source
-        self.document_model = document_model
-        self.hardware_source_man = HardwareSourceManager()
         self.hardware_port = None
-        self.first_data = False
-        self.last_channel_to_data_item_dict = {}
         self.__snapshots = collections.deque(maxlen=30)
         self.__current_snapshot = 0
         self.__weak_listeners = []
@@ -304,8 +276,7 @@ class HardwareSourceDataBuffer(object):
             # if we do want to keep data items, it should be done in on_new_data_elements
             self.on_new_data_elements([])
 
-    # Add a listener. Listeners will receive data_item_changed message when this
-    # DataItem is notified of a change via the notify_data_item_changed() method.
+    # Add a listener
     def add_listener(self, listener):
         with self.__weak_listeners_mutex:
             assert listener is not None
@@ -342,7 +313,6 @@ class HardwareSourceDataBuffer(object):
             current_snapshot = len(self.__snapshots) - 1
         if self.__current_snapshot != current_snapshot:
             self.__current_snapshot = current_snapshot
-            #self.update_data_elements(self.__snapshots[self.__current_snapshot])
             self.notify_listeners("data_elements_changed", self.hardware_source, self.__snapshots[self.__current_snapshot])
             self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
     current_snapshot = property(__get_current_snapshot, __set_current_snapshot)
@@ -358,30 +328,19 @@ class HardwareSourceDataBuffer(object):
     # must be called on the UI thread
     def start(self):
         logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
-        assert self.document_model
         if self.hardware_port is None:
-            if hasattr(self.hardware_source, "create_port"):
-                self.hardware_port = self.hardware_source.create_port()
-            else:
-                self.hardware_port = self.hardware_source_man.create_port_for_hardware_source_id(self.hardware_source.hardware_source_id)
+            self.hardware_port = self.hardware_source.create_port()
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
-            self.first_data = True
             self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
     # must be called on the UI thread
     def pause(self):
         logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
-        assert self.document_model
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
-            # finally we remove the reference to the port. on_new_data_elements needs it around
-            # above to get the name of any existing data_items
             self.hardware_port = None
             self.notify_listeners("playing_state_changed", self.hardware_source, False)
-        for channel in self.last_channel_to_data_item_dict.keys():
-            data_item = self.last_channel_to_data_item_dict[channel]
-            data_item.live_data = False
 
     # this will typically happen on the acquisition thread
     def on_new_data_elements(self, data_elements):
@@ -395,7 +354,6 @@ class HardwareSourceDataBuffer(object):
             self.notify_listeners("snapshot_count_changed", self.hardware_source, len(self.__snapshots))
 
         # update the data on the data items
-        #self.update_data_elements(data_elements)
         self.notify_listeners("data_elements_changed", self.hardware_source, data_elements)
 
         # notify listeners if we change current snapshot
@@ -403,65 +361,3 @@ class HardwareSourceDataBuffer(object):
         if self.__current_snapshot != current_snapshot:
             self.__current_snapshot = current_snapshot
             self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
-
-    # self.__data_group = self.document_model.get_or_create_data_group(_("Sources"))
-    def update_data_elements(self, data_group, data_elements):
-        # build useful data structures (channel -> data)
-        channel_to_data_element_map = {}
-        channels = []
-        for channel, data_element in enumerate(data_elements):
-            if data_element is not None:
-                channels.append(channel)
-                channel_to_data_element_map[channel] = data_element
-
-        # sync to data items
-        new_channel_to_data_item_dict = self.document_model.sync_channels_to_data_items(channels, data_group, self.hardware_source.display_name)
-
-        # these items are now live if we're playing right now. mark as such.
-        for channel in list(set(new_channel_to_data_item_dict.keys())-set(self.last_channel_to_data_item_dict.keys())):
-            data_item = new_channel_to_data_item_dict[channel]
-            data_item.live_data = self.is_playing
-
-        # select the preferred item.
-        # TODO: better mechanism for selecting preferred item at start of acquisition.
-        if self.first_data:
-            self.notify_listeners("acquisition_started", self.hardware_source, data_group, new_channel_to_data_item_dict)
-            self.first_data = False
-
-        # update the data items with the new data.
-        for channel in channels:
-            data_element = channel_to_data_element_map[channel]
-            data_item = new_channel_to_data_item_dict[channel]
-            data_item.master_data = data_element["data"]
-            if "data_range" in data_element:
-                data_item.data_range = data_element.get("data_range")
-            if "spatial_calibration" in data_element:
-                spatial_calibration = data_element.get("spatial_calibration")
-                if len(spatial_calibration) == len(data_item.spatial_shape):
-                    for dimension, dimension_calibration in enumerate(spatial_calibration):
-                        origin = float(dimension_calibration[0])
-                        scale = float(dimension_calibration[1])
-                        units = unicode(dimension_calibration[2])
-                        if scale != 0.0:
-                            data_item.calibrations[dimension].origin = origin
-                            data_item.calibrations[dimension].scale = scale
-                            data_item.calibrations[dimension].units = units
-            if "properties" in data_element:
-                properties = data_item.grab_properties()
-                for key, value in data_element.get("properties").iteritems():
-                    properties[key] = value
-                data_item.release_properties(properties)
-
-        # these items are no longer live. mark live_data as False.
-        for channel in list(set(self.last_channel_to_data_item_dict.keys())-set(new_channel_to_data_item_dict.keys())):
-            data_item = self.last_channel_to_data_item_dict[channel]
-            data_item.live_data = False
-
-        # keep the channel to data item map around so that we know what changed between
-        # last iteration and this one. also handle reference counts.
-        old_channel_to_data_item_dict = copy.copy(self.last_channel_to_data_item_dict)
-        self.last_channel_to_data_item_dict = copy.copy(new_channel_to_data_item_dict)
-        for data_item in self.last_channel_to_data_item_dict.values():
-            data_item.add_ref()
-        for data_item in old_channel_to_data_item_dict.values():
-            data_item.remove_ref()

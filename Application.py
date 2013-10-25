@@ -77,7 +77,6 @@ class Application(object):
             document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
             document_model.create_default_data_groups()
         document_controller = self.create_document_controller(document_model, "library")
-        HardwareSource.HardwareSourceManager().document_model = document_model
         logging.info("Welcome to Nion Swift.")
         return document_controller
 
