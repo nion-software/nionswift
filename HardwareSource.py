@@ -376,6 +376,22 @@ def get_data_element_generator_by_id(hardware_source_id):
         port.close()
 
 
+@contextmanager
+def get_data_generator_by_id(hardware_source_id):
+    with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
+        def get_last_data():
+            return data_element_generator()["data"]
+        yield get_last_data
+
+
+@contextmanager
+def get_data_item_generator_by_id(hardware_source_id):
+    with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
+        def get_last_data_item():
+            return create_data_item_from_data_element(data_element_generator())
+        yield get_last_data_item
+
+
 # Creates a port for the hardware source, and waits until it has received data
 def __find_hardware_port_by_id(hardware_source_id):
 
