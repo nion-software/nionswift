@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import unittest
 import weakref
 
@@ -34,7 +35,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_group.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group.data_groups.append(data_group2)
-        data_group_copy = data_group.copy()
+        data_group_copy = copy.deepcopy(data_group)
         data_group_copy.add_ref()
         # make sure data_items are not shared
         self.assertNotEqual(data_group.data_items[0], data_group_copy.data_items[0])

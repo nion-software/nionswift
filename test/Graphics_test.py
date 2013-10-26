@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import unittest
 
 # third party libraries
@@ -28,11 +29,11 @@ class TestGraphicsClass(unittest.TestCase):
 
     def test_copy_graphic(self):
         rect_graphic = Graphics.RectangleGraphic()
-        rect_graphic.copy()
+        copy.deepcopy(rect_graphic)
         ellipse_graphic = Graphics.EllipseGraphic()
-        ellipse_graphic.copy()
+        copy.deepcopy(ellipse_graphic)
         line_graphic = Graphics.LineGraphic()
-        line_graphic.copy()
+        copy.deepcopy(line_graphic)
 
     def test_line_test(self):
         mapping = TestGraphicsClass.Mapping((1000, 1000))

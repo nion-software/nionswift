@@ -1,7 +1,12 @@
-import numpy
+# standard libraries
+import copy
 import unittest
 import weakref
 
+# third party libraries
+import numpy
+
+# local libraries
 from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Image
@@ -111,7 +116,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item2 = DataItem.DataItem()
         data_item2.title = "data_item2"
         data_item.data_items.append(data_item2)
-        data_item_copy = data_item.copy()
+        data_item_copy = copy.deepcopy(data_item)
         # make sure the data is not shared between the original and the copy
         self.assertEqual(data_item.master_data[0,0], 0)
         self.assertEqual(data_item_copy.master_data[0,0], 0)
@@ -132,6 +137,26 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(data_item.data_range, data_item_copy.data_range)
         # clean up
         data_item_copy.add_ref()
+        data_item_copy.remove_ref()
+        data_item.remove_ref()
+
+    def test_copy_data_item_with_crop(self):
+        data_item = DataItem.DataItem()
+        data_item.add_ref()
+        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        crop_graphic = Graphics.RectangleGraphic()
+        crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
+        data_item.graphics.append(crop_graphic)
+        crop_operation = Operation.Crop2dOperation()
+        crop_operation.graphic = crop_graphic
+        data_item.operations.append(crop_operation)
+        data_item_copy = copy.deepcopy(data_item)
+        data_item_copy.add_ref()
+        self.assertEqual(len(data_item_copy.graphics), len(data_item.graphics))
+        self.assertEqual(data_item_copy.graphics[0].bounds, data_item.graphics[0].bounds)
+        self.assertNotEqual(data_item_copy.graphics[0], data_item.graphics[0])
+        self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
+        # clean up
         data_item_copy.remove_ref()
         data_item.remove_ref()
 
@@ -192,7 +217,7 @@ class TestDataItemClass(unittest.TestCase):
         rect_graphic = Graphics.RectangleGraphic()
         data_item.graphics.append(rect_graphic)
         self.assertEqual(len(data_item.graphics), 1)
-        data_item_copy = data_item.copy()
+        data_item_copy = copy.deepcopy(data_item)
         data_item_copy.add_ref()
         self.assertEqual(len(data_item_copy.graphics), 1)
         data_item_copy.remove_ref()

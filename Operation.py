@@ -101,12 +101,13 @@ class Operation(Storage.StorageBase):
     # default value handling.
     def update_data_shape_and_dtype(self, data_shape, data_dtype):
         pass
-    # subclasses should override copy and copyFrom as necessary
-    def copy(self):
+    # subclasses should override __deepcopy__ and deepcopy_from as necessary
+    def __deepcopy__(self, memo):
         operation = self.__class__()
-        operation.copyFrom(self)
+        operation.deepcopy_from(self, memo)
+        memo[id(self)] = operation
         return operation
-    def copyFrom(self, operation):
+    def deepcopy_from(self, operation, memo):
         values = copy.deepcopy(operation.values)
         # copy one by one to keep default values for missing keys
         for key in values.keys():
@@ -223,6 +224,11 @@ class Crop2dOperation(Operation):
         crop_operation.graphic = graphic
         return crop_operation
 
+    def deepcopy_from(self, operation, memo):
+        super(Crop2dOperation, self).deepcopy_from(operation, memo)
+        if operation.graphic:
+            self.graphic = memo[id(operation.graphic)]
+
     def __get_graphic(self):
         return self.__graphic
     def __set_graphic(self, graphic):
@@ -244,9 +250,8 @@ class Crop2dOperation(Operation):
             self.notify_listeners("operation_changed", self)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        graphic = self.graphic
         shape = data_shape
-        bounds = graphic.bounds
+        bounds = self.graphic.bounds if self.graphic else ((0, 0), (1, 1))
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
@@ -254,10 +259,10 @@ class Crop2dOperation(Operation):
             return bounds_int[1], data_dtype
 
     def process_data_in_place(self, data):
-        graphic = self.graphic
-        assert isinstance(graphic, Graphics.RectangleGraphic)
+        if self.graphic:
+            assert isinstance(self.graphic, Graphics.RectangleGraphic)
         shape = data.shape
-        bounds = graphic.bounds
+        bounds = self.graphic.bounds if self.graphic else ((0, 0), (1, 1))
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
@@ -346,6 +351,11 @@ class LineProfileOperation(Operation):
         line_profile_operation.graphic = graphic
         return line_profile_operation
 
+    def deepcopy_from(self, operation, memo):
+        super(LineProfileOperation, self).deepcopy_from(operation, memo)
+        if operation.graphic:
+            self.graphic = memo[id(operation.graphic)]
+
     def __get_graphic(self):
         return self.__graphic
     def __set_graphic(self, graphic):
@@ -367,9 +377,8 @@ class LineProfileOperation(Operation):
             self.notify_listeners("operation_changed", self)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        graphic = self.graphic
-        start = graphic.start
-        end = graphic.end
+        start = self.graphic.start if self.graphic else (0.25, 0.25)
+        end = self.graphic.end if self.graphic else (0.75, 0.75)
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -380,10 +389,10 @@ class LineProfileOperation(Operation):
             return (length, ), numpy.double
 
     def process_data_in_place(self, data):
-        graphic = self.graphic
-        assert isinstance(graphic, Graphics.LineGraphic)
-        start = graphic.start
-        end = graphic.end
+        if self.graphic:
+            assert isinstance(self.graphic, Graphics.LineGraphic)
+        start = self.graphic.start if self.graphic else (0.25, 0.25)
+        end = self.graphic.end if self.graphic else (0.75, 0.75)
         shape = data.shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))

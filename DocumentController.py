@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import Queue
@@ -432,7 +433,7 @@ class DocumentController(object):
         data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
-            data_item_copy = data_item.copy()
+            data_item_copy = copy.deepcopy(data_item)
             data_item_copy.title = _("Copy of ") + str(data_item_copy)
             self.document_model.default_data_group.data_items.append(data_item_copy)
 

@@ -168,13 +168,14 @@ class DataGroup(Storage.StorageBase):
             if hasattr(data_group, "adjust_data_item_for_filter"):
                 data_group.adjust_data_item_for_filter(data_item, property, value)
 
-    def copy(self):
+    def __deepcopy__(self, memo):
         data_group_copy = DataGroup()
         data_group_copy.title = self.title
         for data_group in self.data_groups:
-            data_group_copy.data_groups.append(data_group.copy())
+            data_group_copy.data_groups.append(copy.deepcopy(data_group, memo))
         for data_item in self.data_items:
-            data_group_copy.data_items.append(data_item.copy())
+            data_group_copy.data_items.append(copy.deepcopy(data_item, memo))
+        memo[id(self)] = data_group_copy
         return data_group_copy
 
 
@@ -266,9 +267,10 @@ class SmartDataGroup(Storage.StorageBase):
             if data_item in self.__data_items:
                 self.__remove_data_item(data_item)
 
-    def copy(self):
+    def __deepcopy__(self, memo):
         data_group = SmartDataGroup()
         data_group.title = self.title
+        memo[id(self)] = data_group
         return data_group
 
 

@@ -128,12 +128,13 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers):
 class Graphic(Storage.StorageBase):
     def __init__(self):
         Storage.StorageBase.__init__(self)
-    # subclasses should override copy and copyFrom as necessary
-    def copy(self):
+    # subclasses should override __deepcopy__ and deepcopy_from as necessary
+    def __deepcopy__(self, memo):
         graphic = self.__class__()
-        graphic.copyFrom(self)
+        graphic.deepcopy_from(self, memo)
+        memo[id(self)] = graphic
         return graphic
-    def copyFrom(self, graphic):
+    def deepcopy_from(self, graphic, memo):
         pass
     # test whether points are close
     def test_point(self, p1, p2, radius):
@@ -193,8 +194,8 @@ class RectangleGraphic(Graphic):
         self.storage_type = "rect-graphic"
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
-    def copyFrom(self, graphic):
-        super(RectangleGraphic, self).copyFrom(graphic)
+    def deepcopy_from(self, graphic, memo):
+        super(RectangleGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
     def build(cls, storage_reader, item_node):
@@ -309,8 +310,8 @@ class EllipseGraphic(Graphic):
         self.storage_type = "ellipse-graphic"
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
-    def copyFrom(self, graphic):
-        super(EllipseGraphic, self).copyFrom(graphic)
+    def deepcopy_from(self, graphic, memo):
+        super(EllipseGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
     def build(cls, storage_reader, item_node):
@@ -420,8 +421,8 @@ class LineGraphic(Graphic):
         # start and end points are stored in image normalized coordinates
         self.__start = (0.0, 0.0)
         self.__end = (1.0, 1.0)
-    def copyFrom(self, line_graphic):
-        super(LineGraphic, self).copyFrom(line_graphic)
+    def deepcopy_from(self, line_graphic, memo):
+        super(LineGraphic, self).deepcopy_from(line_graphic, memo)
         self.start = line_graphic.start
         self.end = line_graphic.end
     @classmethod

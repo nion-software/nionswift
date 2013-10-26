@@ -46,8 +46,10 @@ class Calibration(Storage.StorageBase):
         units = storage_reader.get_property(item_node, "units", None)
         return cls(origin, scale, units)
 
-    def copy(self):
-        return Calibration(origin=self.__origin, scale=self.__scale, units=self.__units)
+    def __deepcopy__(self, memo):
+        calibration = Calibration(origin=self.__origin, scale=self.__scale, units=self.__units)
+        memo[id(self)] = calibration
+        return calibration
 
     def __get_is_calibrated(self):
         return self.__origin is not None or self.__scale is not None or self.__units is not None
@@ -677,22 +679,25 @@ class DataItem(Storage.StorageBase):
                 return numpy.zeros((height, width), dtype=numpy.uint32)
         return self.thumbnail_data
 
-    def copy(self):
+    def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
         data_item_copy.data_range = self.data_range
         data_item_copy.display_limits = self.display_limits
         for calibration in self.calibrations:
-            data_item_copy.calibrations.append(calibration.copy())
-        for operation in self.operations:
-            data_item_copy.operations.append(operation.copy())
+            data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))
+        # graphic must be copied before operation, since operations can
+        # depend on graphics.
         for graphic in self.graphics:
-            data_item_copy.graphics.append(graphic.copy())
+            data_item_copy.graphics.append(copy.deepcopy(graphic, memo))
+        for operation in self.operations:
+            data_item_copy.operations.append(copy.deepcopy(operation, memo))
         for data_item in self.data_items:
-            data_item_copy.data_items.append(data_item.copy())
+            data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
         data_item_copy.master_data = numpy.copy(self.master_data) if self.master_data is not None else None
         #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
+        memo[id(self)] = data_item_copy
         return data_item_copy
 
 

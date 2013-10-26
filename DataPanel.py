@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import os
@@ -216,7 +217,7 @@ class DataPanel(Panel.Panel):
                 data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
                 data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                 if data_item:
-                    data_item_copy = data_item.copy()
+                    data_item_copy = copy.deepcopy(data_item)
                     data_group.data_items.append(data_item_copy)
                     return action
                 return self.item_model_controller.NONE
@@ -224,7 +225,7 @@ class DataPanel(Panel.Panel):
                 data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
                 data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
                 if data_group:
-                    data_group_copy = data_group.copy()
+                    data_group_copy = copy.deepcopy(data_group)
                     if row >= 0:
                         container.data_groups.insert(row, data_group_copy)
                     else:
@@ -413,7 +414,7 @@ class DataPanel(Panel.Panel):
                     data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
                     data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                     if data_item:
-                        data_item_copy = data_item.copy()
+                        data_item_copy = copy.deepcopy(data_item)
                         if row >= 0:
                             data_group.data_items.insert(row, data_item_copy)
                         else:

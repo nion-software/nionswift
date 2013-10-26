@@ -1028,8 +1028,11 @@ class DbStorageReader(object):
     def get_item(self, parent_node, key, default_value=None):
         c = self.conn.cursor()
         c.execute("SELECT item_uuid FROM items WHERE parent_uuid=? AND key=?", (str(parent_node), key, ))
-        item = self.build_item(c.fetchone()[0])
-        return item
+        value_row = c.fetchone()
+        if value_row:
+            item = self.build_item(value_row[0])
+            return item
+        return default_value
 
     def get_items(self, parent_node, key):
         c = self.conn.cursor()

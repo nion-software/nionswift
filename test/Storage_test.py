@@ -249,7 +249,7 @@ class TestStorageClass(unittest.TestCase):
         data_group2.data_groups.append(data_group2b)
         data_group2b1 = DataGroup.DataGroup()
         data_group2b.data_groups.append(data_group2b1)
-        data_group2_copy = data_group2.copy()
+        data_group2_copy = copy.deepcopy(data_group2)
         data_group2_copy.add_ref()
         data_group2_copy.remove_ref()
 
