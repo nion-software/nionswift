@@ -314,7 +314,7 @@ class DataPanel(Panel.Panel):
             data_item.add_ref()
             # do the insert
             data_shape = data_item.data_shape if data_item else None
-            data_shape_str = " x ".join([str(d) for d in data_shape]) if data_shape else ""
+            data_shape_str = " x ".join([str(d) for d in data_shape]) if data_shape else "No Data"
             properties = {"uuid": str(data_item.uuid), "level": level, "display": str(data_item), "display2": data_shape_str}
             self.list_model_controller.begin_insert(before_index_flat, before_index_flat)
             self.list_model_controller.model.insert(before_index_flat, properties)
