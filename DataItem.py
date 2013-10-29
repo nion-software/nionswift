@@ -663,8 +663,8 @@ class DataItem(Storage.StorageBase):
 
     # this will be invoked on a thread
     def load_thumbnail(self):
-        self.data  # for data to load
-        self.notify_data_item_changed({"property": "display"})
+        if self.data is not None:  # for data to load and make sure it has data
+            self.notify_data_item_changed({"property": "display"})
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
@@ -679,7 +679,7 @@ class DataItem(Storage.StorageBase):
                     pass
                 self.thumbnail_data_valid = self.thumbnail_data is not None
             else:
-                if self.__thumbnail_thread:
+                if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
                     self.__thumbnail_thread.update_data(self)
                 return numpy.zeros((height, width), dtype=numpy.uint32)
         return self.thumbnail_data

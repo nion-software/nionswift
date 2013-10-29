@@ -566,7 +566,7 @@ class ImagePanel(Panel.Panel):
         ctx.line_width = 4.0
         ctx.stroke()
 
-    # this will only be called from the drawing thread. this means that neithher this method nor any of the
+    # this will only be called from the drawing thread. this means that neither this method nor any of the
     # ones it calls should access self.data_item, which may be changed out from underneath the drawing code.
     def _repaint(self, data_item):
         if self.closed: return  # argh
@@ -601,6 +601,24 @@ class ImagePanel(Panel.Panel):
                 self.image_info_canvas.draw()
             if self.ui and self.image_focus_ring_canvas:
                 self.image_focus_ring_canvas.draw()
+        else:
+            self.__graphics_layer.drawing_context.clear()
+            self.__info_layer.drawing_context.clear()
+            self.__display_layer.drawing_context.clear()
+            self.__line_plot_layer.drawing_context.clear()
+            self.__line_plot_focus_ring_layer.drawing_context.clear()
+            self.__image_focus_ring_layer.drawing_context.clear()
+            if self.document_controller.selected_image_panel == self:
+                viewport_size = self.image_canvas_scroll.viewport[1]
+                viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
+                self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
+            if self.ui and self.image_canvas:
+                self.image_canvas.draw()
+            if self.ui and self.image_info_canvas:
+                self.image_info_canvas.draw()
+            if self.ui and self.image_focus_ring_canvas:
+                self.image_focus_ring_canvas.draw()
+
 
     # this will only be called from the drawing thread (via _repaint)
     def __repaint_line_plot(self, data_item):
@@ -706,12 +724,24 @@ class ImagePanel(Panel.Panel):
             self.__display_thread.update_data(self.data_item)
         else:
             self.widget.current_index = 0
-            ctx = self.__display_layer.drawing_context
-            ctx.clear()
+            # clear all of the contexts
+            self.__graphics_layer.drawing_context.clear()
+            self.__info_layer.drawing_context.clear()
+            self.__display_layer.drawing_context.clear()
+            self.__line_plot_layer.drawing_context.clear()
+            self.__line_plot_focus_ring_layer.drawing_context.clear()
+            self.__image_focus_ring_layer.drawing_context.clear()
+            # make sure they update
             if self.ui and self.image_canvas:
                 self.image_canvas.draw()
             if self.ui and self.line_plot_canvas:
                 self.line_plot_canvas.draw()
+            if self.ui and self.image_focus_ring_canvas:
+                self.image_focus_ring_canvas.draw()
+            if self.ui and self.image_info_canvas:
+                self.image_info_canvas.draw()
+            if self.ui and self.line_plot_focus_ring_canvas:
+                self.line_plot_focus_ring_canvas.draw()
 
     def selection_changed(self, graphic_selection):
         self.display_changed()
@@ -909,9 +939,9 @@ class ImagePanel(Panel.Panel):
 
     def __get_image_size(self):
         data_item = self.data_item
-        data_shape = data_item.spatial_shape if data_item else (0,0)
+        data_shape = data_item.spatial_shape if data_item else None
         if not data_shape:
-            return (0,0)
+            return None
         for d in data_shape:
             if not d > 0:
                 return None
@@ -1136,7 +1166,7 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         graphic_text = ""
-        if data_item:
+        if data_item and image_size:
             calibrations = data_item.calculated_calibrations
             if pos:
                 # make sure the position is within the bounds of the image
