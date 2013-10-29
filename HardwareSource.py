@@ -32,7 +32,7 @@ _ = gettext.gettext
 @singleton
 class HardwareSourceManager(object):
     """
-    Keeps track of all registered hardware sources.
+    Keeps track of all registered hardware sources and instruments.
     Also keeps track of aliases between hardware sources and logical names.
     The aliases can contain a filter to only return a subset of data_elements.
     This way we can create an alias for the 'RonchigramCamera' to, say,
@@ -47,25 +47,39 @@ class HardwareSourceManager(object):
     """
     def __init__(self):
         self.hardware_sources = []
-        self._aliases = {}
+        self.__hardware_source_aliases = {}
+        self.instruments = {}
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_removed = []
+        self.instrument_added_removed = []
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
-        self._aliases = {}
+        self.__hardware_source_aliases = {}
         self.hardware_source_added_removed = []
+        self.instruments = {}
+        self.instrument_added_removed = []
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
         for f in self.hardware_source_added_removed:
-            f(self, None)
+            f()
 
     def unregister_hardware_source(self, hardware_source):
         self.hardware_sources.remove(hardware_source)
         for f in self.hardware_source_added_removed:
-            f(self, None)
+            f()
+
+    def register_instrument(self, instrument_id, instrument):
+        self.instruments[instrument_id] = instrument
+        for f in self.instrument_added_removed:
+            f()
+
+    def unregister_instrument(self, instrument_id):
+        self.instruments.remove(instrument_id)
+        for f in self.instrument_added_removed:
+            f()
 
     def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
         """
@@ -87,9 +101,9 @@ class HardwareSourceManager(object):
         display_name, properties, filter = (unicode(), None, None)
 
         seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
-        while hardware_source_id in self._aliases and hardware_source_id not in seen_hardware_source_ids:
+        while hardware_source_id in self.__hardware_source_aliases and hardware_source_id not in seen_hardware_source_ids:
             seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
-            hardware_source_id, display_name, properties, filter = self._aliases[hardware_source_id]
+            hardware_source_id, display_name, properties, filter = self.__hardware_source_aliases[hardware_source_id]
 
         if override_properties:
             properties = override_properties
@@ -102,7 +116,7 @@ class HardwareSourceManager(object):
     def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name, properties=None, filter=None):
         if isinstance(filter, numbers.Integral):
             filter = (filter, )
-        self._aliases[alias_hardware_source_id] = (hardware_source_id, display_name, properties, filter)
+        self.__hardware_source_aliases[alias_hardware_source_id] = (hardware_source_id, display_name, properties, filter)
 
 
 class HardwareSourcePort(object):
