@@ -523,7 +523,7 @@ class ImagePanel(Panel.Panel):
                     ctx.font = "normal 14px serif"
                     ctx.text_baseline = "bottom"
                     ctx.fill_style = "#FFF"
-                    ctx.fill_text(data_item.calibrations[0].convert_to_calibrated_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                    ctx.fill_text(data_item.calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                     data_item_properties = data_item.properties
                     info_items = list()
                     voltage = data_item_properties.get("voltage", 0)
@@ -1144,8 +1144,8 @@ class InfoPanel(Panel.Panel):
             if pos:
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < image_size[0] and pos[1] >= 0 and pos[1] < image_size[1]:
-                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_str(pos[1] - 0.5 * image_size[1]),
-                                                     calibrations[0].convert_to_calibrated_str(0.5 * image_size[0] - pos[0]))
+                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * image_size[1]),
+                                                     calibrations[0].convert_to_calibrated_value_str(0.5 * image_size[0] - pos[0]))
                     value = data_item.get_data_value(pos)
                     if isinstance(value, numbers.Integral):
                         value_text = '{0:d}'.format(value)

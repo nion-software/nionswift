@@ -248,10 +248,10 @@ class RectangleGraphic(Graphic):
         size_image = (image_size[0] * self.bounds[1][0], image_size[1] * self.bounds[1][1])
         origin_image = (size_image[0] * 0.5 + image_size[0] * self.bounds[0][0] - 0.5 * image_size[0],
                         size_image[1] * 0.5 + image_size[1] * self.bounds[0][1] - 0.5 * image_size[1])
-        origin_x_str = calibrations[1].convert_to_calibrated_str(origin_image[1])
-        origin_y_str = calibrations[0].convert_to_calibrated_str(origin_image[0])
-        size_x_str = calibrations[1].convert_to_calibrated_str(size_image[1])
-        size_y_str = calibrations[0].convert_to_calibrated_str(size_image[0])
+        origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
+        origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
+        size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
+        size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
         return "Rectangle\n  Center ({0}, {1})\n  Size ({2} x {3})".format(origin_x_str, origin_y_str, size_x_str, size_y_str)
     def begin_drag(self):
         return (self.bounds, )
@@ -364,10 +364,10 @@ class EllipseGraphic(Graphic):
         size_image = (image_size[0] * self.bounds[1][0], image_size[1] * self.bounds[1][1])
         origin_image = (size_image[0] * 0.5 + image_size[0] * self.bounds[0][0] - 0.5 * image_size[0],
                         size_image[1] * 0.5 + image_size[1] * self.bounds[0][1] - 0.5 * image_size[1])
-        origin_x_str = calibrations[1].convert_to_calibrated_str(origin_image[1])
-        origin_y_str = calibrations[0].convert_to_calibrated_str(origin_image[0])
-        size_x_str = calibrations[1].convert_to_calibrated_str(size_image[1])
-        size_y_str = calibrations[0].convert_to_calibrated_str(size_image[0])
+        origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
+        origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
+        size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
+        size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
         return "Ellipse\n  Center ({0}, {1})\n  Size ({2} x {3})".format(origin_x_str, origin_y_str, size_x_str, size_y_str)
     def begin_drag(self):
         return (self.bounds, )
@@ -473,10 +473,10 @@ class LineGraphic(Graphic):
     def calibrated_description(self, image_size, calibrations):
         start_image = (image_size[0] * self.start[0], image_size[1] * self.start[1])
         end_image = (image_size[0] * self.end[0], image_size[1] * self.end[1])
-        start_x_str = calibrations[1].convert_to_calibrated_str(start_image[1])
-        start_y_str = calibrations[0].convert_to_calibrated_str(start_image[0])
-        end_x_str = calibrations[1].convert_to_calibrated_str(end_image[1])
-        end_y_str = calibrations[0].convert_to_calibrated_str(end_image[0])
+        start_x_str = calibrations[1].convert_to_calibrated_value_str(start_image[1])
+        start_y_str = calibrations[0].convert_to_calibrated_value_str(start_image[0])
+        end_x_str = calibrations[1].convert_to_calibrated_value_str(end_image[1])
+        end_y_str = calibrations[0].convert_to_calibrated_value_str(end_image[0])
         return "Line\n  Start ({0}, {1})\n  End ({2}, {3})".format(start_x_str, start_y_str, end_x_str, end_y_str)
     def begin_drag(self):
         return (self.start, self.end)

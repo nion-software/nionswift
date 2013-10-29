@@ -81,12 +81,17 @@ class Calibration(Storage.StorageBase):
         self.notify_set_property("units", value)
     units = property(__get_units, __set_units)
 
-    def convert_to_calibrated(self, value):
+    def convert_to_calibrated_value(self, value):
         return self.origin + value * self.scale
+    def convert_to_calibrated_size(self, size):
+        return size * self.scale
     def convert_from_calibrated(self, value):
         return (value - self.origin) / self.scale
-    def convert_to_calibrated_str(self, value):
-        result = u"{0:.1f}".format(self.convert_to_calibrated(value)) + ((" " + self.units) if self.__units else "")
+    def convert_to_calibrated_value_str(self, value):
+        result = u"{0:.1f}".format(self.convert_to_calibrated_value(value)) + ((" " + self.units) if self.__units else "")
+        return result
+    def convert_to_calibrated_size_str(self, size):
+        result = u"{0:.1f}".format(self.convert_to_calibrated_size(size)) + ((" " + self.units) if self.__units else "")
         return result
 
     def notify_set_property(self, key, value):

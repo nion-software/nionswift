@@ -18,7 +18,7 @@ class TestCalibrationClass(unittest.TestCase):
     def test_conversion(self):
         calibration = DataItem.Calibration(3.0, 2.0, "x")
         calibration.add_ref()
-        self.assertEqual(calibration.convert_to_calibrated_str(5), u"13.0 x")
+        self.assertEqual(calibration.convert_to_calibrated_value_str(5), u"13.0 x")
         calibration.remove_ref()
 
     def test_calibration_relationship(self):
