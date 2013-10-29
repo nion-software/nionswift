@@ -533,7 +533,7 @@ class ImagePanel(Panel.Panel):
                             voltage = voltage / 1000
                             units = "kV"
                         info_items.append("{0} {1}".format(voltage, units))
-                    source = data_item_properties.get("source")
+                    source = data_item_properties.get("hardware_source")
                     if source:
                         info_items.append(str(source))
                     ctx.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
@@ -1027,9 +1027,6 @@ class ImagePanel(Panel.Panel):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
             if len(graphics):
                 self.document_controller.remove_graphic()
-        if key.text == " ":
-            pass
-            # how to convery acquisition start/stop to hardware source?
         if key.text == "-":
             self.__zoom_out()
         if key.text == "+":
