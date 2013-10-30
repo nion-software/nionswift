@@ -162,6 +162,7 @@ def scalar_from_array(array, normalize=True):
     return array
 
 
+# data_range and display_limits are in data value units
 def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
     assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)
@@ -170,11 +171,9 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
     if numpy.ndim(array) == 2:
         rgba_image = numpy.empty(array.shape, 'uint32')
         if normalize:
-            nmin = data_range[0] if data_range else numpy.amin(array)
-            nmax = data_range[1] if data_range else numpy.amax(array)
-            if display_limits and (display_limits[0] != 0 or display_limits[1] != 1):
-                nmin_new = nmin + (nmax - nmin)*display_limits[0]
-                nmax_new = nmin + (nmax - nmin)*display_limits[1]
+            if display_limits and len(display_limits) == 2:
+                nmin_new = display_limits[0]
+                nmax_new = display_limits[1]
                 a = numpy.maximum(numpy.minimum(array, nmax_new), nmin_new)
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax_new - nmin_new) if nmax_new != nmin_new else 1
@@ -184,6 +183,8 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                 if underlimit:
                     rgba_image = numpy.where(numpy.greater(array - nmin_new, nmax_new - nmin_new * underlimit), rgba_image, 0xFF0000FF)
             else:
+                nmin = data_range[0] if data_range else numpy.amin(array)
+                nmax = data_range[1] if data_range else numpy.amax(array)
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax - nmin) if nmax != nmin else 1
                 get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)

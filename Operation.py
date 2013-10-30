@@ -92,7 +92,8 @@ class Operation(Storage.StorageBase):
     # calibrations
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         return source_calibrations
-    # data range
+    # data range. returning data_range will keep the same data_range as the parent.
+    # returning None will indicate to recalculate the data range.
     def get_processed_data_range(self, data_shape, data_dtype, data_range):
         return data_range
     # subclasses that change the type or shape of the data must override

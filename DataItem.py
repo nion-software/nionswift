@@ -179,7 +179,7 @@ class DataItem(Storage.StorageBase):
         self.closed = False
         self.__title = None
         self.__param = 0.5
-        self.__display_limits = (0, 1)
+        self.__display_limits = None  # auto
         self.__data_range = None
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
         self.graphics = Storage.MutableRelationship(self, "graphics")

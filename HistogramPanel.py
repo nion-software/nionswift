@@ -44,7 +44,7 @@ class HistogramThread(ProcessingThread):
         return data_item
 
     def process_data(self, data_item):
-        self.__histogram_panel.data_item = data_item
+        self.__histogram_panel._set_data_item(data_item)
 
     def release_data(self, data_item):
         data_item.remove_ref()
@@ -74,8 +74,10 @@ class HistogramPanel(Panel.Panel):
 
         self.__data_item = None
 
+        # these are the drawn display limits. useful during tracking or when viewing display
+        # limits within the context of the broader range of data.
         self.__display_limits = (0,1)
-        
+
         self.pressed = False
 
         self.__histogram_data = None
@@ -100,13 +102,10 @@ class HistogramPanel(Panel.Panel):
         # finish closing
         super(HistogramPanel, self).close()
 
-    def __get_display_limits(self):
-        return self.__display_limits
     def __set_display_limits(self, display_limits):
         self.__display_limits = display_limits
         self.__adornments_dirty = True
         self.__update_histogram()
-    display_limits = property(__get_display_limits, __set_display_limits)
 
     def size_changed(self, width, height):
         if width > 0 and height > 0:
@@ -114,26 +113,35 @@ class HistogramPanel(Panel.Panel):
             self.__update_histogram()
 
     def mouse_double_clicked(self, x, y, modifiers):
-        self.display_limits = (0, 1)
-        if self.data_item:
-            self.data_item.display_limits = self.display_limits
+        self.__set_display_limits((0, 1))
+        if self.__data_item:
+            self.__data_item.display_limits = None
 
     def mouse_pressed(self, x, y, modifiers):
         self.pressed = True
         self.start = float(x)/self.canvas.width
-        self.display_limits = (self.start, self.start)
+        self.__set_display_limits((self.start, self.start))
 
     def mouse_released(self, x, y, modifiers):
         self.pressed = False
-        if self.data_item and (self.display_limits[1] - self.display_limits[0] > 0):
-            self.data_item.display_limits = self.display_limits
+        if self.__data_item and (self.__display_limits[1] - self.__display_limits[0] > 0):
+            data_item_display_limits = self.__data_item.display_limits
+            if data_item_display_limits:
+                data_min = data_item_display_limits[0]
+                data_max = data_item_display_limits[1]
+            else:
+                data_min = self.__data_item.data.min()
+                data_max = self.__data_item.data.max()
+            lower_display_limit = data_min + self.__display_limits[0] * (data_max - data_min)
+            upper_display_limit = data_min + self.__display_limits[1] * (data_max - data_min)
+            self.__data_item.display_limits = (lower_display_limit, upper_display_limit)
 
     def mouse_position_changed(self, x, y, modifiers):
         canvas_width = self.canvas.width
         canvas_height = self.canvas.height
         if self.pressed:
             current = float(x)/canvas_width
-            self.display_limits = (min(self.start, current), max(self.start, current))
+            self.__set_display_limits((min(self.start, current), max(self.start, current)))
 
     # make the histogram from the data item.
     # at the end of this method, both histogram_data and histogram_js will be valid, although data may be None.
@@ -141,10 +149,10 @@ class HistogramPanel(Panel.Panel):
     def __make_histogram(self):
 
         if self.__histogram_data is None:
-            if self.data_item:
-                data = self.data_item.best_data
+            if self.__data_item:
+                data = self.__data_item.best_data
                 if data is not None:
-                    data_range = self.data_item.calculated_data_range
+                    data_range = self.__data_item.display_limits  # may be None
                     histogram_data = numpy.histogram(data, range=data_range, bins=256)
                     histogram_data = histogram_data[0]
                     histogram_max = float(numpy.max(histogram_data))
@@ -195,8 +203,8 @@ class HistogramPanel(Panel.Panel):
 
             ctx.clear()
 
-            left = self.display_limits[0]
-            right = self.display_limits[1]
+            left = self.__display_limits[0]
+            right = self.__display_limits[1]
 
             # draw left display limit
             ctx.save()
@@ -247,21 +255,19 @@ class HistogramPanel(Panel.Panel):
                 self.__make_adornments()
                 self.__update_canvas()
 
-    def __get_data_item(self):
-        return self.__data_item
-    def __set_data_item(self, data_item):
+    def _set_data_item(self, data_item):
         # this will get invoked whenever the data item changes too. it gets invoked
         # from the histogram thread which gets triggered via the selected_data_item_changed
         # message below.
         self.__data_item = data_item
+        # if the user is currently dragging the display limits, we don't want to update
+        # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.pressed:
-            data_item_display_limits = data_item.display_limits if data_item else None
-            self.__display_limits = data_item_display_limits if data_item_display_limits else (0, 1)
+            self.__display_limits = (0, 1)
         self.__histogram_data = None
         self.__histogram_dirty = True
         self.__adornments_dirty = True
         self.__update_histogram()
-    data_item = property(__get_data_item, __set_data_item)
 
     # this message is received from the document controller.
     # it is established using add_listener
