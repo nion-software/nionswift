@@ -517,6 +517,7 @@ class DataPanel(Panel.Panel):
                 # update the selected image panel
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
+                    # this next statement will eventually end up back in this class via the data_panel_selection_changed_from_image_panel method.
                     image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
 
         def data_item_widget_key_pressed(index, key):
