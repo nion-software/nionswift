@@ -162,7 +162,11 @@ def scalar_from_array(array, normalize=True):
     return array
 
 
-# data_range and display_limits are in data value units
+# data_range and display_limits are in data value units. both are option parameters.
+# if display limits is specified, values out of range are mapped to the min/max colors.
+# if display limits are not specified, data range can be passed to avoid calculating min/max again.
+# if underlimit/overlimit are specified and display limits are specified, values out of the under/over
+#   limit percentage values are mapped to blue and red.
 def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
     assert numpy.ndim(array) in (1, 2,3)
     assert numpy.can_cast(array.dtype, numpy.double)

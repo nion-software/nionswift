@@ -146,6 +146,12 @@ class ThumbnailThread(ProcessingThread):
 # master data: a numpy array associated with this data item
 # data source: another data item from which data is taken
 
+# display limits: data limits for display. may be None.
+
+# data range: cached value for data min/max. calculated when data is requested, or on demand.
+
+# display range: display limits if not None, else data range.
+
 # operations: a list of operations applied to make data
 
 # data items: child data items (aka derived data)
@@ -168,7 +174,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "data_range", "display_limits", "properties"]
+        self.storage_properties += ["title", "param", "display_limits", "properties"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -180,7 +186,6 @@ class DataItem(Storage.StorageBase):
         self.__title = None
         self.__param = 0.5
         self.__display_limits = None  # auto
-        self.__data_range = None
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
@@ -188,6 +193,7 @@ class DataItem(Storage.StorageBase):
         self.__properties = dict()
         self.__data_mutex = threading.RLock()  # access to the image
         self.__cached_data = None
+        self.__cached_data_range = None
         self.__last_cached_data = None
         self.__master_data = None
         self.__data_source = None
@@ -206,7 +212,6 @@ class DataItem(Storage.StorageBase):
         title = storage_reader.get_property(item_node, "title")
         param = storage_reader.get_property(item_node, "param")
         properties = storage_reader.get_property(item_node, "properties")
-        data_range = storage_reader.get_property(item_node, "data_range")
         display_limits = storage_reader.get_property(item_node, "display_limits")
         calibrations = storage_reader.get_items(item_node, "calibrations")
         graphics = storage_reader.get_items(item_node, "graphics")
@@ -224,8 +229,6 @@ class DataItem(Storage.StorageBase):
         while len(data_item.calibrations):
             data_item.calibrations.pop()
         data_item.calibrations.extend(calibrations)
-        if data_range:
-            data_item.data_range = data_range
         if display_limits:
             data_item.display_limits = display_limits
         data_item.graphics.extend(graphics)
@@ -275,14 +278,11 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
 
-    def __get_data_range(self):
-        return self.__data_range
-    def __set_data_range(self, data_range):
-        if data_range != self.__data_range:
-            self.__data_range = data_range
-            self.notify_set_property("data_range", data_range)
-            self.notify_data_item_changed({"property": "display"})
-    data_range = property(__get_data_range, __set_data_range)
+    def __get_display_range(self):
+        with self.__data_mutex:
+            data_range = self.__cached_data_range
+        return self.__display_limits if self.__display_limits else data_range
+    display_range = property(__get_display_range)
 
     def __is_calibrated(self):
         return len(self.calibrations) == len(self.spatial_shape)
@@ -303,24 +303,6 @@ class DataItem(Storage.StorageBase):
         self.__properties = properties
         self.notify_set_property("properties", properties)
         self.notify_data_item_changed({"property": "display"})
-
-    # calculate the data range by starting with the source data range
-    # and then applying data range transformations for each enabled
-    # operation.
-    def __get_calculated_data_range(self):
-        # if data_range is set on this item, use it, giving it precedence
-        data_range = self.data_range
-        # if data range is not set, then try to get it from the data source
-        if not data_range and self.data_source:
-            data_range = self.data_source.calculated_data_range
-        data_shape, data_dtype = self.root_data_shape_and_dtype
-        if data_shape is not None and data_dtype is not None:
-            for operation in self.operations:
-                if operation.enabled:
-                    data_range = operation.get_processed_data_range(data_shape, data_dtype, data_range)
-                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return data_range
-    calculated_data_range = property(__get_calculated_data_range)
 
     # call this when data changes. this makes sure that the right number
     # of calibrations exist in this object. it also propogates the calibrations
@@ -520,14 +502,21 @@ class DataItem(Storage.StorageBase):
     root_data_shape_and_dtype = property(__get_root_data_shape_and_dtype)
 
     def __clear_cached_data(self):
-        if self.__cached_data is not None:
-            self.__last_cached_data = self.__cached_data
-        self.__cached_data = None
+        with self.__data_mutex:
+            if self.__cached_data is not None:
+                self.__last_cached_data = self.__cached_data
+            self.__cached_data = None
+            self.__cached_data_range = None
         self.__preview = None
 
     # data property. read only. this method should almost *never* be called on the main thread since
     # it takes an unpredictable amount of time.
     def __get_data(self):
+        if threading.current_thread().getName() == "MainThread":
+            #logging.debug("*** WARNING: data called on main thread ***")
+            #import traceback
+            #traceback.print_stack()
+            pass
         with self.__data_mutex:
             if self.__cached_data is None:
                 self.__data_mutex.release()
@@ -542,6 +531,7 @@ class DataItem(Storage.StorageBase):
                 finally:
                     self.__data_mutex.acquire()
                 self.__cached_data = data
+                self.__cached_data_range = (data.min(), data.max())
             return self.__cached_data
     data = property(__get_data)
 
@@ -603,7 +593,9 @@ class DataItem(Storage.StorageBase):
             data_2d = self.data
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=self.calculated_data_range, display_limits=self.display_limits)
+                with self.__data_mutex:
+                    data_range = self.__cached_data_range
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=self.display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
@@ -674,7 +666,9 @@ class DataItem(Storage.StorageBase):
                 if Image.is_data_1d(data):
                     self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
                 elif Image.is_data_2d(data):
-                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, self.calculated_data_range, self.display_limits)
+                    with self.__data_mutex:
+                        data_range = self.__cached_data_range
+                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
                 else:
                     pass
                 self.thumbnail_data_valid = self.thumbnail_data is not None
@@ -688,7 +682,6 @@ class DataItem(Storage.StorageBase):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
-        data_item_copy.data_range = self.data_range
         data_item_copy.display_limits = self.display_limits
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))

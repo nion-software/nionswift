@@ -108,9 +108,9 @@ class TestDataItemClass(unittest.TestCase):
     def test_copy_data_item(self):
         data_item = DataItem.DataItem()
         data_item.title = "data_item"
-        data_item.data_range = (0, 1000)
         data_item.add_ref()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item.master_data[128, 128] = 1000  # data range (0, 1000)
         data_item.operations.append(Operation.InvertOperation())
         data_item.graphics.append(Graphics.RectangleGraphic())
         data_item2 = DataItem.DataItem()
@@ -133,8 +133,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(data_item2.data_source, data_item)
         self.assertEqual(data_item.data_items[0].data_source, data_item)
         self.assertEqual(data_item_copy.data_items[0].data_source, data_item_copy)
-        # make sure data_range is handled
-        self.assertEqual(data_item.data_range, data_item_copy.data_range)
         # clean up
         data_item_copy.add_ref()
         data_item_copy.remove_ref()

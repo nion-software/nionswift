@@ -41,8 +41,9 @@ class TestStorageClass(unittest.TestCase):
     def save_document(self, document_controller):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((16, 16), numpy.uint32)
-        data_item.data_range = (50, 2020)
-        data_item.display_limits = (0.25, 0.8)
+        data_item.master_data[:] = 50
+        data_item.master_data[8, 8] = 2020
+        data_item.display_limits = (500, 1000)
         data_item.set_properties({ "one": 1 })
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
@@ -100,7 +101,6 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
-        self.assertEqual(document_controller.document_model.data_groups[0].data_items[0].data_range, (50, 2020))
         document_controller.close()
 
     def test_db_storage(self):
@@ -137,8 +137,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
         # check over the data item
         data_item = document_controller.document_model.default_data_group.data_items[0]
-        self.assertEqual(data_item.data_range, (50, 2020))
-        self.assertEqual(data_item.display_limits, (0.25, 0.8))
+        self.assertEqual(data_item.display_limits, (500, 1000))
         self.assertEqual(data_item.properties, { "one": 1 })
         document_controller.close()
 

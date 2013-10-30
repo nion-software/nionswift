@@ -152,8 +152,8 @@ class HistogramPanel(Panel.Panel):
             if self.__data_item:
                 data = self.__data_item.best_data
                 if data is not None:
-                    data_range = self.__data_item.display_limits  # may be None
-                    histogram_data = numpy.histogram(data, range=data_range, bins=256)
+                    display_range = self.__data_item.display_range  # may be None
+                    histogram_data = numpy.histogram(data, range=display_range, bins=256)
                     histogram_data = histogram_data[0]
                     histogram_max = float(numpy.max(histogram_data))
                     self.__histogram_data = histogram_data / histogram_max

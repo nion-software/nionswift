@@ -430,8 +430,6 @@ def create_data_item_from_data_element(data_element):
 
 def update_data_item_from_data_element(data_item, data_element):
     data_item.master_data = data_element["data"]
-    if "data_range" in data_element:
-        data_item.data_range = data_element.get("data_range")
     if "spatial_calibration" in data_element:
         spatial_calibration = data_element.get("spatial_calibration")
         if len(spatial_calibration) == len(data_item.spatial_shape):
