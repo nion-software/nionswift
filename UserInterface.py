@@ -1156,7 +1156,8 @@ class QtListWidget(QtWidget):
     def __get_current_index(self):
         return self.proxy.PyListWidget_getCurrentRow(self.widget)
     def __set_current_index(self, current_index):
-        return self.proxy.PyListWidget_setCurrentRow(self.widget, current_index)
+        if current_index != self.current_index:
+            self.proxy.PyListWidget_setCurrentRow(self.widget, current_index)
     current_index = property(__get_current_index, __set_current_index)
 
     def __get_on_paint(self):
