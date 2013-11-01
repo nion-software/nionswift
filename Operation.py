@@ -15,6 +15,7 @@ import scipy.fftpack
 import scipy.ndimage
 
 # local libraries
+from nion.swift.Decorators import timeit
 from nion.swift import Image
 from nion.swift import DataItem
 from nion.swift import Graphics
@@ -400,8 +401,7 @@ class ConvertToScalarOperation(Operation):
 
     def process_data_in_place(self, data):
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
-            new_data = numpy.empty(Image.spatial_shape_from_data(data), dtype=numpy.double)
-            new_data[...] = 0.0722 * data[..., 0] + 0.7152 * data[..., 1] + 0.2126 * data[..., 2]
+            new_data = 0.0722 * data[..., 0] + 0.7152 * data[..., 1] + 0.2126 * data[..., 2]
             return new_data
         else:
             return data.copy()
