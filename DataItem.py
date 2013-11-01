@@ -102,7 +102,7 @@ class Calibration(Storage.StorageBase):
 class ThumbnailThread(ProcessingThread):
 
     def __init__(self):
-        super(ThumbnailThread, self).__init__()
+        super(ThumbnailThread, self).__init__(minimum_interval=0.2)
         self.__data_item = None
         # don't start until everything is initialized
         self.start()

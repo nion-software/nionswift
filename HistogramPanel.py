@@ -20,7 +20,7 @@ _ = gettext.gettext
 class HistogramThread(ProcessingThread):
 
     def __init__(self, histogram_panel):
-        super(HistogramThread, self).__init__()
+        super(HistogramThread, self).__init__(minimum_interval=0.2)
         self.__histogram_panel = histogram_panel
         self.__data_item = None
         # don't start until everything is initialized

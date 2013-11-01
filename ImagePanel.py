@@ -5,6 +5,7 @@ import math
 import numbers
 import random
 import threading
+import time
 import uuid
 import weakref
 
@@ -234,7 +235,7 @@ class GraphicSelection(object):
 class DisplayThread(ProcessingThread):
 
     def __init__(self, image_panel):
-        super(DisplayThread, self).__init__()
+        super(DisplayThread, self).__init__(minimum_interval=0.04)
         self.__image_panel = image_panel
         self.__data_item = None
         # don't start until everything is initialized
