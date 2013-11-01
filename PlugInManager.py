@@ -75,7 +75,7 @@ def loadPlugIns():
                                 cls = getattr(member[1], maybe_a_class[0])
                                 _testSuites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
                 logging.info("Plug-in '" + plugin_dir + "' loaded." + (" Tests: " + ",".join(tests) if len(tests) > 0 else ""))
-            except ImportError, ex:
+            except Exception as e:
                 logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
                 logging.info(traceback.format_exc())
                 logging.info("--------")

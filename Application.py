@@ -143,7 +143,8 @@ def print_stack_all():
            not sub_code[-1].endswith("self.__cond.release()") and \
            not sub_code[-1].endswith("_sleep(delay)") and \
            not "thread_event.wait" in sub_code[-1] and \
-           not "time.sleep" in sub_code[-1]:
+           not "time.sleep" in sub_code[-1] and \
+           not "_wait_semaphore.acquire" in sub_code[-1]:
             code.extend(sub_code)
     for line in code:
             logging.debug(line)
