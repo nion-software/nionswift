@@ -81,6 +81,10 @@ class HardwareSourceManager(object):
         for f in self.instrument_added_removed:
             f()
 
+    # may return None
+    def get_instrument_by_id(self, instrument_id):
+        return self.instruments.get(instrument_id)
+
     def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
         """
         Alias for create_port, with the added benefit
