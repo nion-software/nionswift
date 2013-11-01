@@ -132,7 +132,8 @@ class StorageBase(object):
         self.__weak_listeners = []
         self.__weak_listeners_mutex = threading.RLock()
         self.__weak_parents = []
-        self.__refCount = 0
+        self.__ref_count = 0
+        self.__ref_count_mutex = threading.RLock()  # access to the image
         self.__uuid = uuid.uuid4()
 
     def __del__(self):
@@ -140,7 +141,7 @@ class StorageBase(object):
         assert len(self.__weak_observers) == 0, 'Observable still has observers'
         assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
         assert len(self.__weak_parents) == 0, 'Observable still has parents'
-        assert self.__refCount == 0, 'Observable still has references'
+        assert self.__ref_count == 0, 'Observable still has references'
 
     # Give subclasses a chance to clean up. This gets called when reference
     # count goes to 0, but before deletion.
@@ -151,19 +152,21 @@ class StorageBase(object):
     # This allows the class to disconnect from its own sources
     # automatically when the reference count goes to zero.
     def add_ref(self):
-        self.__refCount += 1
+        with self.__ref_count_mutex:
+            self.__ref_count += 1
 
     # Anytime you give up a reference to this item, call remove_ref.
     def remove_ref(self):
-        assert self.__refCount > 0, 'DataItem has no references'
-        self.__refCount -= 1
-        if self.__refCount == 0:
-            self.about_to_delete()
+        with self.__ref_count_mutex:
+            assert self.__ref_count > 0, 'DataItem has no references'
+            self.__ref_count -= 1
+            if self.__ref_count == 0:
+                self.about_to_delete()
 
     # Return the reference count, which should represent the number
     # of places that this DataItem is stored by a caller.
     def __get_ref_count(self):
-        return self.__refCount
+        return self.__ref_count
     ref_count = property(__get_ref_count)
 
     # uuid property. read only.
