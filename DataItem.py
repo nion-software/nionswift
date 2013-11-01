@@ -265,8 +265,9 @@ class DataItem(Storage.StorageBase):
     # method to each listener.
     def notify_data_item_changed(self, info):
         # clear the thumbnail too
-        self.thumbnail_data_valid = False
-        self.__clear_cached_data()
+        if info["property"] != "display":
+            self.thumbnail_data_valid = False
+            self.__clear_cached_data()
         self.notify_listeners("data_item_changed", self, info)
 
     def __get_display_limits(self):
@@ -531,7 +532,10 @@ class DataItem(Storage.StorageBase):
                 finally:
                     self.__data_mutex.acquire()
                 self.__cached_data = data
-                self.__cached_data_range = (data.min(), data.max())
+                if self.is_data_rgb_type:
+                    self.__cached_data_range = (0, 255)
+                else:
+                    self.__cached_data_range = (data.min(), data.max())
             return self.__cached_data
     data = property(__get_data)
 
@@ -577,6 +581,11 @@ class DataItem(Storage.StorageBase):
         data_shape, data_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
     is_data_2d = property(__is_data_2d)
+
+    def __is_data_rgb_type(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgb(data_shape, data_dtype) or Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
+    is_data_rgb_type = property(__is_data_rgb_type)
 
     def get_data_value(self, pos):
         # do not force data calculation here
