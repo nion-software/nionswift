@@ -25,10 +25,6 @@ class TestDataPanelClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    class DummyImagePanel(object):
-        def __init__(self, data_item):
-            self.data_item = data_item
-
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
         storage_writer = Storage.DictStorageWriter()
@@ -238,12 +234,13 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.data_groups.append(data_group1)
         data_item1 = DataItem.DataItem()
         data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item1.title = "data_item1"
         data_group1.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
         parent_data_group.data_groups.append(data_group2)
         data_item2 = DataItem.DataItem()
-        data_item2.title = "Data 2"
+        data_item2.title = "data_item2"
         data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group2.data_items.append(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
@@ -275,6 +272,8 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(selected_data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.get_data_items_flat()[data_item_widget.current_index], data_item1.data_items[0])
+        data_panel.close()
+        document_controller.close()
 
     def test_add_remove_sync(self):
         storage_writer = Storage.DictStorageWriter()
@@ -378,3 +377,6 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertTrue(data_item1 in data_group1.data_items)
         data_panel.data_item_widget.on_item_key_pressed(0, self.app.ui.create_key_by_id("delete"))
         self.assertFalse(data_item1 in data_group1.data_items)
+
+if __name__ == '__main__':
+    unittest.main()
