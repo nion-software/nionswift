@@ -503,12 +503,12 @@ class ImagePanel(Panel.Panel):
                 scale_marker_width = 120
                 scale_marker_height = 6
                 widget_mapping = WidgetMapping(data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
-                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_item.spatial_shape[1]
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marked_width = make_pretty(scale_marker_image_width * data_item.calibrations[0].scale)
+                    calibrated_scale_marker_width = make_pretty(scale_marker_image_width * data_item.calibrations[0].scale)
                     # update the scale marker width
-                    scale_marker_image_width = calibrated_scale_marked_width / data_item.calibrations[0].scale
+                    scale_marker_image_width = calibrated_scale_marker_width / data_item.calibrations[0].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
                     ctx.begin_path()
                     ctx.move_to(origin[1], origin[0])
