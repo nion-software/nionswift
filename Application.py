@@ -149,3 +149,10 @@ def print_stack_all():
     for line in code:
             logging.debug(line)
     logging.debug("*** STACKTRACE - END ***")
+
+
+def sample_stack_all(count=10, interval=0.1):
+    import time
+    for i in range(count):
+        print_stack_all()
+        time.sleep(interval)

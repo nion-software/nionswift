@@ -98,6 +98,7 @@ class ConsolePanel(Panel):
         lines = [
             "from nion.swift import DocumentController, DocumentModel, DataItem, Image",
             "from nion.swift.Application import print_stack_all as _bt",
+            "from nion.swift.Application import sample_stack_all as _pr",
             "import logging",
             "import numpy as np",
             "import numpy as numpy",

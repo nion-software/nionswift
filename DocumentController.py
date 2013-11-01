@@ -463,3 +463,11 @@ class DocumentController(object):
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
+
+
+if False:
+    import time
+    start = time.time()
+    elapsed = time.time() - start
+    if elapsed > 0.001:
+        logging.debug("elapsed %s", elapsed)

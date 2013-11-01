@@ -160,12 +160,17 @@ class ProcessingThread(object):
                 if data is not None:
                     self.release_data(data)
                 break
+            thread_event_set = False
             while not self.__thread_break:
                 elapsed = time.time() - self.__last_time
                 if self.__minimum_interval and elapsed < self.__minimum_interval:
-                    self.__thread_event.wait(self.__minimum_interval - elapsed)
+                    if self.__thread_event.wait(self.__minimum_interval - elapsed):
+                        thread_event_set = True  # set this so that we know to set it after this loop
+                    self.__thread_event.clear()  # clear this so that it doesn't immediately trigger again
                 else:
                     break
+            if thread_event_set:
+                self.__thread_event.set()
             if self.__thread_break:
                 if data is not None:
                     self.release_data(data)
