@@ -264,9 +264,11 @@ class DataItem(Storage.StorageBase):
     # (via data_item_changed). Calling this method will send the data_item_changed
     # method to each listener.
     def notify_data_item_changed(self, info):
-        # clear the thumbnail too
+        # clear the preview and thumbnail
+        self.thumbnail_data_valid = False
+        self.__preview = None
+        # but only clear the data cache if the data changed
         if info["property"] != "display":
-            self.thumbnail_data_valid = False
             self.__clear_cached_data()
         self.notify_listeners("data_item_changed", self, info)
 
@@ -534,8 +536,10 @@ class DataItem(Storage.StorageBase):
                 self.__cached_data = data
                 if self.is_data_rgb_type:
                     self.__cached_data_range = (0, 255)
-                else:
+                elif data is not None:
                     self.__cached_data_range = (data.min(), data.max())
+                else:
+                    self.__cached_data_range = None
             return self.__cached_data
     data = property(__get_data)
 

@@ -124,14 +124,9 @@ class HistogramPanel(Panel.Panel):
 
     def mouse_released(self, x, y, modifiers):
         self.pressed = False
-        if self.__data_item and (self.__display_limits[1] - self.__display_limits[0] > 0):
-            data_item_display_limits = self.__data_item.display_limits
-            if data_item_display_limits:
-                data_min = data_item_display_limits[0]
-                data_max = data_item_display_limits[1]
-            else:
-                data_min = self.__data_item.data.min()
-                data_max = self.__data_item.data.max()
+        display_limit_range = self.__display_limits[1] - self.__display_limits[0]
+        if self.__data_item and (display_limit_range > 0) and (display_limit_range < 1):
+            data_min, data_max = self.__data_item.display_range
             lower_display_limit = data_min + self.__display_limits[0] * (data_max - data_min)
             upper_display_limit = data_min + self.__display_limits[1] * (data_max - data_min)
             self.__data_item.display_limits = (lower_display_limit, upper_display_limit)
@@ -255,6 +250,9 @@ class HistogramPanel(Panel.Panel):
                 self.__make_adornments()
                 self.__update_canvas()
 
+    # _get_data_item is only used for testing
+    def _get_data_item(self):
+        return self.__data_item
     def _set_data_item(self, data_item):
         # this will get invoked whenever the data item changes too. it gets invoked
         # from the histogram thread which gets triggered via the selected_data_item_changed

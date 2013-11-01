@@ -35,8 +35,7 @@ class TestImagePanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
-        db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(":memory:", create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.document_controller.document_model.create_default_data_groups()
