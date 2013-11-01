@@ -125,3 +125,26 @@ class Application(object):
 
     def run_all_tests(self):
         Test.run_all_tests()
+
+
+def print_stack_all():
+    import traceback
+    logging.debug("*** STACKTRACE - START ***")
+    code = []
+    for threadId, stack in sys._current_frames().items():
+        sub_code = []
+        sub_code.append("# ThreadID: %s" % threadId)
+        for filename, lineno, name, line in traceback.extract_stack(stack):
+            sub_code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                sub_code.append("  %s" % (line.strip()))
+        if not sub_code[-1].endswith("waiter.acquire()") and \
+           not sub_code[-1].endswith("traceback.extract_stack(stack):") and \
+           not sub_code[-1].endswith("self.__cond.release()") and \
+           not sub_code[-1].endswith("_sleep(delay)") and \
+           not "thread_event.wait" in sub_code[-1] and \
+           not "time.sleep" in sub_code[-1]:
+            code.extend(sub_code)
+    for line in code:
+            logging.debug(line)
+    logging.debug("*** STACKTRACE - END ***")
