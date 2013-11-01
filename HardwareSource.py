@@ -204,7 +204,12 @@ class HardwareSource(object):
             self.ports.remove(lst)
 
     def acquire_thread_loop(self):
-        self.start_acquisition()
+        try:
+            self.start_acquisition()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return
         try:
             last_properties = None
             new_data_elements = None
