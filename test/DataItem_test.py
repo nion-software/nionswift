@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import threading
 import unittest
 import weakref
 
@@ -163,8 +164,19 @@ class TestDataItemClass(unittest.TestCase):
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item.add_ref()
         self.assertFalse(data_item.thumbnail_data_valid)
-        data_item.data  # trigger the data calculation
+        # configure a listener to know when the thumbnail is finished
+        event = threading.Event()
+        class Listener(object):
+            def data_item_changed(self, data_item, info):
+                if info["property"] == "thumbnail":
+                    event.set()
+        listener = Listener()
+        data_item.add_listener(listener)
+        # the next line also triggers the thumbnail calculation
         self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
+        # wait for the thumbnail
+        event.wait()
+        data_item.remove_listener(listener)
         self.assertTrue(data_item.thumbnail_data_valid)
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         self.assertFalse(data_item.thumbnail_data_valid)

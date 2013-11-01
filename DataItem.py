@@ -275,7 +275,8 @@ class DataItem(Storage.StorageBase):
     # method to each listener.
     def notify_data_item_changed(self, info):
         # clear the preview and thumbnail
-        self.thumbnail_data_valid = False
+        if info["property"] != "thumbnail":
+            self.thumbnail_data_valid = False
         self.__preview = None
         # but only clear the data cache if the data changed
         if info["property"] != "display":
@@ -678,27 +679,29 @@ class DataItem(Storage.StorageBase):
 
     # this will be invoked on a thread
     def load_thumbnail(self):
-        if self.data is not None:  # for data to load and make sure it has data
-            self.notify_data_item_changed({"property": "display"})
+        data = self.data
+        if data is not None:  # for data to load and make sure it has data
+            height, width = self.__thumbnail_size
+            if Image.is_data_1d(data):
+                self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
+            elif Image.is_data_2d(data):
+                with self.__data_mutex:
+                    data_range = self.__cached_data_range
+                self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
+            else:
+                pass
+            self.thumbnail_data_valid = self.thumbnail_data is not None
+            self.notify_data_item_changed({"property": "thumbnail"})
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
         if not self.thumbnail_data_valid:
-            data = self.best_data
-            if data is not None:
-                if Image.is_data_1d(data):
-                    self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
-                elif Image.is_data_2d(data):
-                    with self.__data_mutex:
-                        data_range = self.__cached_data_range
-                    self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
-                else:
-                    pass
-                self.thumbnail_data_valid = self.thumbnail_data is not None
-            else:
-                if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
-                    self.__thumbnail_thread.update_data(self)
-                return numpy.zeros((height, width), dtype=numpy.uint32)
+            if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
+                self.__thumbnail_size = (height, width)
+                self.__thumbnail_thread.update_data(self)
+            if self.thumbnail_data is not None:
+                return self.thumbnail_data
+            return numpy.zeros((height, width), dtype=numpy.uint32)
         return self.thumbnail_data
 
     def __deepcopy__(self, memo):
