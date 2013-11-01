@@ -238,20 +238,35 @@ class DisplayThread(ProcessingThread):
         super(DisplayThread, self).__init__(minimum_interval=0.04)
         self.__image_panel = image_panel
         self.__data_item = None
+        self.__mutex = threading.RLock()  # access to the data item
+        # mutex is needed to avoid case where grab data is called
+        # simultaneously to handle_data and data item would get
+        # released twice, once in handle data and once in the final
+        # call to release data.
         # don't start until everything is initialized
         self.start()
 
+    def close(self):
+        super(DisplayThread, self).close()
+        # protect against handle_data being called, but the data
+        # was never grabbed. this must go _after_ the super.close
+        with self.__mutex:
+            if self.__data_item:
+                self.__data_item.remove_ref()
+
     def handle_data(self, data_item):
-        if self.__data_item:
-            self.__data_item.remove_ref()
-        self.__data_item = data_item
+        with self.__mutex:
+            if self.__data_item:
+                self.__data_item.remove_ref()
+            self.__data_item = data_item
         if data_item:
             data_item.add_ref()
 
     def grab_data(self):
-        data_item = self.__data_item
-        self.__data_item = None
-        return data_item
+        with self.__mutex:
+            data_item = self.__data_item
+            self.__data_item = None
+            return data_item
 
     def process_data(self, data_item):
         assert data_item is not None
