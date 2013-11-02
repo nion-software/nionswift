@@ -52,11 +52,13 @@ class DocumentModel(Storage.StorageBase):
         self._set_uuid(uuid)
         data_groups = storage_reader.get_items(parent_node, "data_groups")
         self.data_groups.extend(data_groups)
+        # this is extra code for first launch
         if len(self.data_groups) == 0:
             data_group = DataGroup.DataGroup()
             data_group.title = _("Data")
             self.data_groups.append(data_group)
             need_rewrite = True
+        # this is extra code for backwards compatibility
         if storage_reader.has_relationship(parent_node, "data_items"):
             data_items = storage_reader.get_items(parent_node, "data_items")
             self.default_data_group.data_items.extend(data_items)
