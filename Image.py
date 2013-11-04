@@ -135,6 +135,20 @@ def is_data_rgba(data):
     return data is not None and is_shape_and_dtype_rgba(data.shape, data.dtype)
 
 
+def is_shape_and_dtype_rgb_type(shape, dtype):
+    return is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype)
+def is_data_rgb_type(data):
+    return data is not None and is_shape_and_dtype_rgb_type(data.shape, data.dtype)
+
+
+def is_shape_and_dtype_complex_type(shape, dtype):
+    if shape is None or dtype is None:
+        return False
+    return dtype == numpy.complex64 or dtype == numpy.complex128
+def is_data_complex_type(data):
+    return data is not None and is_shape_and_dtype_complex_type(data.shape, data.dtype)
+
+
 def is_shape_and_dtype_1d(shape, dtype):
     if shape is None or dtype is None:
         return False
@@ -168,7 +182,7 @@ def scalar_from_array(array, normalize=True):
 # if underlimit/overlimit are specified and display limits are specified, values out of the under/over
 #   limit percentage values are mapped to blue and red.
 def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
-    assert numpy.ndim(array) in (1, 2,3)
+    assert numpy.ndim(array) in (1, 2, 3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
         array = array.reshape((1,) + array.shape)

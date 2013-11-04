@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import math
 import threading
 import unittest
 import weakref
@@ -347,6 +348,29 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener3.data_changed and listener3.display_changed)
         data_item.operations.remove(crop_operation)
         # finish up
+        data_item.remove_ref()
+
+    def test_data_range(self):
+        data_item = DataItem.DataItem()
+        data_item.add_ref()
+        # test scalar
+        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
+        data_item.master_data = 50 * (xx + yy) + 25
+        data_item.data  # TODO: this should not be required
+        data_range = data_item.display_range
+        self.assertEqual(data_range, (25, 125))
+        # now test complex
+        data_item.master_data = numpy.zeros((256, 256), numpy.complex64)
+        xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
+        data_item.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
+        data_item.data  # TODO: this should not be required
+        data_range = data_item.display_range
+        data_min = math.log(math.sqrt(2*2 + 3*3) + 1)
+        data_max = math.log(math.sqrt(12*12 + 13*13) + 1)
+        self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
+        self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
+        # clean up
         data_item.remove_ref()
 
 if __name__ == '__main__':

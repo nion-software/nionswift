@@ -296,6 +296,7 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             data_range = self.__cached_data_range
         return self.__display_limits if self.__display_limits else data_range
+    # TODO: this is only valid after data has been called (!)
     display_range = property(__get_display_range)
 
     def __is_calibrated(self):
@@ -547,6 +548,9 @@ class DataItem(Storage.StorageBase):
                 self.__cached_data = data
                 if self.is_data_rgb_type:
                     self.__cached_data_range = (0, 255)
+                elif self.is_data_complex_type:
+                    scalar_data = Image.scalar_from_array(data)
+                    self.__cached_data_range = (scalar_data.min(), scalar_data.max())
                 elif data is not None:
                     self.__cached_data_range = (data.min(), data.max())
                 else:
@@ -601,6 +605,11 @@ class DataItem(Storage.StorageBase):
         data_shape, data_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_rgb(data_shape, data_dtype) or Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
     is_data_rgb_type = property(__is_data_rgb_type)
+
+    def __is_data_complex_type(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_complex_type(data_shape, data_dtype)
+    is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
         # do not force data calculation here
