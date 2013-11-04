@@ -155,7 +155,7 @@ class HistogramPanel(Panel.Panel):
 
         if self.__histogram_data is None:
             if self.__data_item:
-                data = self.__data_item.best_data
+                data = self.__data_item.data
                 if data is not None:
                     display_range = self.__data_item.display_range  # may be None
                     histogram_data = numpy.histogram(data, range=display_range, bins=256)

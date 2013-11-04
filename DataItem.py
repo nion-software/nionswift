@@ -179,6 +179,10 @@ class ThumbnailThread(ProcessingThread):
 # data is calculated when requested. this makes it imperative that callers
 # do not ask for data to be calculated on the main thread.
 
+# values that are cached will be marked as dirty when they don't match
+# the underlying data. however, the values will still return values for
+# the out of date data.
+
 
 class DataItem(Storage.StorageBase):
 
@@ -203,13 +207,14 @@ class DataItem(Storage.StorageBase):
         self.__properties = dict()
         self.__data_mutex = threading.RLock()  # access to the image
         self.__cached_data = None
-        self.__cached_data_range = None
         self.__last_cached_data = None
+        self.__cached_data_range = None
+        self.__cached_data_range_dirty = True
         self.__master_data = None
         self.__data_source = None
         self.__preview = None
         self.thumbnail_data = None
-        self.thumbnail_data_valid = False
+        self.thumbnail_data_dirty = True
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
@@ -276,7 +281,7 @@ class DataItem(Storage.StorageBase):
     def notify_data_item_changed(self, info):
         # clear the preview and thumbnail
         if info["property"] != "thumbnail":
-            self.thumbnail_data_valid = False
+            self.thumbnail_data_dirty = True
         self.__preview = None
         # but only clear the data cache if the data changed
         if info["property"] != "display":
@@ -521,7 +526,7 @@ class DataItem(Storage.StorageBase):
             if self.__cached_data is not None:
                 self.__last_cached_data = self.__cached_data
             self.__cached_data = None
-            self.__cached_data_range = None
+            self.__cached_data_range_dirty = True
         self.__preview = None
 
     # data property. read only. this method should almost *never* be called on the main thread since
@@ -555,6 +560,7 @@ class DataItem(Storage.StorageBase):
                     self.__cached_data_range = (data.min(), data.max())
                 else:
                     self.__cached_data_range = None
+                self.__cached_data_range_dirty = False
             return self.__cached_data
     data = property(__get_data)
 
@@ -699,12 +705,12 @@ class DataItem(Storage.StorageBase):
                 self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
             else:
                 pass
-            self.thumbnail_data_valid = self.thumbnail_data is not None
+            self.thumbnail_data_dirty = self.thumbnail_data is None
             self.notify_data_item_changed({"property": "thumbnail"})
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
-        if not self.thumbnail_data_valid:
+        if self.thumbnail_data_dirty:
             if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
                 self.__thumbnail_size = (height, width)
                 self.__thumbnail_thread.update_data(self)
