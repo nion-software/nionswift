@@ -164,7 +164,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item.add_ref()
-        self.assertFalse(data_item.thumbnail_data_valid)
+        self.assertTrue(data_item.thumbnail_data_dirty)
         # configure a listener to know when the thumbnail is finished
         event = threading.Event()
         class Listener(object):
@@ -178,9 +178,9 @@ class TestDataItemClass(unittest.TestCase):
         # wait for the thumbnail
         event.wait()
         data_item.remove_listener(listener)
-        self.assertTrue(data_item.thumbnail_data_valid)
+        self.assertFalse(data_item.thumbnail_data_dirty)
         data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
-        self.assertFalse(data_item.thumbnail_data_valid)
+        self.assertTrue(data_item.thumbnail_data_dirty)
         data_item.remove_ref()
 
     def test_thumbnail_1d(self):

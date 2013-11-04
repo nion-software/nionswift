@@ -207,7 +207,7 @@ class DataItem(Storage.StorageBase):
         self.__properties = dict()
         self.__data_mutex = threading.RLock()  # access to the image
         self.__cached_data = None
-        self.__last_cached_data = None
+        self.__cached_data_dirty = True
         self.__cached_data_range = None
         self.__cached_data_range_dirty = True
         self.__master_data = None
@@ -523,9 +523,7 @@ class DataItem(Storage.StorageBase):
 
     def __clear_cached_data(self):
         with self.__data_mutex:
-            if self.__cached_data is not None:
-                self.__last_cached_data = self.__cached_data
-            self.__cached_data = None
+            self.__cached_data_dirty = True
             self.__cached_data_range_dirty = True
         self.__preview = None
 
@@ -538,7 +536,7 @@ class DataItem(Storage.StorageBase):
             #traceback.print_stack()
             pass
         with self.__data_mutex:
-            if self.__cached_data is None:
+            if self.__cached_data_dirty or self.__cached_data is None:
                 self.__data_mutex.release()
                 try:
                     data = self.root_data
@@ -623,8 +621,6 @@ class DataItem(Storage.StorageBase):
             if self.is_data_2d:
                 if self.__cached_data is not None:
                     return self.__cached_data[pos[0], pos[1]]
-                elif self.__last_cached_data is not None:
-                    return self.__last_cached_data[pos[0], pos[1]]
         return None
 
     def __get_preview_2d(self):
@@ -679,18 +675,6 @@ class DataItem(Storage.StorageBase):
                 rgba[:,:,0:3] = data
                 rgba[:,:,3] = 255
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-
-    # returns the best data available without doing a calculation. may return None.
-    # if the best is not the latest, also triggers the data to calculate
-    def __get_best_data(self):
-        with self.__data_mutex:
-            data = self.__cached_data
-            if data is None:
-                data = self.__last_cached_data
-                if self.__thumbnail_thread:  # this will trigger the data to load
-                    self.__thumbnail_thread.update_data(self)
-        return data
-    best_data = property(__get_best_data)
 
     # this will be invoked on a thread
     def load_thumbnail(self):
