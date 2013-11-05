@@ -39,20 +39,18 @@ class TestStorageClass(unittest.TestCase):
             data_item3
     """
     def save_document(self, document_controller):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((16, 16), numpy.uint32)
-        data_item.master_data[:] = 50
-        data_item.master_data[8, 8] = 2020
+        data = numpy.zeros((16, 16), numpy.uint32)
+        data[:] = 50
+        data[8, 8] = 2020
+        data_item = DataItem.DataItem(data)
         data_item.display_limits = (500, 1000)
         data_item.set_properties({ "one": 1 })
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
-        data_item2 = DataItem.DataItem()
-        data_item2.master_data = scipy.misc.lena()
+        data_item2 = DataItem.DataItem(scipy.misc.lena())
         data_group.data_items.append(data_item2)
-        data_item3 = DataItem.DataItem()
-        data_item3.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_group.data_items.append(data_item3)
         data_item2a = DataItem.DataItem()
         data_item2b = DataItem.DataItem()
@@ -131,7 +129,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
         self.assertIsNotNone(document_controller.document_model.default_data_group.data_items[0])
-        self.assertIsNotNone(document_controller.document_model.default_data_group.data_items[0].data)
+        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
+            self.assertIsNotNone(data_accessor.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.default_data_group.data_items[0].uuid)
         self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].calibrations))
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
@@ -147,16 +146,16 @@ class TestStorageClass(unittest.TestCase):
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem()
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
-        data_item.master_data = data1
+        data_item = DataItem.DataItem(data1)
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        data_item.master_data = data2
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = data2
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
@@ -166,12 +165,14 @@ class TestStorageClass(unittest.TestCase):
         storage_reader = Storage.DbStorageReader(db_name)
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
-        self.assertEqual(document_controller.document_model.default_data_group.data_items[0].data[0,0], 2)
+        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
+            self.assertEqual(data_accessor.data[0,0], 2)
 
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        data_item.master_data = data2
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = data2
 
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
@@ -179,10 +180,9 @@ class TestStorageClass(unittest.TestCase):
         storage_writer = Storage.DbStorageWriter(db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem()
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
-        data_item.master_data = data1
+        data_item = DataItem.DataItem(data1)
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
@@ -198,7 +198,8 @@ class TestStorageClass(unittest.TestCase):
         storage_reader = Storage.DbStorageReader(db_name)
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
-        self.assertEqual(document_controller.document_model.default_data_group.data_items[0].data[0,0], 2)
+        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
+            self.assertEqual(data_accessor.data[0,0], 2)
 
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
@@ -207,21 +208,17 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         # insert two items at beginning. this generates primary key error unless key updating is carefully handled
-        data_item4 = DataItem.DataItem()
-        data_item4.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item4 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.data_groups[0].data_items.insert(0, data_item4)
-        data_item5 = DataItem.DataItem()
-        data_item5.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item5 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.data_groups[0].data_items.insert(0, data_item5)
         c = storage_writer.conn.cursor()
         c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 4", (str(document_controller.document_model.data_groups[0].uuid), ))
         self.assertEqual(c.fetchone()[0], 5)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
-        data_item6 = DataItem.DataItem()
-        data_item6.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item6 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.data_groups[0].data_items.insert(1, data_item6)
-        data_item7 = DataItem.DataItem()
-        data_item7.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item7 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.data_groups[0].data_items.insert(1, data_item7)
         document_controller.document_model.data_groups[0].data_items.remove(document_controller.document_model.data_groups[0].data_items[2])
         # make sure indexes are in sequence still
@@ -330,8 +327,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.default_data_group.data_items.append(data_item)
         with self.assertRaises(AssertionError):
             document_model.default_data_group.data_items.append(data_item)

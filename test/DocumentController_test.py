@@ -26,11 +26,9 @@ def construct_test_document(app, workspace_id=None):
     document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
     data_group1 = DataGroup.DataGroup()
     document_controller.document_model.data_groups.append(data_group1)
-    data_item1a = DataItem.DataItem()
-    data_item1a.master_data = numpy.zeros((256, 256), numpy.uint32)
+    data_item1a = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
     data_group1.data_items.append(data_item1a)
-    data_item1b = DataItem.DataItem()
-    data_item1b.master_data = numpy.zeros((256, 256), numpy.uint32)
+    data_item1b = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
     data_group1.data_items.append(data_item1b)
     data_group1a = DataGroup.DataGroup()
     data_group1.data_groups.append(data_group1a)
@@ -44,8 +42,7 @@ def construct_test_document(app, workspace_id=None):
     data_group2.data_groups.append(data_group2b)
     data_group2b1 = DataGroup.DataGroup()
     data_group2b.data_groups.append(data_group2b1)
-    data_item2b1a = DataItem.DataItem()
-    data_item2b1a.master_data = numpy.zeros((256, 256), numpy.uint32)
+    data_item2b1a = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
     data_group2b1.data_items.append(data_item2b1a)
     return document_controller
 
@@ -80,8 +77,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_controller.document_model.create_default_data_groups()
         default_data_group = document_controller.document_model.data_groups[0]
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         default_data_group.data_items.append(data_item)
         weak_data_item = weakref.ref(data_item)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
@@ -98,8 +94,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
         document_controller.document_model.data_groups.append(data_group)
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         # make sure this works when called from the main thread
         document_controller.select_data_item(data_group, data_item)
 

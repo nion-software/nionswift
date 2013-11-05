@@ -33,8 +33,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_dependent_calibration(self):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         data_item.calibrations[0].origin = 3.0
         data_item.calibrations[0].scale = 2.0
@@ -63,8 +62,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_double_dependent_calibration(self):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         data_item2 = DataItem.DataItem()
         data_item2.add_ref()
@@ -82,8 +80,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_spatial_calibration_on_rgb(self):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256, 4), numpy.uint8)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256, 4), numpy.uint8))
         data_item.add_ref()
         self.assertTrue(Image.is_shape_and_dtype_2d(*data_item.data_shape_and_dtype))
         self.assertTrue(Image.is_shape_and_dtype_rgba(*data_item.data_shape_and_dtype))
@@ -99,32 +96,34 @@ class TestDataItemClass(unittest.TestCase):
         pass
 
     def test_delete_data_item(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         weak_data_item = weakref.ref(data_item)
         data_item.remove_ref()
         data_item = None
         self.assertIsNone(weak_data_item())
 
     def test_copy_data_item(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.title = "data_item"
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
-        data_item.master_data[128, 128] = 1000  # data range (0, 1000)
-        data_item.operations.append(Operation.InvertOperation())
-        data_item.graphics.append(Graphics.RectangleGraphic())
-        data_item2 = DataItem.DataItem()
-        data_item2.title = "data_item2"
-        data_item.data_items.append(data_item2)
-        data_item_copy = copy.deepcopy(data_item)
-        # make sure the data is not shared between the original and the copy
-        self.assertEqual(data_item.master_data[0,0], 0)
-        self.assertEqual(data_item_copy.master_data[0,0], 0)
-        data_item.master_data[:] = 1
-        self.assertEqual(data_item.master_data[0,0], 1)
-        self.assertEqual(data_item_copy.master_data[0,0], 0)
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data[128, 128] = 1000  # data range (0, 1000)
+            data_accessor.master_data_updated()
+            data_item.operations.append(Operation.InvertOperation())
+            data_item.graphics.append(Graphics.RectangleGraphic())
+            data_item2 = DataItem.DataItem()
+            data_item2.title = "data_item2"
+            data_item.data_items.append(data_item2)
+            data_item_copy = copy.deepcopy(data_item)
+            with data_item_copy.create_data_accessor() as data_copy_accessor:
+                # make sure the data is not shared between the original and the copy
+                self.assertEqual(data_accessor.master_data[0,0], 0)
+                self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+                data_accessor.master_data[:] = 1
+                data_accessor.master_data_updated()
+                self.assertEqual(data_accessor.master_data[0,0], 1)
+                self.assertEqual(data_copy_accessor.master_data[0,0], 0)
         # make sure calibrations, operations, nor graphics are not shared
         self.assertNotEqual(data_item.calibrations[0], data_item_copy.calibrations[0])
         self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
@@ -141,9 +140,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_copy_data_item_with_crop(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         crop_graphic = Graphics.RectangleGraphic()
         crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
         data_item.graphics.append(crop_graphic)
@@ -161,8 +159,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_clear_thumbnail_when_data_item_changed(self):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         self.assertTrue(data_item.thumbnail_data_dirty)
         # configure a listener to know when the thumbnail is finished
@@ -179,13 +176,13 @@ class TestDataItemClass(unittest.TestCase):
         event.wait()
         data_item.remove_listener(listener)
         self.assertFalse(data_item.thumbnail_data_dirty)
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = numpy.zeros((256, 256), numpy.uint32)
         self.assertTrue(data_item.thumbnail_data_dirty)
         data_item.remove_ref()
 
     def test_thumbnail_1d(self):
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         data_item.add_ref()
         self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
         data_item.remove_ref()
@@ -195,14 +192,14 @@ class TestDataItemClass(unittest.TestCase):
         class BadOperation(Operation.FFTOperation):
             def process_data_in_place(self, data_array):
                 raise NotImplementedError()
-        data_item = DataItem.DataItem()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         data_item2 = DataItem.DataItem()
         data_item2.operations.append(BadOperation())
         data_item.data_items.append(data_item2)
         with self.assertRaises(NotImplementedError):
-            data_item2.data  # trigger the data calculation
+            with data_item2.create_data_accessor() as data2_accessor:
+                data2_accessor.data  # trigger the data calculation
             # NOTE: this test is no longer quite valid since the data call
             # is required to trigger the thumbnail data functionality.
             # thumbnails no longer trigger a call to data.
@@ -211,9 +208,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_delete_nested_data_item(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item2 = DataItem.DataItem()
         data_item.data_items.append(data_item2)
         data_item3 = DataItem.DataItem()
@@ -222,9 +218,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_copy_data_item_with_graphics(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         rect_graphic = Graphics.RectangleGraphic()
         data_item.graphics.append(rect_graphic)
         self.assertEqual(len(data_item.graphics), 1)
@@ -236,9 +231,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_data_changed(self):
         # set up the data items
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item_roi = Graphics.LineGraphic()
         data_item.graphics.append(data_item_roi)
         data_item2 = DataItem.DataItem()
@@ -269,7 +263,8 @@ class TestDataItemClass(unittest.TestCase):
         # changing the master data of the source should trigger a data changed message
         # subsequently that should trigger a changed message for dependent items
         map(Listener.reset, listeners)
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = numpy.zeros((256, 256), numpy.uint32)
         self.assertTrue(listener.data_changed and listener.display_changed)
         self.assertTrue(listener2.data_changed and listener2.display_changed)
         self.assertTrue(listener3.data_changed and listener3.display_changed)
@@ -351,20 +346,20 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_data_range(self):
-        data_item = DataItem.DataItem()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         # test scalar
-        data_item.master_data = numpy.zeros((256, 256), numpy.uint32)
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-        data_item.master_data = 50 * (xx + yy) + 25
-        data_item.data  # TODO: this should not be required
-        data_range = data_item.display_range
-        self.assertEqual(data_range, (25, 125))
-        # now test complex
-        data_item.master_data = numpy.zeros((256, 256), numpy.complex64)
-        xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-        data_item.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-        data_item.data  # TODO: this should not be required
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = 50 * (xx + yy) + 25
+            data_accessor.data  # TODO: this should not be required
+            data_range = data_item.display_range
+            self.assertEqual(data_range, (25, 125))
+            # now test complex
+            data_accessor.master_data = numpy.zeros((256, 256), numpy.complex64)
+            xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
+            data_accessor.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
+            data_accessor.data  # TODO: this should not be required
         data_range = data_item.display_range
         data_min = math.log(math.sqrt(2*2 + 3*3) + 1)
         data_max = math.log(math.sqrt(12*12 + 13*13) + 1)

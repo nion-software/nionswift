@@ -39,23 +39,20 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.data_groups.append(data_group)
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item1)
         data_item1a = DataItem.DataItem()
         data_item1a.title = "data_item1a"
         data_item1.data_items.append(data_item1a)
-        data_item2 = DataItem.DataItem()
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item2)
         data_item2a = DataItem.DataItem()
         data_item2a.title = "data_item2a"
         data_item2.data_items.append(data_item2a)
-        data_item3 = DataItem.DataItem()
+        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
-        data_item3.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item3)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item1)
@@ -88,13 +85,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.title = "data_group"
         parent_data_group.data_groups.append(data_group)
         document_controller.document_model.data_groups.append(parent_data_group)
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item1)
-        data_item2 = DataItem.DataItem()
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item2)
         image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item1)
@@ -134,16 +129,14 @@ class TestDataPanelClass(unittest.TestCase):
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
         parent_data_group.data_groups.append(data_group1)
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Data 1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
         parent_data_group.data_groups.append(data_group2)
-        data_item2 = DataItem.DataItem()
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "Data 2"
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group2.data_items.append(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
         image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
@@ -232,16 +225,14 @@ class TestDataPanelClass(unittest.TestCase):
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
         parent_data_group.data_groups.append(data_group1)
-        data_item1 = DataItem.DataItem()
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         data_group1.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
         parent_data_group.data_groups.append(data_group2)
-        data_item2 = DataItem.DataItem()
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group2.data_items.append(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
         image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
@@ -282,17 +273,14 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.data_groups.append(data_group)
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item1)
-        data_item2 = DataItem.DataItem()
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item2)
-        data_item3 = DataItem.DataItem()
+        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
-        data_item3.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item3)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
@@ -306,9 +294,8 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(0)["uuid"], str(data_item1.uuid))
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(1)["uuid"], str(data_item3.uuid))
         # insert new item
-        data_item4 = DataItem.DataItem()
+        data_item4 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item4.title = "data_item4"
-        data_item4.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.insert(1, data_item4)
         self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 3)
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(0)["uuid"], str(data_item1.uuid))
@@ -325,9 +312,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.data_groups.append(data_group)
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group.data_items.append(data_item1)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
@@ -346,9 +332,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Green 1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         document_controller.document_model.data_groups.append(data_group1)
         green_group = DataGroup.SmartDataGroup()
@@ -364,9 +349,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Green 1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         green_group = DataGroup.SmartDataGroup()
         green_group.title = "green_group"

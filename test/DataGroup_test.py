@@ -30,8 +30,7 @@ class TestDataGroupClass(unittest.TestCase):
     def test_copy(self):
         data_group = DataGroup.DataGroup()
         data_group.add_ref()
-        data_item1 = DataItem.DataItem()
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_group.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group.data_groups.append(data_group2)
@@ -53,8 +52,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_controller.document_model.data_groups.append(data_group)
         self.assertEqual(len(data_group.counted_data_items), 0)
         self.assertEqual(len(document_controller.document_model.counted_data_items), 0)
-        data_item1 = DataItem.DataItem()
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_group.data_items.append(data_item1)
         # make sure that both top level and data_group see the data item
         self.assertEqual(len(document_controller.document_model.counted_data_items), 1)
@@ -92,8 +90,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertIn(data_item1a1, data_group.counted_data_items.keys())
         self.assertIn(data_item1a1, data_item1a.counted_data_items.keys())
         # now add a data item that already has children
-        data_item2 = DataItem.DataItem()
-        data_item2.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
         operation2a = Operation.Resample2dOperation()
         data_item2a.operations.append(operation2a)
@@ -124,9 +121,8 @@ class TestDataGroupClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Green 1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         document_controller.document_model.data_groups.append(data_group1)
         green_group = DataGroup.SmartDataGroup()
@@ -141,9 +137,8 @@ class TestDataGroupClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Green 1"
-        data_item1.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_group1.data_items.append(data_item1)
         document_controller.document_model.data_groups.append(data_group1)
         green_group = DataGroup.SmartDataGroup()

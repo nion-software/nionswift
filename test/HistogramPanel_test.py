@@ -27,11 +27,13 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.image_panel = self.document_controller.selected_image_panel
         self.image_panel.image_canvas.width = 1000
         self.image_panel.image_canvas.height = 1000
-        self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000), dtype=numpy.uint32))
+        data = numpy.zeros((1000, 1000), dtype=numpy.uint32)
+        data[:] = 200
+        data[500,500] = 650
+        self.data_item = self.document_controller.document_model.set_data_by_key("test", data)
         self.data_item.add_ref()
-        self.data_item.master_data[:] = 200
-        self.data_item.master_data[500,500] = 650
-        self.data_item.data  # trigger data loading
+        with self.data_item.create_data_accessor() as data_accessor:
+            data_accessor.data  # trigger data loading
         # create the histogram panel
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram", None)
         self.histogram_panel.canvas.width = 300

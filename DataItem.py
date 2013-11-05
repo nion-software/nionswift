@@ -186,7 +186,7 @@ class ThumbnailThread(ProcessingThread):
 
 class DataItem(Storage.StorageBase):
 
-    def __init__(self):
+    def __init__(self, data=None):
         super(DataItem, self).__init__()
         self.storage_properties += ["title", "param", "display_limits", "properties"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
@@ -222,6 +222,7 @@ class DataItem(Storage.StorageBase):
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
+        self.__set_master_data(data)
 
     def __str__(self):
         return self.title if self.title else _("Untitled")
@@ -433,20 +434,6 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
-#    def __get_master_data_shape(self):
-#        return self.__master_data_shape
-#    def __set_master_data_shape(self, value):
-#        self.__master_data_shape = value
-#        self.notify_set_property("master_data_shape", self.__master_data_shape)
-#    master_data_shape = property(__get_master_data_shape, __set_master_data_shape)
-
-#    def __get_master_data_dtype(self):
-#        return self.__master_data_dtype
-#    def __set_master_data_dtype(self, value):
-#        self.__master_data_dtype = value
-#        self.notify_set_property("master_data_dtype", self.__master_data_dtype)
-#    master_data_dtype = property(__get_master_data_dtype, __set_master_data_dtype)
-
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
@@ -522,7 +509,9 @@ class DataItem(Storage.StorageBase):
         if not self.live_data:
             self.notify_set_data("master_data", self.__master_data)
         self.notify_data_item_changed({"property": "data"})
-    master_data = property(__get_master_data, __set_master_data)
+    # hidden accessor for storage subsystem. temporary.
+    def _get_master_data(self):
+        return self.__get_master_data()
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:
@@ -538,7 +527,8 @@ class DataItem(Storage.StorageBase):
             self.__data_accessor_count -= 1
             final_count = self.__data_accessor_count
         if final_count == 0:
-            logging.debug("unloading %s", self)
+            pass
+            #logging.debug("unloading %s", self)
         return final_count
 
     def __get_has_master_data(self):
@@ -548,6 +538,7 @@ class DataItem(Storage.StorageBase):
     def create_data_accessor(self):
         get_master_data = DataItem.__get_master_data
         set_master_data = DataItem.__set_master_data
+        get_data = DataItem.__get_data
         class DataAccessor(object):
             def __init__(self, data_item):
                 self.__data_item = data_item
@@ -561,8 +552,10 @@ class DataItem(Storage.StorageBase):
             def __set_master_data(self, data):
                 set_master_data(self.__data_item, data)
             master_data = property(__get_master_data, __set_master_data)
+            def master_data_updated(self):
+                pass
             def __get_data(self):
-                return self.__data_item.data
+                return get_data(self.__data_item)
             data = property(__get_data)
         return DataAccessor(self)
 
@@ -632,17 +625,9 @@ class DataItem(Storage.StorageBase):
                     self.__cached_data_range = None
                 self.__cached_data_range_dirty = False
             return self.__cached_data
-    data = property(__get_data)
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
-#            data = None
-#            if self.has_master_data:
-#                with self.create_data_accessor() as data_accessor:
-#                    data = data_accessor.master_data
-#            if data is not None:
-#                data_shape = data.shape
-#                data_dtype = data.dtype
             if self.has_master_data:
                 data_shape = self.__master_data_shape
                 data_dtype = self.__master_data_dtype
