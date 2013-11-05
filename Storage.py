@@ -128,6 +128,8 @@ class StorageBase(object):
         self.storage_items = []
         self.storage_data_keys = []
         self.storage_type = None
+        self.__cache = dict()
+        self.__cache_dirty = dict()
         self.__weak_observers = []
         self.__weak_listeners = []
         self.__weak_listeners_mutex = threading.RLock()
@@ -394,6 +396,24 @@ class StorageBase(object):
         if self.storage_writer:
             self.storage_writer.set_type(self, self.storage_type)
 
+    def set_cached_value(self, key, value, dirty=False):
+        self.__cache[key] = value
+        self.__cache_dirty[key] = False
+
+    def get_cached_value(self, key, default_value=None):
+        return self.__cache.get(key, default_value)
+
+    def remove_cached_value(self, key):
+        if key in self.__cache:
+            del self.__cache[key]
+        if key in self.__cache_dirty:
+            del self.__cache_dirty[key]
+
+    def is_cached_value_dirty(self, key):
+        return self.__cache_dirty[key] if key in self.__cache_dirty else True
+
+    def set_cached_value_dirty(self, key, dirty=True):
+        self.__cache_dirty[key] = dirty
 
 # design considerations: fast, threaded, future proof, object oriented items
 # two techniques:

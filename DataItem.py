@@ -135,7 +135,7 @@ class ThumbnailThread(ProcessingThread):
             return data_item
 
     def process_data(self, data_item):
-        data_item.load_thumbnail()
+        data_item.load_thumbnail_on_thread()
 
     def release_data(self, data_item):
         data_item.remove_ref()
@@ -208,17 +208,11 @@ class DataItem(Storage.StorageBase):
         self.__data_mutex = threading.RLock()
         self.__cached_data = None
         self.__cached_data_dirty = True
-        self.__cached_data_range = None
-        self.__cached_data_range_dirty = True
         self.__master_data = None
-        self.__master_data_shape = None
-        self.__master_data_dtype = None
         self.__data_source = None
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()
         self.__preview = None
-        self.__thumbnail_data = None
-        self.__thumbnail_data_dirty = True
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
@@ -286,7 +280,7 @@ class DataItem(Storage.StorageBase):
     def notify_data_item_changed(self, info):
         # clear the preview and thumbnail
         if info["property"] != "thumbnail":
-            self.__thumbnail_data_dirty = True
+            self.set_cached_value_dirty("thumbnail_data")
         self.__preview = None
         # but only clear the data cache if the data changed
         if info["property"] != "display":
@@ -304,7 +298,7 @@ class DataItem(Storage.StorageBase):
 
     def __get_display_range(self):
         with self.__data_mutex:
-            data_range = self.__cached_data_range
+            data_range = self.get_cached_value("data_range")
         return self.__display_limits if self.__display_limits else data_range
     # TODO: this is only valid after data has been called (!)
     display_range = property(__get_display_range)
@@ -498,11 +492,11 @@ class DataItem(Storage.StorageBase):
         assert data is None or self.__data_source is None  # can't have master data and data source
         with self.__data_mutex:
             if data is not None:
-                self.__master_data_shape = data.shape
-                self.__master_data_dtype = data.dtype
+                self.set_cached_value("master_data_shape", data.shape)
+                self.set_cached_value("master_data_dtype", data.dtype)
             else:
-                self.__master_data_shape = None
-                self.__master_data_dtype = None
+                self.remove_cached_value("master_data_shape")
+                self.remove_cached_value("master_data_dtype")
             self.__master_data = data
             spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
             self.sync_calibrations(spatial_ndim)
@@ -589,7 +583,7 @@ class DataItem(Storage.StorageBase):
     def __clear_cached_data(self):
         with self.__data_mutex:
             self.__cached_data_dirty = True
-            self.__cached_data_range_dirty = True
+            self.set_cached_value_dirty("data_range")
         self.__preview = None
 
     # data property. read only. this method should almost *never* be called on the main thread since
@@ -615,22 +609,21 @@ class DataItem(Storage.StorageBase):
                     self.__data_mutex.acquire()
                 self.__cached_data = data
                 if self.is_data_rgb_type:
-                    self.__cached_data_range = (0, 255)
+                    self.set_cached_value("data_range", (0, 255))
                 elif self.is_data_complex_type:
                     scalar_data = Image.scalar_from_array(data)
-                    self.__cached_data_range = (scalar_data.min(), scalar_data.max())
+                    self.set_cached_value("data_range", (scalar_data.min(), scalar_data.max()))
                 elif data is not None:
-                    self.__cached_data_range = (data.min(), data.max())
+                    self.set_cached_value("data_range", (data.min(), data.max()))
                 else:
-                    self.__cached_data_range = None
-                self.__cached_data_range_dirty = False
+                    self.remove_cached_value("data_range")
             return self.__cached_data
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
             if self.has_master_data:
-                data_shape = self.__master_data_shape
-                data_dtype = self.__master_data_dtype
+                data_shape = self.get_cached_value("master_data_shape")
+                data_dtype = self.get_cached_value("master_data_dtype")
             elif self.data_source:
                 data_shape = self.data_source.data_shape
                 data_dtype = self.data_source.data_dtype
@@ -693,7 +686,7 @@ class DataItem(Storage.StorageBase):
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
                 with self.__data_mutex:
-                    data_range = self.__cached_data_range
+                    data_range = self.get_cached_value("data_range")
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=self.display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
@@ -741,35 +734,34 @@ class DataItem(Storage.StorageBase):
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
     # this will be invoked on a thread
-    def load_thumbnail(self):
+    def load_thumbnail_on_thread(self):
         with self.create_data_accessor() as data_accessor:
             data = data_accessor.data
         if data is not None:  # for data to load and make sure it has data
             height, width = self.__thumbnail_size
             if Image.is_data_1d(data):
-                self.__thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
+                self.set_cached_value("thumbnail_data", self.__get_thumbnail_1d_data(data, height, width))
             elif Image.is_data_2d(data):
                 with self.__data_mutex:
-                    data_range = self.__cached_data_range
-                self.__thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
+                    data_range = self.get_cached_value("data_range")
+                self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits))
             else:
-                pass
-            self.__thumbnail_data_dirty = self.__thumbnail_data is None
+                self.remove_cached_value("thumbnail_data")
             self.notify_data_item_changed({"property": "thumbnail"})
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
-        if self.__thumbnail_data_dirty:
+        if self.thumbnail_data_dirty:
             if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
                 self.__thumbnail_size = (height, width)
                 self.__thumbnail_thread.update_data(self)
-            if self.__thumbnail_data is not None:
-                return self.__thumbnail_data
-            return numpy.zeros((height, width), dtype=numpy.uint32)
-        return self.__thumbnail_data
+        thumbnail_data = self.get_cached_value("thumbnail_data")
+        if thumbnail_data is not None:
+            return thumbnail_data
+        return numpy.zeros((height, width), dtype=numpy.uint32)
 
     def __get_thumbnail_data_dirty(self):
-        return self.__thumbnail_data_dirty
+        return self.is_cached_value_dirty("thumbnail_data")
     thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
 
     def __deepcopy__(self, memo):
