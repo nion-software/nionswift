@@ -77,17 +77,20 @@ class DocumentModel(Storage.StorageBase):
         # for testing, add a checkerboard image data item
         checkerboard_image_source = DataItem.DataItem()
         checkerboard_image_source.title = "Checkerboard"
-        checkerboard_image_source.master_data = Image.create_checkerboard((512, 512))
+        with checkerboard_image_source.create_data_accessor() as data_accessor:
+            data_accessor.master_data = Image.create_checkerboard((512, 512))
         self.default_data_group.data_items.append(checkerboard_image_source)
         # for testing, add a color image data item
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green Color"
-        color_image_source.master_data = Image.create_color_image((512, 512), 128, 255, 128)
+        with color_image_source.create_data_accessor() as data_accessor:
+            data_accessor.master_data = Image.create_color_image((512, 512), 128, 255, 128)
         self.default_data_group.data_items.append(color_image_source)
         # for testing, add a color image data item
         lena_image_source = DataItem.DataItem()
         lena_image_source.title = "Lena"
-        lena_image_source.master_data = scipy.misc.lena()
+        with lena_image_source.create_data_accessor() as data_accessor:
+            data_accessor.master_data = scipy.misc.lena()
         self.default_data_group.data_items.append(lena_image_source)
 
     def __get_counted_data_items(self):
@@ -147,7 +150,10 @@ class DocumentModel(Storage.StorageBase):
             return self
         def next(self):
             data_item = self.iter.next()
-            return data_item.data if data_item else None
+            if data_item:
+                with data_item.create_data_accessor() as data_accessor:
+                    return data_accessor.data
+            return None
 
     class DataAccessor(object):
         def __init__(self, document_model):
@@ -231,11 +237,15 @@ class DocumentModel(Storage.StorageBase):
         return self.get_data_item_by_title(str(key))
     def get_data_by_key(self, key):
         data_item = self.get_data_item_by_key(key)
-        return data_item.data if data_item else None
+        if data_item:
+            with data_item.create_data_accessor() as data_accessor:
+                return data_accessor.data
+        return None
     def set_data_by_key(self, key, data):
         data_item = self.get_data_item_by_key(key)
         if data_item:
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
         else:
             if isinstance(key, numbers.Integral):
                 raise IndexError
@@ -243,7 +253,8 @@ class DocumentModel(Storage.StorageBase):
                 raise KeyError
             data_item = DataItem.DataItem()
             data_item.title = str(key)
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
             self.default_data_group.data_items.append(data_item)
         return data_item
 
@@ -255,28 +266,25 @@ class DocumentModel(Storage.StorageBase):
         return None
     def get_data_by_title(self, title):
         data_item = self.get_data_item_by_title(title)
-        return data_item.data if data_item else None
-    def set_data_by_title(self, title, data):
-        data_item = self.get_data_item_by_title(title)
         if data_item:
-            data_item.data = data
-        else:
-            data_item = DataItem.DataItem()
-            data_item.title = title
-            data_item.master_data = data
-            self.default_data_group.data_items.append(data_item)
-        return data_item
+            with data_item.create_data_accessor() as data_accessor:
+                return data_accessor.data
+        return None
 
     # access data items by index
     def get_data_item_by_index(self, index):
         return list(self.get_flat_data_item_generator())[index]
     def get_data_by_index(self, index):
         data_item = self.get_data_item_by_index(index)
-        return data_item.data if data_item else None
+        if data_item:
+            with data_item.create_data_accessor() as data_accessor:
+                return data_accessor.data
+        return None
     def set_data_by_index(self, index, data):
         data_item = self.get_data_item_by_index(index)
         if data_item:
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
         else:
             raise IndexError
     def get_index_for_data_item(self, data_item):
@@ -290,11 +298,15 @@ class DocumentModel(Storage.StorageBase):
         return None
     def get_data_by_uuid(self, uuid):
         data_item = self.get_data_item_by_uuid(uuid)
-        return data_item.data if data_item else None
+        if data_item:
+            with data_item.create_data_accessor() as data_accessor:
+                return data_accessor.data
+        return None
     def set_data_by_uuid(self, uuid, data):
         data_item = self.get_data_item_by_uuid(uuid)
         if data_item:
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
         else:
             raise KeyError
 

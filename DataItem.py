@@ -205,13 +205,15 @@ class DataItem(Storage.StorageBase):
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.__properties = dict()
-        self.__data_mutex = threading.RLock()  # access to the image
+        self.__data_mutex = threading.RLock()
         self.__cached_data = None
         self.__cached_data_dirty = True
         self.__cached_data_range = None
         self.__cached_data_range_dirty = True
         self.__master_data = None
         self.__data_source = None
+        self.__data_accessor_count = 0
+        self.__data_accessor_count_mutex = threading.RLock()
         self.__preview = None
         self.thumbnail_data = None
         self.thumbnail_data_dirty = True
@@ -237,7 +239,7 @@ class DataItem(Storage.StorageBase):
         data_item.title = title
         data_item.param = param
         data_item.set_properties(properties if properties else dict())
-        data_item.master_data = master_data
+        data_item.__set_master_data(master_data)
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
         # setting master data may add calibrations automatically. remove them here to start from clean slate.
@@ -255,7 +257,7 @@ class DataItem(Storage.StorageBase):
         self.__thumbnail_thread = None
         self.closed = True
         self.data_source = None
-        self.master_data = None
+        self.__set_master_data(None)
         for data_item in copy.copy(self.data_items):
             self.data_items.remove(data_item)
         for calibration in copy.copy(self.calibrations):
@@ -342,7 +344,7 @@ class DataItem(Storage.StorageBase):
         # if calibrations are not set, then try to get them from the data source
         if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
-        data_shape, data_dtype = self.root_data_shape_and_dtype
+        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
         if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 if operation.enabled:
@@ -354,7 +356,7 @@ class DataItem(Storage.StorageBase):
     # call this when operations change or data souce changes
     # this allows operations to update their default values
     def sync_operations(self):
-        data_shape, data_dtype = self.root_data_shape_and_dtype
+        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
         if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 operation.update_data_shape_and_dtype(data_shape, data_dtype)
@@ -500,26 +502,69 @@ class DataItem(Storage.StorageBase):
         self.notify_data_item_changed({"property": "data"})
     master_data = property(__get_master_data, __set_master_data)
 
-    # root data property. read only. root data is data before operations have been applied.
+    def increment_accessor_count(self):
+        with self.__data_accessor_count_mutex:
+            self.__data_accessor_count += 1
+            return self.__data_accessor_count
+    def decrement_accessor_count(self):
+        with self.__data_accessor_count_mutex:
+            self.__data_accessor_count -= 1
+            return self.__data_accessor_count
+
+    def __get_has_master_data(self):
+        return self.__master_data is not None
+    has_master_data = property(__get_has_master_data)
+
+    def create_data_accessor(self):
+        get_master_data = DataItem.__get_master_data
+        set_master_data = DataItem.__set_master_data
+        class DataAccessor(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __enter__(self):
+                count = self.__data_item.increment_accessor_count()
+                #logging.debug("inc %s %s", self.__data_item, count)
+                return self
+            def __exit__(self, type, value, traceback):
+                count = self.__data_item.decrement_accessor_count()
+                #logging.debug("dec %s %s", self.__data_item, count)
+                pass
+            def __get_master_data(self):
+                return get_master_data(self.__data_item)
+            def __set_master_data(self, data):
+                set_master_data(self.__data_item, data)
+            master_data = property(__get_master_data, __set_master_data)
+            def __get_data(self):
+                return self.__data_item.data
+            data = property(__get_data)
+        return DataAccessor(self)
+
+    # root data is data before operations have been applied.
     def __get_root_data(self):
         with self.__data_mutex:
-            data = self.master_data
+            data = None
+            if self.has_master_data:
+                with self.create_data_accessor() as data_accessor:
+                    data = data_accessor.master_data
             if data is None:
                 if self.data_source:
-                    data = self.data_source.data
+                    with self.data_source.create_data_accessor() as data_accessor:
+                        data = data_accessor.data
             return data
-    root_data = property(__get_root_data)
 
+    # get the root data shape and dtype without causing calculation to occur if possible.
     def __get_root_data_shape_and_dtype(self):
         with self.__data_mutex:
-            master_data = self.master_data
+            master_data = None
+            if self.has_master_data:
+                with self.create_data_accessor() as data_accessor:
+                    master_data = data_accessor.master_data
             if master_data is not None:
                 return master_data.shape, master_data.dtype
             data_source = self.data_source
             if data_source:
                 return data_source.data_shape_and_dtype
         return None, None
-    root_data_shape_and_dtype = property(__get_root_data_shape_and_dtype)
 
     def __clear_cached_data(self):
         with self.__data_mutex:
@@ -539,7 +584,7 @@ class DataItem(Storage.StorageBase):
             if self.__cached_data_dirty or self.__cached_data is None:
                 self.__data_mutex.release()
                 try:
-                    data = self.root_data
+                    data = self.__get_root_data()
                     operations = self.operations
                     if len(operations) and data is not None:
                         # apply operations
@@ -564,7 +609,10 @@ class DataItem(Storage.StorageBase):
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
-            data = self.master_data
+            data = None
+            if self.has_master_data:
+                with self.create_data_accessor() as data_accessor:
+                    data = data_accessor.master_data
             if data is not None:
                 data_shape = data.shape
                 data_dtype = data.dtype
@@ -718,7 +766,11 @@ class DataItem(Storage.StorageBase):
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
-        data_item_copy.master_data = numpy.copy(self.master_data) if self.master_data is not None else None
+        if self.has_master_data:
+            with self.create_data_accessor() as data_accessor:
+                data_item_copy.__set_master_data(numpy.copy(data_accessor.master_data))
+        else:
+            data_item_copy.__set_master_data(None)
         #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
         memo[id(self)] = data_item_copy
         return data_item_copy

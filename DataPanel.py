@@ -611,7 +611,8 @@ class DataPanel(Panel.Panel):
                         image_data = rgba_image
                     data_item = DataItem.DataItem()
                     data_item.title = os.path.basename(file_path)
-                    data_item.master_data = image_data
+                    with data_item.create_data_accessor() as data_accessor:
+                        data_accessor.master_data = image_data
                     if index >= 0:
                         data_group.data_items.insert(index, data_item)
                     else:

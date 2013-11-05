@@ -36,7 +36,8 @@ class ImportExportHandler(object):
             root, filename = os.path.split(path)
             title, _ = os.path.splitext(filename)
             data_item = DataItem.DataItem()
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
             data_item.title = title
             return data_item
         return None
@@ -53,7 +54,8 @@ class ImportExportHandler(object):
             self.write_file(data_item, extension, f)
 
     def write_file(self, data_item, extension, file):
-        data = data_item.data
+        with data_item.create_data_accessor() as data_accessor:
+            data = data_accessor.data
         if data is not None:
             self.write_data(data, extension, file)
 
@@ -123,7 +125,8 @@ class StandardImportExportHandler(ImportExportHandler):
             root, filename = os.path.split(path)
             title, _ = os.path.splitext(filename)
             data_item = DataItem.DataItem()
-            data_item.master_data = data
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = data
             data_item.title = title
             return data_item
         return None

@@ -324,7 +324,8 @@ class DocumentController(object):
     def add_green_data_item(self):
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green " + str(random.randint(1,1000000))
-        color_image_source.master_data = Image.create_color_image((512, 512), 128, 255, 128)
+        with color_image_source.create_data_accessor() as data_accessor:
+            data_accessor.master_data = Image.create_color_image((512, 512), 128, 255, 128)
         self.document_model.default_data_group.data_items.append(color_image_source)
 
     def add_line_graphic(self):

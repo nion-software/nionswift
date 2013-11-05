@@ -438,7 +438,8 @@ def create_data_item_from_data_element(data_element):
 
 
 def update_data_item_from_data_element(data_item, data_element):
-    data_item.master_data = data_element["data"]
+    with data_item.create_data_accessor() as data_accessor:
+        data_accessor.master_data = data_element["data"]
     if "spatial_calibration" in data_element:
         spatial_calibration = data_element.get("spatial_calibration")
         if len(spatial_calibration) == len(data_item.spatial_shape):
