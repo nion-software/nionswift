@@ -703,7 +703,8 @@ class DataItem(Storage.StorageBase):
 
     def __get_preview_2d(self):
         if self.__preview is None:
-            data_2d = self.data
+            with self.create_data_accessor() as data_accessor:
+                data_2d = data_accessor.data
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
                 with self.__data_mutex:
@@ -756,7 +757,8 @@ class DataItem(Storage.StorageBase):
 
     # this will be invoked on a thread
     def load_thumbnail(self):
-        data = self.data
+        with self.create_data_accessor() as data_accessor:
+            data = data_accessor.data
         if data is not None:  # for data to load and make sure it has data
             height, width = self.__thumbnail_size
             if Image.is_data_1d(data):

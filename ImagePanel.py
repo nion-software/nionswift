@@ -787,6 +787,10 @@ class ImagePanel(Panel.Panel):
             self.data_item.remove_observer(self)
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
+        if data_panel_selection and data_panel_selection.data_item:
+            data_panel_selection.data_item.increment_accessor_count()
+        if self.__data_panel_selection and self.__data_panel_selection.data_item:
+            self.__data_panel_selection.data_item.decrement_accessor_count()
         self.__data_panel_selection = data_panel_selection
         # send out messages telling everyone we changed
         for weak_listener in self.__weak_listeners:
