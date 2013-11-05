@@ -245,18 +245,30 @@ class StorageBase(object):
     def get_storage_property(self, key):
         if hasattr(self, key):
             return getattr(self, key)
+        if hasattr(self, "get_" + key):
+            return getattr(self, "get_" + key)()
+        if hasattr(self, "_get_" + key):
+            return getattr(self, "_get_" + key)()
         logging.debug("get_storage_property: %s missing %s", self, key)
         raise NotImplementedError()
 
     def get_storage_item(self, key):
         if hasattr(self, key):
             return getattr(self, key)
+        if hasattr(self, "get_" + key):
+            return getattr(self, "get_" + key)()
+        if hasattr(self, "_get_" + key):
+            return getattr(self, "_get_" + key)()
         logging.debug("get_storage_item: %s missing %s", self, key)
         raise NotImplementedError()
 
     def get_storage_data(self, key):
         if hasattr(self, key):
             return getattr(self, key)
+        if hasattr(self, "get_" + key):
+            return getattr(self, "get_" + key)()
+        if hasattr(self, "_get_" + key):
+            return getattr(self, "_get_" + key)()
         logging.debug("get_storage_data: %s missing %s", self, key)
         raise NotImplementedError()
 
@@ -275,6 +287,10 @@ class StorageBase(object):
     def get_storage_relationship_all(self, key):
         if hasattr(self, key):
             return getattr(self, key)
+        if hasattr(self, "get_" + key):
+            return getattr(self, "get_" + key)()
+        if hasattr(self, "_get_" + key):
+            return getattr(self, "_get_" + key)()
         return [self.get_storage_relationship(key, i) for i in range(self.get_storage_relationship_count(key))]
 
     # implement observer/notification mechanism
