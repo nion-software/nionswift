@@ -211,6 +211,8 @@ class DataItem(Storage.StorageBase):
         self.__cached_data_range = None
         self.__cached_data_range_dirty = True
         self.__master_data = None
+        self.__master_data_shape = None
+        self.__master_data_dtype = None
         self.__data_source = None
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()
@@ -431,6 +433,20 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
+#    def __get_master_data_shape(self):
+#        return self.__master_data_shape
+#    def __set_master_data_shape(self, value):
+#        self.__master_data_shape = value
+#        self.notify_set_property("master_data_shape", self.__master_data_shape)
+#    master_data_shape = property(__get_master_data_shape, __set_master_data_shape)
+
+#    def __get_master_data_dtype(self):
+#        return self.__master_data_dtype
+#    def __set_master_data_dtype(self, value):
+#        self.__master_data_dtype = value
+#        self.notify_set_property("master_data_dtype", self.__master_data_dtype)
+#    master_data_dtype = property(__get_master_data_dtype, __set_master_data_dtype)
+
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
@@ -494,8 +510,14 @@ class DataItem(Storage.StorageBase):
         assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
         assert data is None or self.__data_source is None  # can't have master data and data source
         with self.__data_mutex:
+            if data is not None:
+                self.__master_data_shape = data.shape
+                self.__master_data_dtype = data.dtype
+            else:
+                self.__master_data_shape = None
+                self.__master_data_dtype = None
             self.__master_data = data
-            spatial_ndim = len(self.spatial_shape) if data is not None else 0
+            spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
             self.sync_calibrations(spatial_ndim)
         if not self.live_data:
             self.notify_set_data("master_data", self.__master_data)
@@ -504,12 +526,20 @@ class DataItem(Storage.StorageBase):
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:
+            initial_count = self.__data_accessor_count
             self.__data_accessor_count += 1
-            return self.__data_accessor_count
+        if initial_count == 0:
+            import traceback
+            #logging.debug("loading %s", self)
+            #traceback.print_stack()
+        return initial_count+1
     def decrement_accessor_count(self):
         with self.__data_accessor_count_mutex:
             self.__data_accessor_count -= 1
-            return self.__data_accessor_count
+            final_count = self.__data_accessor_count
+        if final_count == 0:
+            logging.debug("unloading %s", self)
+        return final_count
 
     def __get_has_master_data(self):
         return self.__master_data is not None
@@ -522,13 +552,10 @@ class DataItem(Storage.StorageBase):
             def __init__(self, data_item):
                 self.__data_item = data_item
             def __enter__(self):
-                count = self.__data_item.increment_accessor_count()
-                #logging.debug("inc %s %s", self.__data_item, count)
+                self.__data_item.increment_accessor_count()
                 return self
             def __exit__(self, type, value, traceback):
-                count = self.__data_item.decrement_accessor_count()
-                #logging.debug("dec %s %s", self.__data_item, count)
-                pass
+                self.__data_item.decrement_accessor_count()
             def __get_master_data(self):
                 return get_master_data(self.__data_item)
             def __set_master_data(self, data):
@@ -609,13 +636,16 @@ class DataItem(Storage.StorageBase):
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
-            data = None
+#            data = None
+#            if self.has_master_data:
+#                with self.create_data_accessor() as data_accessor:
+#                    data = data_accessor.master_data
+#            if data is not None:
+#                data_shape = data.shape
+#                data_dtype = data.dtype
             if self.has_master_data:
-                with self.create_data_accessor() as data_accessor:
-                    data = data_accessor.master_data
-            if data is not None:
-                data_shape = data.shape
-                data_dtype = data.dtype
+                data_shape = self.__master_data_shape
+                data_dtype = self.__master_data_dtype
             elif self.data_source:
                 data_shape = self.data_source.data_shape
                 data_dtype = self.data_source.data_dtype
