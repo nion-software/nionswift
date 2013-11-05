@@ -141,6 +141,48 @@ class ThumbnailThread(ProcessingThread):
         data_item.remove_ref()
 
 
+class HistogramThread(ProcessingThread):
+
+    def __init__(self):
+        super(HistogramThread, self).__init__(minimum_interval=0.2)
+        self.__data_item = None
+        self.__mutex = threading.RLock()  # access to the data item
+        # mutex is needed to avoid case where grab data is called
+        # simultaneously to handle_data and data item would get
+        # released twice, once in handle data and once in the final
+        # call to release data.
+        # don't start until everything is initialized
+        self.start()
+
+    def close(self):
+        super(HistogramThread, self).close()
+        # protect against handle_data being called, but the data
+        # was never grabbed. this must go _after_ the super.close
+        with self.__mutex:
+            if self.__data_item:
+                self.__data_item.remove_ref()
+
+    def handle_data(self, data_item):
+        with self.__mutex:
+            if self.__data_item:
+                self.__data_item.remove_ref()
+            self.__data_item = data_item
+        if data_item:
+            data_item.add_ref()
+
+    def grab_data(self):
+        with self.__mutex:
+            data_item = self.__data_item
+            self.__data_item = None
+            return data_item
+
+    def process_data(self, data_item):
+        data_item.load_histogram_on_thread()
+
+    def release_data(self, data_item):
+        data_item.remove_ref()
+
+
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
 # from another data item (data source).
@@ -216,6 +258,7 @@ class DataItem(Storage.StorageBase):
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
+        self.__histogram_thread = HistogramThread()
         self.__set_master_data(data)
 
     def __str__(self):
@@ -252,6 +295,8 @@ class DataItem(Storage.StorageBase):
     def about_to_delete(self):
         self.__thumbnail_thread.close()
         self.__thumbnail_thread = None
+        self.__histogram_thread.close()
+        self.__histogram_thread = None
         self.closed = True
         self.data_source = None
         self.__set_master_data(None)
@@ -279,8 +324,9 @@ class DataItem(Storage.StorageBase):
     # method to each listener.
     def notify_data_item_changed(self, info):
         # clear the preview and thumbnail
-        if info["property"] != "thumbnail":
+        if info["property"] != "thumbnail" and info["property"] != "histogram":
             self.set_cached_value_dirty("thumbnail_data")
+            self.set_cached_value_dirty("histogram_data")
         self.__preview = None
         # but only clear the data cache if the data changed
         if info["property"] != "display":
@@ -292,6 +338,7 @@ class DataItem(Storage.StorageBase):
     def __set_display_limits(self, display_limits):
         if self.__display_limits != display_limits:
             self.__display_limits = display_limits
+            self.set_cached_value_dirty("histogram_data")
             self.notify_set_property("display_limits", display_limits)
             self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
@@ -424,8 +471,9 @@ class DataItem(Storage.StorageBase):
     def __get_param(self):
         return self.__param
     def __set_param(self, value):
-        self.__param = value
-        self.notify_set_property("param", self.__param)
+        if self.__param != value:
+            self.__param = value
+            self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
     # override from storage to watch for changes to this data item. notify observers.
@@ -748,6 +796,8 @@ class DataItem(Storage.StorageBase):
             else:
                 self.remove_cached_value("thumbnail_data")
             self.notify_data_item_changed({"property": "thumbnail"})
+        else:
+            self.remove_cached_value("thumbnail_data")
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
@@ -763,6 +813,30 @@ class DataItem(Storage.StorageBase):
     def __get_thumbnail_data_dirty(self):
         return self.is_cached_value_dirty("thumbnail_data")
     thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
+
+    # this will be invoked on a thread
+    def load_histogram_on_thread(self):
+        with self.create_data_accessor() as data_accessor:
+            data = data_accessor.data
+        if data is not None:  # for data to load and make sure it has data
+            display_range = self.display_range  # may be None
+            #logging.debug("Calculating histogram %s", self)
+            histogram_data = numpy.histogram(data, range=display_range, bins=256)[0]
+            histogram_max = float(numpy.max(histogram_data))
+            histogram_data = histogram_data / histogram_max
+            self.set_cached_value("histogram_data", histogram_data)
+            self.notify_data_item_changed({"property": "histogram"})
+        else:
+            self.remove_cached_value("histogram_data")
+
+    def get_histogram_data(self):
+        if self.is_cached_value_dirty("histogram_data"):
+            if self.__histogram_thread and self.__master_data is not None or self.__data_source is not None:
+                self.__histogram_thread.update_data(self)
+        histogram_data = self.get_cached_value("histogram_data")
+        if histogram_data is not None:
+            return histogram_data
+        return numpy.zeros((256, ), dtype=numpy.uint32)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()

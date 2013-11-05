@@ -90,8 +90,6 @@ class HistogramPanel(Panel.Panel):
 
         self.pressed = False
 
-        self.__histogram_data = None
-
         self.__histogram_layer = self.canvas.create_layer()
         self.__adornments_layer = self.canvas.create_layer()
 
@@ -153,23 +151,9 @@ class HistogramPanel(Panel.Panel):
     # histogram_js will never be None after this method is called as long as the widget is valid.
     def __make_histogram(self):
 
-        if self.__histogram_data is None:
-            if self.__data_item:
-                with self.__data_item.create_data_accessor() as data_accessor:
-                    data = data_accessor.data
-                if data is not None:
-                    display_range = self.__data_item.display_range  # may be None
-                    histogram_data = numpy.histogram(data, range=display_range, bins=256)
-                    histogram_data = histogram_data[0]
-                    histogram_max = float(numpy.max(histogram_data))
-                    self.__histogram_data = histogram_data / histogram_max
+        histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
 
-        # testing the decoupling of the data item change vs. histogram calculation
-        # time.sleep(1.0)
-
-        data = self.__histogram_data
-
-        if self.__histogram_dirty and (data is not None and len(data) > 0):
+        if self.__histogram_dirty and (histogram_data is not None and len(histogram_data) > 0):
 
             self.__histogram_dirty = False
 
@@ -184,9 +168,9 @@ class HistogramPanel(Panel.Panel):
             ctx.save()
             ctx.begin_path()
             ctx.move_to(0, canvas_height)
-            ctx.line_to(0, canvas_height * (1 - data[0]))
+            ctx.line_to(0, canvas_height * (1 - histogram_data[0]))
             for i in xrange(1,canvas_width,2):
-                ctx.line_to(i, canvas_height * (1 - data[int(len(data)*float(i)/canvas_width)]))
+                ctx.line_to(i, canvas_height * (1 - histogram_data[int(len(histogram_data)*float(i)/canvas_width)]))
             ctx.line_to(canvas_width, canvas_height)
             ctx.close_path()
             ctx.fill_style = "#888"
@@ -273,7 +257,6 @@ class HistogramPanel(Panel.Panel):
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.pressed:
             self.__display_limits = (0, 1)
-        self.__histogram_data = None
         self.__histogram_dirty = True
         self.__adornments_dirty = True
         self.__update_histogram()
