@@ -217,8 +217,8 @@ class DataItem(Storage.StorageBase):
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()
         self.__preview = None
-        self.thumbnail_data = None
-        self.thumbnail_data_dirty = True
+        self.__thumbnail_data = None
+        self.__thumbnail_data_dirty = True
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
@@ -286,7 +286,7 @@ class DataItem(Storage.StorageBase):
     def notify_data_item_changed(self, info):
         # clear the preview and thumbnail
         if info["property"] != "thumbnail":
-            self.thumbnail_data_dirty = True
+            self.__thumbnail_data_dirty = True
         self.__preview = None
         # but only clear the data cache if the data changed
         if info["property"] != "display":
@@ -747,26 +747,30 @@ class DataItem(Storage.StorageBase):
         if data is not None:  # for data to load and make sure it has data
             height, width = self.__thumbnail_size
             if Image.is_data_1d(data):
-                self.thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
+                self.__thumbnail_data = self.__get_thumbnail_1d_data(data, height, width)
             elif Image.is_data_2d(data):
                 with self.__data_mutex:
                     data_range = self.__cached_data_range
-                self.thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
+                self.__thumbnail_data = self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits)
             else:
                 pass
-            self.thumbnail_data_dirty = self.thumbnail_data is None
+            self.__thumbnail_data_dirty = self.__thumbnail_data is None
             self.notify_data_item_changed({"property": "thumbnail"})
 
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, height, width):
-        if self.thumbnail_data_dirty:
+        if self.__thumbnail_data_dirty:
             if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
                 self.__thumbnail_size = (height, width)
                 self.__thumbnail_thread.update_data(self)
-            if self.thumbnail_data is not None:
-                return self.thumbnail_data
+            if self.__thumbnail_data is not None:
+                return self.__thumbnail_data
             return numpy.zeros((height, width), dtype=numpy.uint32)
-        return self.thumbnail_data
+        return self.__thumbnail_data
+
+    def __get_thumbnail_data_dirty(self):
+        return self.__thumbnail_data_dirty
+    thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
