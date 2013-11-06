@@ -279,11 +279,7 @@ class StorageBase(object):
             for index in range(count):
                 item = self.get_storage_relationship(relationship_key, index)
                 item.storage_cache = storage_cache
-        for key, value in self.__cache.iteritems():
-            if self.storage_cache:
-                self.storage_cache.set_cached_value(self, key, value, self.__cache_dirty.get(key, False))
-        self.__cache.clear()
-        self.__cache_dirty.clear()
+        self.spill_cache()
     storage_cache = property(__get_storage_cache, __set_storage_cache)
 
     def transaction(self):
@@ -329,11 +325,13 @@ class StorageBase(object):
                 for index in range(item_count):
                     item = self.get_storage_relationship(relationship_key, index)
                     item.end_transaction(count)
-        if transaction_count == 0 and self.storage_writer:
-            if transaction_level == "strong":
-                self.rewrite()
-            else:
-                self.rewrite_data()
+        if transaction_count == 0:
+            self.spill_cache()
+            if self.storage_writer:
+                if transaction_level == "strong":
+                    self.rewrite()
+                else:
+                    self.rewrite_data()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def get_storage_property(self, key):
@@ -531,34 +529,45 @@ class StorageBase(object):
         self.storage_writer.erase_data(self)
         self.write_data()
 
+    # move local cache items into permanent cache
+    def spill_cache(self):
+        for key, value in self.__cache.iteritems():
+            if self.storage_cache:
+                self.storage_cache.set_cached_value(self, key, value, self.__cache_dirty.get(key, False))
+        self.__cache.clear()
+        self.__cache_dirty.clear()
+
     def set_cached_value(self, key, value, dirty=False):
-        if self.storage_cache:
+        if self.storage_cache and self.__transaction_count == 0:
             self.storage_cache.set_cached_value(self, key, value, dirty)
         else:
             self.__cache[key] = value
             self.__cache_dirty[key] = False
 
     def get_cached_value(self, key, default_value=None):
+        if key in self.__cache:
+            return self.__cache.get(key)
         if self.storage_cache:
             return self.storage_cache.get_cached_value(self, key, default_value)
-        return self.__cache.get(key, default_value)
+        return default_value
 
     def remove_cached_value(self, key):
         if self.storage_cache:
             self.storage_cache.remove_cached_value(self, key)
-        else:
-            if key in self.__cache:
-                del self.__cache[key]
-            if key in self.__cache_dirty:
-                del self.__cache_dirty[key]
+        if key in self.__cache:
+            del self.__cache[key]
+        if key in self.__cache_dirty:
+            del self.__cache_dirty[key]
 
     def is_cached_value_dirty(self, key):
+        if key in self.__cache_dirty:
+            return self.__cache_dirty[key]
         if self.storage_cache:
             return self.storage_cache.is_cached_value_dirty(self, key)
-        return self.__cache_dirty[key] if key in self.__cache_dirty else True
+        return True
 
     def set_cached_value_dirty(self, key, dirty=True):
-        if self.storage_cache:
+        if self.storage_cache and self.__transaction_count == 0:
             self.storage_cache.set_cached_value_dirty(self, key, dirty)
         else:
             self.__cache_dirty[key] = dirty
@@ -1345,11 +1354,15 @@ class DbStorageCache(object):
             action_name = action[3]
             if item:
                 try:
+                    import time
                     #logging.debug("EXECUTE %s", action_name)
+                    start = time.time()
                     if result is not None:
                         result.append(item())
                     else:
                         item()
+                    elapsed = time.time() - start
+                    #logging.debug("ELAPSED %s", elapsed)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -1363,52 +1376,47 @@ class DbStorageCache(object):
                 break
 
     def create(self):
-        c = self.conn.cursor()
-        self.execute(c, "CREATE TABLE IF NOT EXISTS cache(uuid STRING, key STRING, value BLOB, dirty INTEGER, PRIMARY KEY(uuid, key))")
-        self.conn.commit()
+        with self.conn:
+            self.execute("CREATE TABLE IF NOT EXISTS cache(uuid STRING, key STRING, value BLOB, dirty INTEGER, PRIMARY KEY(uuid, key))")
 
-    def execute(self, c, stmt, args=None, log=False):
+    def execute(self, stmt, args=None, log=False):
         if args:
-            c.execute(stmt, args)
+            self.last_result = self.conn.execute(stmt, args)
             if log:
                 logging.debug("%s [%s]", stmt, args)
         else:
-            c.execute(stmt)
+            self.conn.execute(stmt)
             if log:
                 logging.debug("%s", stmt)
 
     def __set_cached_value(self, object, key, value, dirty=False):
-        c = self.conn.cursor()
-        self.execute(c, "INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), 1 if dirty else 0))
-        self.conn.commit()
+        with self.conn:
+            self.execute("INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), 1 if dirty else 0))
 
     def __get_cached_value(self, object, key, default_value=None):
-        c = self.conn.cursor()
-        self.execute(c, "SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
-        value_row = c.fetchone()
+        self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = self.last_result.fetchone()
         if value_row is not None:
-            return pickle.loads(str(value_row[0]))
+            result = pickle.loads(str(value_row[0]))
+            return result
         else:
             return default_value
 
     def __remove_cached_value(self, object, key):
-        c = self.conn.cursor()
-        self.execute(c, "DELETE FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
-        self.conn.commit()
+        with self.conn:
+            self.execute("DELETE FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
 
     def __is_cached_value_dirty(self, object, key):
-        c = self.conn.cursor()
-        self.execute(c, "SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
-        value_row = c.fetchone()
+        self.execute("SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = self.last_result.fetchone()
         if value_row is not None:
             return value_row[0] != 0
         else:
             return True
 
     def __set_cached_value_dirty(self, object, key, dirty=True):
-        c = self.conn.cursor()
-        self.execute(c, "UPDATE cache SET dirty=? WHERE uuid=? AND key=?", (1 if dirty else 0, str(object.uuid), key))
-        self.conn.commit()
+        with self.conn:
+            self.execute("UPDATE cache SET dirty=? WHERE uuid=? AND key=?", (1 if dirty else 0, str(object.uuid), key))
 
     def set_cached_value(self, object, key, value, dirty=False):
         event = threading.Event()
