@@ -67,7 +67,7 @@ class Application(object):
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
             storage_writer = Storage.DbStorageWriterProxy(db_filename)
-            storage_cache = Storage.DbStorageCache(cache_filename)
+            storage_cache = Storage.DictStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
             document_model.create_default_data_groups()
             document_model.create_test_images()
@@ -75,7 +75,7 @@ class Application(object):
             logging.debug("Using existing document %s", db_filename)
             storage_writer = Storage.DbStorageWriterProxy(db_filename)
             storage_reader = Storage.DbStorageReader(db_filename)
-            storage_cache = Storage.DbStorageCache(cache_filename)
+            storage_cache = Storage.DictStorageCache()
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
             document_model.create_default_data_groups()
         document_controller = self.create_document_controller(document_model, "library")
