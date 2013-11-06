@@ -21,10 +21,11 @@ _ = gettext.gettext
 
 class DocumentModel(Storage.StorageBase):
 
-    def __init__(self, storage_writer, storage_reader=None):
+    def __init__(self, storage_writer, storage_cache=None, storage_reader=None):
         super(DocumentModel, self).__init__()
         self.__counted_data_items = collections.Counter()
         self.storage_writer = storage_writer
+        self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")

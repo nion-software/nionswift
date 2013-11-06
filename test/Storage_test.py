@@ -95,7 +95,8 @@ class TestStorageClass(unittest.TestCase):
         node_map_copy = copy.deepcopy(storage_writer.node_map)
         storage_writer = Storage.DictStorageWriter()
         storage_reader = Storage.DictStorageReader(node_map_copy)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
+        storage_cache = Storage.DictStorageCache()
+        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
@@ -103,7 +104,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_db_storage(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
@@ -117,7 +118,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         storage_writer.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertNotEqual(document_model_uuid, document_controller.document_model.uuid)
@@ -143,7 +144,7 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
@@ -159,7 +160,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         storage_reader = Storage.DbStorageReader(db_name)
@@ -177,7 +178,7 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
@@ -192,7 +193,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         storage_reader = Storage.DbStorageReader(db_name)
@@ -203,7 +204,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
@@ -228,7 +229,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_copy_data_group(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
@@ -292,7 +293,8 @@ class TestStorageClass(unittest.TestCase):
         node_map_copy = copy.deepcopy(storage_writer.node_map)
         storage_writer = Storage.DictStorageWriter()
         storage_reader = Storage.DictStorageReader(node_map_copy)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_reader)
+        storage_cache = Storage.DictStorageCache()
+        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         document_controller.document_model.rewrite()
         # check that the graphic associated with the operation was read back
@@ -303,14 +305,14 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_set_item(self):
         # write to storage
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name, create=True)
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         storage_reader = Storage.DbStorageReader(db_name)

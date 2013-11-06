@@ -672,6 +672,16 @@ class DataItem(Storage.StorageBase):
             if self.has_master_data:
                 data_shape = self.get_cached_value("master_data_shape")
                 data_dtype = self.get_cached_value("master_data_dtype")
+                if not data_shape or not data_dtype:
+                    # typically we shouldn't encounter this unless the cache
+                    # has been lost. this happens during tests but is also
+                    # possible in the wild. recalculate shape and dtype here.
+                    with self.create_data_accessor() as data_accessor:
+                        data = data_accessor.master_data
+                        data_shape = data.shape
+                        data_dtype = data.dtype
+                        self.set_cached_value("master_data_shape", data.shape)
+                        self.set_cached_value("master_data_dtype", data.dtype)
             elif self.data_source:
                 data_shape = self.data_source.data_shape
                 data_dtype = self.data_source.data_dtype

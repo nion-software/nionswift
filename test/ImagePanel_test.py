@@ -35,7 +35,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
-        storage_writer = Storage.DbStorageWriter(":memory:", create=True)
+        db_name = ":memory:"
+        storage_writer = Storage.DbStorageWriter(db_name, db_name, create=True)
         document_model = DocumentModel.DocumentModel(storage_writer)
         self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.document_controller.document_model.create_default_data_groups()
@@ -158,6 +159,7 @@ class TestImagePanelClass(unittest.TestCase):
         # assumes the test widget is 640x480
         self.image_panel.image_canvas.width = 640
         self.image_panel.image_canvas.height = 480
+        self.assertIsNotNone(self.image_panel.map_widget_to_image((240, 320)))
         self.assertClosePoint(self.image_panel.map_widget_to_image((240, 320)), (500.0, 500.0))
         self.assertClosePoint(self.image_panel.map_widget_to_image((0, 80)), (0.0, 0.0))
         self.assertClosePoint(self.image_panel.map_widget_to_image((480, 560)), (1000.0, 1000.0))

@@ -123,6 +123,7 @@ class StorageBase(object):
 
     def __init__(self):
         self.__storage_writer = None
+        self.__storage_cache = None
         self.storage_properties = []
         self.storage_relationships = []
         self.storage_items = []
@@ -244,6 +245,26 @@ class StorageBase(object):
                 item.storage_writer = storage_writer
     storage_writer = property(__get_storage_writer, __set_storage_writer)
 
+    def __get_storage_cache(self):
+        return self.__storage_cache
+    def __set_storage_cache(self, storage_cache):
+        self.__storage_cache = storage_cache
+        for item_key in self.storage_items:
+            item = self.get_storage_item(item_key)
+            if item:
+                item.storage_cache = storage_cache
+        for relationship_key in self.storage_relationships:
+            count = self.get_storage_relationship_count(relationship_key)
+            for index in range(count):
+                item = self.get_storage_relationship(relationship_key, index)
+                item.storage_cache = storage_cache
+        for key, value in self.__cache.iteritems():
+            if self.storage_cache:
+                self.storage_cache.set_cached_value(self, key, value, self.__cache_dirty.get(key, False))
+        self.__cache.clear()
+        self.__cache_dirty.clear()
+    storage_cache = property(__get_storage_cache, __set_storage_cache)
+
     def get_storage_property(self, key):
         if hasattr(self, key):
             return getattr(self, key)
@@ -316,6 +337,8 @@ class StorageBase(object):
         if self.storage_writer:
             item.storage_writer = self.storage_writer
             self.storage_writer.set_item(self, key, item)
+        if self.storage_cache:
+            item.storage_cache = self.storage_cache
         if item:
             item.add_parent(self)
         for weak_observer in self.__weak_observers:
@@ -329,6 +352,8 @@ class StorageBase(object):
             if self.storage_writer:
                 self.storage_writer.clear_item(self, key)
                 item.storage_writer = None
+            if self.storage_cache:
+                item.storage_cache = None
             item.remove_parent(self)
             for weak_observer in self.__weak_observers:
                 observer = weak_observer()
@@ -348,6 +373,8 @@ class StorageBase(object):
         if self.storage_writer:
             value.storage_writer = self.storage_writer
             self.storage_writer.insert_item(self, key, value, before_index)
+        if self.storage_cache:
+            value.storage_cache = self.storage_cache
         value.add_parent(self)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -359,6 +386,8 @@ class StorageBase(object):
         if self.storage_writer:
             self.storage_writer.remove_item(self, key, index)
             value.storage_writer = None
+        if self.storage_cache:
+            value.storage_cache = None
         value.remove_parent(self)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -382,6 +411,7 @@ class StorageBase(object):
             item = self.get_storage_item(item_key)
             if item:
                 item.storage_writer = self.storage_writer
+                item.storage_cache = self.storage_cache
                 self.storage_writer.set_item(self, item_key, item)
         for data_key in self.storage_data_keys:
             data = self.get_storage_data(data_key)
@@ -392,28 +422,42 @@ class StorageBase(object):
             for index in range(count):
                 item = self.get_storage_relationship(relationship_key, index)
                 item.storage_writer = self.storage_writer
+                item.storage_cache = self.storage_cache
                 self.storage_writer.insert_item(self, relationship_key, item, index)
         if self.storage_writer:
             self.storage_writer.set_type(self, self.storage_type)
 
     def set_cached_value(self, key, value, dirty=False):
-        self.__cache[key] = value
-        self.__cache_dirty[key] = False
+        if self.storage_cache:
+            self.storage_cache.set_cached_value(self, key, value, dirty)
+        else:
+            self.__cache[key] = value
+            self.__cache_dirty[key] = False
 
     def get_cached_value(self, key, default_value=None):
+        if self.storage_cache:
+            return self.storage_cache.get_cached_value(self, key, default_value)
         return self.__cache.get(key, default_value)
 
     def remove_cached_value(self, key):
-        if key in self.__cache:
-            del self.__cache[key]
-        if key in self.__cache_dirty:
-            del self.__cache_dirty[key]
+        if self.storage_cache:
+            self.storage_cache.remove_cached_value(self, key)
+        else:
+            if key in self.__cache:
+                del self.__cache[key]
+            if key in self.__cache_dirty:
+                del self.__cache_dirty[key]
 
     def is_cached_value_dirty(self, key):
+        if self.storage_cache:
+            return self.storage_cache.is_cached_value_dirty(self, key)
         return self.__cache_dirty[key] if key in self.__cache_dirty else True
 
     def set_cached_value_dirty(self, key, dirty=True):
-        self.__cache_dirty[key] = dirty
+        if self.storage_cache:
+            self.storage_cache.set_cached_value_dirty(self, key, dirty)
+        else:
+            self.__cache_dirty[key] = dirty
 
 # design considerations: fast, threaded, future proof, object oriented items
 # two techniques:
@@ -451,8 +495,8 @@ class DictStorageWriter(object):
         for key in self.__node_map.keys():
             logging.debug("%s %s: %s", type(self.__node_map[key]), key, self.__node_map[key])
 
-    def save_file(self, filename):
-        pickle.dump(self.__node_map, open(filename, "wb"))
+    def save_file(self, db_filename):
+        pickle.dump(self.__node_map, open(db_filename, "wb"))
 
     def begin_rewrite(self):
         self.__node_map = {}
@@ -586,8 +630,8 @@ class DictStorageReader(object):
         for key in self.__node_map.keys():
             logging.debug("%s: %s", key, self.__node_map[key])
 
-    def load_file(self, filename):
-        self.__node_map = pickle.load(open(filename, "rb"))
+    def load_file(self, db_filename):
+        self.__node_map = pickle.load(open(db_filename, "rb"))
 
     def find_root_node(self, type):
         for item in self.__node_map:
@@ -676,8 +720,8 @@ class DictStorageReader(object):
 
 class DbStorageWriter(object):
 
-    def __init__(self, filename, create=False):
-        self.conn = sqlite3.connect(filename, check_same_thread=False)
+    def __init__(self, db_filename, cache_filename, create=False):
+        self.conn = sqlite3.connect(db_filename, check_same_thread=False)
         self.disconnected = False
         if create:
             self.create()
@@ -871,19 +915,19 @@ class DbStorageWriter(object):
 
 class DbStorageWriterProxy(object):
 
-    def __init__(self, filename, create=False):
+    def __init__(self, db_filename, cache_filename, create=False):
         self.storage_writer = None
         self.queue = Queue.Queue()
         self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[filename, create])
+        self.__thread = threading.Thread(target=self.__run, args=[db_filename, cache_filename, create])
         self.__thread.start()
         self.__started_event.wait()
 
     def close(self):
         self.queue.put(None)
 
-    def __run(self, filename, create):
-        self.storage_writer = DbStorageWriter(filename, create)
+    def __run(self, db_filename, cache_filename, create):
+        self.storage_writer = DbStorageWriter(db_filename, cache_filename, create)
         self.__started_event.set()
         while True:
             action = self.queue.get()
@@ -977,8 +1021,8 @@ class DbStorageWriterProxy(object):
 
 class DbStorageReader(object):
 
-    def __init__(self, filename):
-        self.conn = sqlite3.connect(filename)
+    def __init__(self, db_filename):
+        self.conn = sqlite3.connect(db_filename)
         self.__item_map = {}
         self.need_rewrite = False
 
@@ -1105,3 +1149,35 @@ class DbStorageReader(object):
             return pickle.loads(str(data_row[0]))
         else:
             return default_value
+
+
+class DictStorageCache(object):
+    def __init__(self):
+        self.__cache = dict()
+        self.__cache_dirty = dict()
+
+    def set_cached_value(self, object, key, value, dirty=False):
+        cache = self.__cache.setdefault(object.uuid, dict())
+        cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
+        cache[key] = value
+        cache_dirty[key] = False
+
+    def get_cached_value(self, object, key, default_value=None):
+        cache = self.__cache.setdefault(object.uuid, dict())
+        return cache.get(key, default_value)
+
+    def remove_cached_value(self, object, key):
+        cache = self.__cache.setdefault(object.uuid, dict())
+        cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
+        if key in cache:
+            del cache[key]
+        if key in cache_dirty:
+            del cache_dirty[key]
+
+    def is_cached_value_dirty(self, object, key):
+        cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
+        return cache_dirty[key] if key in cache_dirty else True
+
+    def set_cached_value_dirty(self, object, key, dirty=True):
+        cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
+        cache_dirty[key] = dirty
