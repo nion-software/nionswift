@@ -676,9 +676,9 @@ class DataItem(Storage.StorageBase):
                             if data is not None:
                                 for operation in reversed(operations):
                                     data = operation.process_data(data)
+                    self.__get_data_range_for_data(data)
                 finally:
                     self.__data_mutex.acquire()
-                self.__get_data_range_for_data(data)
                 self.__cached_data = data
             return self.__cached_data
 
