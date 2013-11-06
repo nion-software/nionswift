@@ -264,6 +264,9 @@ class DataItem(Storage.StorageBase):
         self.__data_source = None
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()
+        self.__data_item_change_mutex = threading.RLock()
+        self.__data_item_change_count = 0
+        self.__data_item_changes = set()
         self.__preview = None
         self.__live_data = False
         self.__counted_data_items = collections.Counter()
@@ -329,19 +332,46 @@ class DataItem(Storage.StorageBase):
                 self.notify_set_data("master_data", self.__master_data)
     live_data = property(__get_live_data, __set_live_data)
 
+    def data_item_changes(self):
+        class DataItemChangeContextManager(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __enter__(self):
+                self.__data_item.begin_data_item_changes()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__data_item.end_data_item_changes()
+        return DataItemChangeContextManager(self)
+
+    def begin_data_item_changes(self):
+        with self.__data_item_change_mutex:
+            self.__data_item_change_count += 1
+
+    def end_data_item_changes(self):
+        with self.__data_item_change_mutex:
+            self.__data_item_change_count -= 1
+            data_item_change_count = self.__data_item_change_count
+            if data_item_change_count == 0:
+                changes = self.__data_item_changes
+                self.__data_item_changes = set()
+        if data_item_change_count == 0:
+            # clear the preview and thumbnail
+            if not THUMBNAIL in changes and not HISTOGRAM in changes:
+                self.set_cached_value_dirty("thumbnail_data")
+                self.set_cached_value_dirty("histogram_data")
+            self.__preview = None
+            # but only clear the data cache if the data changed
+            if not DISPLAY in changes:
+                self.__clear_cached_data()
+            self.notify_listeners("data_item_changed", self, changes)
+
     # call this when the listeners need to be updated
     # (via data_item_changed). Calling this method will send the data_item_changed
     # method to each listener.
     def notify_data_item_changed(self, changes):
-        # clear the preview and thumbnail
-        if not THUMBNAIL in changes and not HISTOGRAM in changes:
-            self.set_cached_value_dirty("thumbnail_data")
-            self.set_cached_value_dirty("histogram_data")
-        self.__preview = None
-        # but only clear the data cache if the data changed
-        if not DISPLAY in changes:
-            self.__clear_cached_data()
-        self.notify_listeners("data_item_changed", self, changes)
+        with self.data_item_changes():
+            with self.__data_item_change_mutex:
+                self.__data_item_changes.update(changes)
 
     def __get_display_limits(self):
         return self.__display_limits
@@ -568,22 +598,23 @@ class DataItem(Storage.StorageBase):
     def __get_master_data(self):
         return self.__master_data
     def __set_master_data(self, data):
-        assert not self.closed or data is None
-        assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-        assert data is None or self.__data_source is None  # can't have master data and data source
-        with self.__data_mutex:
-            if data is not None:
-                self.set_cached_value("master_data_shape", data.shape)
-                self.set_cached_value("master_data_dtype", data.dtype)
-            else:
-                self.remove_cached_value("master_data_shape")
-                self.remove_cached_value("master_data_dtype")
-            self.__master_data = data
-            spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
-            self.sync_calibrations(spatial_ndim)
-        if not self.live_data:
-            self.notify_set_data("master_data", self.__master_data)
-        self.notify_data_item_changed(set([DATA]))
+        with self.data_item_changes():
+            assert not self.closed or data is None
+            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
+            assert data is None or self.__data_source is None  # can't have master data and data source
+            with self.__data_mutex:
+                if data is not None:
+                    self.set_cached_value("master_data_shape", data.shape)
+                    self.set_cached_value("master_data_dtype", data.dtype)
+                else:
+                    self.remove_cached_value("master_data_shape")
+                    self.remove_cached_value("master_data_dtype")
+                self.__master_data = data
+                spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
+                self.sync_calibrations(spatial_ndim)
+            if not self.live_data:
+                self.notify_set_data("master_data", self.__master_data)
+            self.notify_data_item_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()

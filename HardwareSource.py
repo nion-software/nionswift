@@ -439,21 +439,22 @@ def create_data_item_from_data_element(data_element):
 
 # TODO: this time consuming method is currently being called on main thread.
 def update_data_item_from_data_element(data_item, data_element):
-    with data_item.create_data_accessor() as data_accessor:
-        data_accessor.master_data = data_element["data"]
-    if "spatial_calibration" in data_element:
-        spatial_calibration = data_element.get("spatial_calibration")
-        if len(spatial_calibration) == len(data_item.spatial_shape):
-            for dimension, dimension_calibration in enumerate(spatial_calibration):
-                origin = float(dimension_calibration[0])
-                scale = float(dimension_calibration[1])
-                units = unicode(dimension_calibration[2])
-                if scale != 0.0:
-                    data_item.calibrations[dimension].origin = origin
-                    data_item.calibrations[dimension].scale = scale
-                    data_item.calibrations[dimension].units = units
-    if "properties" in data_element:
-        properties = data_item.grab_properties()
-        for key, value in data_element.get("properties").iteritems():
-            properties[key] = value
-        data_item.release_properties(properties)
+    with data_item.data_item_changes():
+        with data_item.create_data_accessor() as data_accessor:
+            data_accessor.master_data = data_element["data"]
+        if "spatial_calibration" in data_element:
+            spatial_calibration = data_element.get("spatial_calibration")
+            if len(spatial_calibration) == len(data_item.spatial_shape):
+                for dimension, dimension_calibration in enumerate(spatial_calibration):
+                    origin = float(dimension_calibration[0])
+                    scale = float(dimension_calibration[1])
+                    units = unicode(dimension_calibration[2])
+                    if scale != 0.0:
+                        data_item.calibrations[dimension].origin = origin
+                        data_item.calibrations[dimension].scale = scale
+                        data_item.calibrations[dimension].units = units
+        if "properties" in data_element:
+            properties = data_item.grab_properties()
+            for key, value in data_element.get("properties").iteritems():
+                properties[key] = value
+            data_item.release_properties(properties)
