@@ -720,11 +720,10 @@ class DictStorageReader(object):
 
 class DbStorageWriter(object):
 
-    def __init__(self, db_filename, cache_filename, create=False):
+    def __init__(self, db_filename):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
         self.disconnected = False
-        if create:
-            self.create()
+        self.create()
         self.migrate()
 
     def close(self):
@@ -776,11 +775,11 @@ class DbStorageWriter(object):
     def create(self):
         if not self.disconnected:
             c = self.conn.cursor()
-            self.execute(c, "CREATE TABLE nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
-            self.execute(c, "CREATE TABLE properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
-            self.execute(c, "CREATE TABLE data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
-            self.execute(c, "CREATE TABLE relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
-            self.execute(c, "CREATE TABLE items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.conn.commit()
 
     def migrate(self):
@@ -788,7 +787,7 @@ class DbStorageWriter(object):
         c = self.conn.cursor()
         self.execute(c, "SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
         if c.fetchone() is None:
-            self.execute(c, "CREATE TABLE items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
         self.conn.commit()
 
     # keep. used for testing
@@ -915,19 +914,20 @@ class DbStorageWriter(object):
 
 class DbStorageWriterProxy(object):
 
-    def __init__(self, db_filename, cache_filename, create=False):
+    def __init__(self, db_filename):
         self.storage_writer = None
         self.queue = Queue.Queue()
         self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[db_filename, cache_filename, create])
+        self.__thread = threading.Thread(target=self.__run, args=[db_filename])
+        self.__thread.daemon = True
         self.__thread.start()
         self.__started_event.wait()
 
     def close(self):
         self.queue.put(None)
 
-    def __run(self, db_filename, cache_filename, create):
-        self.storage_writer = DbStorageWriter(db_filename, cache_filename, create)
+    def __run(self, db_filename):
+        self.storage_writer = DbStorageWriter(db_filename)
         self.__started_event.set()
         while True:
             action = self.queue.get()
@@ -1112,7 +1112,7 @@ class DbStorageReader(object):
         c = self.conn.cursor()
         c.execute("SELECT item_uuid FROM items WHERE parent_uuid=? AND key=?", (str(parent_node), key, ))
         value_row = c.fetchone()
-        if value_row:
+        if value_row is not None:
             item = self.build_item(value_row[0])
             return item
         return default_value
@@ -1136,7 +1136,7 @@ class DbStorageReader(object):
         c = self.conn.cursor()
         c.execute("SELECT value FROM properties WHERE uuid=? AND key=?", (parent_node, key, ))
         value_row = c.fetchone()
-        if value_row:
+        if value_row is not None:
             return pickle.loads(str(value_row[0]))
         else:
             return default_value
@@ -1181,3 +1181,122 @@ class DictStorageCache(object):
     def set_cached_value_dirty(self, object, key, dirty=True):
         cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
         cache_dirty[key] = dirty
+
+
+class DbStorageCache(object):
+    def __init__(self, cache_filename):
+        self.queue = Queue.Queue()
+        self.__started_event = threading.Event()
+        self.__thread = threading.Thread(target=self.__run, args=[cache_filename])
+        self.__thread.daemon = True
+        self.__thread.start()
+        self.__started_event.wait()
+
+    def close(self):
+        self.queue.put(None)
+
+    def __run(self, cache_filename):
+        self.conn = sqlite3.connect(cache_filename)
+        self.create()
+        self.__started_event.set()
+        while True:
+            action = self.queue.get()
+            item = action[0]
+            result = action[1]
+            event = action[2]
+            action_name = action[3]
+            if item:
+                try:
+                    #logging.debug("EXECUTE %s", action_name)
+                    if result is not None:
+                        result.append(item())
+                    else:
+                        item()
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    logging.debug("DB Error: %s", e)
+                finally:
+                    #logging.debug("FINISH")
+                    if event:
+                        event.set()
+            self.queue.task_done()
+            if not item:
+                break
+
+    def create(self):
+        c = self.conn.cursor()
+        self.execute(c, "CREATE TABLE IF NOT EXISTS cache(uuid STRING, key STRING, value BLOB, dirty INTEGER, PRIMARY KEY(uuid, key))")
+        self.conn.commit()
+
+    def execute(self, c, stmt, args=None, log=False):
+        if args:
+            c.execute(stmt, args)
+            if log:
+                logging.debug("%s [%s]", stmt, args)
+        else:
+            c.execute(stmt)
+            if log:
+                logging.debug("%s", stmt)
+
+    def __set_cached_value(self, object, key, value, dirty=False):
+        c = self.conn.cursor()
+        self.execute(c, "INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), 1 if dirty else 0))
+        self.conn.commit()
+
+    def __get_cached_value(self, object, key, default_value=None):
+        c = self.conn.cursor()
+        self.execute(c, "SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = c.fetchone()
+        if value_row is not None:
+            return pickle.loads(str(value_row[0]))
+        else:
+            return default_value
+
+    def __remove_cached_value(self, object, key):
+        c = self.conn.cursor()
+        self.execute(c, "DELETE FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        self.conn.commit()
+
+    def __is_cached_value_dirty(self, object, key):
+        c = self.conn.cursor()
+        self.execute(c, "SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = c.fetchone()
+        if value_row is not None:
+            return value_row[0] != 0
+        else:
+            return True
+
+    def __set_cached_value_dirty(self, object, key, dirty=True):
+        c = self.conn.cursor()
+        self.execute(c, "UPDATE cache SET dirty=? WHERE uuid=? AND key=?", (1 if dirty else 0, str(object.uuid), key))
+        self.conn.commit()
+
+    def set_cached_value(self, object, key, value, dirty=False):
+        event = threading.Event()
+        self.queue.put((functools.partial(self.__set_cached_value, object, key, value, dirty), None, event, "set_cached_value"))
+        event.wait()
+
+    def get_cached_value(self, object, key, default_value=None):
+        event = threading.Event()
+        result = list()
+        self.queue.put((functools.partial(self.__get_cached_value, object, key, default_value), result, event, "get_cached_value"))
+        event.wait()
+        return result[0] if len(result) > 0 else None
+
+    def remove_cached_value(self, object, key):
+        event = threading.Event()
+        self.queue.put((functools.partial(self.__remove_cached_value, object, key), None, event, "remove_cached_value"))
+        event.wait()
+
+    def is_cached_value_dirty(self, object, key):
+        event = threading.Event()
+        result = list()
+        self.queue.put((functools.partial(self.__is_cached_value_dirty, object, key), result, event, "is_cached_value_dirty"))
+        event.wait()
+        return result[0]
+
+    def set_cached_value_dirty(self, object, key, dirty=True):
+        event = threading.Event()
+        self.queue.put((functools.partial(self.__set_cached_value_dirty, object, key, dirty), None, event, "set_cached_value_dirty"))
+        event.wait()

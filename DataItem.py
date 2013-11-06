@@ -343,9 +343,32 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_changed({"property": "display"})
     display_limits = property(__get_display_limits, __set_display_limits)
 
-    def __get_display_range(self):
+    def __get_data_range_for_data(self, data):
+        if self.is_data_rgb_type:
+            data_range = (0, 255)
+        elif self.is_data_complex_type:
+            scalar_data = Image.scalar_from_array(data)
+            data_range = (scalar_data.min(), scalar_data.max())
+        elif data is not None:
+            data_range = (data.min(), data.max())
+        else:
+            data_range = None
+        if data_range:
+            self.set_cached_value("data_range", data_range)
+        else:
+            self.remove_cached_value("data_range")
+
+    def __get_data_range(self):
         with self.__data_mutex:
             data_range = self.get_cached_value("data_range")
+        if not data_range or self.is_cached_value_dirty("data_range"):
+            with self.create_data_accessor() as data_accessor:
+                data = data_accessor.data
+                self.__get_data_range_for_data(data)
+        return data_range
+
+    def __get_display_range(self):
+        data_range = self.__get_data_range()
         return self.__display_limits if self.__display_limits else data_range
     # TODO: this is only valid after data has been called (!)
     display_range = property(__get_display_range)
@@ -655,16 +678,8 @@ class DataItem(Storage.StorageBase):
                                     data = operation.process_data(data)
                 finally:
                     self.__data_mutex.acquire()
+                self.__get_data_range_for_data(data)
                 self.__cached_data = data
-                if self.is_data_rgb_type:
-                    self.set_cached_value("data_range", (0, 255))
-                elif self.is_data_complex_type:
-                    scalar_data = Image.scalar_from_array(data)
-                    self.set_cached_value("data_range", (scalar_data.min(), scalar_data.max()))
-                elif data is not None:
-                    self.set_cached_value("data_range", (data.min(), data.max()))
-                else:
-                    self.remove_cached_value("data_range")
             return self.__cached_data
 
     def __get_data_shape_and_dtype(self):
@@ -743,8 +758,7 @@ class DataItem(Storage.StorageBase):
                 data_2d = data_accessor.data
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
-                with self.__data_mutex:
-                    data_range = self.get_cached_value("data_range")
+                data_range = self.__get_data_range()
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=self.display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
@@ -796,12 +810,12 @@ class DataItem(Storage.StorageBase):
         with self.create_data_accessor() as data_accessor:
             data = data_accessor.data
         if data is not None:  # for data to load and make sure it has data
+            #logging.debug("load_thumbnail_on_thread")
             height, width = self.__thumbnail_size
             if Image.is_data_1d(data):
                 self.set_cached_value("thumbnail_data", self.__get_thumbnail_1d_data(data, height, width))
             elif Image.is_data_2d(data):
-                with self.__data_mutex:
-                    data_range = self.get_cached_value("data_range")
+                data_range = self.__get_data_range()
                 self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits))
             else:
                 self.remove_cached_value("thumbnail_data")
