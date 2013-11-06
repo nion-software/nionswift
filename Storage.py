@@ -180,8 +180,7 @@ class StorageBase(object):
     def _set_uuid(self, uuid):
         self.__uuid = uuid
 
-    # Add a listener. Listeners will receive data_item_changed message when this
-    # DataItem is notified of a change via the notify_data_item_changed() method.
+    # Add a listener.
     def add_listener(self, listener):
         with self.__weak_listeners_mutex:
             assert listener is not None
@@ -206,8 +205,7 @@ class StorageBase(object):
             traceback.print_exc()
             logging.debug("Notify Error: %s", e)
 
-    # Add a parent. Parents will receive data_item_changed message when this
-    # DataItem is notified of a change via the notify_data_item_changed() method.
+    # Add a parent.
     def add_parent(self, parent):
         assert parent is not None
         self.__weak_parents.append(weakref.ref(parent))

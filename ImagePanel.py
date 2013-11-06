@@ -795,7 +795,7 @@ class ImagePanel(Panel.Panel):
         for weak_listener in self.__weak_listeners:
             listener = weak_listener()
             listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
-        self.data_item_changed(self.data_item, {"property": "source"})
+        self.data_item_changed(self.data_item, set([DataItem.SOURCE]))
         self.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
@@ -836,10 +836,10 @@ class ImagePanel(Panel.Panel):
             self.display_changed()
 
     # tell our listeners the we changed.
-    def notify_image_panel_data_item_changed(self, info):
+    def notify_image_panel_data_item_changed(self, changes):
         for weak_listener in self.__weak_listeners:
             listener = weak_listener()
-            listener.image_panel_data_item_changed(self, info)
+            listener.image_panel_data_item_changed(self, changes)
 
     # this will result in data_item_changed being called when the data item changes.
     def add_listener(self, listener):
@@ -850,9 +850,9 @@ class ImagePanel(Panel.Panel):
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.
-    def data_item_changed(self, data_item, info):
+    def data_item_changed(self, data_item, changes):
         if data_item == self.data_item:  # we can get messages from our source data items too
-            self.notify_image_panel_data_item_changed(info)
+            self.notify_image_panel_data_item_changed(changes)
             self.update_cursor_info()
             self.image_header_controller.title = str(data_item)
             self.line_plot_header_controller.title = str(data_item)

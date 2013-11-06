@@ -360,7 +360,7 @@ class DataPanel(Panel.Panel):
 
         # data_item_changed is received from data items tracked in this model.
         # the connection is established in add_data_item using add_listener.
-        def data_item_changed(self, data_item, info):
+        def data_item_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 

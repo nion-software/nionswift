@@ -9,6 +9,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift import DataItem
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -292,7 +293,7 @@ class ProcessingPanel(Panel.Panel):
     def close(self):
         # first set the data item to None
         # this has the side effect of closing the stack groups.
-        self.selected_data_item_changed(None, {"property": "source"})
+        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -373,8 +374,8 @@ class ProcessingPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, info):
-        if info["property"] != "data":
+    def selected_data_item_changed(self, data_item, changes):
+        if not DataItem.DATA in changes:
             with self.__rebuild_mutex:
                 self.__rebuild = True
                 self.__rebuild_data_item = data_item
@@ -404,7 +405,7 @@ class InspectorPanel(Panel.Panel):
         # close the property controller
         self.data_item = None
         # first set the data item to None
-        self.selected_data_item_changed(None, {"property": "source"})
+        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -442,7 +443,7 @@ class InspectorPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, info):
+    def selected_data_item_changed(self, data_item, changes):
         with self.__update_data_item_mutex:
             self.__update_data_item = True
             self.__update_data_item_data_item = data_item

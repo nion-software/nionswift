@@ -165,8 +165,8 @@ class TestDataItemClass(unittest.TestCase):
         # configure a listener to know when the thumbnail is finished
         event = threading.Event()
         class Listener(object):
-            def data_item_changed(self, data_item, info):
-                if info["property"] == "thumbnail":
+            def data_item_changed(self, data_item, changes):
+                if DataItem.THUMBNAIL in changes:
                     event.set()
         listener = Listener()
         data_item.add_listener(listener)
@@ -249,10 +249,10 @@ class TestDataItemClass(unittest.TestCase):
                 self.data_changed = False
                 self.display_changed = False
                 self.children_changed = False
-            def data_item_changed(self, data_item, info):
-                self.data_changed = self.data_changed or info["property"] == "data"
-                self.display_changed = self.display_changed or info["property"] == "display" or info["property"] == "data"
-                self.children_changed = self.children_changed or info["property"] == "children"
+            def data_item_changed(self, data_item, changes):
+                self.data_changed = self.data_changed or DataItem.DATA in changes
+                self.display_changed = self.display_changed or DataItem.DISPLAY in changes or DataItem.DATA in changes
+                self.children_changed = self.children_changed or DataItem.CHILDREN in changes
         listener = Listener()
         data_item.add_listener(listener)
         listener2 = Listener()

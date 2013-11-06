@@ -281,7 +281,7 @@ class DocumentController(object):
             # notify listeners that the data item has changed. some listeners will be just interested
             # in the data item itself, not the group/data item combo.
             selected_data_item = selected_image_panel.data_item if selected_image_panel else None
-            self.notify_listeners("selected_data_item_changed", selected_data_item, {"property": "panel"})
+            self.notify_listeners("selected_data_item_changed", selected_data_item, set([DataItem.PANEL]))
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
     def __get_selected_data_item(self):
@@ -296,9 +296,9 @@ class DocumentController(object):
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
     # this message can mean that the data itself changed, a property changed, a source
     # changed, or the data item displayed in the image panel changed.
-    def image_panel_data_item_changed(self, image_panel, info):
+    def image_panel_data_item_changed(self, image_panel, changes):
         data_item = image_panel.data_item if image_panel else None
-        self.notify_listeners("selected_data_item_changed", data_item, info)
+        self.notify_listeners("selected_data_item_changed", data_item, changes)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.

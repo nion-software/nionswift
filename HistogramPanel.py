@@ -10,6 +10,7 @@ import numpy
 # local libraries
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
+from nion.swift import DataItem
 from nion.swift import Panel
 from nion.swift import UserInterface
 
@@ -107,7 +108,7 @@ class HistogramPanel(Panel.Panel):
         self.__histogram_thread.close()
         self.__histogram_thread = None
         # first set the data item to None
-        self.selected_data_item_changed(None, {"property": "source"})
+        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -273,7 +274,7 @@ class HistogramPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, info):
+    def selected_data_item_changed(self, data_item, changes):
         with self.__update_data_item_mutex:
             self.__update_data_item = True
             self.__update_data_item_data_item = data_item
