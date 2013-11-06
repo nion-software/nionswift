@@ -62,7 +62,7 @@ class HistogramThread(ProcessingThread):
 
 class HistogramPanel(Panel.Panel):
 
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
+    delay_queue = property(lambda self: self.document_controller)
 
     def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
@@ -232,7 +232,7 @@ class HistogramPanel(Panel.Panel):
             ctx.restore()
 
     # used for queue_main_thread decorator
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
+    delay_queue = property(lambda self: self.document_controller)
 
     def __update_canvas(self):
         if self.ui and self.widget:

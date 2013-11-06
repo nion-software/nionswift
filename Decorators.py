@@ -48,7 +48,7 @@ def queue_main_thread(f):
             # using wraps we still get useful info about the function we're calling
             # eg the name
             wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-            self.delay_queue.put(wrapped_f)
+            self.delay_queue.queue_main_thread_task(wrapped_f)
         else:
             f(self, *args, **kw)
     return new_function
@@ -70,7 +70,7 @@ def queue_main_thread_sync(f):
                     event.set()
             wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
             synced_f = functools.partial(sync_f, wrapped_f, e)
-            self.delay_queue.put(synced_f)
+            self.delay_queue.queue_main_thread_task(synced_f)
             # how do we tell if this is the main (presumably UI) thread?
             # the order from threading.enumerate() is not reliable
             if threading.current_thread().getName() != "MainThread":

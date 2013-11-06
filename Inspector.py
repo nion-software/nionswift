@@ -2,6 +2,7 @@
 import copy
 import gettext
 import logging
+import threading
 import weakref
 
 # third party libraries
@@ -220,14 +221,16 @@ class PropertyEditorController(object):
         self.ui = ui
         self.document_controller = document_controller
         self.object = object
-        self.__controllers = {}
+        self.__controllers = dict()
+        self.__updated_properties = set()
+        self.__updated_properties_mutex = threading.RLock()
         self.widget = self.ui.create_column_widget()
         # add self as observer. this will result in property_changed messages.
         self.object.add_observer(self)
-        for dict in object.description:
-            name = dict["name"]
-            type = dict["type"]
-            property = dict["property"]
+        for description in object.description:
+            name = description["name"]
+            type = description["type"]
+            property = description["property"]
             controller = construct_controller(self.ui, document_controller, self.object, type, name, property)
             if controller:
                 self.widget.add(controller.widget)
@@ -245,13 +248,17 @@ class PropertyEditorController(object):
                 controller.close()
         self.__controllers = {}
 
-    # used for queue_main_thread decorator
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
+    def periodic(self):
+        with self.__updated_properties_mutex:
+            updated_properties = self.__updated_properties
+            self.__updated_properties = set()
+        for updated_property in updated_properties:
+            if updated_property in self.__controllers:
+                self.__controllers[updated_property].update()
 
-    @queue_main_thread
     def property_changed(self, sender, property, value):
-        if property in self.__controllers:
-            self.__controllers[property].update()
+        with self.__updated_properties_mutex:
+            self.__updated_properties.add(property)
 
     def update(self):
         for controller in self.__controllers.values():
@@ -384,6 +391,10 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.remove_listener(self)
         # finish closing
         super(InspectorPanel, self).close()
+
+    def periodic(self):
+        if self.__pec:
+            self.__pec.periodic()
 
     def __update_property_editor_controller(self):
         if self.__pec:

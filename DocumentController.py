@@ -13,6 +13,7 @@ import weakref
 # local libraries
 from nion.swift.Decorators import queue_main_thread
 from nion.swift.Decorators import queue_main_thread_sync
+from nion.swift.Decorators import timeit
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DocumentModel
@@ -44,7 +45,8 @@ class DocumentController(object):
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.__cursor_weak_listeners = []
-        self.delay_queue = Queue.Queue()
+        self.__delay_queue = Queue.Queue()
+        self.__delay_queue_mutex = threading.RLock()
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -198,16 +200,34 @@ class DocumentController(object):
 
         self.window_menu.on_about_to_show = adjust_window_menu
 
+    def __get_panels(self):
+        return [dock_widget.panel for dock_widget in self.workspace.dock_widgets]
+    panels = property(__get_panels)
+
+    delay_queue = property(lambda self: self)
+
+    def queue_main_thread_task(self, task):
+        with self.__delay_queue_mutex:
+            self.__delay_queue.put(task)
+
+    #@timeit
     def periodic(self):
         # perform any pending operations
-        while not self.delay_queue.empty():
+        with self.__delay_queue_mutex:
+            qsize = self.__delay_queue.qsize()
+        while not self.__delay_queue.empty() and qsize > 0:
             try:
-                task = self.delay_queue.get(False)
+                task = self.__delay_queue.get(False)
             except Queue.Empty:
                 pass
             else:
+                #logging.debug(task)
                 task()
-                self.delay_queue.task_done()
+                self.__delay_queue.task_done()
+            qsize -= 1
+        for panel in self.panels:
+            if hasattr(panel, "periodic"):
+                panel.periodic()
 
     @queue_main_thread
     def select_data_item(self, data_group, data_item):

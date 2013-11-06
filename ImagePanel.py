@@ -1129,7 +1129,7 @@ class ImagePanelManager(object):
 
 class InfoPanel(Panel.Panel):
 
-    delay_queue = property(lambda self: self.document_controller.delay_queue)
+    delay_queue = property(lambda self: self.document_controller)
 
     def __init__(self, document_controller, panel_id, properties):
         super(InfoPanel, self).__init__(document_controller, panel_id, _("Info"))

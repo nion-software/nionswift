@@ -272,7 +272,7 @@ class DataPanel(Panel.Panel):
             self.list_model_controller = None
 
         # used for queue_main_thread decorator
-        delay_queue = property(lambda self: self.document_controller.delay_queue)
+        delay_queue = property(lambda self: self.document_controller)
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
