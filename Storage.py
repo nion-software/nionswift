@@ -392,12 +392,12 @@ class StorageBase(object):
             if observer and getattr(observer, "item_removed", None):
                 observer.item_removed(self, key, value, index)
 
-    def rewrite(self):
+    def rewrite_storage(self):
         assert self.storage_writer is not None
-        self.storage_writer.begin_rewrite()
+        self.storage_writer.begin_rewrite_storage()
         self.storage_writer.set_root(self)
         self.write()
-        self.storage_writer.end_rewrite()
+        self.storage_writer.end_rewrite_storage()
 
     def write(self):
         assert self.storage_writer is not None
@@ -496,10 +496,10 @@ class DictStorageWriter(object):
     def save_file(self, db_filename):
         pickle.dump(self.__node_map, open(db_filename, "wb"))
 
-    def begin_rewrite(self):
+    def begin_rewrite_storage(self):
         self.__node_map = {}
 
-    def end_rewrite(self):
+    def end_rewrite_storage(self):
         pass
 
     def __make_node(self, uuid):
@@ -756,15 +756,18 @@ class DbStorageWriter(object):
         logging.debug("data: %s", c.fetchone()[0])
         c.execute("SELECT COUNT(*) FROM relationships")
         logging.debug("relationships: %s", c.fetchone()[0])
+        c.execute("SELECT COUNT(*) FROM items")
+        logging.debug("items: %s", c.fetchone()[0])
 
-    def begin_rewrite(self):
+    def begin_rewrite_storage(self):
         c = self.conn.cursor()
         self.execute(c, "DELETE FROM nodes")
         self.execute(c, "DELETE FROM properties")
         self.execute(c, "DELETE FROM data")
         self.execute(c, "DELETE FROM relationships")
+        self.execute(c, "DELETE FROM items")
 
-    def end_rewrite(self):
+    def end_rewrite_storage(self):
         self.conn.commit()
 
     def set_root(self, root):
@@ -966,14 +969,14 @@ class DbStorageWriterProxy(object):
         self.queue.put((functools.partial(DbStorageWriter.create, self.storage_writer), event, "create"))
         #event.wait()
 
-    def begin_rewrite(self):
+    def begin_rewrite_storage(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite, self.storage_writer), event, "begin_rewrite"))
+        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite, self.storage_writer), event, "begin_rewrite_storage"))
         #event.wait()
 
-    def end_rewrite(self):
+    def end_rewrite_storage(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.end_rewrite, self.storage_writer), event, "end_rewrite"))
+        self.queue.put((functools.partial(DbStorageWriter.end_rewrite, self.storage_writer), event, "end_rewrite_storage"))
         #event.wait()
 
     def set_root(self, root):

@@ -37,7 +37,7 @@ class DocumentModel(Storage.StorageBase):
             # TODO: formalized db migration
             if need_rewrite:
                 logging.debug("Rewriting database")
-                self.rewrite()
+                self.rewrite_storage()
         else:
             storage_writer.set_root(self)
             self.write()

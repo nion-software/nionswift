@@ -304,7 +304,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DictStorageCache()
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller.document_model.rewrite()
+        document_controller.document_model.rewrite_storage()
         # check that the graphic associated with the operation was read back
         self.verify_and_test_set_item(document_controller)
         # clean up
