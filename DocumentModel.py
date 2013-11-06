@@ -319,16 +319,3 @@ class DocumentModel(Storage.StorageBase):
             data_group.title = group_name
             self.data_groups.insert(0, data_group)
         return data_group
-
-    def sync_channels_to_data_items(self, channels, data_group, prefix):
-        data_item_set = {}
-        for channel in channels:
-            data_item_name = "%s.%s" % (prefix, channel)
-            # only use existing data item if it has a data buffer that matches
-            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
-            if not data_item:
-                data_item = DataItem.DataItem()
-                data_item.title = data_item_name
-                data_group.data_items.append(data_item)
-            data_item_set[channel] = data_item
-        return data_item_set

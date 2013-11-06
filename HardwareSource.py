@@ -456,6 +456,5 @@ def update_data_item_from_data_element(data_item, data_element):
                         data_item.calibrations[dimension].units = units
         if "properties" in data_element:
             properties = data_item.grab_properties()
-            for key, value in data_element.get("properties").iteritems():
-                properties[key] = value
+            properties.update(data_element.get("properties"))
             data_item.release_properties(properties)

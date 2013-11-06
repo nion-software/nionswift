@@ -15,7 +15,12 @@ import weakref
 # None
 
 # local libraries
-# None
+from nion.swift.Decorators import traceit
+
+
+# transaction level indicates whether to use the still experimental strong transaction code.
+# strong transaction code may have threading or other bugs so it is still disabled.
+transaction_level = "weak" if 1 else "strong"
 
 
 class MutableRelationship(collections.MutableSequence):
@@ -250,11 +255,15 @@ class StorageBase(object):
             item = self.get_storage_item(item_key)
             if item:
                 item.storage_writer = storage_writer
+                if transaction_level == "strong" and self.__transaction_count > 0:
+                    item.begin_transaction(self.__transaction_count)
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
                 item = self.get_storage_relationship(relationship_key, index)
                 item.storage_writer = storage_writer
+                if transaction_level == "strong" and self.__transaction_count > 0:
+                    item.begin_transaction(self.__transaction_count)
     storage_writer = property(__get_storage_writer, __set_storage_writer)
 
     def __get_storage_cache(self):
@@ -293,15 +302,16 @@ class StorageBase(object):
         assert count > 0
         with self.__transaction_count_mutex:
             self.__transaction_count += count
-            for item_key in self.storage_items:
-                item = self.get_storage_item(item_key)
-                if item:
-                    item.begin_transaction(count)
-            for relationship_key in self.storage_relationships:
-                item_count = self.get_storage_relationship_count(relationship_key)
-                for index in range(item_count):
-                    item = self.get_storage_relationship(relationship_key, index)
-                    item.begin_transaction(count)
+            if transaction_level == "strong":
+                for item_key in self.storage_items:
+                    item = self.get_storage_item(item_key)
+                    if item:
+                        item.begin_transaction(count)
+                for relationship_key in self.storage_relationships:
+                    item_count = self.get_storage_relationship_count(relationship_key)
+                    for index in range(item_count):
+                        item = self.get_storage_relationship(relationship_key, index)
+                        item.begin_transaction(count)
 
     def end_transaction(self, count=1):
         assert count > 0
@@ -309,6 +319,7 @@ class StorageBase(object):
             self.__transaction_count -= count
             assert self.__transaction_count >= 0
             transaction_count = self.__transaction_count
+        if transaction_level == "strong":
             for item_key in self.storage_items:
                 item = self.get_storage_item(item_key)
                 if item:
@@ -319,7 +330,10 @@ class StorageBase(object):
                     item = self.get_storage_relationship(relationship_key, index)
                     item.end_transaction(count)
         if transaction_count == 0 and self.storage_writer:
-            self.rewrite()
+            if transaction_level == "strong":
+                self.rewrite()
+            else:
+                self.rewrite_data()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def get_storage_property(self, key):
@@ -382,7 +396,7 @@ class StorageBase(object):
         self.__weak_observers.remove(weakref.ref(observer))
 
     def notify_set_property(self, key, value):
-        if self.storage_writer and self.__transaction_count == 0:
+        if self.storage_writer and (transaction_level != "strong" or self.__transaction_count == 0):
             self.storage_writer.set_property(self, key, value)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -392,7 +406,7 @@ class StorageBase(object):
     def notify_set_item(self, key, item):
         assert item is not None
         if self.storage_writer:
-            if self.__transaction_count == 0:
+            if (transaction_level != "strong" or self.__transaction_count == 0):
                 item.storage_writer = self.storage_writer
                 self.storage_writer.set_item(self, key, item)
             else:
@@ -410,7 +424,7 @@ class StorageBase(object):
         item = self.get_storage_item(key)
         if item:
             if self.storage_writer:
-                if self.__transaction_count == 0:
+                if (transaction_level != "strong" or self.__transaction_count == 0):
                     self.storage_writer.clear_item(self, key)
                     item.storage_writer = None
                 else:
@@ -434,7 +448,7 @@ class StorageBase(object):
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
         if self.storage_writer:
-            if self.__transaction_count == 0:
+            if (transaction_level != "strong" or self.__transaction_count == 0):
                 value.storage_writer = self.storage_writer
                 self.storage_writer.insert_item(self, key, value, before_index)
             else:
@@ -450,7 +464,7 @@ class StorageBase(object):
     def notify_remove_item(self, key, value, index):
         assert value is not None
         if self.storage_writer:
-            if self.__transaction_count == 0:
+            if (transaction_level != "strong" or self.__transaction_count == 0):
                 self.storage_writer.remove_item(self, key, index)
                 value.storage_writer = None
             else:
@@ -478,30 +492,44 @@ class StorageBase(object):
 
     def write(self):
         assert self.storage_writer is not None
-        assert self.__transaction_count == 0
-        for property_key in self.storage_properties:
-            value = self.get_storage_property(property_key)
-            if value:
-                self.storage_writer.set_property(self, property_key, value)
-        for item_key in self.storage_items:
-            item = self.get_storage_item(item_key)
-            if item:
-                item.storage_writer = self.storage_writer
-                item.storage_cache = self.storage_cache
-                self.storage_writer.set_item(self, item_key, item)
+        if (transaction_level != "strong" or self.__transaction_count == 0):
+            # assert self.__transaction_count == 0  # not always True, see test_insert_item_with_transaction
+            for property_key in self.storage_properties:
+                value = self.get_storage_property(property_key)
+                if value:
+                    self.storage_writer.set_property(self, property_key, value)
+            for item_key in self.storage_items:
+                item = self.get_storage_item(item_key)
+                if item:
+                    item.storage_writer = self.storage_writer
+                    item.storage_cache = self.storage_cache
+                    self.storage_writer.set_item(self, item_key, item)
+            for data_key in self.storage_data_keys:
+                data = self.get_storage_data(data_key)
+                if data is not None:
+                    self.storage_writer.set_data(self, data_key, data)
+            for relationship_key in self.storage_relationships:
+                count = self.get_storage_relationship_count(relationship_key)
+                for index in range(count):
+                    item = self.get_storage_relationship(relationship_key, index)
+                    item.storage_writer = self.storage_writer
+                    item.storage_cache = self.storage_cache
+                    self.storage_writer.insert_item(self, relationship_key, item, index)
+            if self.storage_writer:
+                self.storage_writer.set_type(self, self.storage_type)
+
+    def write_data(self):
+        assert self.storage_writer is not None
         for data_key in self.storage_data_keys:
             data = self.get_storage_data(data_key)
             if data is not None:
                 self.storage_writer.set_data(self, data_key, data)
-        for relationship_key in self.storage_relationships:
-            count = self.get_storage_relationship_count(relationship_key)
-            for index in range(count):
-                item = self.get_storage_relationship(relationship_key, index)
-                item.storage_writer = self.storage_writer
-                item.storage_cache = self.storage_cache
-                self.storage_writer.insert_item(self, relationship_key, item, index)
-        if self.storage_writer:
-            self.storage_writer.set_type(self, self.storage_type)
+
+    def rewrite_data(self):
+        assert self.storage_writer is not None
+        assert self.__transaction_count == 0
+        self.storage_writer.erase_data(self)
+        self.write_data()
 
     def set_cached_value(self, key, value, dirty=False):
         if self.storage_cache:
@@ -621,6 +649,15 @@ class DictStorageWriter(object):
 
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
+
+    def erase_data(self, parent):
+        if self.disconnected:
+            return
+        # get the parent node
+        parent_node = self.find_node(parent)
+        # insert new node in parent
+        if "data_arrays" in parent_node:
+            del parent_node["data_arrays"]
 
     def set_type(self, item, type):
         if self.disconnected:
@@ -928,6 +965,10 @@ class DbStorageWriter(object):
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
 
+    def erase_data(self, object):
+        c = self.conn.cursor()
+        self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(object.uuid), ))
+
     def set_type(self, item, type):
         if not self.disconnected:
             c = self.conn.cursor()
@@ -1023,7 +1064,7 @@ class DbStorageWriterProxy(object):
             action_name = action[2]
             if item:
                 try:
-                    logging.debug("EXECUTE %s", action_name)
+                    #logging.debug("EXECUTE %s", action_name)
                     item()
                 except Exception as e:
                     import traceback
@@ -1073,6 +1114,11 @@ class DbStorageWriterProxy(object):
     def erase_object(self, object):
         event = threading.Event()
         self.queue.put((functools.partial(DbStorageWriter.erase_object, self.storage_writer, object), event, "erase_object"))
+        #event.wait()
+
+    def erase_data(self, object):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.erase_data, self.storage_writer, object), event, "erase_data"))
         #event.wait()
 
     def set_type(self, item, type):

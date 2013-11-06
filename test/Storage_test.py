@@ -352,5 +352,48 @@ class TestStorageClass(unittest.TestCase):
         with self.assertRaises(AssertionError):
             document_model.default_data_group.data_items.append(data_item)
 
+    def test_insert_item_with_transaction(self):
+        db_name = ":memory:"
+        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model.add_ref()
+        data_group = DataGroup.DataGroup()
+        document_model.data_groups.append(data_group)
+        data_item = DataItem.DataItem()
+        data_item.title = 'title'
+        with data_item.transaction():
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data = numpy.zeros((16, 16), numpy.uint32)
+            data_group.data_items.append(data_item)
+        storage_str = storage_writer.to_string()
+        document_model.remove_ref()
+        # make sure it reloads
+        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model.add_ref()
+        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader.from_string(storage_str)
+        document_model.read(storage_reader)
+        document_model.rewrite_storage()
+        data_group = document_model.data_groups[0]
+        self.assertEqual(len(data_group.data_items), 1)
+        data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+        data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+        data_group.data_items.append(data_item1)
+        data_group.data_items.append(data_item2)
+        data_group.data_items.append(data_item3)
+        # interleaved transactions
+        data_item1.begin_transaction()
+        data_item2.begin_transaction()
+        data_item1.end_transaction()
+        data_item3.begin_transaction()
+        data_item3.end_transaction()
+        data_item2.end_transaction()
+        # clean up
+        document_model.remove_ref()
+
 if __name__ == '__main__':
     unittest.main()

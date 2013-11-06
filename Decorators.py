@@ -1,6 +1,7 @@
 # standard libraries
 import functools
 import logging
+import Queue
 import threading
 import time
 import os
@@ -34,6 +35,15 @@ def timeit(method):
         return result
 
     return timed
+
+
+def traceit(method):
+    def traced(*args, **kw):
+        print 'ENTER %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName())
+        result = method(*args, **kw)
+        print 'EXIT %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName())
+        return result
+    return traced
 
 
 require_main_thread = True
@@ -80,6 +90,20 @@ def queue_main_thread_sync(f):
             f(self, *args, **kw)
     return new_function
 
+
+class TaskQueue(Queue.Queue):
+    def perform_tasks(self):
+        # perform any pending operations
+        qsize = self.qsize()
+        while not self.empty() and qsize > 0:
+            try:
+                task = self.get(False)
+            except Queue.Empty:
+                pass
+            else:
+                task()
+                self.task_done()
+            qsize -= 1
 
 def relative_file(parent_path, filename):
     # nb os.path.abspath is os.path.realpath
