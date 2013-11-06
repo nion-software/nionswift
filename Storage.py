@@ -1098,12 +1098,12 @@ class DbStorageWriterProxy(object):
 
     def begin_rewrite_storage(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite, self.storage_writer), event, "begin_rewrite_storage"))
+        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite_storage, self.storage_writer), event, "begin_rewrite_storage"))
         #event.wait()
 
     def end_rewrite_storage(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.end_rewrite, self.storage_writer), event, "end_rewrite_storage"))
+        self.queue.put((functools.partial(DbStorageWriter.end_rewrite_storage, self.storage_writer), event, "end_rewrite_storage"))
         #event.wait()
 
     def set_root(self, root):
