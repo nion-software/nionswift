@@ -119,6 +119,18 @@ class MutableMapping(collections.MutableMapping):
 # Connections are automatically controlled listeners. They
 # will be removed when the reference count goes to zero.
 #
+
+"""
+    Users are able to suspend immediate writing of objects to the database
+    using begin/end transaction methods.
+
+    Begin/end transaction will also function on items and relationships.
+
+    If an item disappears during a transaction, it will remain in the database
+    until this object ends its transaction, at which point it will be removed
+    if it is not referenced by anything else.
+"""
+
 class StorageBase(object):
 
     def __init__(self):
@@ -135,6 +147,8 @@ class StorageBase(object):
         self.__weak_listeners = []
         self.__weak_listeners_mutex = threading.RLock()
         self.__weak_parents = []
+        self.__transaction_count = 0
+        self.__transaction_count_mutex = threading.RLock()
         self.__ref_count = 0
         self.__ref_count_mutex = threading.RLock()  # access to the image
         self.__uuid = uuid.uuid4()
@@ -263,6 +277,51 @@ class StorageBase(object):
         self.__cache_dirty.clear()
     storage_cache = property(__get_storage_cache, __set_storage_cache)
 
+    def transaction(self):
+        class TransactionContextManager(object):
+            def __init__(self, object):
+                self.__object = object
+            def __enter__(self):
+                self.__object.begin_transaction()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__object.end_transaction()
+        return TransactionContextManager(self)
+
+    def begin_transaction(self, count=1):
+        #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
+        assert count > 0
+        with self.__transaction_count_mutex:
+            self.__transaction_count += count
+            for item_key in self.storage_items:
+                item = self.get_storage_item(item_key)
+                if item:
+                    item.begin_transaction(count)
+            for relationship_key in self.storage_relationships:
+                item_count = self.get_storage_relationship_count(relationship_key)
+                for index in range(item_count):
+                    item = self.get_storage_relationship(relationship_key, index)
+                    item.begin_transaction(count)
+
+    def end_transaction(self, count=1):
+        assert count > 0
+        with self.__transaction_count_mutex:
+            self.__transaction_count -= count
+            assert self.__transaction_count >= 0
+            transaction_count = self.__transaction_count
+            for item_key in self.storage_items:
+                item = self.get_storage_item(item_key)
+                if item:
+                    item.end_transaction(count)
+            for relationship_key in self.storage_relationships:
+                item_count = self.get_storage_relationship_count(relationship_key)
+                for index in range(item_count):
+                    item = self.get_storage_relationship(relationship_key, index)
+                    item.end_transaction(count)
+        if transaction_count == 0 and self.storage_writer:
+            self.rewrite()
+        #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
+
     def get_storage_property(self, key):
         if hasattr(self, key):
             return getattr(self, key)
@@ -323,7 +382,7 @@ class StorageBase(object):
         self.__weak_observers.remove(weakref.ref(observer))
 
     def notify_set_property(self, key, value):
-        if self.storage_writer:
+        if self.storage_writer and self.__transaction_count == 0:
             self.storage_writer.set_property(self, key, value)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -333,8 +392,11 @@ class StorageBase(object):
     def notify_set_item(self, key, item):
         assert item is not None
         if self.storage_writer:
-            item.storage_writer = self.storage_writer
-            self.storage_writer.set_item(self, key, item)
+            if self.__transaction_count == 0:
+                item.storage_writer = self.storage_writer
+                self.storage_writer.set_item(self, key, item)
+            else:
+                item.begin_transaction(self.__transaction_count)
         if self.storage_cache:
             item.storage_cache = self.storage_cache
         if item:
@@ -348,8 +410,11 @@ class StorageBase(object):
         item = self.get_storage_item(key)
         if item:
             if self.storage_writer:
-                self.storage_writer.clear_item(self, key)
-                item.storage_writer = None
+                if self.__transaction_count == 0:
+                    self.storage_writer.clear_item(self, key)
+                    item.storage_writer = None
+                else:
+                    item.end_transaction(self.__transaction_count)
             if self.storage_cache:
                 item.storage_cache = None
             item.remove_parent(self)
@@ -359,7 +424,7 @@ class StorageBase(object):
                     observer.item_cleared(self, key)
 
     def notify_set_data(self, key, data):
-        if self.storage_writer:
+        if self.storage_writer and self.__transaction_count == 0:
             self.storage_writer.set_data(self, key, data)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -369,8 +434,11 @@ class StorageBase(object):
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
         if self.storage_writer:
-            value.storage_writer = self.storage_writer
-            self.storage_writer.insert_item(self, key, value, before_index)
+            if self.__transaction_count == 0:
+                value.storage_writer = self.storage_writer
+                self.storage_writer.insert_item(self, key, value, before_index)
+            else:
+                value.begin_transaction(self.__transaction_count)
         if self.storage_cache:
             value.storage_cache = self.storage_cache
         value.add_parent(self)
@@ -382,8 +450,11 @@ class StorageBase(object):
     def notify_remove_item(self, key, value, index):
         assert value is not None
         if self.storage_writer:
-            self.storage_writer.remove_item(self, key, index)
-            value.storage_writer = None
+            if self.__transaction_count == 0:
+                self.storage_writer.remove_item(self, key, index)
+                value.storage_writer = None
+            else:
+                value.end_transaction(self.__transaction_count)
         if self.storage_cache:
             value.storage_cache = None
         value.remove_parent(self)
@@ -399,8 +470,15 @@ class StorageBase(object):
         self.write()
         self.storage_writer.end_rewrite_storage()
 
+    def rewrite(self):
+        assert self.storage_writer is not None
+        assert self.__transaction_count == 0
+        self.storage_writer.erase_object(self)
+        self.write()
+
     def write(self):
         assert self.storage_writer is not None
+        assert self.__transaction_count == 0
         for property_key in self.storage_properties:
             value = self.get_storage_property(property_key)
             if value:
@@ -520,10 +598,12 @@ class DictStorageWriter(object):
     def __add_node_ref(self, uuid):
         self.__node_map[uuid]["ref-count"] += 1
 
-    def __remove_node_ref(self, uuid):
-        node = self.__node_map[uuid]
-        node["ref-count"] -= 1
-        if node["ref-count"] == 0:
+    def __remove_node_ref(self, uuid_, ignore_refcount=False):
+        node = self.__node_map[uuid_]
+        if not ignore_refcount:
+            node["ref-count"] -= 1
+            refcount = node["ref-count"]
+        if ignore_refcount or refcount == 0:
             # first remove the items
             items = node.get("items", {})
             for item_key in items.keys():
@@ -537,7 +617,10 @@ class DictStorageWriter(object):
                 for item_uuid in list:
                     self.__remove_node_ref(item_uuid)
                 del relationships[relationship_key]
-            del self.__node_map[uuid]
+            del self.__node_map[uuid_]
+
+    def erase_object(self, object):
+        self.__remove_node_ref(object.uuid, True)
 
     def set_type(self, item, type):
         if self.disconnected:
@@ -818,29 +901,32 @@ class DbStorageWriter(object):
         c = self.conn.cursor()
         self.execute(c, "UPDATE nodes SET refcount=refcount+1 WHERE uuid = ?", (str(uuid_), ))
 
-    def __remove_node_ref(self, uuid_):
+    def __remove_node_ref(self, uuid_, ignore_refcount=False):
         c = self.conn.cursor()
-        self.execute(c, "UPDATE nodes SET refcount=refcount-1 WHERE uuid = ?", (str(uuid_), ))
-        self.execute(c, "SELECT refcount FROM nodes WHERE uuid = ?", (str(uuid_), ))
-        refcount = c.fetchone()[0]
-        if refcount == 0:
+        if not ignore_refcount:
+            self.execute(c, "UPDATE nodes SET refcount=refcount-1 WHERE uuid = ?", (str(uuid_), ))
+            self.execute(c, "SELECT refcount FROM nodes WHERE uuid = ?", (str(uuid_), ))
+            refcount = c.fetchone()[0]
+        if ignore_refcount or refcount == 0:
             # remove properties
             self.execute(c, "DELETE FROM properties WHERE uuid = ?", (str(uuid_), ))
             # remove data
             self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
             # remove single items
-            if False:  # not implemented yet
-                items = node.get("items", {})
-                for item_key in items.keys():
-                    item_uuid = items[item_key]
-                    self.__remove_node_ref(item_uuid)
-                    del items[item_key]
+            self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
+            for item_uuid in c.fetchall():
+                self.__remove_node_ref(uuid.UUID(item_uuid[0]))
+            self.execute(c, "DELETE FROM items WHERE parent_uuid=?", (str(uuid_), ))
             # remove relationships.
             self.execute(c, "SELECT item_uuid FROM relationships WHERE parent_uuid = ?", (str(uuid_), ))
             for item_uuid in c.fetchall():
                 self.__remove_node_ref(uuid.UUID(item_uuid[0]))
             self.execute(c, "DELETE FROM relationships WHERE parent_uuid = ?", (str(uuid_), ))
-            self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(uuid_), ))
+            if not ignore_refcount:
+                self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(uuid_), ))
+
+    def erase_object(self, object):
+        self.__remove_node_ref(object.uuid, True)
 
     def set_type(self, item, type):
         if not self.disconnected:
@@ -937,7 +1023,7 @@ class DbStorageWriterProxy(object):
             action_name = action[2]
             if item:
                 try:
-                    #logging.debug("EXECUTE %s", action_name)
+                    logging.debug("EXECUTE %s", action_name)
                     item()
                 except Exception as e:
                     import traceback
@@ -982,6 +1068,11 @@ class DbStorageWriterProxy(object):
     def set_root(self, root):
         event = threading.Event()
         self.queue.put((functools.partial(DbStorageWriter.set_root, self.storage_writer, root), event, "set_root"))
+        #event.wait()
+
+    def erase_object(self, object):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbStorageWriter.erase_object, self.storage_writer, object), event, "erase_object"))
         #event.wait()
 
     def set_type(self, item, type):

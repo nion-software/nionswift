@@ -233,7 +233,7 @@ class DocumentController(object):
                 panel.periodic()
                 elapsed = time.time() - start
                 if elapsed > 0.05:
-                    #logging.debug("panel %s %s", panel, elapsed)
+                    logging.debug("panel %s %s", panel, elapsed)
                     pass
 
     @queue_main_thread

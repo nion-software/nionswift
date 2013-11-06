@@ -363,6 +363,7 @@ class HardwareSourceDataBuffer(object):
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
             self.hardware_port = None
+            self.on_new_data_elements([])
             self.notify_listeners("playing_state_changed", self.hardware_source, False)
 
     # this will typically happen on the acquisition thread

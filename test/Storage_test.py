@@ -102,7 +102,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
         document_controller.close()
 
-    def test_db_storage(self):
+    def write_read_db_storage(self, include_rewrite=False):
         db_name = ":memory:"
         storage_writer = Storage.DbStorageWriter(db_name)
         storage_cache = Storage.DbStorageCache(db_name)
@@ -116,6 +116,8 @@ class TestStorageClass(unittest.TestCase):
         data_item0_calibration_len = len(document_controller.document_model.default_data_group.data_items[0].calibrations)
         data_item0_uuid = document_controller.document_model.default_data_group.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.default_data_group.data_items[1].data_items)
+        if include_rewrite:
+            document_controller.document_model.default_data_group.data_items[0].rewrite()
         document_controller.close()
         storage_writer.close()
         # read it back
@@ -142,6 +144,12 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.display_limits, (500, 1000))
         self.assertEqual(data_item.properties, { "one": 1 })
         document_controller.close()
+
+    def test_db_storage(self):
+        self.write_read_db_storage(include_rewrite=False)
+
+    def test_db_storage_rewrite(self):
+        self.write_read_db_storage(include_rewrite=True)
 
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):

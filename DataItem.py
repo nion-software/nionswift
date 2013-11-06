@@ -268,7 +268,6 @@ class DataItem(Storage.StorageBase):
         self.__data_item_change_count = 0
         self.__data_item_changes = set()
         self.__preview = None
-        self.__live_data = False
         self.__counted_data_items = collections.Counter()
         self.__thumbnail_thread = ThumbnailThread()
         self.__histogram_thread = HistogramThread()
@@ -322,15 +321,6 @@ class DataItem(Storage.StorageBase):
         for operation in copy.copy(self.operations):
             self.operations.remove(operation)
         super(DataItem, self).about_to_delete()
-
-    def __get_live_data(self):
-        return self.__live_data
-    def __set_live_data(self, live_data):
-        if self.__live_data != live_data:
-            self.__live_data = live_data
-            if not self.__live_data:
-                self.notify_set_data("master_data", self.__master_data)
-    live_data = property(__get_live_data, __set_live_data)
 
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
@@ -612,8 +602,7 @@ class DataItem(Storage.StorageBase):
                 self.__master_data = data
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
-            if not self.live_data:
-                self.notify_set_data("master_data", self.__master_data)
+            self.notify_set_data("master_data", self.__master_data)
             self.notify_data_item_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
