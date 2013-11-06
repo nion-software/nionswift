@@ -5,6 +5,7 @@ import logging
 import Queue
 import random
 import threading
+import time
 import weakref
 
 # third party libraries
@@ -201,7 +202,9 @@ class DocumentController(object):
         self.window_menu.on_about_to_show = adjust_window_menu
 
     def __get_panels(self):
-        return [dock_widget.panel for dock_widget in self.workspace.dock_widgets]
+        if self.workspace:
+            return [dock_widget.panel for dock_widget in self.workspace.dock_widgets]
+        return []
     panels = property(__get_panels)
 
     delay_queue = property(lambda self: self)
@@ -221,13 +224,17 @@ class DocumentController(object):
             except Queue.Empty:
                 pass
             else:
-                #logging.debug(task)
                 task()
                 self.__delay_queue.task_done()
             qsize -= 1
         for panel in self.panels:
             if hasattr(panel, "periodic"):
+                start = time.time()
                 panel.periodic()
+                elapsed = time.time() - start
+                if elapsed > 0.05:
+                    #logging.debug("panel %s %s", panel, elapsed)
+                    pass
 
     @queue_main_thread
     def select_data_item(self, data_group, data_item):
@@ -289,7 +296,6 @@ class DocumentController(object):
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
     # this message can mean that the data itself changed, a property changed, a source
     # changed, or the data item displayed in the image panel changed.
-    @queue_main_thread
     def image_panel_data_item_changed(self, image_panel, info):
         data_item = image_panel.data_item if image_panel else None
         self.notify_listeners("selected_data_item_changed", data_item, info)

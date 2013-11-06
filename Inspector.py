@@ -9,7 +9,6 @@ import weakref
 # None
 
 # local libraries
-from nion.swift.Decorators import queue_main_thread
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -281,6 +280,10 @@ class ProcessingPanel(Panel.Panel):
         self.column.add_stretch()
         self.__stack_groups = []
 
+        self.__rebuild = False
+        self.__rebuild_data_item = None
+        self.__rebuild_mutex = threading.RLock()
+
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
 
@@ -358,12 +361,23 @@ class ProcessingPanel(Panel.Panel):
                 self.column.insert(stack_group.widget, 0)
                 self.__stack_groups.append(stack_group)
 
+    def periodic(self):
+        with self.__rebuild_mutex:
+            rebuild = self.__rebuild
+            data_item = self.__rebuild_data_item
+            self.__rebuild = False
+            self.__rebuild_data_item = None
+        if rebuild:
+            operations = data_item.operations if data_item and data_item else []
+            self.rebuild_panel(operations)
+
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
-        operations = data_item.operations if data_item and data_item else []
         if info["property"] != "data":
-            self.rebuild_panel(operations)
+            with self.__rebuild_mutex:
+                self.__rebuild = True
+                self.__rebuild_data_item = data_item
 
 
 class InspectorPanel(Panel.Panel):
@@ -374,6 +388,10 @@ class InspectorPanel(Panel.Panel):
 
         self.__data_item = None
         self.__pec = None
+
+        self.__update_data_item = False
+        self.__update_data_item_data_item = None
+        self.__update_data_item_mutex = threading.RLock()
 
         self.data_item = None
 
@@ -395,6 +413,14 @@ class InspectorPanel(Panel.Panel):
     def periodic(self):
         if self.__pec:
             self.__pec.periodic()
+        with self.__update_data_item_mutex:
+            update_data_item = self.__update_data_item
+            data_item = self.__update_data_item_data_item
+            self.__update_data_item = False
+            self.__update_data_item_data_item = None
+        if update_data_item:
+            if self.data_item != data_item:
+                self.data_item = data_item
 
     def __update_property_editor_controller(self):
         if self.__pec:
@@ -417,5 +443,6 @@ class InspectorPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
-        if self.data_item != data_item:
-            self.data_item = data_item
+        with self.__update_data_item_mutex:
+            self.__update_data_item = True
+            self.__update_data_item_data_item = data_item

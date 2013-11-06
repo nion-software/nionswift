@@ -10,7 +10,6 @@ import numpy
 # local libraries
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
-from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift import Panel
 from nion.swift import UserInterface
 
@@ -83,6 +82,10 @@ class HistogramPanel(Panel.Panel):
         self.document_controller.add_listener(self)
 
         self.__data_item = None
+
+        self.__update_data_item = False
+        self.__update_data_item_data_item = None
+        self.__update_data_item_mutex = threading.RLock()
 
         # these are the drawn display limits. useful during tracking or when viewing display
         # limits within the context of the broader range of data.
@@ -231,9 +234,6 @@ class HistogramPanel(Panel.Panel):
             ctx.stroke()
             ctx.restore()
 
-    # used for queue_main_thread decorator
-    delay_queue = property(lambda self: self.document_controller)
-
     def __update_canvas(self):
         if self.ui and self.widget:
             self.canvas.draw()
@@ -261,8 +261,19 @@ class HistogramPanel(Panel.Panel):
         self.__adornments_dirty = True
         self.__update_histogram()
 
+    def periodic(self):
+        with self.__update_data_item_mutex:
+            update_data_item = self.__update_data_item
+            data_item = self.__update_data_item_data_item
+            self.__update_data_item = False
+            self.__update_data_item_data_item = None
+        if update_data_item:
+            if self.__histogram_thread:
+                self.__histogram_thread.update_data(data_item)
+
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, info):
-        if self.__histogram_thread:
-            self.__histogram_thread.update_data(data_item)
+        with self.__update_data_item_mutex:
+            self.__update_data_item = True
+            self.__update_data_item_data_item = data_item

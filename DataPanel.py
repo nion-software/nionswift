@@ -4,6 +4,7 @@ import gettext
 import logging
 import os
 import random
+import threading
 import uuid
 import weakref
 
@@ -12,7 +13,6 @@ import numpy
 
 # local libraries
 from nion.swift import DataItem
-from nion.swift.Decorators import queue_main_thread
 from nion.swift import DataGroup
 from nion.swift import Graphics
 from nion.swift import Image
@@ -264,15 +264,14 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.__data_group = None
+            self.__changed_data_items = set()
+            self.__changed_data_items_mutex = threading.RLock()
             self.on_receive_files = None
 
         def close(self):
             self.data_group = None
             self.list_model_controller.close()
             self.list_model_controller = None
-
-        # used for queue_main_thread decorator
-        delay_queue = property(lambda self: self.document_controller)
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -346,17 +345,24 @@ class DataPanel(Panel.Panel):
             data_item.remove_observer(self)
             data_item.remove_ref()
 
-        # data_item_changed is received from data items tracked in this model.
-        # the connection is established in add_data_item using add_listener.
-        @queue_main_thread
-        def data_item_changed(self, data_item, info):
+        def periodic(self):
+            with self.__changed_data_items_mutex:
+                changed_data_items = self.__changed_data_items
+                self.__changed_data_items = set()
             data_items_flat = self.get_data_items_flat()
             # we might be receiving this message for an item that is no longer in the list
             # if the item updates and the user switches panels. check and skip it if so.
-            if data_item in data_items_flat:
-                index = data_items_flat.index(data_item)
-                properties = self.list_model_controller.model[index]
-                self.list_model_controller.data_changed()
+            for data_item in changed_data_items:
+                if data_item in data_items_flat:
+                    index = data_items_flat.index(data_item)
+                    properties = self.list_model_controller.model[index]
+                    self.list_model_controller.data_changed()
+
+        # data_item_changed is received from data items tracked in this model.
+        # the connection is established in add_data_item using add_listener.
+        def data_item_changed(self, data_item, info):
+            with self.__changed_data_items_mutex:
+                self.__changed_data_items.add(data_item)
 
         # determine the container for the data item. this is needed because the container
         # will not always be the data group that is being currently displayed. for instance,
@@ -562,6 +568,9 @@ class DataPanel(Panel.Panel):
         self.document_controller.remove_listener(self)
         # finish closing
         super(DataPanel, self).close()
+
+    def periodic(self):
+        self.data_item_model_controller.periodic()
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce

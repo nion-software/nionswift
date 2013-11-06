@@ -16,7 +16,6 @@ import numpy
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
-from nion.swift.Decorators import queue_main_thread
 from nion.swift.Decorators import singleton
 from nion.swift import Graphics
 from nion.swift import Image
@@ -1129,14 +1128,15 @@ class ImagePanelManager(object):
 
 class InfoPanel(Panel.Panel):
 
-    delay_queue = property(lambda self: self.document_controller)
-
     def __init__(self, document_controller, panel_id, properties):
         super(InfoPanel, self).__init__(document_controller, panel_id, _("Info"))
 
         ui = document_controller.ui
 
         self.closed = False
+
+        self.__pending_info = None
+        self.__pending_info_mutex = threading.RLock()
 
         position_label = ui.create_label_widget(_("Position:"))
         self.position_text = ui.create_label_widget()
@@ -1178,12 +1178,20 @@ class InfoPanel(Panel.Panel):
         # finish closing
         super(InfoPanel, self).close()
 
+    def periodic(self):
+        with self.__pending_info_mutex:
+            do_update = self.__pending_info is not None
+            if do_update:
+                position_text, value_text, graphic_text = self.__pending_info
+                self.__pending_info = None
+        if do_update:
+            self.position_text.text = position_text
+            self.value_text.text = value_text
+            self.graphic_text.text = graphic_text
+
     # this message is received from the document controller.
     # it is established using add_listener
-    @queue_main_thread
     def cursor_changed(self, data_item, pos, selected_graphics, image_size):
-        if self.closed:  # may close from underneat since this is queued to main thread
-            return
         position_text = ""
         value_text = ""
         graphic_text = ""
@@ -1206,9 +1214,8 @@ class InfoPanel(Panel.Panel):
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
                 graphic_text = graphic.calibrated_description(image_size, calibrations)
-        self.position_text.text = position_text
-        self.value_text.text = value_text
-        self.graphic_text.text = graphic_text
+        with self.__pending_info_mutex:
+            self.__pending_info = (position_text, value_text, graphic_text)
 
 
 # make val into a pretty number

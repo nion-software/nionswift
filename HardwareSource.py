@@ -437,6 +437,7 @@ def create_data_item_from_data_element(data_element):
     return data_item
 
 
+# TODO: this time consuming method is currently being called on main thread.
 def update_data_item_from_data_element(data_item, data_element):
     with data_item.create_data_accessor() as data_accessor:
         data_accessor.master_data = data_element["data"]
