@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import functools
 import logging
 import Queue
@@ -104,6 +105,25 @@ class TaskQueue(Queue.Queue):
                 task()
                 self.task_done()
             qsize -= 1
+
+
+# keeps a set of tasks to do when perform_tasks is called.
+# each task is associated with a key. overwriting a key
+# will discard any task currently associated with that key.
+class TaskSet(object):
+    def __init__(self):
+        self.__task_dict = dict()
+        self.__task_dict_mutex = threading.RLock()
+    def add_task(self, key, task):
+        with self.__task_dict_mutex:
+            self.__task_dict[key] = task
+    def perform_tasks(self):
+        with self.__task_dict_mutex:
+            task_dict = copy.copy(self.__task_dict)
+            self.__task_dict.clear()
+        for task in task_dict.values():
+            task()
+
 
 def relative_file(parent_path, filename):
     # nb os.path.abspath is os.path.realpath

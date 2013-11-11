@@ -8,6 +8,7 @@ import time
 import numpy
 
 # local libraries
+from nion.swift import Decorators
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import relative_file
 from nion.swift import DataItem
@@ -62,12 +63,12 @@ class HistogramThread(ProcessingThread):
 
 class HistogramPanel(Panel.Panel):
 
-    delay_queue = property(lambda self: self.document_controller)
-
     def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
         ui = document_controller.ui
+
+        self.__periodic_tasks = Decorators.TaskSet()
 
         self.canvas = ui.create_canvas_widget(properties)
 
@@ -83,10 +84,6 @@ class HistogramPanel(Panel.Panel):
         self.document_controller.add_listener(self)
 
         self.__data_item = None
-
-        self.__update_data_item = False
-        self.__update_data_item_data_item = None
-        self.__update_data_item_mutex = threading.RLock()
 
         # these are the drawn display limits. useful during tracking or when viewing display
         # limits within the context of the broader range of data.
@@ -113,6 +110,9 @@ class HistogramPanel(Panel.Panel):
         self.document_controller.remove_listener(self)
         # finish closing
         super(HistogramPanel, self).close()
+
+    def periodic(self):
+        self.__periodic_tasks.perform_tasks()
 
     def __set_display_limits(self, display_limits):
         self.__display_limits = display_limits
@@ -262,19 +262,10 @@ class HistogramPanel(Panel.Panel):
         self.__adornments_dirty = True
         self.__update_histogram()
 
-    def periodic(self):
-        with self.__update_data_item_mutex:
-            update_data_item = self.__update_data_item
-            data_item = self.__update_data_item_data_item
-            self.__update_data_item = False
-            self.__update_data_item_data_item = None
-        if update_data_item:
-            if self.__histogram_thread:
-                self.__histogram_thread.update_data(data_item)
-
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, changes):
-        with self.__update_data_item_mutex:
-            self.__update_data_item = True
-            self.__update_data_item_data_item = data_item
+        def update_histogram_data():
+            if self.__histogram_thread:
+                self.__histogram_thread.update_data(data_item)
+        self.__periodic_tasks.add_task("update_histogram_data", update_histogram_data)
