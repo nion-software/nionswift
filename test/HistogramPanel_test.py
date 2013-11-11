@@ -36,34 +36,38 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.data_item.add_ref()
         with self.data_item.create_data_accessor() as data_accessor:
             data_accessor.data  # trigger data loading
-        # create the histogram panel
-        self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram", None)
-        self.histogram_panel.canvas.width = 300
-        self.histogram_panel.canvas.height = 80
-        self.histogram_panel._set_data_item(self.data_item)
+        # create the histogram canvas object
+        class CanvasObjectContainer(object):
+            def draw(self):
+                pass
+        self.histogram_canvas_object = HistogramPanel.HistogramCanvasObject(self.document_controller)
+        self.histogram_canvas_object.container =CanvasObjectContainer()
+        self.histogram_canvas_object._set_canvas(self.document_controller.ui.create_canvas_widget())
+        self.histogram_canvas_object.update_layout((300, 80))
+        self.histogram_canvas_object._set_data_item(self.data_item)
 
     def tearDown(self):
         self.data_item.remove_ref()
         self.image_panel.close()
-        self.histogram_panel.close()
+        self.histogram_canvas_object.close()
         self.document_controller.close()
 
     def test_drag_to_set_limits(self):
         self.assertEqual(self.data_item.display_range, (200, 650))
         self.assertIsNone(self.data_item.display_limits)
-        self.assertEqual(self.histogram_panel._get_data_item(), self.data_item)
+        self.assertEqual(self.histogram_canvas_object._get_data_item(), self.data_item)
         # drag
-        self.histogram_panel.mouse_pressed(60, 58, 0)
-        self.histogram_panel.mouse_position_changed(80, 58, 0)
-        self.histogram_panel.mouse_released(90, 58, 0)
+        self.histogram_canvas_object.mouse_pressed(60, 58, 0)
+        self.histogram_canvas_object.mouse_position_changed(80, 58, 0)
+        self.histogram_canvas_object.mouse_released(90, 58, 0)
         self.assertIsNotNone(self.data_item.display_limits)
         self.assertEqual(self.data_item.display_range, (290, 320))
         # double click and return to None
-        self.histogram_panel.mouse_pressed(121, 51, 0)
-        self.histogram_panel.mouse_released(121, 51, 0)
-        self.histogram_panel.mouse_pressed(121, 51, 0)
-        self.histogram_panel.mouse_double_clicked(121, 51, 0)
-        self.histogram_panel.mouse_released(121, 51, 0)
+        self.histogram_canvas_object.mouse_pressed(121, 51, 0)
+        self.histogram_canvas_object.mouse_released(121, 51, 0)
+        self.histogram_canvas_object.mouse_pressed(121, 51, 0)
+        self.histogram_canvas_object.mouse_double_clicked(121, 51, 0)
+        self.histogram_canvas_object.mouse_released(121, 51, 0)
         self.assertIsNone(self.data_item.display_limits)
 
 if __name__ == '__main__':
