@@ -231,12 +231,12 @@ class GraphicSelection(object):
             self._notify_listeners()
 
 
-class DisplayThread(ProcessingThread):
+class DataItemThread(ProcessingThread):
 
-    def __init__(self, image_panel):
-        super(DisplayThread, self).__init__(minimum_interval=0.04)
-        self.__image_panel = image_panel
+    def __init__(self, on_process_data, minimum_interval):
+        super(DataItemThread, self).__init__(minimum_interval)
         self.__data_item = None
+        self.__on_process_data = on_process_data
         self.__mutex = threading.RLock()  # access to the data item
         # mutex is needed to avoid case where grab data is called
         # simultaneously to handle_data and data item would get
@@ -246,7 +246,7 @@ class DisplayThread(ProcessingThread):
         self.start()
 
     def close(self):
-        super(DisplayThread, self).close()
+        super(DataItemThread, self).close()
         # protect against handle_data being called, but the data
         # was never grabbed. this must go _after_ the super.close
         with self.__mutex:
@@ -269,7 +269,7 @@ class DisplayThread(ProcessingThread):
 
     def process_data(self, data_item):
         assert data_item is not None
-        self.__image_panel._repaint(data_item)
+        self.__on_process_data(data_item)
 
     def release_data(self, data_item):
         assert data_item is not None
@@ -364,7 +364,7 @@ class ImagePanel(Panel.Panel):
 
         self.document_controller.register_image_panel(self)
 
-        self.__display_thread = DisplayThread(self)
+        self.__display_thread = DataItemThread(lambda data_item: self.__repaint(data_item), 0.04)
 
         self.closed = False
 
@@ -467,7 +467,7 @@ class ImagePanel(Panel.Panel):
         self.line_plot_canvas.focused = focused
         self.display_changed()
 
-    # this will only be called from the drawing thread (via _repaint)
+    # this will only be called from the drawing thread (via __repaint)
     # this method is not allowed to access self.data_item
     def __repaint_info(self, data_item):
         # note: viewport is the part of the image canvas that is displayed
@@ -535,7 +535,7 @@ class ImagePanel(Panel.Panel):
                     ctx.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
             ctx.restore()
 
-    # this will only be called from the drawing thread (via _repaint)
+    # this will only be called from the drawing thread (via __repaint)
     # this method is not allowed to access self.data_item
     def __repaint_graphics(self, data_item):
         graphics = data_item.graphics if data_item else None
@@ -564,7 +564,7 @@ class ImagePanel(Panel.Panel):
 
     # this will only be called from the drawing thread. this means that neither this method nor any of the
     # ones it calls should access self.data_item, which may be changed out from underneath the drawing code.
-    def _repaint(self, data_item):
+    def __repaint(self, data_item):
         if self.closed: return  # argh
         focused = self.line_plot_canvas.focused or self.image_canvas.focused
         if data_item and data_item.is_data_1d:
@@ -616,7 +616,7 @@ class ImagePanel(Panel.Panel):
                 self.image_focus_ring_canvas.draw()
 
 
-    # this will only be called from the drawing thread (via _repaint)
+    # this will only be called from the drawing thread (via __repaint)
     def __repaint_line_plot(self, data_item):
 
         #logging.debug("enter %s %s", self, time.time())
@@ -682,7 +682,7 @@ class ImagePanel(Panel.Panel):
 
         #logging.debug("exit %s %s", self, time.time())
 
-    # this will only be called from the drawing thread (via _repaint)
+    # this will only be called from the drawing thread (via __repaint)
     def __repaint_image(self, data_item):
 
         #logging.debug("enter %s %s", self, time.time())
