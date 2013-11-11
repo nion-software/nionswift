@@ -273,7 +273,7 @@ class DocumentController(object):
 
             # iterate through the image panels and update their 'focused' property
             for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
-                image_panel.set_focused(image_panel == self.selected_image_panel)
+                image_panel.set_selected(image_panel == self.selected_image_panel)
 
             # notify listeners that the selected image panel has changed.
             self.notify_listeners("selected_image_panel_changed", selected_image_panel)

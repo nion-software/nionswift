@@ -13,6 +13,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift import CanvasItem
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
@@ -276,6 +277,190 @@ class DataItemThread(ProcessingThread):
         data_item.remove_ref()
 
 
+class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(FocusRingCanvasItem, self).__init__()
+        self.focused = False
+        self.selected = False
+
+    def repaint(self, drawing_context):
+
+        # clear the drawing context
+        drawing_context.clear()
+
+        if self.selected:
+
+            # canvas size
+            canvas_width = self.canvas_size[0]
+            canvas_height = self.canvas_size[1]
+
+            stroke_style = "#CCC"  # TODO: platform dependent
+            if self.focused:
+                stroke_style = "#3876D6"  # TODO: platform dependent
+
+            drawing_context.begin_path()
+            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
+            drawing_context.line_join = "miter"
+            drawing_context.stroke_style = stroke_style
+            drawing_context.line_width = 4.0
+            drawing_context.stroke()
+
+
+class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(LineGraphCanvasItem, self).__init__()
+        self.data = None
+
+    def repaint(self, drawing_context):
+
+        # clear the drawing context
+        drawing_context.clear()
+
+        # draw the data, if any
+        if (self.data is not None and len(self.data) > 0):
+
+            # canvas size
+            canvas_width = self.canvas_size[0]
+            canvas_height = self.canvas_size[1]
+
+            rect = ((0, 0), (canvas_height, canvas_width))
+
+            drawing_context.save()
+
+            drawing_context.begin_path()
+            drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+            drawing_context.fill_style = "#888"
+            drawing_context.fill()
+
+            data_min = numpy.amin(self.data)
+            data_max = numpy.amax(self.data)
+            data_len = self.data.shape[0]
+            golden_ratio = 1.618
+            display_rect = Graphics.fit_to_aspect_ratio(rect, golden_ratio)
+            display_width = int(display_rect[1][1])
+            display_height = int(display_rect[1][0])
+            display_origin_x = int(display_rect[0][1])
+            display_origin_y = int(display_rect[0][0])
+            # draw the background
+            drawing_context.begin_path()
+            drawing_context.rect(display_origin_x, display_origin_y, display_width, display_height)
+            drawing_context.fill_style = "#FFF"
+            drawing_context.fill()
+            # draw the line plot itself
+            drawing_context.begin_path()
+            drawing_context.move_to(display_origin_x, display_origin_y + display_height)
+            for i in xrange(0, display_width,3):
+                px = display_origin_x + i
+                py = display_origin_y + display_height - (display_height * (float(self.data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min))
+                drawing_context.line_to(px, py)
+            drawing_context.line_to(display_origin_x + display_width-1, display_origin_y + display_height)
+            drawing_context.close_path()
+            drawing_context.fill_style = '#AFA'
+            drawing_context.fill()
+            drawing_context.line_width = 2
+            drawing_context.line_cap = 'round'
+            drawing_context.line_join = 'round'
+            drawing_context.stroke_style = '#2A2'
+            drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.rect(display_origin_x, display_origin_y, display_width, display_height)
+            drawing_context.line_width = 1
+            drawing_context.stroke_style = '#888'
+            drawing_context.stroke()
+
+            drawing_context.restore()
+
+
+class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
+
+    def __init__(self, document_controller, image_panel):
+        super(LinePlotCanvasItem, self).__init__()
+
+        # ugh
+        self.document_controller = document_controller
+        self.image_panel = image_panel
+
+        # create the child canvas items
+        self.line_graph_canvas_item = LineGraphCanvasItem()
+        self.focus_ring_canvas_item = FocusRingCanvasItem()
+
+        # canvas items get added back to front
+        self.add_canvas_item(self.line_graph_canvas_item)
+        self.add_canvas_item(self.focus_ring_canvas_item)
+
+        # a thread for updating
+        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
+
+    def close(self):
+        self.__paint_thread.close()
+        self.__paint_thread = None
+        super(LinePlotCanvasItem, self).close()
+
+    def mouse_clicked(self, x, y, modifiers):
+        # activate this view. this has the side effect of grabbing focus.
+        self.document_controller.selected_image_panel = self.image_panel
+
+    def __get_focused(self):
+        return self.focus_ring_canvas_item.focused
+    def __set_focused(self, focused):
+        self.focus_ring_canvas_item.focused = focused
+        self.focus_ring_canvas_item.update()
+        self.focus_ring_canvas_item.repaint_if_needed()
+    focused = property(__get_focused, __set_focused)
+
+    def __get_selected(self):
+        return self.focus_ring_canvas_item.selected
+    def __set_selected(self, selected):
+        self.focus_ring_canvas_item.selected = selected
+        self.focus_ring_canvas_item.update()
+        self.focus_ring_canvas_item.repaint_if_needed()
+    selected = property(__get_selected, __set_selected)
+
+    # when the data item changes, set the data using this property.
+    # doing this will queue an item in the paint thread to repaint.
+    def __get_data_item(self):
+        return self.__data_item
+    def __set_data_item(self, data_item):
+        self.__data_item = data_item
+        if self.__data_item and self.__paint_thread:
+            self.__paint_thread.update_data(data_item)
+        else:
+            self.line_graph_canvas_item.data = None
+            self.line_graph_canvas_item.update()
+            self.line_graph_canvas_item.repaint_if_needed()
+    data_item = property(__get_data_item, __set_data_item)
+
+    # this method will be invoked from the paint thread.
+    # data is calculated and then sent to the line graph canvas item.
+    def __update_data_item(self, data_item):
+
+        # make sure we have the correct data
+        assert data_item is not None
+        assert data_item.is_data_1d
+
+        # grab the data values
+        with data_item.create_data_accessor() as data_accessor:
+            data = data_accessor.data
+        assert data is not None
+
+        # make sure complex becomes scalar
+        data = Image.scalar_from_array(data)
+        assert data is not None
+
+        # make sure RGB becomes scalar
+        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
+            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+        assert data is not None
+
+        # update the line graph
+        self.line_graph_canvas_item.data = data
+        self.line_graph_canvas_item.update()
+        self.line_graph_canvas_item.repaint_if_needed()
+
+
 class ImagePanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
@@ -332,34 +517,30 @@ class ImagePanel(Panel.Panel):
         self.image_widget.add(self.image_header_controller.canvas_widget)
         self.image_widget.add(self.image_canvas_scroll, fill=True)
 
-        self.line_plot_canvas = self.ui.create_canvas_widget()
-        self.line_plot_canvas.focusable = True
-        self.line_plot_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
-        self.line_plot_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
-        self.line_plot_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
-        self.line_plot_canvas.on_key_pressed = lambda key: self.key_pressed(key)
+        self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+        self.line_plot_root_canvas_item.focusable = True
+
+        self.line_plot_canvas_item = LinePlotCanvasItem(document_controller, self)
+
+        self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
 
         self.line_plot_widget = self.ui.create_column_widget()
         self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
-        self.line_plot_widget.add(self.line_plot_canvas, fill=True)
+        self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas, fill=True)
 
         self.image_focus_ring_canvas = self.ui.create_canvas_widget()
         self.image_info_canvas = self.ui.create_canvas_widget()
-        self.line_plot_focus_ring_canvas = self.ui.create_canvas_widget()
 
         self.widget = self.ui.create_stack_widget()
         self.widget.add(self.image_widget)
         self.widget.add(self.line_plot_widget)
 
-        self.line_plot_canvas.add_overlay(self.line_plot_focus_ring_canvas)
         self.image_canvas_scroll.add_overlay(self.image_info_canvas)
         self.image_canvas_scroll.add_overlay(self.image_focus_ring_canvas)
 
         self.__display_layer = self.image_canvas.create_layer()
         self.__graphics_layer = self.image_canvas.create_layer()
         self.__info_layer = self.image_info_canvas.create_layer()
-        self.__line_plot_layer = self.line_plot_canvas.create_layer()
-        self.__line_plot_focus_ring_layer = self.line_plot_focus_ring_canvas.create_layer()
         self.__image_focus_ring_layer = self.image_focus_ring_canvas.create_layer()
 
         self.document_controller.register_image_panel(self)
@@ -370,6 +551,7 @@ class ImagePanel(Panel.Panel):
 
     def close(self):
         self.closed = True
+        self.line_plot_root_canvas_item.close()
         self.__display_thread.close()
         self.__display_thread = None
         self.document_controller.unregister_image_panel(self)
@@ -461,10 +643,10 @@ class ImagePanel(Panel.Panel):
             self.image_canvas.size = viewport_size
         self.display_changed()
 
-    def set_focused(self, focused):
+    def set_selected(self, selected):
         if self.closed: return  # argh
-        self.image_canvas.focused = focused
-        self.line_plot_canvas.focused = focused
+        self.image_canvas.focused = selected
+        self.line_plot_root_canvas_item.canvas.selected = selected
         self.display_changed()
 
     # this will only be called from the drawing thread (via __repaint)
@@ -566,28 +748,21 @@ class ImagePanel(Panel.Panel):
     # ones it calls should access self.data_item, which may be changed out from underneath the drawing code.
     def __repaint(self, data_item):
         if self.closed: return  # argh
-        focused = self.line_plot_canvas.focused or self.image_canvas.focused
+        focused = self.line_plot_root_canvas_item.canvas.focused or self.image_canvas.focused
+        selected = self.document_controller.selected_image_panel == self
         if data_item and data_item.is_data_1d:
-            self.__repaint_line_plot(data_item)
+            self.line_plot_canvas_item.data_item = data_item
+            self.line_plot_canvas_item.selected = selected
             self.__graphics_layer.drawing_context.clear()
             self.__info_layer.drawing_context.clear()
             self.__display_layer.drawing_context.clear()
-            self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
-            if self.document_controller.selected_image_panel == self:
-                self.__repaint_focus_ring(self.line_plot_focus_ring_canvas, focused, self.line_plot_focus_ring_canvas.canvas_size)
-            if self.ui and self.line_plot_canvas:
-                self.line_plot_canvas.draw()
-            if self.ui and self.line_plot_focus_ring_canvas:
-                self.line_plot_focus_ring_canvas.draw()
         elif data_item and data_item.is_data_2d:
             self.__repaint_image(data_item)
             self.__repaint_graphics(data_item)
             self.__repaint_info(data_item)
-            self.__line_plot_layer.drawing_context.clear()
-            self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
-            if self.document_controller.selected_image_panel == self:
+            if selected:
                 viewport_size = self.image_canvas_scroll.viewport[1]
                 viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
                 self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
@@ -601,10 +776,8 @@ class ImagePanel(Panel.Panel):
             self.__graphics_layer.drawing_context.clear()
             self.__info_layer.drawing_context.clear()
             self.__display_layer.drawing_context.clear()
-            self.__line_plot_layer.drawing_context.clear()
-            self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
-            if self.document_controller.selected_image_panel == self:
+            if selected:
                 viewport_size = self.image_canvas_scroll.viewport[1]
                 viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
                 self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
@@ -614,73 +787,6 @@ class ImagePanel(Panel.Panel):
                 self.image_info_canvas.draw()
             if self.ui and self.image_focus_ring_canvas:
                 self.image_focus_ring_canvas.draw()
-
-
-    # this will only be called from the drawing thread (via __repaint)
-    def __repaint_line_plot(self, data_item):
-
-        #logging.debug("enter %s %s", self, time.time())
-
-        assert data_item is not None
-        assert data_item.is_data_1d
-
-        with data_item.create_data_accessor() as data_accessor:
-            data = data_accessor.data
-        assert data is not None
-        data = Image.scalar_from_array(data)  # make sure complex becomes scalar
-        assert data is not None
-        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
-            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
-            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
-        assert data is not None
-
-        rect = ((0, 0), (self.line_plot_canvas.height, self.line_plot_canvas.width))
-        ctx = self.__line_plot_layer.drawing_context
-        ctx.clear()
-        ctx.save()
-
-        ctx.begin_path()
-        ctx.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
-        ctx.fill_style = "#888"
-        ctx.fill()
-
-        data_min = numpy.amin(data)
-        data_max = numpy.amax(data)
-        data_len = data.shape[0]
-        golden_ratio = 1.618
-        display_rect = Graphics.fit_to_aspect_ratio(rect, golden_ratio)
-        display_width = int(display_rect[1][1])
-        display_height = int(display_rect[1][0])
-        display_origin_x = int(display_rect[0][1])
-        display_origin_y = int(display_rect[0][0])
-        # draw the background
-        ctx.begin_path()
-        ctx.rect(display_origin_x, display_origin_y, display_width, display_height)
-        ctx.fill_style = "#FFF"
-        ctx.fill()
-        # draw the line plot itself
-        ctx.begin_path()
-        ctx.move_to(display_origin_x, display_origin_y + display_height)
-        for i in xrange(0, display_width,3):
-            ctx.line_to(display_origin_x + i, display_origin_y + display_height - (display_height * (float(data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min)))
-        ctx.line_to(display_origin_x + display_width-1, display_origin_y + display_height)
-        ctx.close_path()
-        ctx.fill_style = '#AFA'
-        ctx.fill()
-        ctx.line_width = 2
-        ctx.line_cap = 'round'
-        ctx.line_join = 'round'
-        ctx.stroke_style = '#2A2'
-        ctx.stroke()
-        ctx.begin_path()
-        ctx.rect(display_origin_x, display_origin_y, display_width, display_height)
-        ctx.line_width = 1
-        ctx.stroke_style = '#888'
-        ctx.stroke()
-
-        ctx.restore()
-
-        #logging.debug("exit %s %s", self, time.time())
 
     # this will only be called from the drawing thread (via __repaint)
     def __repaint_image(self, data_item):
@@ -711,6 +817,7 @@ class ImagePanel(Panel.Panel):
     def size_changed(self, width, height):
         self.display_changed()
     def focus_changed(self, focused):
+        self.line_plot_canvas_item.focused = focused
         self.display_changed()
 
     # call this when display needs to be redisplayed
@@ -725,20 +832,14 @@ class ImagePanel(Panel.Panel):
             self.__graphics_layer.drawing_context.clear()
             self.__info_layer.drawing_context.clear()
             self.__display_layer.drawing_context.clear()
-            self.__line_plot_layer.drawing_context.clear()
-            self.__line_plot_focus_ring_layer.drawing_context.clear()
             self.__image_focus_ring_layer.drawing_context.clear()
             # make sure they update
             if self.ui and self.image_canvas:
                 self.image_canvas.draw()
-            if self.ui and self.line_plot_canvas:
-                self.line_plot_canvas.draw()
             if self.ui and self.image_focus_ring_canvas:
                 self.image_focus_ring_canvas.draw()
             if self.ui and self.image_info_canvas:
                 self.image_info_canvas.draw()
-            if self.ui and self.line_plot_focus_ring_canvas:
-                self.line_plot_focus_ring_canvas.draw()
 
     def selection_changed(self, graphic_selection):
         self.display_changed()
@@ -837,6 +938,8 @@ class ImagePanel(Panel.Panel):
             self.update_cursor_info()
             self.image_header_controller.title = str(data_item)
             self.line_plot_header_controller.title = str(data_item)
+            if data_item and data_item.is_data_1d:
+                self.line_plot_canvas_item.data_item = data_item
             self.display_changed()
 
     def mouse_clicked(self, p, modifiers):
