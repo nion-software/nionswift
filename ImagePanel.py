@@ -321,24 +321,6 @@ class ImagePanel(Panel.Panel):
         self.image_canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
         self.image_canvas.on_key_pressed = lambda key: self.key_pressed(key)
 
-        fit_button = self.ui.create_push_button_widget("Fit")
-        fill_button = self.ui.create_push_button_widget("Fill")
-        one_to_one_button = self.ui.create_push_button_widget("1:1")
-        show_source_button = self.ui.create_push_button_widget("Up")
-
-        fit_button.on_clicked = self.__set_fit_mode
-        fill_button.on_clicked = self.__set_fill_mode
-        one_to_one_button.on_clicked = self.__set_one_to_one_mode
-        show_source_button.on_clicked = self.__show_data_source
-
-        self.image_controls = self.ui.create_row_widget()
-        self.image_controls.add(fit_button)
-        self.image_controls.add(fill_button)
-        self.image_controls.add(one_to_one_button)
-        self.image_controls.add_spacing(12)
-        self.image_controls.add(show_source_button)
-        self.image_controls.add_stretch()
-
         self.image_canvas_scroll = self.ui.create_scroll_area_widget(properties={"stylesheet": "background: '#888'"})
         self.image_canvas_scroll.content = self.image_canvas
         self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
@@ -348,7 +330,6 @@ class ImagePanel(Panel.Panel):
 
         self.image_widget = self.ui.create_column_widget()
         self.image_widget.add(self.image_header_controller.canvas_widget)
-        # self.image_widget.add(self.image_controls)  # disable these for now
         self.image_widget.add(self.image_canvas_scroll, fill=True)
 
         self.line_plot_canvas = self.ui.create_canvas_widget()
