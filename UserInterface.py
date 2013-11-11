@@ -1125,6 +1125,7 @@ class QtListWidget(QtWidget):
         self.on_item_key_pressed = None
         self.on_item_clicked = None
         self.on_item_double_clicked = None
+        self.on_item_size = None
         self.__delegate = None
 
     def __get_list_model_controller(self):
@@ -1176,6 +1177,12 @@ class QtListWidget(QtWidget):
             drawing_context = QtDrawingContext()
             self.__on_paint(drawing_context, options)
             self.proxy.DrawingContext_drawCommands(dc, drawing_context.commands)
+
+    # message from styled item delegate
+    def sizeHint(self, row, parent_row, parent_id):
+        if self.on_item_size:
+            return self.on_item_size(row)
+        return (200, 80)
 
 
 class QtOutputWidget(QtWidget):
