@@ -112,10 +112,10 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.restore()
 
 
-class LinePlotCanvasItem(CanvasItem.AbstractCanvasItem):
+class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
-        super(LinePlotCanvasItem, self).__init__()
+        super(SimpleLineGraphCanvasItem, self).__init__()
         self.data = None
 
     def repaint(self, drawing_context):
@@ -153,9 +153,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         super(HistogramCanvasItem, self).__init__()
         self.document_controller = document_controller
         self.adornments_canvas_item = AdornmentsCanvasItem()
-        self.line_plot_canvas_item = LinePlotCanvasItem()
+        self.simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
         # canvas items get added back to front
-        self.add_canvas_item(self.line_plot_canvas_item)
+        self.add_canvas_item(self.simple_line_graph_canvas_item)
         self.add_canvas_item(self.adornments_canvas_item)
         self.__data_item = None
         self.__pressed = False
@@ -172,6 +172,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.selected_data_item_changed(None, set([DataItem.SOURCE]))
         # disconnect self as listener
         self.document_controller.remove_listener(self)
+        super(HistogramCanvasItem, self).close()
 
     # _get_data_item is only used for testing
     def _get_data_item(self):
@@ -186,8 +187,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         if not self.__pressed:
             self.adornments_canvas_item.display_limits = (0, 1)
         histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
-        self.line_plot_canvas_item.data = histogram_data
-        self.line_plot_canvas_item.update()
+        self.simple_line_graph_canvas_item.data = histogram_data
+        self.simple_line_graph_canvas_item.update()
         self.adornments_canvas_item.update()
         self.repaint_if_needed()
 
