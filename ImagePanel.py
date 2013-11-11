@@ -281,8 +281,12 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(FocusRingCanvasItem, self).__init__()
+
         self.focused = False
         self.selected = False
+
+    def repaint_if_needed(self):
+        super(FocusRingCanvasItem, self).repaint_if_needed()
 
     def repaint(self, drawing_context):
 
@@ -404,6 +408,11 @@ class BitmapCanvasItem(CanvasItem.AbstractCanvasItem):
                 display_rect = Graphics.fit_to_size(rect, image_size)
 
                 drawing_context.save()
+
+                drawing_context.begin_path()
+                drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+                drawing_context.fill_style = "#888"
+                drawing_context.fill()
 
                 if display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
                     drawing_context.draw_image(self.rgba_bitmap_data, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
@@ -863,6 +872,7 @@ class ImagePanel(Panel.Panel):
 
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
+        self.image_root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.image_canvas_item = ImageCanvasItem(document_controller, self)
         self.image_root_canvas_item.add_canvas_item(self.image_canvas_item)
         self.image_header_controller = Panel.HeaderWidgetController(self.ui)
@@ -980,8 +990,13 @@ class ImagePanel(Panel.Panel):
 
     def set_selected(self, selected):
         if self.closed: return  # argh
-        self.image_root_canvas_item.selected = selected
-        self.line_plot_root_canvas_item.selected = selected
+        self.image_canvas_item.selected = selected
+        self.line_plot_canvas_item.selected = selected
+
+    def set_focused(self, focused):
+        if self.closed: return  # argh
+        self.image_canvas_item.focused = focused
+        self.line_plot_canvas_item.focused = focused
 
     def __get_data_item(self):
         return self.__data_panel_selection.data_item

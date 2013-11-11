@@ -182,6 +182,8 @@ class RootCanvasItem(CanvasItemComposition):
         self._canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
         self._canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
         self._canvas.on_key_pressed = lambda key: self.key_pressed(key)
+        self._canvas.on_focus_changed = lambda focused: self.__focus_changed(focused)
+        self.on_focus_changed = None
 
     def __get_canvas(self):
         return self._canvas
@@ -201,3 +203,7 @@ class RootCanvasItem(CanvasItemComposition):
             self.update_layout((width, height))
             self.update()
             self.repaint_if_needed()
+
+    def __focus_changed(self, focused):
+        if self.on_focus_changed:
+            self.on_focus_changed(focused)
