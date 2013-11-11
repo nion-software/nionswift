@@ -58,7 +58,16 @@ class AbstractCanvasItem(object):
     def draw(self):
         self.container.draw()
 
+    def mouse_clicked(self, x, y, modifiers):
+        return False
+
     def mouse_double_clicked(self, x, y, modifiers):
+        return False
+
+    def mouse_entered(self):
+        return False
+
+    def mouse_exited(self):
         return False
 
     def mouse_pressed(self, x, y, modifiers):
@@ -68,6 +77,9 @@ class AbstractCanvasItem(object):
         return False
 
     def mouse_position_changed(self, x, y, modifiers):
+        return False
+
+    def key_pressed(self, key):
         return False
 
 
@@ -106,9 +118,27 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in self.__canvas_items:
             canvas_item.repaint_if_needed()
 
+    def mouse_clicked(self, x, y, modifiers):
+        for canvas_item in self.__canvas_items:
+            if canvas_item.mouse_clicked(x, y, modifiers):
+                return True
+        return False
+
     def mouse_double_clicked(self, x, y, modifiers):
         for canvas_item in self.__canvas_items:
             if canvas_item.mouse_double_clicked(x, y, modifiers):
+                return True
+        return False
+
+    def mouse_entered(self):
+        for canvas_item in self.__canvas_items:
+            if canvas_item.mouse_entered():
+                return True
+        return False
+
+    def mouse_exited(self):
+        for canvas_item in self.__canvas_items:
+            if canvas_item.mouse_exited():
                 return True
         return False
 
@@ -130,21 +160,37 @@ class CanvasItemComposition(AbstractCanvasItem):
                 return True
         return False
 
+    def key_pressed(self, key):
+        for canvas_item in self.__canvas_items:
+            if canvas_item.key_pressed(key):
+                return True
+        return False
+
 
 class RootCanvasItem(CanvasItemComposition):
 
-    def __init__(self, ui, properties):
+    def __init__(self, ui, properties=None):
         super(RootCanvasItem, self).__init__()
         self._canvas = ui.create_canvas_widget(properties)
         self._canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
+        self._canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked(x, y, modifiers)
         self._canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.mouse_double_clicked(x, y, modifiers)
+        self._canvas.on_mouse_entered = lambda: self.mouse_entered()
+        self._canvas.on_mouse_exited = lambda: self.mouse_exited()
         self._canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed(x, y, modifiers)
         self._canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
         self._canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
+        self._canvas.on_key_pressed = lambda key: self.key_pressed(key)
 
     def __get_canvas(self):
         return self._canvas
     canvas = property(__get_canvas)
+
+    def __get_focusable(self):
+        return self.canvas.focusable
+    def __set_focusable(self, focusable):
+        self.canvas.focusable = focusable
+    focusable = property(__get_focusable, __set_focusable)
 
     def draw(self):
         self._canvas.draw()
@@ -153,3 +199,4 @@ class RootCanvasItem(CanvasItemComposition):
         if width > 0 and height > 0:
             self.update_layout((width, height))
             self.update()
+            self.repaint_if_needed()
