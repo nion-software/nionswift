@@ -44,8 +44,9 @@ class AbstractCanvasItem(object):
         if self.__needs_update and self.canvas_size is not None:
             if not self.__layer:
                 self.__layer = self._canvas.create_layer()
-            drawing_context = self.__layer.drawing_context
+            drawing_context = self.__layer.create_drawing_context()
             self.repaint(drawing_context)
+            self.__layer.drawing_context.copy_from(drawing_context)
             self.__needs_update = False
             self.container.draw()
 

@@ -954,6 +954,9 @@ class QtCanvasWidget(QtWidget):
             return self.__drawing_context
         drawing_context = property(__get_drawing_context)
 
+        def create_drawing_context(self):
+            return QtDrawingContext()
+
     def create_layer(self):
         layer = QtCanvasWidget.Layer(self)
         self.layers.append(layer)

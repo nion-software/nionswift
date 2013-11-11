@@ -299,12 +299,16 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
             if self.focused:
                 stroke_style = "#3876D6"  # TODO: platform dependent
 
+            drawing_context.save()
+
             drawing_context.begin_path()
             drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
             drawing_context.line_join = "miter"
             drawing_context.stroke_style = stroke_style
             drawing_context.line_width = 4.0
             drawing_context.stroke()
+
+            drawing_context.restore()
 
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -373,6 +377,128 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
 
+class BitmapCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(BitmapCanvasItem, self).__init__()
+        self.rgba_bitmap_data = None
+
+    def repaint(self, drawing_context):
+
+        # clear the drawing context
+        drawing_context.clear()
+
+        # draw the data, if any
+        if self.rgba_bitmap_data is not None:
+
+            # canvas size
+            canvas_width = self.canvas_size[0]
+            canvas_height = self.canvas_size[1]
+
+            if canvas_height > 0 and canvas_width > 0:
+
+                image_size = self.rgba_bitmap_data.shape
+
+                rect = ((0, 0), (canvas_height, canvas_width))
+
+                display_rect = Graphics.fit_to_size(rect, image_size)
+
+                drawing_context.save()
+
+                if display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
+                    drawing_context.draw_image(self.rgba_bitmap_data, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
+
+                drawing_context.restore()
+
+
+class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(GraphicsCanvasItem, self).__init__()
+        self.data_item = None
+
+    def repaint(self, drawing_context):
+
+        # clear the drawing context
+        drawing_context.clear()
+
+        if self.data_item:
+
+            # canvas size
+            canvas_width = self.canvas_size[0]
+            canvas_height = self.canvas_size[1]
+
+            widget_mapping = WidgetMapping(self.data_item.spatial_shape, (canvas_height, canvas_width))
+
+            drawing_context.save()
+            for graphic_index, graphic in enumerate(self.data_item.graphics):
+                graphic.draw(drawing_context, widget_mapping, self.graphic_selection.contains(graphic_index))
+            drawing_context.restore()
+
+
+class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(InfoOverlayCanvasItem, self).__init__()
+        self.data_item = None
+
+    def repaint(self, drawing_context):
+
+        # clear the drawing context
+        drawing_context.clear()
+
+        if self.data_item:
+
+            # canvas size
+            canvas_width = self.canvas_size[0]
+            canvas_height = self.canvas_size[1]
+
+            drawing_context.save()
+            drawing_context.begin_path()
+
+            if self.data_item.is_calibrated:  # display scale marker?
+                origin = (canvas_height - 30, 20)
+                scale_marker_width = 120
+                scale_marker_height = 6
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (canvas_height, canvas_width))
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.data_item.spatial_shape[0]
+                if screen_pixel_per_image_pixel > 0:
+                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                    calibrated_scale_marker_width = make_pretty(scale_marker_image_width * self.data_item.calibrations[0].scale)
+                    # update the scale marker width
+                    scale_marker_image_width = calibrated_scale_marker_width / self.data_item.calibrations[0].scale
+                    scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                    drawing_context.begin_path()
+                    drawing_context.move_to(origin[1], origin[0])
+                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
+                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
+                    drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
+                    drawing_context.close_path()
+                    drawing_context.fill_style = "#448"
+                    drawing_context.fill()
+                    drawing_context.stroke_style="#000"
+                    drawing_context.stroke()
+                    drawing_context.font = "normal 14px serif"
+                    drawing_context.text_baseline = "bottom"
+                    drawing_context.fill_style = "#FFF"
+                    drawing_context.fill_text(self.data_item.calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                    data_item_properties = self.data_item.properties
+                    info_items = list()
+                    voltage = data_item_properties.get("voltage", 0)
+                    if voltage:
+                        units = "V"
+                        if voltage % 1000 == 0:
+                            voltage = voltage / 1000
+                            units = "kV"
+                        info_items.append("{0} {1}".format(voltage, units))
+                    source = data_item_properties.get("hardware_source")
+                    if source:
+                        info_items.append(str(source))
+                    drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
+
+            drawing_context.restore()
+
+
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, document_controller, image_panel):
@@ -407,7 +533,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_focused(self, focused):
         self.focus_ring_canvas_item.focused = focused
         self.focus_ring_canvas_item.update()
-        self.focus_ring_canvas_item.repaint_if_needed()
+        self.repaint_if_needed()
     focused = property(__get_focused, __set_focused)
 
     def __get_selected(self):
@@ -415,7 +541,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_selected(self, selected):
         self.focus_ring_canvas_item.selected = selected
         self.focus_ring_canvas_item.update()
-        self.focus_ring_canvas_item.repaint_if_needed()
+        self.repaint_if_needed()
     selected = property(__get_selected, __set_selected)
 
     # when the data item changes, set the data using this property.
@@ -429,7 +555,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
-            self.line_graph_canvas_item.repaint_if_needed()
+            self.repaint_if_needed()
     data_item = property(__get_data_item, __set_data_item)
 
     # this method will be invoked from the paint thread.
@@ -458,7 +584,256 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # update the line graph
         self.line_graph_canvas_item.data = data
         self.line_graph_canvas_item.update()
-        self.line_graph_canvas_item.repaint_if_needed()
+
+        self.repaint_if_needed()
+
+
+class ImageCanvasItem(CanvasItem.CanvasItemComposition):
+
+    def __init__(self, document_controller, image_panel):
+        super(ImageCanvasItem, self).__init__()
+
+        # ugh
+        self.document_controller = document_controller
+        self.image_panel = image_panel
+
+        # create the child canvas items
+        self.bitmap_canvas_item = BitmapCanvasItem()
+        self.graphics_canvas_item = GraphicsCanvasItem()
+        self.info_overlay_canvas_item = InfoOverlayCanvasItem()
+        self.focus_ring_canvas_item = FocusRingCanvasItem()
+
+        # canvas items get added back to front
+        self.add_canvas_item(self.bitmap_canvas_item)
+        self.add_canvas_item(self.graphics_canvas_item)
+        self.add_canvas_item(self.info_overlay_canvas_item)
+        self.add_canvas_item(self.focus_ring_canvas_item)
+
+        # a thread for updating
+        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
+
+        # used for dragging graphic items
+        self.graphic_drag_items = []
+        self.graphic_drag_item = None
+        self.graphic_part_data = {}
+        self.graphic_drag_indexes = []
+        self.graphic_selection = GraphicSelection()
+        self.graphic_selection.add_listener(self)
+        self.__last_mouse = None
+        self.__mouse_in = False
+        self.graphics_canvas_item.graphic_selection = self.graphic_selection
+
+    def close(self):
+        self.__paint_thread.close()
+        self.__paint_thread = None
+        self.graphic_selection.remove_listener(self)
+        self.graphic_selection = None
+        super(ImageCanvasItem, self).close()
+
+    def mouse_clicked(self, x, y, modifiers):
+        # activate this view. this has the side effect of grabbing focus.
+        self.document_controller.selected_image_panel = self.image_panel
+
+    def mouse_pressed(self, x, y, modifiers):
+        # figure out clicked graphic
+        self.graphic_drag_items = []
+        self.graphic_drag_item = None
+        self.graphic_drag_item_was_selected = False
+        self.graphic_part_data = {}
+        self.graphic_drag_indexes = []
+        if self.data_item:
+            for graphic_index, graphic in enumerate(self.data_item.graphics):
+                start_drag_pos = y, x
+                already_selected = self.graphic_selection.contains(graphic_index)
+                multiple_items_selected = len(self.graphic_selection.indexes) > 1
+                move_only = not already_selected or multiple_items_selected
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.canvas_size[1], self.canvas_size[0]))
+                part = graphic.test(widget_mapping, start_drag_pos, move_only)
+                if part:
+                    # select item and prepare for drag
+                    self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
+                    if not self.graphic_drag_item_was_selected:
+                        if modifiers.shift:
+                            self.graphic_selection.add(graphic_index)
+                        elif not already_selected:
+                            self.graphic_selection.set(graphic_index)
+                    # keep track of general drag information
+                    self.graphic_drag_start_pos = start_drag_pos
+                    self.graphic_drag_changed = False
+                    # keep track of info for the specific item that was clicked
+                    self.graphic_drag_item = self.data_item.graphics[graphic_index]
+                    self.graphic_drag_part = part
+                    # keep track of drag information for each item in the set
+                    self.graphic_drag_indexes = self.graphic_selection.indexes
+                    for index in self.graphic_drag_indexes:
+                        graphic = self.data_item.graphics[index]
+                        self.graphic_drag_items.append(graphic)
+                        self.graphic_part_data[index] = graphic.begin_drag()
+                    break
+        if not self.graphic_drag_items and not modifiers.shift:
+            self.graphic_selection.clear()
+
+    def mouse_released(self, x, y, modifiers):
+        for index in self.graphic_drag_indexes:
+            graphic = self.data_item.graphics[index]
+            graphic.end_drag(self.graphic_part_data[index])
+        if self.graphic_drag_items and not self.graphic_drag_changed:
+            graphic_index = self.data_item.graphics.index(self.graphic_drag_item)
+            # user didn't move graphic
+            if not modifiers.shift:
+                # user clicked on a single graphic
+                assert self.data_item
+                self.graphic_selection.set(graphic_index)
+            else:
+                # user shift clicked. toggle selection
+                # if shift is down and item is already selected, toggle selection of item
+                if self.graphic_drag_item_was_selected:
+                    self.graphic_selection.remove(graphic_index)
+                else:
+                    self.graphic_selection.add(graphic_index)
+        self.graphic_drag_items = []
+        self.graphic_drag_item = None
+        self.graphic_part_data = {}
+        self.graphic_drag_indexes = []
+
+    def mouse_entered(self):
+        self.__mouse_in = True
+
+    def mouse_exited(self):
+        self.__mouse_in = False
+        self.mouse_position_changed(0, 0, 0)
+
+    def mouse_position_changed(self, x, y, modifiers):
+        # x,y already have transform applied
+        self.__last_mouse = (y, x)
+        self.__update_cursor_info()
+        if self.graphic_drag_items:
+            for graphic in self.graphic_drag_items:
+                index = self.data_item.graphics.index(graphic)
+                part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.canvas_size[1], self.canvas_size[0]))
+                graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
+                self.graphic_drag_changed = True
+                self.graphics_canvas_item.update()
+        self.graphics_canvas_item.repaint_if_needed()
+
+    def __get_focused(self):
+        return self.focus_ring_canvas_item.focused
+    def __set_focused(self, focused):
+        self.focus_ring_canvas_item.focused = focused
+        self.focus_ring_canvas_item.update()
+        self.repaint_if_needed()
+    focused = property(__get_focused, __set_focused)
+
+    def __get_selected(self):
+        return self.focus_ring_canvas_item.selected
+    def __set_selected(self, selected):
+        self.focus_ring_canvas_item.selected = selected
+        self.focus_ring_canvas_item.update()
+        self.repaint_if_needed()
+    selected = property(__get_selected, __set_selected)
+
+    # when the data item changes, set the data using this property.
+    # doing this will queue an item in the paint thread to repaint.
+    def __get_data_item(self):
+        return self.__data_item
+    def __set_data_item(self, data_item):
+        self.__data_item = data_item
+        self.__update_cursor_info()
+        if self.__data_item and self.__paint_thread:
+            self.__paint_thread.update_data(data_item)
+        else:
+            self.bitmap_canvas_item.rgba_bitmap_data = None
+            self.bitmap_canvas_item.update()
+            self.graphics_canvas_item.data_item = None
+            self.graphics_canvas_item.update()
+            self.info_overlay_canvas_item.data_item = None
+            self.info_overlay_canvas_item.update()
+            self.repaint_if_needed()
+    data_item = property(__get_data_item, __set_data_item)
+
+    def selection_changed(self, graphic_selection):
+        self.graphics_canvas_item.update()
+        self.repaint_if_needed()
+
+    # watch for changes to the graphic item list
+    def item_inserted(self, object, key, value, before_index):
+        if object == self.data_item and key == "graphics":
+            # selection is 5,6,7
+            # if inserted at 4, new selection is 6,7,8
+            # if inserted at 6, new selection is 5,7,8
+            # indexes greater or equal to new index are incremented
+            self.graphic_selection.insert_index(before_index)
+            self.graphics_canvas_item.update()
+            self.graphics_canvas_item.repaint_if_needed()
+    def item_removed(self, object, key, value, index):
+        if object == self.data_item and key == "graphics":
+            # selection is 5,6,7
+            # if 4 is removed, new selection is 4,5,6
+            # if 6 is removed, new selection is 5,6
+            # the index is removed; and remaining indexes greater than removed one are decremented
+            self.graphic_selection.remove_index(index)
+            self.graphics_canvas_item.update()
+            self.graphics_canvas_item.repaint_if_needed()
+
+    def __get_image_size(self):
+        data_item = self.data_item
+        data_shape = data_item.spatial_shape if data_item else None
+        if not data_shape:
+            return None
+        for d in data_shape:
+            if not d > 0:
+                return None
+        return data_shape
+
+    # map from widget coordinates to image coordinates
+    def __map_widget_to_image(self, p):
+        image_size = self.__get_image_size()
+        transformed_image_rect = ((0, 0), image_size)  ### TODO: fix me ... self.transformed_image_rect
+        if transformed_image_rect and image_size:
+            if transformed_image_rect[1][0] != 0.0:
+                image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
+            else:
+                image_y = 0
+            if transformed_image_rect[1][1] != 0.0:
+                image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
+            else:
+                image_x = 0
+            return (image_y, image_x) # c-indexing
+        return None
+
+    def __update_cursor_info(self):
+        pos = None
+        image_size = self.__get_image_size()
+        if self.__mouse_in and self.__last_mouse:
+            if image_size and len(image_size) > 1:
+                pos = self.__map_widget_to_image(self.__last_mouse)
+            data_item = self.data_item
+            graphics = data_item.graphics if data_item else None
+            selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
+            self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
+
+    # this method will be invoked from the paint thread.
+    # data is calculated and then sent to the line graph canvas item.
+    def __update_data_item(self, data_item):
+
+        # make sure we have the correct data
+        assert data_item is not None
+        assert data_item.is_data_2d
+
+        # grab the bitmap image
+        rgba_image = data_item.preview_2d
+        self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
+        self.bitmap_canvas_item.update()
+
+        self.graphics_canvas_item.data_item = data_item
+        self.graphics_canvas_item.update()
+
+        self.info_overlay_canvas_item.data_item = data_item
+        self.info_overlay_canvas_item.update()
+
+        self.repaint_if_needed()
+
 
 
 class ImagePanel(Panel.Panel):
@@ -466,21 +841,9 @@ class ImagePanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
-        self.graphic_drag_items = []
-        self.graphic_drag_item = None
-        self.graphic_part_data = {}
-        self.graphic_drag_indexes = []
-
-        self.graphic_selection = GraphicSelection()
-        self.graphic_selection.add_listener(self)
-
-        self.last_mouse = None
-
         self.__data_panel_selection = DataItem.DataItemSpecifier()
 
         self.__weak_listeners = []
-
-        self.__mouse_in = False
 
         self.__block_scrollers = False
 
@@ -494,69 +857,41 @@ class ImagePanel(Panel.Panel):
         # size is set.
         self.image_canvas_first = True
 
-        self.image_canvas = self.ui.create_canvas_widget()
-        self.image_canvas.focusable = True
-        self.image_canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
-        self.image_canvas.on_focus_changed = lambda focused: self.focus_changed(focused)
-        self.image_canvas.on_mouse_entered = lambda: self.mouse_entered()
-        self.image_canvas.on_mouse_exited = lambda: self.mouse_exited()
-        self.image_canvas.on_mouse_clicked = lambda x, y, modifiers: self.mouse_clicked((y, x), modifiers)
-        self.image_canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed((y, x), modifiers)
-        self.image_canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released((y, x), modifiers)
-        self.image_canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed((y, x), modifiers)
-        self.image_canvas.on_key_pressed = lambda key: self.key_pressed(key)
+        #self.image_canvas_scroll = self.ui.create_scroll_area_widget(properties={"stylesheet": "background: '#888'"})
+        #self.image_canvas_scroll.content = self.image_canvas
+        #self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
 
-        self.image_canvas_scroll = self.ui.create_scroll_area_widget(properties={"stylesheet": "background: '#888'"})
-        self.image_canvas_scroll.content = self.image_canvas
-        self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
-
+        self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+        self.image_root_canvas_item.focusable = True
+        self.image_canvas_item = ImageCanvasItem(document_controller, self)
+        self.image_root_canvas_item.add_canvas_item(self.image_canvas_item)
         self.image_header_controller = Panel.HeaderWidgetController(self.ui)
-        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui)
-
         self.image_widget = self.ui.create_column_widget()
         self.image_widget.add(self.image_header_controller.canvas_widget)
-        self.image_widget.add(self.image_canvas_scroll, fill=True)
+        self.image_widget.add(self.image_root_canvas_item.canvas, fill=True)
 
         self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.line_plot_root_canvas_item.focusable = True
-
         self.line_plot_canvas_item = LinePlotCanvasItem(document_controller, self)
-
         self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
-
+        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui)
         self.line_plot_widget = self.ui.create_column_widget()
         self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
         self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas, fill=True)
-
-        self.image_focus_ring_canvas = self.ui.create_canvas_widget()
-        self.image_info_canvas = self.ui.create_canvas_widget()
 
         self.widget = self.ui.create_stack_widget()
         self.widget.add(self.image_widget)
         self.widget.add(self.line_plot_widget)
 
-        self.image_canvas_scroll.add_overlay(self.image_info_canvas)
-        self.image_canvas_scroll.add_overlay(self.image_focus_ring_canvas)
-
-        self.__display_layer = self.image_canvas.create_layer()
-        self.__graphics_layer = self.image_canvas.create_layer()
-        self.__info_layer = self.image_info_canvas.create_layer()
-        self.__image_focus_ring_layer = self.image_focus_ring_canvas.create_layer()
-
         self.document_controller.register_image_panel(self)
-
-        self.__display_thread = DataItemThread(lambda data_item: self.__repaint(data_item), 0.04)
 
         self.closed = False
 
     def close(self):
         self.closed = True
+        self.image_root_canvas_item.close()
         self.line_plot_root_canvas_item.close()
-        self.__display_thread.close()
-        self.__display_thread = None
         self.document_controller.unregister_image_panel(self)
-        self.graphic_selection.remove_listener(self)
-        self.graphic_selection = None
         self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
         super(ImagePanel, self).close()
 
@@ -645,204 +980,8 @@ class ImagePanel(Panel.Panel):
 
     def set_selected(self, selected):
         if self.closed: return  # argh
-        self.image_canvas.focused = selected
-        self.line_plot_root_canvas_item.canvas.selected = selected
-        self.display_changed()
-
-    # this will only be called from the drawing thread (via __repaint)
-    # this method is not allowed to access self.data_item
-    def __repaint_info(self, data_item):
-        # note: viewport is the part of the image canvas that is displayed
-        # the bounds of this layer are the bounds of the visible area
-        if not self.closed:
-            ctx = self.__info_layer.drawing_context
-            ctx.clear()
-            ctx.save()
-            ctx.begin_path()
-            # TODO: this is a hack. the viewport value is wrong (but the size is Ok)
-            viewport = self.image_canvas_scroll.viewport
-            if False:
-                origin = (0, 0)
-                ctx.move_to(origin[1] + 20, origin[0] + 20)
-                ctx.line_to(origin[1] + 260, origin[0] + 20)
-                ctx.line_to(origin[1] + 260, origin[0] + 80)
-                ctx.line_to(origin[1] + 20, origin[0] + 80)
-                ctx.close_path()
-                ctx.fill_style = "rgba(255,255,255,0.5)"
-                ctx.fill()
-                ctx.stroke_style = "#CCC"
-                ctx.stroke()
-                ctx.font = "normal 14px serif"
-                ctx.fill_style = "#444"
-                ctx.text_baseline = "bottom"
-                ctx.fill_text("Position: 2.0, 1.0", origin[1] + 28, origin[0] + 36)
-            if data_item.is_calibrated:  # display scale marker?
-                origin = (viewport[1][0] - 30, 20)
-                scale_marker_width = 120
-                scale_marker_height = 6
-                widget_mapping = WidgetMapping(data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
-                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_item.spatial_shape[0]
-                if screen_pixel_per_image_pixel > 0:
-                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = make_pretty(scale_marker_image_width * data_item.calibrations[0].scale)
-                    # update the scale marker width
-                    scale_marker_image_width = calibrated_scale_marker_width / data_item.calibrations[0].scale
-                    scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                    ctx.begin_path()
-                    ctx.move_to(origin[1], origin[0])
-                    ctx.line_to(origin[1] + scale_marker_width, origin[0])
-                    ctx.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
-                    ctx.line_to(origin[1], origin[0] - scale_marker_height)
-                    ctx.close_path()
-                    ctx.fill_style = "#448"
-                    ctx.fill()
-                    ctx.stroke_style="#000"
-                    ctx.stroke()
-                    ctx.font = "normal 14px serif"
-                    ctx.text_baseline = "bottom"
-                    ctx.fill_style = "#FFF"
-                    ctx.fill_text(data_item.calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = data_item.properties
-                    info_items = list()
-                    voltage = data_item_properties.get("voltage", 0)
-                    if voltage:
-                        units = "V"
-                        if voltage % 1000 == 0:
-                            voltage = voltage / 1000
-                            units = "kV"
-                        info_items.append("{0} {1}".format(voltage, units))
-                    source = data_item_properties.get("hardware_source")
-                    if source:
-                        info_items.append(str(source))
-                    ctx.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
-            ctx.restore()
-
-    # this will only be called from the drawing thread (via __repaint)
-    # this method is not allowed to access self.data_item
-    def __repaint_graphics(self, data_item):
-        graphics = data_item.graphics if data_item else None
-        if not self.closed:
-            widget_mapping = WidgetMapping(data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
-            ctx = self.__graphics_layer.drawing_context
-            ctx.clear()
-            ctx.save()
-            if self.image_size and graphics:
-                for graphic_index, graphic in enumerate(graphics):
-                    graphic.draw(ctx, widget_mapping, self.graphic_selection.contains(graphic_index))
-            ctx.restore()
-
-    def __repaint_focus_ring(self, canvas, focused, size):
-        ctx = canvas.layers[0].drawing_context
-        ctx.clear()
-        stroke_style = "#CCC"  # TODO: platform dependent
-        if focused:
-            stroke_style = "#3876D6"  # TODO: platform dependent
-        ctx.begin_path()
-        ctx.rect(2, 2, size[1] - 4, size[0] - 4)
-        ctx.line_join = "miter"
-        ctx.stroke_style = stroke_style
-        ctx.line_width = 4.0
-        ctx.stroke()
-
-    # this will only be called from the drawing thread. this means that neither this method nor any of the
-    # ones it calls should access self.data_item, which may be changed out from underneath the drawing code.
-    def __repaint(self, data_item):
-        if self.closed: return  # argh
-        focused = self.line_plot_root_canvas_item.canvas.focused or self.image_canvas.focused
-        selected = self.document_controller.selected_image_panel == self
-        if data_item and data_item.is_data_1d:
-            self.line_plot_canvas_item.data_item = data_item
-            self.line_plot_canvas_item.selected = selected
-            self.__graphics_layer.drawing_context.clear()
-            self.__info_layer.drawing_context.clear()
-            self.__display_layer.drawing_context.clear()
-            self.__image_focus_ring_layer.drawing_context.clear()
-        elif data_item and data_item.is_data_2d:
-            self.__repaint_image(data_item)
-            self.__repaint_graphics(data_item)
-            self.__repaint_info(data_item)
-            self.__image_focus_ring_layer.drawing_context.clear()
-            if selected:
-                viewport_size = self.image_canvas_scroll.viewport[1]
-                viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
-                self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
-            if self.ui and self.image_canvas:
-                self.image_canvas.draw()
-            if self.ui and self.image_info_canvas:
-                self.image_info_canvas.draw()
-            if self.ui and self.image_focus_ring_canvas:
-                self.image_focus_ring_canvas.draw()
-        else:
-            self.__graphics_layer.drawing_context.clear()
-            self.__info_layer.drawing_context.clear()
-            self.__display_layer.drawing_context.clear()
-            self.__image_focus_ring_layer.drawing_context.clear()
-            if selected:
-                viewport_size = self.image_canvas_scroll.viewport[1]
-                viewport_size = (viewport_size[0]+1, viewport_size[1]+1)  # tweak it, for some unknown reason it's off by one
-                self.__repaint_focus_ring(self.image_focus_ring_canvas, focused, viewport_size)
-            if self.ui and self.image_canvas:
-                self.image_canvas.draw()
-            if self.ui and self.image_info_canvas:
-                self.image_info_canvas.draw()
-            if self.ui and self.image_focus_ring_canvas:
-                self.image_focus_ring_canvas.draw()
-
-    # this will only be called from the drawing thread (via __repaint)
-    def __repaint_image(self, data_item):
-
-        #logging.debug("enter %s %s", self, time.time())
-
-        assert data_item is not None
-        assert data_item.is_data_2d
-
-        rect = ((0, 0), (self.image_canvas.height, self.image_canvas.width))
-        ctx = self.__display_layer.drawing_context
-        ctx.clear()
-        ctx.save()
-
-        rgba_image = data_item.preview_2d
-
-        # this method is called on a thread, so we cannot access self.data_item
-        display_rect = self.__calculate_transform_image_for_image_size(data_item.spatial_shape)
-
-        if rgba_image is not None and display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
-            ctx.draw_image(rgba_image, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
-
-        ctx.restore()
-
-        #logging.debug("exit %s %s", self, time.time())
-
-    # message comes from the view
-    def size_changed(self, width, height):
-        self.display_changed()
-    def focus_changed(self, focused):
-        self.line_plot_canvas_item.focused = focused
-        self.display_changed()
-
-    # call this when display needs to be redisplayed
-    def display_changed(self):
-        if self.closed: return  # argh
-        if self.data_item and self.__display_thread:
-            self.widget.current_index = 1 if self.data_item.is_data_1d else 0
-            self.__display_thread.update_data(self.data_item)
-        else:
-            self.widget.current_index = 0
-            # clear all of the contexts
-            self.__graphics_layer.drawing_context.clear()
-            self.__info_layer.drawing_context.clear()
-            self.__display_layer.drawing_context.clear()
-            self.__image_focus_ring_layer.drawing_context.clear()
-            # make sure they update
-            if self.ui and self.image_canvas:
-                self.image_canvas.draw()
-            if self.ui and self.image_focus_ring_canvas:
-                self.image_focus_ring_canvas.draw()
-            if self.ui and self.image_info_canvas:
-                self.image_info_canvas.draw()
-
-    def selection_changed(self, graphic_selection):
-        self.display_changed()
+        self.image_root_canvas_item.selected = selected
+        self.line_plot_root_canvas_item.selected = selected
 
     def __get_data_item(self):
         return self.__data_panel_selection.data_item
@@ -878,7 +1017,7 @@ class ImagePanel(Panel.Panel):
             listener = weak_listener()
             listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
         self.data_item_changed(self.data_item, set([DataItem.SOURCE]))
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         data_item = self.data_item
@@ -899,24 +1038,6 @@ class ImagePanel(Panel.Panel):
         if container == self.data_item_container and data_item == self.data_item:
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
 
-    # watch for changes to the graphic item list
-    def item_inserted(self, object, key, value, before_index):
-        if object == self.data_item and key == "graphics":
-            # selection is 5,6,7
-            # if inserted at 4, new selection is 6,7,8
-            # if inserted at 6, new selection is 5,7,8
-            # indexes greater or equal to new index are incremented
-            self.graphic_selection.insert_index(before_index)
-            self.display_changed()
-    def item_removed(self, object, key, value, index):
-        if object == self.data_item and key == "graphics":
-            # selection is 5,6,7
-            # if 4 is removed, new selection is 4,5,6
-            # if 6 is removed, new selection is 5,6
-            # the index is removed; and remaining indexes greater than removed one are decremented
-            self.graphic_selection.remove_index(index)
-            self.display_changed()
-
     # tell our listeners the we changed.
     def notify_image_panel_data_item_changed(self, changes):
         for weak_listener in self.__weak_listeners:
@@ -935,111 +1056,27 @@ class ImagePanel(Panel.Panel):
     def data_item_changed(self, data_item, changes):
         if data_item == self.data_item:  # we can get messages from our source data items too
             self.notify_image_panel_data_item_changed(changes)
-            self.update_cursor_info()
             self.image_header_controller.title = str(data_item)
             self.line_plot_header_controller.title = str(data_item)
-            if data_item and data_item.is_data_1d:
-                self.line_plot_canvas_item.data_item = data_item
-            self.display_changed()
-
-    def mouse_clicked(self, p, modifiers):
-        # activate this view. this has the side effect of grabbing focus.
-        self.document_controller.selected_image_panel = self
-
-    def mouse_pressed(self, p, modifiers):
-        # figure out clicked graphic
-        self.graphic_drag_items = []
-        self.graphic_drag_item = None
-        self.graphic_drag_item_was_selected = False
-        self.graphic_part_data = {}
-        self.graphic_drag_indexes = []
-        if self.data_item:
-            for graphic_index, graphic in enumerate(self.data_item.graphics):
-                start_drag_pos = p
-                already_selected = self.graphic_selection.contains(graphic_index)
-                multiple_items_selected = len(self.graphic_selection.indexes) > 1
-                move_only = not already_selected or multiple_items_selected
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
-                part = graphic.test(widget_mapping, start_drag_pos, move_only)
-                if part:
-                    # select item and prepare for drag
-                    self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
-                    if not self.graphic_drag_item_was_selected:
-                        if modifiers.shift:
-                            self.graphic_selection.add(graphic_index)
-                        elif not already_selected:
-                            self.graphic_selection.set(graphic_index)
-                    # keep track of general drag information
-                    self.graphic_drag_start_pos = start_drag_pos
-                    self.graphic_drag_changed = False
-                    # keep track of info for the specific item that was clicked
-                    self.graphic_drag_item = self.data_item.graphics[graphic_index]
-                    self.graphic_drag_part = part
-                    # keep track of drag information for each item in the set
-                    self.graphic_drag_indexes = self.graphic_selection.indexes
-                    for index in self.graphic_drag_indexes:
-                        graphic = self.data_item.graphics[index]
-                        self.graphic_drag_items.append(graphic)
-                        self.graphic_part_data[index] = graphic.begin_drag()
-                    break
-        if not self.graphic_drag_items and not modifiers.shift:
-            self.graphic_selection.clear()
-
-    def mouse_released(self, p, modifiers):
-        for index in self.graphic_drag_indexes:
-            graphic = self.data_item.graphics[index]
-            graphic.end_drag(self.graphic_part_data[index])
-        if self.graphic_drag_items and not self.graphic_drag_changed:
-            graphic_index = self.data_item.graphics.index(self.graphic_drag_item)
-            # user didn't move graphic
-            if not modifiers.shift:
-                # user clicked on a single graphic
-                assert self.data_item
-                self.graphic_selection.set(graphic_index)
+            selected = self.document_controller.selected_image_panel == self
+            if data_item:
+                if data_item.is_data_1d:
+                    self.widget.current_index = 1
+                    self.line_plot_canvas_item.data_item = data_item
+                    self.line_plot_canvas_item.selected = selected
+                    self.image_canvas_item.data_item = None
+                    self.image_canvas_item.selected = False
+                elif data_item.is_data_2d:
+                    self.widget.current_index = 0
+                    self.image_canvas_item.data_item = data_item
+                    self.image_canvas_item.selected = selected
+                    self.line_plot_canvas_item.data_item = None
+                    self.line_plot_canvas_item.selected = False
             else:
-                # user shift clicked. toggle selection
-                # if shift is down and item is already selected, toggle selection of item
-                if self.graphic_drag_item_was_selected:
-                    self.graphic_selection.remove(graphic_index)
-                else:
-                    self.graphic_selection.add(graphic_index)
-        self.graphic_drag_items = []
-        self.graphic_drag_item = None
-        self.graphic_part_data = {}
-        self.graphic_drag_indexes = []
-
-    def mouse_entered(self):
-        self.__mouse_in = True
-
-    def mouse_exited(self):
-        self.__mouse_in = False
-        self.mouse_position_changed((0, 0), 0)
-
-    def mouse_position_changed(self, p, modifiers):
-        if self.closed:  # prevent the last message from sneaking through when closing the window
-            return
-        # x,y already have transform applied
-        self.last_mouse = p
-        self.update_cursor_info()
-        if self.graphic_drag_items:
-            for graphic in self.graphic_drag_items:
-                index = self.data_item.graphics.index(graphic)
-                part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.image_canvas.height, self.image_canvas.width))
-                graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, p, part_data, modifiers)
-                self.graphic_drag_changed = True
-                self.display_changed()
-
-    def update_cursor_info(self):
-        pos = None
-        image_size = self.image_size
-        if self.__mouse_in and self.last_mouse:
-            if image_size and len(image_size) > 1:
-                pos = self.map_widget_to_image(self.last_mouse)
-            data_item = self.data_item
-            graphics = data_item.graphics if data_item else None
-            selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
-            self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
+                self.image_canvas_item.data_item = None
+                self.image_canvas_item.selected = False
+                self.line_plot_canvas_item.data_item = None
+                self.line_plot_canvas_item.selected = False
 
     def __get_image_size(self):
         data_item = self.data_item
@@ -1051,16 +1088,6 @@ class ImagePanel(Panel.Panel):
                 return None
         return data_shape
     image_size = property(__get_image_size)
-
-    def __calculate_transform_image_for_image_size(self, image_size):
-        if self.closed: return  # argh
-        if image_size:
-            rect = ((0, 0), (self.image_canvas.height, self.image_canvas.width))
-            return Graphics.fit_to_size(rect, image_size)
-        return None
-    def __get_transformed_image_rect(self):
-        return self.__calculate_transform_image_for_image_size(self.image_size)
-    transformed_image_rect = property(__get_transformed_image_rect)
 
     # map from image coordinates to widget coordinates
     def map_image_to_widget(self, p):
@@ -1120,7 +1147,7 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_preserve_pos = True
         self.image_canvas_zoom = 1.0
         self.image_canvas_center = (0.5, 0.5)
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
 
     def __set_fill_mode(self):
         #logging.debug("---------> fill")
@@ -1128,7 +1155,7 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_preserve_pos = True
         self.image_canvas_zoom = 1.0
         self.image_canvas_center = (0.5, 0.5)
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
 
     def __set_one_to_one_mode(self):
         #logging.debug("---------> 1:1")
@@ -1136,17 +1163,17 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_preserve_pos = True
         self.image_canvas_zoom = 1.0
         self.image_canvas_center = (0.5, 0.5)
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
 
     def __zoom_in(self):
         self.image_canvas_zoom = self.image_canvas_zoom * 1.05
         self.image_canvas_preserve_pos = True
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
 
     def __zoom_out(self):
         self.image_canvas_zoom = self.image_canvas_zoom / 1.05
         self.image_canvas_preserve_pos = True
-        self.update_image_canvas_size()
+        #self.update_image_canvas_size()
 
     def __show_data_source(self):
         data_source = self.data_item.data_source
