@@ -726,6 +726,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.graphics_canvas_item.update()
         self.graphics_canvas_item.repaint_if_needed()
 
+    # ths message comes from the widget
+    def key_pressed(self, key):
+        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+        if key.is_delete:
+            all_graphics = self.data_item.graphics if self.data_item else []
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
+            if len(graphics):
+                self.document_controller.remove_graphic()
+        return ImagePanelManager().key_pressed(self.image_panel, key)
+
     def __get_focused(self):
         return self.focus_ring_canvas_item.focused
     def __set_focused(self, focused):
@@ -1048,6 +1058,13 @@ class ImagePanel(Panel.Panel):
         ImagePanelManager().data_item_changed(self)
     data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
 
+
+    # watch for changes to the graphic item list
+    def item_inserted(self, object, key, value, before_index):
+        self.image_canvas_item.item_inserted(object, key, value, before_index)
+    def item_removed(self, object, key, value, index):
+        self.image_canvas_item.item_removed(object, key, value, index)
+
     def data_item_removed(self, container, data_item, index):
         # if our item gets deleted, clear the selection
         if container == self.data_item_container and data_item == self.data_item:
@@ -1092,6 +1109,10 @@ class ImagePanel(Panel.Panel):
                 self.image_canvas_item.selected = False
                 self.line_plot_canvas_item.data_item = None
                 self.line_plot_canvas_item.selected = False
+
+    def __get_graphic_selection(self):
+        return self.image_canvas_item.graphic_selection
+    graphic_selection = property(__get_graphic_selection)
 
     def __get_image_size(self):
         data_item = self.data_item
