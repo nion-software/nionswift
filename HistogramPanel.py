@@ -64,10 +64,7 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         super(AdornmentsCanvasItem, self).__init__()
         self.display_limits = (0,1)
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         # canvas size
         canvas_width = self.canvas_size[0]
@@ -118,10 +115,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         super(SimpleLineGraphCanvasItem, self).__init__()
         self.data = None
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         # draw the data, if any
         if (self.data is not None and len(self.data) > 0):
@@ -204,18 +198,24 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.repaint_if_needed()
 
     def mouse_double_clicked(self, x, y, modifiers):
+        if super(HistogramCanvasItem, self).mouse_double_clicked(x, y, modifiers):
+            return True
         self.__set_display_limits((0, 1))
         if self.__data_item:
             self.__data_item.display_limits = None
         return True
 
     def mouse_pressed(self, x, y, modifiers):
+        if super(HistogramCanvasItem, self).mouse_pressed(x, y, modifiers):
+            return True
         self.__pressed = True
         self.start = float(x)/self.canvas_size[0]
         self.__set_display_limits((self.start, self.start))
         return True
 
     def mouse_released(self, x, y, modifiers):
+        if super(HistogramCanvasItem, self).mouse_released(x, y, modifiers):
+            return True
         self.__pressed = False
         display_limit_range = self.adornments_canvas_item.display_limits[1] - self.adornments_canvas_item.display_limits[0]
         if self.__data_item and (display_limit_range > 0) and (display_limit_range < 1):
@@ -226,6 +226,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
+        if super(HistogramCanvasItem, self).mouse_position_changed(x, y, modifiers):
+            return True
         canvas_width = self.canvas_size[0]
         if self.__pressed:
             current = float(x)/canvas_width

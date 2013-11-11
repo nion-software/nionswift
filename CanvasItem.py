@@ -44,15 +44,24 @@ class AbstractCanvasItem(object):
         if self.__needs_update and self.canvas_size is not None:
             if not self.__layer:
                 self.__layer = self._canvas.create_layer()
-            drawing_context = self.__layer.create_drawing_context()
-            self.repaint(drawing_context)
+            drawing_context = self._create_drawing_context()
+            self._repaint(drawing_context)
+            drawing_context = self.container._wrap(drawing_context)
             self.__layer.drawing_context.copy_from(drawing_context)
             self.__needs_update = False
             self.container.draw()
 
+    # create an extra drawing context
+    def _create_drawing_context(self):
+        return self._canvas.create_drawing_context()
+
+    # wrap the drawing context with commands to clip, translate, scale, adorn, etc.
+    def _wrap(self, drawing_context):
+        return drawing_context
+
     # repaint should typically be called on a thread
     # layout (canvas_size) will always be valid if this is invoked
-    def repaint(self, drawing_context):
+    def _repaint(self, drawing_context):
         assert self.canvas_size is not None
 
     # default is to pass the draw message up the container hierarchy
@@ -119,53 +128,146 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in self.__canvas_items:
             canvas_item.repaint_if_needed()
 
+    def _wrap(self, drawing_context):
+        return self.container._wrap(drawing_context)
+
     def mouse_clicked(self, x, y, modifiers):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_clicked(x, y, modifiers):
                 return True
         return False
 
     def mouse_double_clicked(self, x, y, modifiers):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_double_clicked(x, y, modifiers):
                 return True
         return False
 
     def mouse_entered(self):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_entered():
                 return True
         return False
 
     def mouse_exited(self):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_exited():
                 return True
         return False
 
     def mouse_pressed(self, x, y, modifiers):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_pressed(x, y, modifiers):
                 return True
         return False
 
     def mouse_released(self, x, y, modifiers):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_released(x, y, modifiers):
                 return True
         return False
 
     def mouse_position_changed(self, x, y, modifiers):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.mouse_position_changed(x, y, modifiers):
                 return True
         return False
 
     def key_pressed(self, key):
-        for canvas_item in self.__canvas_items:
+        for canvas_item in reversed(self.__canvas_items):
             if canvas_item.key_pressed(key):
                 return True
         return False
+
+
+class PositionedCanvasItem(AbstractCanvasItem):
+
+    def __init__(self, canvas_item):
+        super(PositionedCanvasItem, self).__init__()
+        self.canvas_item = canvas_item
+        self.canvas_item.container = self
+        self.__translation = (20, 16)
+
+    def close(self):
+        self.canvas_item.close()
+        super(PositionedCanvasItem, self).close()
+
+    def _set_canvas(self, canvas):
+        super(PositionedCanvasItem, self)._set_canvas(canvas)
+        self.canvas_item._set_canvas(canvas)
+
+    def update_layout(self, canvas_size):
+        super(PositionedCanvasItem, self).update_layout(canvas_size)
+        golden_ratio = 1.618
+        height = max(int(canvas_size[1]/8), 48)
+        width = int(height * golden_ratio)
+        self.canvas_item.update_layout((width, height))
+
+    def update(self):
+        super(PositionedCanvasItem, self).update()
+        self.canvas_item.update()
+
+    def repaint_if_needed(self):
+        self.canvas_item.repaint_if_needed()
+
+    def _wrap(self, drawing_context):
+        wrapped_drawing_context = self._create_drawing_context()
+        wrapped_drawing_context.save()
+        wrapped_drawing_context.translate(self.__translation[0], self.__translation[1])
+        wrapped_drawing_context.add(drawing_context)
+        wrapped_drawing_context.restore()
+        return wrapped_drawing_context
+
+    def __mouse_inside(self, x, y):
+        if x < self.__translation[0] or x >= self.__translation[0] + self.canvas_item.canvas_size[0]:
+            return False
+        if y < self.__translation[1] or y >= self.__translation[1] + self.canvas_item.canvas_size[1]:
+            return False
+        return True
+
+    def mouse_clicked(self, x, y, modifiers):
+        if self.__mouse_inside(x, y):
+            x -= self.__translation[0]
+            y -= self.__translation[1]
+            return self.canvas_item.mouse_clicked(x, y, modifiers)
+        return False
+
+    def mouse_double_clicked(self, x, y, modifiers):
+        if self.__mouse_inside(x, y):
+            x -= self.__translation[0]
+            y -= self.__translation[1]
+            return self.canvas_item.mouse_double_clicked(x, y, modifiers)
+        return False
+
+    def mouse_entered(self):
+        return False
+
+    def mouse_exited(self):
+        return False
+
+    def mouse_pressed(self, x, y, modifiers):
+        if self.__mouse_inside(x, y):
+            x -= self.__translation[0]
+            y -= self.__translation[1]
+            return self.canvas_item.mouse_pressed(x, y, modifiers)
+        return False
+
+    def mouse_released(self, x, y, modifiers):
+        if self.__mouse_inside(x, y):
+            x -= self.__translation[0]
+            y -= self.__translation[1]
+            return self.canvas_item.mouse_released(x, y, modifiers)
+        return False
+
+    def mouse_position_changed(self, x, y, modifiers):
+        if self.__mouse_inside(x, y):
+            x -= self.__translation[0]
+            y -= self.__translation[1]
+            return self.canvas_item.mouse_position_changed(x, y, modifiers)
+        return False
+
+    def key_pressed(self, key):
+        return self.canvas_item.key_pressed(key)
 
 
 class RootCanvasItem(CanvasItemComposition):
@@ -197,6 +299,9 @@ class RootCanvasItem(CanvasItemComposition):
 
     def draw(self):
         self._canvas.draw()
+
+    def _wrap(self, drawing_context):
+        return drawing_context
 
     def size_changed(self, width, height):
         if width > 0 and height > 0:

@@ -285,13 +285,7 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
         self.focused = False
         self.selected = False
 
-    def repaint_if_needed(self):
-        super(FocusRingCanvasItem, self).repaint_if_needed()
-
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         if self.selected:
 
@@ -321,10 +315,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         super(LineGraphCanvasItem, self).__init__()
         self.data = None
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         # draw the data, if any
         if (self.data is not None and len(self.data) > 0):
@@ -387,10 +378,7 @@ class BitmapCanvasItem(CanvasItem.AbstractCanvasItem):
         super(BitmapCanvasItem, self).__init__()
         self.rgba_bitmap_data = None
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         # draw the data, if any
         if self.rgba_bitmap_data is not None:
@@ -426,10 +414,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         super(GraphicsCanvasItem, self).__init__()
         self.data_item = None
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         if self.data_item:
 
@@ -451,10 +436,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         super(InfoOverlayCanvasItem, self).__init__()
         self.data_item = None
 
-    def repaint(self, drawing_context):
-
-        # clear the drawing context
-        drawing_context.clear()
+    def _repaint(self, drawing_context):
 
         if self.data_item:
 
@@ -534,6 +516,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         super(LinePlotCanvasItem, self).close()
 
     def mouse_clicked(self, x, y, modifiers):
+        if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
+            return True
         # activate this view. this has the side effect of grabbing focus.
         self.document_controller.selected_image_panel = self.image_panel
 
@@ -640,10 +624,15 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         super(ImageCanvasItem, self).close()
 
     def mouse_clicked(self, x, y, modifiers):
+        if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
+            return True
         # activate this view. this has the side effect of grabbing focus.
         self.document_controller.selected_image_panel = self.image_panel
+        return True
 
     def mouse_pressed(self, x, y, modifiers):
+        if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
+            return True
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
@@ -681,8 +670,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     break
         if not self.graphic_drag_items and not modifiers.shift:
             self.graphic_selection.clear()
+        return True
 
     def mouse_released(self, x, y, modifiers):
+        if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
+            return True
         for index in self.graphic_drag_indexes:
             graphic = self.data_item.graphics[index]
             graphic.end_drag(self.graphic_part_data[index])
@@ -704,15 +696,24 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_drag_item = None
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
+        return True
 
     def mouse_entered(self):
+        if super(ImageCanvasItem, self).mouse_entered():
+            return True
         self.__mouse_in = True
+        return True
 
     def mouse_exited(self):
+        if super(ImageCanvasItem, self).mouse_exited():
+            return True
         self.__mouse_in = False
         self.mouse_position_changed(0, 0, 0)
+        return True
 
     def mouse_position_changed(self, x, y, modifiers):
+        if super(ImageCanvasItem, self).mouse_position_changed(x, y, modifiers):
+            return True
         # x,y already have transform applied
         self.__last_mouse = (y, x)
         self.__update_cursor_info()
@@ -725,9 +726,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.graphic_drag_changed = True
                 self.graphics_canvas_item.update()
         self.graphics_canvas_item.repaint_if_needed()
+        return True
 
     # ths message comes from the widget
     def key_pressed(self, key):
+        if super(ImageCanvasItem, self).key_pressed(key):
+            return True
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
         if key.is_delete:
             all_graphics = self.data_item.graphics if self.data_item else []

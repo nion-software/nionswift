@@ -363,6 +363,9 @@ class QtDrawingContext(object):
         assert drawing_context.save_count == 0
         self.js = drawing_context.js
         self.commands = drawing_context.commands
+    def add(self, drawing_context):
+        self.js += drawing_context.js
+        self.commands.extend(drawing_context.commands)
     def clear(self):
         self.js = ""
         self.commands = []
@@ -954,13 +957,13 @@ class QtCanvasWidget(QtWidget):
             return self.__drawing_context
         drawing_context = property(__get_drawing_context)
 
-        def create_drawing_context(self):
-            return QtDrawingContext()
-
     def create_layer(self):
         layer = QtCanvasWidget.Layer(self)
         self.layers.append(layer)
         return layer
+
+    def create_drawing_context(self):
+        return QtDrawingContext()
 
     def draw(self):
         commands = []
