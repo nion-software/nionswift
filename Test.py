@@ -72,6 +72,8 @@ class DrawingContext(object):
         self.line_width = None
         self.line_cap = None
         self.line_join = None
+    def copy_from(self, drawing_context):
+        pass
     def clear(self):
         pass
     def save(self):
@@ -141,6 +143,8 @@ class Widget:
         pass
     def create_layer(self):
         return Widget()
+    def create_drawing_context(self):
+        return DrawingContext()
     def draw(self):
         pass
     def save_state(self, tag):

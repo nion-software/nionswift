@@ -1134,15 +1134,16 @@ class ImagePanel(Panel.Panel):
 
     # map from image normalized coordinates to widget coordinates
     def map_image_norm_to_widget(self, p):
-        transformed_image_rect = self.transformed_image_rect
+        image_size = self.image_size
+        transformed_image_rect = ((0, 0), image_size)  ### TODO: fix me ... self.transformed_image_rect
         if transformed_image_rect:
             return (p[0]*transformed_image_rect[1][0] + transformed_image_rect[0][0], p[1]*transformed_image_rect[1][1] + transformed_image_rect[0][1])
         return None
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):
-        transformed_image_rect = self.transformed_image_rect
         image_size = self.image_size
+        transformed_image_rect = ((0, 0), image_size)  ### TODO: fix me ... self.transformed_image_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
                 image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]

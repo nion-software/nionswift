@@ -20,7 +20,7 @@ class AbstractCanvasItem(object):
         self.__layer = None
         self.container = None
         self.__needs_update = False
-        self.canvas_size = None
+        self.canvas_size = None  # (width, height)
 
     def close(self):
         pass

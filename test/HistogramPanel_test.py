@@ -27,8 +27,6 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.document_controller.document_model.create_default_data_groups()
         default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
-        self.image_panel.image_canvas.width = 1000
-        self.image_panel.image_canvas.height = 1000
         data = numpy.zeros((1000, 1000), dtype=numpy.uint32)
         data[:] = 200
         data[500,500] = 650
