@@ -2,27 +2,24 @@
 import gettext
 import logging
 import threading
-import time
 
 # third party libraries
-import numpy
+# None
 
 # local libraries
-from nion.swift import Decorators
 from nion.swift.Decorators import ProcessingThread
-from nion.swift.Decorators import relative_file
+from nion.swift import CanvasItem
 from nion.swift import DataItem
 from nion.swift import Panel
-from nion.swift import UserInterface
 
 _ = gettext.gettext
 
 
 class HistogramThread(ProcessingThread):
 
-    def __init__(self, histogram_panel):
+    def __init__(self, histogram_canvas_item):
         super(HistogramThread, self).__init__(minimum_interval=0.2)
-        self.__histogram_panel = histogram_panel
+        self.__histogram_canvas_item = histogram_canvas_item
         self.__data_item = None
         self.__mutex = threading.RLock()  # access to the data item
         # mutex is needed to avoid case where grab data is called
@@ -55,139 +52,16 @@ class HistogramThread(ProcessingThread):
             return data_item
 
     def process_data(self, data_item):
-        self.__histogram_panel._set_data_item(data_item)
+        self.__histogram_canvas_item._set_data_item(data_item)
 
     def release_data(self, data_item):
         data_item.remove_ref()
 
 
-# represents an object to be drawn on a canvas
-# the canvas object is responsible for drawing its content
-# after which it tells its container that it has updated
-# content. the container will send the updated content to
-# the ui canvas which will schedule it to be drawn by the ui.
-class AbstractCanvasObject(object):
+class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
-        self._canvas = None
-        self.__layer = None
-        self.container = None
-        self.__needs_update = False
-        self.canvas_size = None
-
-    def close(self):
-        pass
-
-    # set the canvas
-    def _set_canvas(self, canvas):
-        self._canvas = canvas
-
-    # update the layout (canvas_size for now)
-    def update_layout(self, canvas_size):
-        self.canvas_size = canvas_size
-
-    # mark this object as needing an update
-    def update(self):
-        self.__needs_update = True
-
-    # redraws the object if needed, then informs the container
-    # that the item has been redrawn.
-    # this should typically be called on a thread.
-    def repaint_if_needed(self):
-        if self.__needs_update and self.canvas_size is not None:
-            if not self.__layer:
-                self.__layer = self._canvas.create_layer()
-            drawing_context = self.__layer.drawing_context
-            self.repaint(drawing_context)
-            self.__needs_update = False
-            self.container.draw()
-
-    # repaint should typically be called on a thread
-    # layout (canvas_size) will always be valid if this is invoked
-    def repaint(self, drawing_context):
-        assert self.canvas_size is not None
-
-    # default is to pass the draw message up the container hierarchy
-    def draw(self):
-        self.container.draw()
-
-    def mouse_double_clicked(self, x, y, modifiers):
-        return False
-
-    def mouse_pressed(self, x, y, modifiers):
-        return False
-
-    def mouse_released(self, x, y, modifiers):
-        return False
-
-    def mouse_position_changed(self, x, y, modifiers):
-        return False
-
-
-class CanvasObjectComposition(AbstractCanvasObject):
-
-    def __init__(self):
-        super(CanvasObjectComposition, self).__init__()
-        self.__canvas_objects = []
-
-    def close(self):
-        for canvas_object in self.__canvas_objects:
-            canvas_object.close()
-        super(CanvasObjectComposition, self).close()
-
-    def _set_canvas(self, canvas):
-        super(CanvasObjectComposition, self)._set_canvas(canvas)
-        for canvas_object in self.__canvas_objects:
-            canvas_object._set_canvas(canvas)
-
-    def update_layout(self, canvas_size):
-        super(CanvasObjectComposition, self).update_layout(canvas_size)
-        for canvas_object in self.__canvas_objects:
-            canvas_object.update_layout(canvas_size)
-
-    def add_canvas_object(self, canvas_object):
-        self.__canvas_objects.append(canvas_object)
-        canvas_object.container = self
-        canvas_object._set_canvas(self._canvas)
-
-    def update(self):
-        super(CanvasObjectComposition, self).update()
-        for canvas_object in self.__canvas_objects:
-            canvas_object.update()
-
-    def repaint_if_needed(self):
-        for canvas_object in self.__canvas_objects:
-            canvas_object.repaint_if_needed()
-
-    def mouse_double_clicked(self, x, y, modifiers):
-        for canvas_object in self.__canvas_objects:
-            if canvas_object.mouse_double_clicked(x, y, modifiers):
-                return True
-        return False
-
-    def mouse_pressed(self, x, y, modifiers):
-        for canvas_object in self.__canvas_objects:
-            if canvas_object.mouse_pressed(x, y, modifiers):
-                return True
-        return False
-
-    def mouse_released(self, x, y, modifiers):
-        for canvas_object in self.__canvas_objects:
-            if canvas_object.mouse_released(x, y, modifiers):
-                return True
-        return False
-
-    def mouse_position_changed(self, x, y, modifiers):
-        for canvas_object in self.__canvas_objects:
-            if canvas_object.mouse_position_changed(x, y, modifiers):
-                return True
-        return False
-
-
-class AdornmentsCanvasObject(AbstractCanvasObject):
-
-    def __init__(self):
-        super(AdornmentsCanvasObject, self).__init__()
+        super(AdornmentsCanvasItem, self).__init__()
         self.display_limits = (0,1)
 
     def repaint(self, drawing_context):
@@ -238,10 +112,10 @@ class AdornmentsCanvasObject(AbstractCanvasObject):
         drawing_context.restore()
 
 
-class LinePlotCanvasObject(AbstractCanvasObject):
+class LinePlotCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
-        super(LinePlotCanvasObject, self).__init__()
+        super(LinePlotCanvasItem, self).__init__()
         self.data = None
 
     def repaint(self, drawing_context):
@@ -273,16 +147,16 @@ class LinePlotCanvasObject(AbstractCanvasObject):
             drawing_context.restore()
 
 
-class HistogramCanvasObject(CanvasObjectComposition):
+class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, document_controller):
-        super(HistogramCanvasObject, self).__init__()
+        super(HistogramCanvasItem, self).__init__()
         self.document_controller = document_controller
-        self.adornments_canvas_object = AdornmentsCanvasObject()
-        self.line_plot_canvas_object = LinePlotCanvasObject()
+        self.adornments_canvas_item = AdornmentsCanvasItem()
+        self.line_plot_canvas_item = LinePlotCanvasItem()
         # canvas items get added back to front
-        self.add_canvas_object(self.line_plot_canvas_object)
-        self.add_canvas_object(self.adornments_canvas_object)
+        self.add_canvas_item(self.line_plot_canvas_item)
+        self.add_canvas_item(self.adornments_canvas_item)
         self.__data_item = None
         self.__pressed = False
 
@@ -310,11 +184,11 @@ class HistogramCanvasObject(CanvasObjectComposition):
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
-            self.adornments_canvas_object.display_limits = (0, 1)
+            self.adornments_canvas_item.display_limits = (0, 1)
         histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
-        self.line_plot_canvas_object.data = histogram_data
-        self.line_plot_canvas_object.update()
-        self.adornments_canvas_object.update()
+        self.line_plot_canvas_item.data = histogram_data
+        self.line_plot_canvas_item.update()
+        self.adornments_canvas_item.update()
         self.repaint_if_needed()
 
     # this message is received from the document controller.
@@ -324,8 +198,8 @@ class HistogramCanvasObject(CanvasObjectComposition):
             self.__histogram_thread.update_data(data_item)
 
     def __set_display_limits(self, display_limits):
-        self.adornments_canvas_object.display_limits = display_limits
-        self.adornments_canvas_object.update()
+        self.adornments_canvas_item.display_limits = display_limits
+        self.adornments_canvas_item.update()
         self.repaint_if_needed()
 
     def mouse_double_clicked(self, x, y, modifiers):
@@ -342,11 +216,11 @@ class HistogramCanvasObject(CanvasObjectComposition):
 
     def mouse_released(self, x, y, modifiers):
         self.__pressed = False
-        display_limit_range = self.adornments_canvas_object.display_limits[1] - self.adornments_canvas_object.display_limits[0]
+        display_limit_range = self.adornments_canvas_item.display_limits[1] - self.adornments_canvas_item.display_limits[0]
         if self.__data_item and (display_limit_range > 0) and (display_limit_range < 1):
             data_min, data_max = self.__data_item.display_range
-            lower_display_limit = data_min + self.adornments_canvas_object.display_limits[0] * (data_max - data_min)
-            upper_display_limit = data_min + self.adornments_canvas_object.display_limits[1] * (data_max - data_min)
+            lower_display_limit = data_min + self.adornments_canvas_item.display_limits[0] * (data_max - data_min)
+            upper_display_limit = data_min + self.adornments_canvas_item.display_limits[1] * (data_max - data_min)
             self.__data_item.display_limits = (lower_display_limit, upper_display_limit)
         return True
 
@@ -358,38 +232,14 @@ class HistogramCanvasObject(CanvasObjectComposition):
         return True
 
 
-class RootCanvasObject(CanvasObjectComposition):
-
-    def __init__(self, ui, properties):
-        super(RootCanvasObject, self).__init__()
-        self._canvas = ui.create_canvas_widget(properties)
-        self._canvas.on_size_changed = lambda width, height: self.size_changed(width, height)
-        self._canvas.on_mouse_double_clicked = lambda x, y, modifiers: self.mouse_double_clicked(x, y, modifiers)
-        self._canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed(x, y, modifiers)
-        self._canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
-        self._canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
-
-    def __get_canvas(self):
-        return self._canvas
-    canvas = property(__get_canvas)
-
-    def draw(self):
-        self._canvas.draw()
-
-    def size_changed(self, width, height):
-        if width > 0 and height > 0:
-            self.update_layout((width, height))
-            self.update()
-
-
 class HistogramPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
-        self.root_canvas_object = RootCanvasObject(document_controller.ui, properties)
-        self.widget = self.root_canvas_object.canvas
-        self.root_canvas_object.add_canvas_object(HistogramCanvasObject(document_controller))
+        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties)
+        self.widget = self.root_canvas_item.canvas
+        self.root_canvas_item.add_canvas_item(HistogramCanvasItem(document_controller))
 
     def close(self):
-        self.root_canvas_object.close()
+        self.root_canvas_item.close()
         super(HistogramPanel, self).close()

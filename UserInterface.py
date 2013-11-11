@@ -358,6 +358,11 @@ class QtDrawingContext(object):
         self.js = ""
         self.commands = []
         self.save_count = 0
+    def copy_from(self, drawing_context):
+        assert self.save_count == 0
+        assert drawing_context.save_count == 0
+        self.js = drawing_context.js
+        self.commands = drawing_context.commands
     def clear(self):
         self.js = ""
         self.commands = []
