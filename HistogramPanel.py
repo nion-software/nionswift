@@ -114,7 +114,22 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(SimpleLineGraphCanvasItem, self).__init__()
-        self.data = None
+        self.__data = None
+        self.__background_color = None
+
+    def __get_data(self):
+        return self.__data
+    def __set_data(self, data):
+        self.__data = data
+        self.update()
+    data = property(__get_data, __set_data)
+
+    def __get_background_color(self):
+        return self.__background_color
+    def __set_background_color(self, background_color):
+        self.__background_color = background_color
+        self.update()
+    background_color = property(__get_background_color, __set_background_color)
 
     def _repaint(self, drawing_context):
 
@@ -124,6 +139,19 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # canvas size
             canvas_width = self.canvas_size[1]
             canvas_height = self.canvas_size[0]
+
+            # draw background
+            if self.background_color:
+                drawing_context.save()
+                drawing_context.begin_path()
+                drawing_context.move_to(0,0)
+                drawing_context.line_to(canvas_width,0)
+                drawing_context.line_to(canvas_width,canvas_height)
+                drawing_context.line_to(0,canvas_height)
+                drawing_context.close_path()
+                drawing_context.fill_style = self.background_color
+                drawing_context.fill()
+                drawing_context.restore()
 
             # draw the histogram itself
             drawing_context.save()
@@ -169,6 +197,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.data_item_binding.remove_listener(self)
         super(HistogramCanvasItem, self).close()
 
+    def __get_background_color(self):
+        return self.simple_line_graph_canvas_item
+    def __set_background_color(self, background_color):
+        self.simple_line_graph_canvas_item.background_color = background_color
+    background_color = property(__get_background_color, __set_background_color)
+
     # _get_data_item is only used for testing
     def _get_data_item(self):
         return self.__data_item
@@ -183,7 +217,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.adornments_canvas_item.display_limits = (0, 1)
         histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
         self.simple_line_graph_canvas_item.data = histogram_data
-        self.simple_line_graph_canvas_item.update()
         self.adornments_canvas_item.update()
         self.repaint_if_needed()
 
