@@ -954,14 +954,19 @@ class DataItemSpecifier(object):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
 
-class AbstractDataItemBinding(object):
+class DataItemBinding(object):
 
     def __init__(self):
         self.__listeners = []
         self.__listeners_mutex = threading.RLock()
+        self.__data_item = None
 
     def close(self):
         pass
+
+    def __get_data_item(self):
+        return self.__data_item
+    data_item = property(__get_data_item)
 
     # Add a listener
     def add_listener(self, listener):
@@ -985,3 +990,8 @@ class AbstractDataItemBinding(object):
             import traceback
             traceback.print_exc()
             logging.debug("Notify Error: %s", e)
+
+    # this message is received from the canvas item.
+    def notify_data_item_changed(self, data_item):
+        self.__data_item = data_item
+        self.notify_listeners("data_item_changed", data_item)

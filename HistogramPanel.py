@@ -188,6 +188,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__histogram_thread = HistogramThread(self)
 
+        self.data_item_changed(self.data_item_binding.data_item)
+
     def close(self):
         self.__histogram_thread.close()
         self.__histogram_thread = None

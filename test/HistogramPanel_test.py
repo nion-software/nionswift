@@ -38,8 +38,10 @@ class TestHistogramPanelClass(unittest.TestCase):
         class CanvasItemContainer(object):
             def draw(self):
                 pass
-        self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem(self.document_controller)
-        self.histogram_canvas_item.container =CanvasItemContainer()
+        data_item_binding = DataItem.DataItemBinding()
+        data_item_binding.notify_data_item_changed(self.data_item)
+        self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem(data_item_binding)
+        self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
         self.histogram_canvas_item._set_data_item(self.data_item)

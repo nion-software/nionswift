@@ -19,7 +19,7 @@ class AbstractCanvasItem(object):
         self._canvas = None
         self.__layer = None
         self.container = None
-        self.__needs_update = False
+        self.__needs_update = True
         self.canvas_size = None
         self.canvas_origin = None
 
@@ -156,6 +156,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.__canvas_items.append(canvas_item)
         canvas_item.container = self
         canvas_item._set_canvas(self._canvas)
+        # update the layout if origin and size already known
+        if self.canvas_origin and self.canvas_size:
+            self.update_layout(self.canvas_origin, self.canvas_size)
+            self.update()
 
     def update(self):
         super(CanvasItemComposition, self).update()
@@ -228,26 +232,6 @@ class CanvasItemComposition(AbstractCanvasItem):
             if canvas_item.key_pressed(key):
                 return True
         return False
-
-
-class PositionedCanvasItem(CanvasItemComposition):
-
-    def __init__(self, canvas_item):
-        super(PositionedCanvasItem, self).__init__()
-        self.add_canvas_item(canvas_item)
-        self.__translation = (20, 16)
-
-    def update_layout(self, canvas_origin, canvas_size):
-        self.canvas_origin = canvas_origin
-        self.canvas_size = canvas_size
-        canvas_item_origin = self.__translation
-        golden_ratio = 1.618
-        canvas_item_height = max(int(canvas_size[1]/8), 48)
-        canvas_item_width = int(canvas_item_height * golden_ratio)
-        for canvas_item in self.canvas_items:
-            canvas_item_size = (canvas_item_width, canvas_item_height)
-            canvas_item.update_layout(canvas_item_origin, canvas_item_size)
-            canvas_item_origin = (canvas_item_origin[0], canvas_item_origin[1] + canvas_item_height + 12)
 
 
 class RootCanvasItem(CanvasItemComposition):

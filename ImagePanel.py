@@ -581,14 +581,23 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.repaint_if_needed()
 
 
-# binding to the selected data item in the document controller
-class CanvasItemDataItemBinding(DataItem.AbstractDataItemBinding):
+# binding to a child of another data item binding
+class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
 
-    def __init__(self):
-        super(CanvasItemDataItemBinding, self).__init__()
+    def __init__(self, data_item_binding, uuid):
+        super(CanvasItemChildDataItemBinding, self).__init__()
+        self.data_item_binding = data_item_binding
+        self.uuid = uuid
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding.add_listener(self)
 
-    # this message is received from the canvas item.
-    def notify_data_item_changed(self, data_item):
+    def close(self):
+        # disconnect self as listener
+        self.data_item_binding.remove_listener(self)
+        super(CanvasItemChildDataItemBinding, self).close()
+
+    # this message is received from the enclosing data item binding.
+    def data_item_changed(self, data_item):
         self.notify_listeners("data_item_changed", data_item)
 
 
@@ -602,17 +611,20 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.image_panel = image_panel
 
         # create a data item binding for adornments to use
-        self.data_item_binding = CanvasItemDataItemBinding()
+        self.data_item_binding = DataItem.DataItemBinding()
 
         # create the child canvas items
         self.bitmap_canvas_item = BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()
+        self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
+        self.accessory_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         self.focus_ring_canvas_item = FocusRingCanvasItem()
 
         # canvas items get added back to front
         self.add_canvas_item(self.bitmap_canvas_item)
         self.add_canvas_item(self.graphics_canvas_item)
+        self.add_canvas_item(self.accessory_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
@@ -642,7 +654,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
         # activate this view. this has the side effect of grabbing focus.
-        self.document_controller.selected_image_panel = self.image_panel
+        # image panel is optional.
+        if self.image_panel:
+            self.document_controller.selected_image_panel = self.image_panel
         return True
 
     def mouse_pressed(self, x, y, modifiers):
@@ -747,6 +761,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def key_pressed(self, key):
         if super(ImageCanvasItem, self).key_pressed(key):
             return True
+        # only handle keys if we're directly embedded in an image panel
+        if not self.image_panel:
+            return False
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
         if key.is_delete:
             all_graphics = self.data_item.graphics if self.data_item else []

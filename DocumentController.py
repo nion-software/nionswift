@@ -493,13 +493,14 @@ class DocumentController(object):
 
 
 # binding to the selected data item in the document controller
-class SelectedDataItemBinding(DataItem.AbstractDataItemBinding):
+class SelectedDataItemBinding(DataItem.DataItemBinding):
 
     def __init__(self, document_controller):
         super(SelectedDataItemBinding, self).__init__()
         self.document_controller = document_controller
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
+        self.notify_data_item_changed(document_controller.selected_data_item)
 
     def close(self):
         # disconnect self as listener
@@ -509,4 +510,4 @@ class SelectedDataItemBinding(DataItem.AbstractDataItemBinding):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, changes):
-        self.notify_listeners("data_item_changed", data_item)
+        self.notify_data_item_changed(data_item)
