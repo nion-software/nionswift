@@ -952,3 +952,36 @@ class DataItemSpecifier(object):
     data_item_container = property(__get_data_item_container)
     def __str__(self):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
+
+
+class AbstractDataItemBinding(object):
+
+    def __init__(self):
+        self.__listeners = []
+        self.__listeners_mutex = threading.RLock()
+
+    def close(self):
+        pass
+
+    # Add a listener
+    def add_listener(self, listener):
+        with self.__listeners_mutex:
+            assert listener is not None
+            self.__listeners.append(listener)
+    # Remove a listener.
+    def remove_listener(self, listener):
+        with self.__listeners_mutex:
+            assert listener is not None
+            self.__listeners.remove(listener)
+    # Send a message to the listeners
+    def notify_listeners(self, fn, *args, **keywords):
+        try:
+            with self.__listeners_mutex:
+                listeners = copy.copy(self.__listeners)
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    getattr(listener, fn)(*args, **keywords)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logging.debug("Notify Error: %s", e)

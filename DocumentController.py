@@ -492,9 +492,21 @@ class DocumentController(object):
             self.console.insert_lines(lines)
 
 
-if False:
-    import time
-    start = time.time()
-    elapsed = time.time() - start
-    if elapsed > 0.001:
-        logging.debug("elapsed %s", elapsed)
+# binding to the selected data item in the document controller
+class SelectedDataItemBinding(DataItem.AbstractDataItemBinding):
+
+    def __init__(self, document_controller):
+        super(SelectedDataItemBinding, self).__init__()
+        self.document_controller = document_controller
+        # connect self as listener. this will result in calls to selected_data_item_changed
+        self.document_controller.add_listener(self)
+
+    def close(self):
+        # disconnect self as listener
+        self.document_controller.remove_listener(self)
+        super(SelectedDataItemBinding, self).close()
+
+    # this message is received from the document controller.
+    # it is established using add_listener
+    def selected_data_item_changed(self, data_item, changes):
+        self.notify_listeners("data_item_changed", data_item)

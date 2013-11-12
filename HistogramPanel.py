@@ -10,6 +10,7 @@ import threading
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import CanvasItem
 from nion.swift import DataItem
+from nion.swift import DocumentController
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -143,9 +144,9 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, document_controller):
+    def __init__(self, data_item_binding):
         super(HistogramCanvasItem, self).__init__()
-        self.document_controller = document_controller
+        self.data_item_binding = data_item_binding
         self.adornments_canvas_item = AdornmentsCanvasItem()
         self.simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
         # canvas items get added back to front
@@ -154,8 +155,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__data_item = None
         self.__pressed = False
 
-        # connect self as listener. this will result in calls to selected_data_item_changed
-        self.document_controller.add_listener(self)
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding.add_listener(self)
 
         self.__histogram_thread = HistogramThread(self)
 
@@ -163,9 +164,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__histogram_thread.close()
         self.__histogram_thread = None
         # first set the data item to None
-        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
+        self.data_item_changed(None)
         # disconnect self as listener
-        self.document_controller.remove_listener(self)
+        self.data_item_binding.remove_listener(self)
         super(HistogramCanvasItem, self).close()
 
     # _get_data_item is only used for testing
@@ -188,7 +189,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, changes):
+    def data_item_changed(self, data_item):
         if self.__histogram_thread:
             self.__histogram_thread.update_data(data_item)
 
@@ -241,8 +242,10 @@ class HistogramPanel(Panel.Panel):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
         self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties)
         self.widget = self.root_canvas_item.canvas
-        self.root_canvas_item.add_canvas_item(HistogramCanvasItem(document_controller))
+        self.data_item_binding = DocumentController.SelectedDataItemBinding(document_controller)
+        self.root_canvas_item.add_canvas_item(HistogramCanvasItem(self.data_item_binding))
 
     def close(self):
         self.root_canvas_item.close()
+        self.data_item_binding.close()
         super(HistogramPanel, self).close()

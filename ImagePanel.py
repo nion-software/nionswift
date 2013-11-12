@@ -581,6 +581,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.repaint_if_needed()
 
 
+# binding to the selected data item in the document controller
+class CanvasItemDataItemBinding(DataItem.AbstractDataItemBinding):
+
+    def __init__(self):
+        super(CanvasItemDataItemBinding, self).__init__()
+
+    # this message is received from the canvas item.
+    def notify_data_item_changed(self, data_item):
+        self.notify_listeners("data_item_changed", data_item)
+
+
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, document_controller, image_panel):
@@ -589,6 +600,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # ugh
         self.document_controller = document_controller
         self.image_panel = image_panel
+
+        # create a data item binding for adornments to use
+        self.data_item_binding = CanvasItemDataItemBinding()
 
         # create the child canvas items
         self.bitmap_canvas_item = BitmapCanvasItem()
@@ -621,6 +635,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__paint_thread = None
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
+        self.data_item_binding.close()
         super(ImageCanvasItem, self).close()
 
     def mouse_clicked(self, x, y, modifiers):
@@ -763,6 +778,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_data_item(self, data_item):
         self.__data_item = data_item
         self.__update_cursor_info()
+        self.data_item_binding.notify_data_item_changed(data_item)
         if self.__data_item and self.__paint_thread:
             self.__paint_thread.update_data(data_item)
         else:
