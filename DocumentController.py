@@ -412,22 +412,22 @@ class DocumentController(object):
                 return new_data_item
         return None
 
-    def processing_fft(self):
-        self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "))
+    def processing_fft(self, select=True):
+        return self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "), select=select)
 
-    def processing_ifft(self):
-        self.add_processing_operation(Operation.IFFTOperation(), prefix=_("Inverse FFT of "))
+    def processing_ifft(self, select=True):
+        return self.add_processing_operation(Operation.IFFTOperation(), prefix=_("Inverse FFT of "), select=select)
 
-    def processing_gaussian_blur(self):
-        self.add_processing_operation(Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "))
+    def processing_gaussian_blur(self, select=True):
+        return self.add_processing_operation(Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "), select=select)
 
-    def processing_resample(self):
-        self.add_processing_operation(Operation.Resample2dOperation(), prefix=_("Resample of "))
+    def processing_resample(self, select=True):
+        return self.add_processing_operation(Operation.Resample2dOperation(), prefix=_("Resample of "), select=select)
 
-    def processing_histogram(self):
-        self.add_processing_operation(Operation.HistogramOperation(), prefix=_("Histogram of "))
+    def processing_histogram(self, select=True):
+        return self.add_processing_operation(Operation.HistogramOperation(), prefix=_("Histogram of "), select=select)
 
-    def processing_crop(self):
+    def processing_crop(self, select=True):
         data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
@@ -436,9 +436,9 @@ class DocumentController(object):
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)
             operation.graphic = graphic
-            self.add_processing_operation(operation, prefix=_("Crop of "))
+            return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
-    def processing_line_profile(self):
+    def processing_line_profile(self, select=True):
         data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
@@ -448,28 +448,33 @@ class DocumentController(object):
             graphic.end = (0.75,0.75)
             data_item.graphics.append(graphic)
             operation.graphic = graphic
-            self.add_processing_operation(operation, prefix=_("Line Profile of "))
+            return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
+        return None
 
-    def processing_invert(self):
-        self.add_processing_operation(Operation.InvertOperation(), suffix=_(" Inverted"))
+    def processing_invert(self, select=True):
+        return self.add_processing_operation(Operation.InvertOperation(), suffix=_(" Inverted"), select=select)
 
-    def processing_duplicate(self):
+    def processing_duplicate(self, select=True):
         data_item = self.selected_data_item
         if data_item:
             new_data_item = DataItem.DataItem()
             new_data_item.title = _("Clone of ") + str(data_item)
             data_item.data_items.append(new_data_item)
+            return new_data_item
+        return None
 
-    def processing_snapshot(self):
+    def processing_snapshot(self, select=True):
         data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             data_item_copy = copy.deepcopy(data_item)
             data_item_copy.title = _("Copy of ") + str(data_item_copy)
             self.document_model.default_data_group.data_items.append(data_item_copy)
+            return data_item_copy
+        return None
 
-    def processing_convert_to_scalar(self):
-        self.add_processing_operation(Operation.ConvertToScalarOperation(), suffix=_(" Gray"))
+    def processing_convert_to_scalar(self, select=True):
+        return self.add_processing_operation(Operation.ConvertToScalarOperation(), suffix=_(" Gray"), select=select)
 
     def add_custom_processing_operation(self, data_item, fn, title=None):
         class ZOperation(Operation.Operation):

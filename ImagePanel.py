@@ -19,8 +19,10 @@ from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift.Decorators import singleton
 from nion.swift import Graphics
+from nion.swift import HistogramPanel
 from nion.swift import Image
 from nion.swift import Inspector
+from nion.swift import Operation
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -492,8 +494,12 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, document_controller, image_panel):
+    def __init__(self, data_item_binding, document_controller, image_panel):
         super(LinePlotCanvasItem, self).__init__()
+
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding = data_item_binding
+        self.data_item_binding.add_listener(self)
 
         # ugh
         self.document_controller = document_controller
@@ -512,16 +518,24 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
 
+        # initial data item changed message
+        self.data_item_changed(self.data_item_binding.data_item)
+
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
+        # disconnect self as listener
+        self.data_item_binding.remove_listener(self)
+        # call super
         super(LinePlotCanvasItem, self).close()
 
     def mouse_clicked(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
         # activate this view. this has the side effect of grabbing focus.
-        self.document_controller.selected_image_panel = self.image_panel
+        # image panel is optional.
+        if self.image_panel:
+            self.document_controller.selected_image_panel = self.image_panel
 
     def __get_focused(self):
         return self.focus_ring_canvas_item.focused
@@ -543,7 +557,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     # doing this will queue an item in the paint thread to repaint.
     def __get_data_item(self):
         return self.__data_item
-    def __set_data_item(self, data_item):
+    data_item = property(__get_data_item)
+
+    def data_item_changed(self, data_item):
         self.__data_item = data_item
         if self.__data_item and self.__paint_thread:
             self.__paint_thread.update_data(data_item)
@@ -551,7 +567,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
             self.repaint_if_needed()
-    data_item = property(__get_data_item, __set_data_item)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -592,6 +607,7 @@ class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
         self.uuid = uuid
         # connect self as listener. this will result in calls to data_item_changed
         self.data_item_binding.add_listener(self)
+        self.data_item_changed(data_item_binding.data_item)
 
     def close(self):
         # disconnect self as listener
@@ -794,6 +810,57 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
             if len(graphics):
                 self.document_controller.remove_graphic()
+        if key.text == "h":
+            histogram_canvas_item = self.accessories.get("histogram")
+            if histogram_canvas_item:
+                self.accessory_canvas_item.remove_canvas_item(histogram_canvas_item)
+                histogram_canvas_item.close()
+                del self.accessories["histogram"]
+                self.repaint_if_needed()
+            else:
+                histogram_canvas_item = HistogramPanel.HistogramCanvasItem(self.data_item_binding)
+                histogram_canvas_item.background_color = "#EEEEEE"
+                self.accessory_canvas_item.add_canvas_item(histogram_canvas_item)
+                self.accessories["histogram"] = histogram_canvas_item
+                self.repaint_if_needed()
+        if key.text == "f":
+            fft_canvas_item = self.accessories.get("fft")
+            if fft_canvas_item:
+                self.accessory_canvas_item.remove_canvas_item(fft_canvas_item)
+                fft_canvas_item.close()
+                del self.accessories["fft"]
+                self.repaint_if_needed()
+            else:
+                data_item = None
+                for child_data_item in self.__data_item.data_items:
+                    if len(child_data_item.operations) and isinstance(child_data_item.operations[0], Operation.FFTOperation):
+                        data_item = child_data_item
+                if not data_item:
+                    data_item = self.document_controller.processing_fft(select=False)
+                data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
+                fft_canvas_item = ImageCanvasItem(data_item_binding, None, None)
+                self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
+                self.accessories["fft"] = fft_canvas_item
+                self.repaint_if_needed()
+        if key.text == "p":
+            line_profile_canvas_item = self.accessories.get("line_profile")
+            if line_profile_canvas_item:
+                self.accessory_canvas_item.remove_canvas_item(line_profile_canvas_item)
+                line_profile_canvas_item.close()
+                del self.accessories["line_profile"]
+                self.repaint_if_needed()
+            else:
+                data_item = None
+                for child_data_item in self.__data_item.data_items:
+                    if len(child_data_item.operations) and isinstance(child_data_item.operations[0], Operation.LineProfileOperation):
+                        data_item = child_data_item
+                if not data_item:
+                    data_item = self.document_controller.processing_line_profile(select=False)
+                data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
+                line_profile_canvas_item = LinePlotCanvasItem(data_item_binding, None, None)
+                self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
+                self.accessories["line_profile"] = line_profile_canvas_item
+                self.repaint_if_needed()
         return ImagePanelManager().key_pressed(self.image_panel, key)
 
     def __get_focused(self):
@@ -955,7 +1022,8 @@ class ImagePanel(Panel.Panel):
 
         self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.line_plot_root_canvas_item.focusable = True
-        self.line_plot_canvas_item = LinePlotCanvasItem(document_controller, self)
+        self.line_plot_item_binding = DataItem.DataItemBinding()
+        self.line_plot_canvas_item = LinePlotCanvasItem(self.line_plot_item_binding, document_controller, self)
         self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
         self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui)
         self.line_plot_widget = self.ui.create_column_widget()
@@ -974,7 +1042,9 @@ class ImagePanel(Panel.Panel):
         self.closed = True
         self.image_data_item_binding.notify_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.image_root_canvas_item.close()
+        self.line_plot_item_binding.notify_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.line_plot_root_canvas_item.close()
+        self.line_plot_item_binding.close()
         self.image_data_item_binding.close()
         self.document_controller.unregister_image_panel(self)
         self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
@@ -1159,7 +1229,7 @@ class ImagePanel(Panel.Panel):
             if data_item:
                 if data_item.is_data_1d:
                     self.widget.current_index = 1
-                    self.line_plot_canvas_item.data_item = data_item
+                    self.line_plot_item_binding.notify_data_item_changed(data_item)
                     self.line_plot_canvas_item.selected = selected
                     self.image_data_item_binding.notify_data_item_changed(None)
                     self.image_canvas_item.selected = False
@@ -1167,12 +1237,12 @@ class ImagePanel(Panel.Panel):
                     self.widget.current_index = 0
                     self.image_data_item_binding.notify_data_item_changed(data_item)
                     self.image_canvas_item.selected = selected
-                    self.line_plot_canvas_item.data_item = None
+                    self.line_plot_item_binding.notify_data_item_changed(None)
                     self.line_plot_canvas_item.selected = False
             else:
+                self.line_plot_item_binding.notify_data_item_changed(None)
                 self.image_data_item_binding.notify_data_item_changed(None)
                 self.image_canvas_item.selected = False
-                self.line_plot_canvas_item.data_item = None
                 self.line_plot_canvas_item.selected = False
 
     def __get_graphic_selection(self):
