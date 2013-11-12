@@ -68,8 +68,8 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context):
 
         # canvas size
-        canvas_width = self.canvas_size[0]
-        canvas_height = self.canvas_size[1]
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
 
         left = self.display_limits[0]
         right = self.display_limits[1]
@@ -122,8 +122,8 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         if (self.data is not None and len(self.data) > 0):
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             # draw the histogram itself
             drawing_context.save()
@@ -210,7 +210,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         if super(HistogramCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
         self.__pressed = True
-        self.start = float(x)/self.canvas_size[0]
+        self.start = float(x)/self.canvas_size[1]
         self.__set_display_limits((self.start, self.start))
         return True
 
@@ -229,7 +229,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_position_changed(self, x, y, modifiers):
         if super(HistogramCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
-        canvas_width = self.canvas_size[0]
+        canvas_width = self.canvas_size[1]
         if self.__pressed:
             current = float(x)/canvas_width
             self.__set_display_limits((min(self.start, current), max(self.start, current)))

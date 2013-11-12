@@ -159,7 +159,7 @@ class TestImagePanelClass(unittest.TestCase):
     # this test is DISABLED until the image panel zoom works again
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480
-        self.image_panel.image_canvas_item.update_layout((0, 0), (640, 480))
+        self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
         self.assertIsNotNone(self.image_panel.map_widget_to_image((240, 320)))
         self.assertClosePoint(self.image_panel.map_widget_to_image((240, 320)), (500.0, 500.0))
         self.assertClosePoint(self.image_panel.map_widget_to_image((0, 80)), (0.0, 0.0))
@@ -183,7 +183,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.4, 0.4))
 
     def test_resize_nonsquare_rectangle(self):
-        self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 2000))
+        self.image_panel.image_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
@@ -204,7 +204,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (500, 500))
 
     def test_resize_nonsquare_ellipse(self):
-        self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 2000))
+        self.image_panel.image_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_graphic()

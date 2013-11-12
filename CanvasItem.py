@@ -20,7 +20,7 @@ class AbstractCanvasItem(object):
         self.__layer = None
         self.container = None
         self.__needs_update = False
-        self.canvas_size = None  # (width, height)
+        self.canvas_size = None
         self.canvas_origin = None
 
     def close(self):
@@ -48,7 +48,7 @@ class AbstractCanvasItem(object):
                 self.__layer = self._canvas.create_layer()
             drawing_context = self._create_drawing_context()
             drawing_context.save()
-            drawing_context.translate(self.canvas_origin[0], self.canvas_origin[1])
+            drawing_context.translate(self.canvas_origin[1], self.canvas_origin[0])
             self._repaint(drawing_context)
             drawing_context.restore()
             # TODO: this next statement should happen under a mutex
@@ -70,9 +70,9 @@ class AbstractCanvasItem(object):
         self.container.draw()
 
     def is_point_inside(self, x, y):
-        if x < self.canvas_origin[0] or x >= self.canvas_origin[0] + self.canvas_size[0]:
+        if x < self.canvas_origin[1] or x >= self.canvas_origin[1] + self.canvas_size[1]:
             return False
-        if y < self.canvas_origin[1] or y >= self.canvas_origin[1] + self.canvas_size[1]:
+        if y < self.canvas_origin[0] or y >= self.canvas_origin[0] + self.canvas_size[0]:
             return False
         return True
 
@@ -117,14 +117,14 @@ class CanvasItemRowLayout(object):
         pass
 
     def layout(self, canvas_origin, canvas_size, canvas_items):
-        canvas_item_origin = (20, 16)
+        canvas_item_origin = (16, 20)
         golden_ratio = 1.618
         canvas_item_height = max(int(canvas_size[1]/8), 48)
         canvas_item_width = int(canvas_item_height * golden_ratio)
         for canvas_item in canvas_items:
-            canvas_item_size = (canvas_item_width, canvas_item_height)
+            canvas_item_size = (canvas_item_height, canvas_item_width)
             canvas_item.update_layout(canvas_item_origin, canvas_item_size)
-            canvas_item_origin = (canvas_item_origin[0], canvas_item_origin[1] + canvas_item_height + 12)
+            canvas_item_origin = (canvas_item_origin[0] + canvas_item_height + 12, canvas_item_origin[1])
 
 
 class CanvasItemComposition(AbstractCanvasItem):
@@ -169,8 +169,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def mouse_clicked(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[0]
-                y -= canvas_item.canvas_origin[1]
+                x -= canvas_item.canvas_origin[1]
+                y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_clicked(x, y, modifiers):
                     return True
         return False
@@ -178,8 +178,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def mouse_double_clicked(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[0]
-                y -= canvas_item.canvas_origin[1]
+                x -= canvas_item.canvas_origin[1]
+                y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_double_clicked(x, y, modifiers):
                     return True
         return False
@@ -199,8 +199,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def mouse_pressed(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[0]
-                y -= canvas_item.canvas_origin[1]
+                x -= canvas_item.canvas_origin[1]
+                y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_pressed(x, y, modifiers):
                     return True
         return False
@@ -208,8 +208,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def mouse_released(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[0]
-                y -= canvas_item.canvas_origin[1]
+                x -= canvas_item.canvas_origin[1]
+                y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_released(x, y, modifiers):
                     return True
         return False
@@ -217,8 +217,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[0]
-                y -= canvas_item.canvas_origin[1]
+                x -= canvas_item.canvas_origin[1]
+                y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_position_changed(x, y, modifiers):
                     return True
         return False

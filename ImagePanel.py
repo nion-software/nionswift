@@ -290,8 +290,8 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.selected:
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             stroke_style = "#CCC"  # TODO: platform dependent
             if self.focused:
@@ -321,8 +321,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         if (self.data is not None and len(self.data) > 0):
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             rect = ((0, 0), (canvas_height, canvas_width))
 
@@ -384,8 +384,8 @@ class BitmapCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.rgba_bitmap_data is not None:
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             if canvas_height > 0 and canvas_width > 0:
 
@@ -419,8 +419,8 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.data_item:
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             widget_mapping = WidgetMapping(self.data_item.spatial_shape, (canvas_height, canvas_width))
 
@@ -441,8 +441,8 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.data_item:
 
             # canvas size
-            canvas_width = self.canvas_size[0]
-            canvas_height = self.canvas_size[1]
+            canvas_width = self.canvas_size[1]
+            canvas_height = self.canvas_size[0]
 
             drawing_context.save()
             drawing_context.begin_path()
@@ -660,7 +660,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 already_selected = self.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(self.graphic_selection.indexes) > 1
                 move_only = not already_selected or multiple_items_selected
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.canvas_size[1], self.canvas_size[0]))
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
                 part = graphic.test(widget_mapping, start_drag_pos, move_only)
                 if part:
                     # select item and prepare for drag
@@ -736,7 +736,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             for graphic in self.graphic_drag_items:
                 index = self.data_item.graphics.index(graphic)
                 part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (self.canvas_size[1], self.canvas_size[0]))
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
                 graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
                 self.graphic_drag_changed = True
                 self.graphics_canvas_item.update()
@@ -828,7 +828,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # map from widget coordinates to image coordinates
     def __map_widget_to_image(self, p):
         image_size = self.__get_image_size()
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size[::-1]).data_rect
+        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
                 image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
@@ -1155,7 +1155,7 @@ class ImagePanel(Panel.Panel):
     # map from image normalized coordinates to widget coordinates
     def map_image_norm_to_widget(self, p):
         image_size = self.image_size
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size[::-1]).data_rect
+        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
         if transformed_image_rect:
             return (p[0]*transformed_image_rect[1][0] + transformed_image_rect[0][0], p[1]*transformed_image_rect[1][1] + transformed_image_rect[0][1])
         return None
@@ -1163,7 +1163,7 @@ class ImagePanel(Panel.Panel):
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):
         image_size = self.image_size
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size[::-1]).data_rect
+        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
                 image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
