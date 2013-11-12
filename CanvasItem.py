@@ -282,7 +282,7 @@ class RootCanvasItem(CanvasItemComposition):
 
     def size_changed(self, width, height):
         if width > 0 and height > 0:
-            self.update_layout((0, 0), (width, height))
+            self.update_layout((0, 0), (height, width))
             self.update()
             self.repaint_if_needed()
 
