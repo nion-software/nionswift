@@ -1,5 +1,6 @@
 # standard libraries
 import logging
+import threading
 
 # third party libraries
 # None
@@ -18,13 +19,23 @@ class AbstractCanvasItem(object):
     def __init__(self):
         self._canvas = None
         self.__layer = None
-        self.container = None
+        self.__container = None
+        self.__container_mutex = threading.RLock()
         self.__needs_update = True
         self.canvas_size = None
         self.canvas_origin = None
 
     def close(self):
-        pass
+        if self.__layer:
+            self._canvas.remove_layer(self.__layer)
+            self.__layer = None
+
+    def __get_container(self):
+        return self.__container
+    def __set_container(self, container):
+        with self.__container_mutex:
+            self.__container = container
+    container = property(__get_container, __set_container)
 
     # set the canvas
     def _set_canvas(self, canvas):
@@ -54,7 +65,7 @@ class AbstractCanvasItem(object):
             # TODO: this next statement should happen under a mutex
             self.__layer.drawing_context.copy_from(drawing_context)
             self.__needs_update = False
-            self.container.draw()
+            self.draw()
 
     # create an extra drawing context
     def _create_drawing_context(self):
@@ -67,7 +78,10 @@ class AbstractCanvasItem(object):
 
     # default is to pass the draw message up the container hierarchy
     def draw(self):
-        self.container.draw()
+        with self.__container_mutex:
+            container = self.__container
+        if container:
+            container.draw()
 
     def is_point_inside(self, x, y):
         if x < self.canvas_origin[1] or x >= self.canvas_origin[1] + self.canvas_size[1]:
@@ -161,12 +175,21 @@ class CanvasItemComposition(AbstractCanvasItem):
             self.update_layout(self.canvas_origin, self.canvas_size)
             self.update()
 
+    def remove_canvas_item(self, canvas_item):
+        canvas_item.container = None
+        self.__canvas_items.remove(canvas_item)
+        # update the layout if origin and size already known
+        if self.canvas_origin and self.canvas_size:
+            self.update_layout(self.canvas_origin, self.canvas_size)
+            self.update()
+
     def update(self):
         super(CanvasItemComposition, self).update()
         for canvas_item in self.__canvas_items:
             canvas_item.update()
 
     def repaint_if_needed(self):
+        super(CanvasItemComposition, self).repaint_if_needed()
         for canvas_item in self.__canvas_items:
             canvas_item.repaint_if_needed()
 

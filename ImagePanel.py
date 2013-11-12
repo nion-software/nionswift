@@ -621,6 +621,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.document_controller = document_controller
         self.image_panel = image_panel
 
+        self.accessories = dict()
+
         # create the child canvas items
         self.bitmap_canvas_item = BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()

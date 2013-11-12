@@ -962,6 +962,9 @@ class QtCanvasWidget(QtWidget):
         self.layers.append(layer)
         return layer
 
+    def remove_layer(self, layer):
+        self.layers.remove(layer)
+
     def create_drawing_context(self):
         return QtDrawingContext()
 

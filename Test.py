@@ -143,6 +143,8 @@ class Widget:
         pass
     def create_layer(self):
         return Widget()
+    def remove_layer(self, layer):
+        pass
     def create_drawing_context(self):
         return DrawingContext()
     def draw(self):
