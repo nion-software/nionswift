@@ -394,19 +394,23 @@ class DocumentController(object):
         if data_item:
             data_item.operations.remove(operation)
 
-    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False):
+    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             if in_place:  # in place?
                 data_item.operations.append(operation)
+                return data_item
             else:
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + str(data_item) + (suffix if suffix else "")
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
-                self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
+                if select:
+                    self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
+                return new_data_item
+        return None
 
     def processing_fft(self):
         self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "))
