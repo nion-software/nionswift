@@ -828,7 +828,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # map from widget coordinates to image coordinates
     def __map_widget_to_image(self, p):
         image_size = self.__get_image_size()
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
+        transformed_image_rect = WidgetMapping(image_size, self.canvas_size).data_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
                 image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
