@@ -959,13 +959,13 @@ class DataItemBinding(object):
     def __init__(self):
         self.__listeners = []
         self.__listeners_mutex = threading.RLock()
-        self.__data_item = None
+        self.__weak_data_item = None
 
     def close(self):
-        pass
+        self.__weak_data_item = None
 
     def __get_data_item(self):
-        return self.__data_item
+        return self.__weak_data_item() if self.__weak_data_item else None
     data_item = property(__get_data_item)
 
     # Add a listener
@@ -993,5 +993,5 @@ class DataItemBinding(object):
 
     # this message is received from the canvas item.
     def notify_data_item_changed(self, data_item):
-        self.__data_item = data_item
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
         self.notify_listeners("data_item_changed", data_item)

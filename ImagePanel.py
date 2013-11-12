@@ -600,20 +600,26 @@ class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
 
     # this message is received from the enclosing data item binding.
     def data_item_changed(self, data_item):
-        self.notify_listeners("data_item_changed", data_item)
+        if data_item:
+            for child_data_item in data_item.data_items:
+                if child_data_item.uuid == self.uuid:
+                    self.notify_data_item_changed(child_data_item)
+                    return
+        self.notify_data_item_changed(None)
 
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, document_controller, image_panel):
+    def __init__(self, data_item_binding, document_controller, image_panel):
         super(ImageCanvasItem, self).__init__()
 
-        # ugh
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding = data_item_binding
+        self.data_item_binding.add_listener(self)
+
+        # ugh. these are optional.
         self.document_controller = document_controller
         self.image_panel = image_panel
-
-        # create a data item binding for adornments to use
-        self.data_item_binding = DataItem.DataItemBinding()
 
         # create the child canvas items
         self.bitmap_canvas_item = BitmapCanvasItem()
@@ -644,12 +650,19 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
         self.graphics_canvas_item.graphic_selection = self.graphic_selection
 
+        # initial data item changed message
+        self.data_item_changed(self.data_item_binding.data_item)
+
+
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
+        self.__data_item = None
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
-        self.data_item_binding.close()
+        # disconnect self as listener
+        self.data_item_binding.remove_listener(self)
+        # call super
         super(ImageCanvasItem, self).close()
 
     def __get_preferred_aspect_ratio(self):
@@ -801,10 +814,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # doing this will queue an item in the paint thread to repaint.
     def __get_data_item(self):
         return self.__data_item
-    def __set_data_item(self, data_item):
+    data_item = property(__get_data_item)
+
+    def data_item_changed(self, data_item):
         self.__data_item = data_item
         self.__update_cursor_info()
-        self.data_item_binding.notify_data_item_changed(data_item)
         if self.__data_item and self.__paint_thread:
             self.__paint_thread.update_data(data_item)
         else:
@@ -815,7 +829,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.update()
             self.repaint_if_needed()
-    data_item = property(__get_data_item, __set_data_item)
 
     def selection_changed(self, graphic_selection):
         self.graphics_canvas_item.update()
@@ -868,15 +881,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return None
 
     def __update_cursor_info(self):
-        pos = None
-        image_size = self.__get_image_size()
-        if self.__mouse_in and self.__last_mouse:
-            if image_size and len(image_size) > 1:
-                pos = self.__map_widget_to_image(self.__last_mouse)
-            data_item = self.data_item
-            graphics = data_item.graphics if data_item else None
-            selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
-            self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
+        if self.document_controller:
+            pos = None
+            image_size = self.__get_image_size()
+            if self.__mouse_in and self.__last_mouse:
+                if image_size and len(image_size) > 1:
+                    pos = self.__map_widget_to_image(self.__last_mouse)
+                data_item = self.data_item
+                graphics = data_item.graphics if data_item else None
+                selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
+                self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -929,7 +943,8 @@ class ImagePanel(Panel.Panel):
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
         self.image_root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.image_canvas_item = ImageCanvasItem(document_controller, self)
+        self.image_data_item_binding = DataItem.DataItemBinding()
+        self.image_canvas_item = ImageCanvasItem(self.image_data_item_binding, document_controller, self)
         self.image_root_canvas_item.add_canvas_item(self.image_canvas_item)
         self.image_header_controller = Panel.HeaderWidgetController(self.ui)
         self.image_widget = self.ui.create_column_widget()
@@ -955,8 +970,10 @@ class ImagePanel(Panel.Panel):
 
     def close(self):
         self.closed = True
+        self.image_data_item_binding.notify_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.image_root_canvas_item.close()
         self.line_plot_root_canvas_item.close()
+        self.image_data_item_binding.close()
         self.document_controller.unregister_image_panel(self)
         self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
         super(ImagePanel, self).close()
@@ -1142,16 +1159,16 @@ class ImagePanel(Panel.Panel):
                     self.widget.current_index = 1
                     self.line_plot_canvas_item.data_item = data_item
                     self.line_plot_canvas_item.selected = selected
-                    self.image_canvas_item.data_item = None
+                    self.image_data_item_binding.notify_data_item_changed(None)
                     self.image_canvas_item.selected = False
                 elif data_item.is_data_2d:
                     self.widget.current_index = 0
-                    self.image_canvas_item.data_item = data_item
+                    self.image_data_item_binding.notify_data_item_changed(data_item)
                     self.image_canvas_item.selected = selected
                     self.line_plot_canvas_item.data_item = None
                     self.line_plot_canvas_item.selected = False
             else:
-                self.image_canvas_item.data_item = None
+                self.image_data_item_binding.notify_data_item_changed(None)
                 self.image_canvas_item.selected = False
                 self.line_plot_canvas_item.data_item = None
                 self.line_plot_canvas_item.selected = False
