@@ -38,12 +38,10 @@ class TestHistogramPanelClass(unittest.TestCase):
         class CanvasItemContainer(object):
             def draw(self):
                 pass
-            def _wrap(self, drawing_context):
-                return drawing_context
         self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem(self.document_controller)
         self.histogram_canvas_item.container =CanvasItemContainer()
         self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
-        self.histogram_canvas_item.update_layout((300, 80))
+        self.histogram_canvas_item.update_layout((0, 0), (300, 80))
         self.histogram_canvas_item._set_data_item(self.data_item)
 
     def tearDown(self):

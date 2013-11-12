@@ -30,7 +30,8 @@ class AbstractCanvasItem(object):
         self._canvas = canvas
 
     # update the layout (canvas_size for now)
-    def update_layout(self, canvas_size):
+    def update_layout(self, canvas_origin, canvas_size):
+        self.canvas_origin = canvas_origin
         self.canvas_size = canvas_size
 
     # mark this object as needing an update
@@ -45,8 +46,11 @@ class AbstractCanvasItem(object):
             if not self.__layer:
                 self.__layer = self._canvas.create_layer()
             drawing_context = self._create_drawing_context()
+            drawing_context.save()
+            drawing_context.translate(self.canvas_origin[0], self.canvas_origin[1])
             self._repaint(drawing_context)
-            drawing_context = self.container._wrap(drawing_context)
+            drawing_context.restore()
+            # TODO: this next statement should happen under a mutex
             self.__layer.drawing_context.copy_from(drawing_context)
             self.__needs_update = False
             self.container.draw()
@@ -54,10 +58,6 @@ class AbstractCanvasItem(object):
     # create an extra drawing context
     def _create_drawing_context(self):
         return self._canvas.create_drawing_context()
-
-    # wrap the drawing context with commands to clip, translate, scale, adorn, etc.
-    def _wrap(self, drawing_context):
-        return drawing_context
 
     # repaint should typically be called on a thread
     # layout (canvas_size) will always be valid if this is invoked
@@ -109,10 +109,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in self.__canvas_items:
             canvas_item._set_canvas(canvas)
 
-    def update_layout(self, canvas_size):
-        super(CanvasItemComposition, self).update_layout(canvas_size)
+    def update_layout(self, canvas_origin, canvas_size):
+        super(CanvasItemComposition, self).update_layout(canvas_origin, canvas_size)
         for canvas_item in self.__canvas_items:
-            canvas_item.update_layout(canvas_size)
+            canvas_item.update_layout(canvas_origin, canvas_size)
 
     def add_canvas_item(self, canvas_item):
         self.__canvas_items.append(canvas_item)
@@ -127,9 +127,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     def repaint_if_needed(self):
         for canvas_item in self.__canvas_items:
             canvas_item.repaint_if_needed()
-
-    def _wrap(self, drawing_context):
-        return self.container._wrap(drawing_context)
 
     def mouse_clicked(self, x, y, modifiers):
         for canvas_item in reversed(self.__canvas_items):
@@ -196,12 +193,12 @@ class PositionedCanvasItem(AbstractCanvasItem):
         super(PositionedCanvasItem, self)._set_canvas(canvas)
         self.canvas_item._set_canvas(canvas)
 
-    def update_layout(self, canvas_size):
-        super(PositionedCanvasItem, self).update_layout(canvas_size)
+    def update_layout(self, canvas_origin, canvas_size):
+        super(PositionedCanvasItem, self).update_layout(canvas_origin, canvas_size)
         golden_ratio = 1.618
         height = max(int(canvas_size[1]/8), 48)
         width = int(height * golden_ratio)
-        self.canvas_item.update_layout((width, height))
+        self.canvas_item.update_layout(self.__translation, (width, height))
 
     def update(self):
         super(PositionedCanvasItem, self).update()
@@ -209,14 +206,6 @@ class PositionedCanvasItem(AbstractCanvasItem):
 
     def repaint_if_needed(self):
         self.canvas_item.repaint_if_needed()
-
-    def _wrap(self, drawing_context):
-        wrapped_drawing_context = self._create_drawing_context()
-        wrapped_drawing_context.save()
-        wrapped_drawing_context.translate(self.__translation[0], self.__translation[1])
-        wrapped_drawing_context.add(drawing_context)
-        wrapped_drawing_context.restore()
-        return wrapped_drawing_context
 
     def __mouse_inside(self, x, y):
         if x < self.__translation[0] or x >= self.__translation[0] + self.canvas_item.canvas_size[0]:
@@ -300,12 +289,9 @@ class RootCanvasItem(CanvasItemComposition):
     def draw(self):
         self._canvas.draw()
 
-    def _wrap(self, drawing_context):
-        return drawing_context
-
     def size_changed(self, width, height):
         if width > 0 and height > 0:
-            self.update_layout((width, height))
+            self.update_layout((0, 0), (width, height))
             self.update()
             self.repaint_if_needed()
 
