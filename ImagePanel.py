@@ -510,6 +510,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # a thread for updating
         self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
 
+        self.preferred_aspect_ratio = 1.618  # the golden ratio
+
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
@@ -617,7 +619,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.bitmap_canvas_item = BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()
         self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
-        self.accessory_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         self.focus_ring_canvas_item = FocusRingCanvasItem()
 
@@ -649,6 +651,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_selection = None
         self.data_item_binding.close()
         super(ImageCanvasItem, self).close()
+
+    def __get_preferred_aspect_ratio(self):
+        if self.data_item:
+            spatial_shape = self.data_item.spatial_shape
+            return spatial_shape[1] / spatial_shape[0] if spatial_shape[0] != 0 else 1.0
+        return 1.0
+    preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
 
     def mouse_clicked(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):

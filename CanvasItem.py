@@ -111,17 +111,17 @@ class CanvasItemLayout(object):
             canvas_item.update_layout(canvas_origin, canvas_size)
 
 
-class CanvasItemRowLayout(object):
+class CanvasItemColumnLayout(object):
 
     def __init__(self):
         pass
 
     def layout(self, canvas_origin, canvas_size, canvas_items):
         canvas_item_origin = (16, 20)
-        golden_ratio = 1.618
-        canvas_item_height = max(int(canvas_size[1]/8), 48)
-        canvas_item_width = int(canvas_item_height * golden_ratio)
+        # prefer 200 pixels wide, but not more than 1/8 of the canvas size, but a minimum of 120 pixels wide
+        canvas_item_width = max(min(320, int(canvas_size[1]/4)), 200)
         for canvas_item in canvas_items:
+            canvas_item_height = int(canvas_item_width / canvas_item.preferred_aspect_ratio)
             canvas_item_size = (canvas_item_height, canvas_item_width)
             canvas_item.update_layout(canvas_item_origin, canvas_item_size)
             canvas_item_origin = (canvas_item_origin[0] + canvas_item_height + 12, canvas_item_origin[1])

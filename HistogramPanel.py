@@ -186,6 +186,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__histogram_thread = HistogramThread(self)
 
+        self.preferred_aspect_ratio = 1.618  # golden ratio
+
+        # initial data item changed message
         self.data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
