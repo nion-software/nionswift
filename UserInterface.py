@@ -1445,10 +1445,16 @@ class QtUserInterface(object):
     def save_rgba_data_to_file(self, data, filename, format):
         return self.proxy.Core_writePyArrayToImage(data, unicode(filename), str(format))
 
+    def get_existing_directory_dialog(self, title, directory, filter):
+        return self.proxy.DocumentWindow_getFilePath(None, "directory", unicode(title), unicode(directory), unicode(filter))
+
     # persistence (associated with application)
 
     def get_data_location(self):
         return self.proxy.Core_getLocation("data")
+
+    def get_document_location(self):
+        return self.proxy.Core_getLocation("documents")
 
     def get_persistent_string(self, key, default_value=None):
         value = self.proxy.Settings_getString(key)

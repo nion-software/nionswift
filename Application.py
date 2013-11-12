@@ -60,10 +60,18 @@ class Application(object):
         Test.load_tests()  # after plug-ins are loaded
 
     def start(self):
-        documents_dir = self.ui.get_data_location()
-        db_filename = os.path.join(documents_dir, "Swift Workspace.nswrk")
-        cache_filename = os.path.join(documents_dir, "Swift Cache.nscache")
+        documents_dir = self.ui.get_document_location()
+        workspace_dir = os.path.join(documents_dir, "Nion Swift Workspace")
+        workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
+        db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
+        cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
         create_new_document = not os.path.exists(db_filename)
+        if create_new_document:
+            workspace_dir = self.ui.get_existing_directory_dialog(_("Choose Workspace Location"), documents_dir, str())
+            if not workspace_dir: return False
+            db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
+            cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
+            create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
             storage_writer = Storage.DbStorageWriterProxy(db_filename)
@@ -79,8 +87,9 @@ class Application(object):
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
             document_model.create_default_data_groups()
         document_controller = self.create_document_controller(document_model, "library")
+        self.ui.set_persistent_string("workspace_location", workspace_dir)
         logging.info("Welcome to Nion Swift.")
-        return document_controller
+        return True
 
     def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id)

@@ -347,7 +347,9 @@ class UserInterface:
     def set_persistent_string(self, key, value):
         pass
     def get_data_location(self):
-        pass
+        return str()
+    def get_document_location(self):
+        return str()
     def create_key_by_id(self, key_id):
         return Key(key_id, 0, 0)
 
