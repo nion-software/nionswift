@@ -74,15 +74,15 @@ class Application(object):
             create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
-            storage_writer = Storage.DbStorageWriterProxy(db_filename)
+            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
             document_model.create_default_data_groups()
             document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", db_filename)
-            storage_writer = Storage.DbStorageWriterProxy(db_filename)
-            storage_reader = Storage.DbStorageReader(db_filename)
+            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
+            storage_reader = Storage.DbStorageReader(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
             document_model.create_default_data_groups()

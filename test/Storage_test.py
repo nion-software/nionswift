@@ -104,7 +104,7 @@ class TestStorageClass(unittest.TestCase):
 
     def write_read_db_storage(self, include_rewrite=False):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -121,12 +121,12 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         storage_writer.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertNotEqual(document_model_uuid, document_controller.document_model.uuid)
-        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader = Storage.DbStorageReader(None, db_name)
         storage_writer.close()
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
@@ -154,7 +154,7 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -171,11 +171,11 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader = Storage.DbStorageReader(None, db_name)
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
@@ -190,7 +190,7 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -206,11 +206,11 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader = Storage.DbStorageReader(None, db_name)
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
@@ -218,7 +218,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -244,7 +244,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_copy_data_group(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -321,7 +321,7 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_set_item(self):
         # write to storage
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -329,11 +329,11 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader = Storage.DbStorageReader(None, db_name)
         storage_reader.from_string(storage_str)
         document_controller.document_model.read(storage_reader)
         # check that the graphic associated with the operation was read back
@@ -354,7 +354,7 @@ class TestStorageClass(unittest.TestCase):
 
     def test_insert_item_with_transaction(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_model.add_ref()
@@ -369,11 +369,11 @@ class TestStorageClass(unittest.TestCase):
         storage_str = storage_writer.to_string()
         document_model.remove_ref()
         # make sure it reloads
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         document_model.add_ref()
-        storage_reader = Storage.DbStorageReader(db_name)
+        storage_reader = Storage.DbStorageReader(None, db_name)
         storage_reader.from_string(storage_str)
         document_model.read(storage_reader)
         document_model.rewrite_storage()

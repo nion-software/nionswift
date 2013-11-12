@@ -20,7 +20,7 @@ class TestHistogramPanelClass(unittest.TestCase):
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(db_name)
+        storage_writer = Storage.DbStorageWriter(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

@@ -198,7 +198,7 @@ class RectangleGraphic(Graphic):
         super(RectangleGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
         graphic = cls()
         graphic.bounds = bounds
@@ -314,7 +314,7 @@ class EllipseGraphic(Graphic):
         super(EllipseGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
         graphic = cls()
         graphic.bounds = bounds
@@ -426,7 +426,7 @@ class LineGraphic(Graphic):
         self.start = line_graphic.start
         self.end = line_graphic.end
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         start = storage_reader.get_property(item_node, "start", (0.0, 0.0))
         end = storage_reader.get_property(item_node, "end", (1.0, 1.0))
         graphic = cls()

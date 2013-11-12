@@ -5,6 +5,7 @@ import cPickle as pickle
 import functools
 import logging
 import Queue
+import os
 import sqlite3
 import StringIO
 import threading
@@ -21,7 +22,7 @@ from nion.swift.Decorators import traceit
 # transaction level indicates whether to use the still experimental strong transaction code.
 # strong transaction code may have threading or other bugs so it is still disabled.
 transaction_level = "weak" if 1 else "strong"
-
+use_external_data = False
 
 class MutableRelationship(collections.MutableSequence):
 
@@ -355,14 +356,28 @@ class StorageBase(object):
         raise NotImplementedError()
 
     def get_storage_data(self, key):
+        data = []
         if hasattr(self, key):
-            return getattr(self, key)
-        if hasattr(self, "get_" + key):
-            return getattr(self, "get_" + key)()
-        if hasattr(self, "_get_" + key):
-            return getattr(self, "_get_" + key)()
-        logging.debug("get_storage_data: %s missing %s", self, key)
-        raise NotImplementedError()
+            data.append(getattr(self, key))
+        elif hasattr(self, "get_" + key):
+            data.append(getattr(self, "get_" + key)())
+        elif hasattr(self, "_get_" + key):
+            data.append(getattr(self, "_get_" + key)())
+        if len(data) != 1:
+            logging.debug("get_storage_data: %s missing %s", self, key)
+            raise NotImplementedError()
+        data_file_path = None
+        if data is not None:
+            if hasattr(self, key + "_data_file_path"):
+                data_file_path = getattr(self, key + "_data_file_path")
+            elif hasattr(self, "get_" + key + "_data_file_path"):
+                data_file_path = getattr(self, "get_" + key + "_data_file_path")()
+            elif hasattr(self, "_get_" + key + "_data_file_path"):
+                data_file_path = getattr(self, "_get_" + key + "_data_file_path")()
+            if data_file_path is None:
+                logging.debug("get_storage_data: %s missing %s", self, key + "_data_file_path")
+                raise NotImplementedError()
+        return data[0], data_file_path
 
     def get_storage_relationship_count(self, key):
         if hasattr(self, key):
@@ -435,9 +450,9 @@ class StorageBase(object):
                 if observer and getattr(observer, "item_cleared", None):
                     observer.item_cleared(self, key)
 
-    def notify_set_data(self, key, data):
+    def notify_set_data(self, key, data, data_file_path):
         if self.storage_writer and self.__transaction_count == 0:
-            self.storage_writer.set_data(self, key, data)
+            self.storage_writer.set_data(self, key, data, data_file_path)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
             if observer and getattr(observer, "data_set", None):
@@ -503,9 +518,9 @@ class StorageBase(object):
                     item.storage_cache = self.storage_cache
                     self.storage_writer.set_item(self, item_key, item)
             for data_key in self.storage_data_keys:
-                data = self.get_storage_data(data_key)
+                data, data_file_path = self.get_storage_data(data_key)
                 if data is not None:
-                    self.storage_writer.set_data(self, data_key, data)
+                    self.storage_writer.set_data(self, data_key, data, data_file_path)
             for relationship_key in self.storage_relationships:
                 count = self.get_storage_relationship_count(relationship_key)
                 for index in range(count):
@@ -519,9 +534,9 @@ class StorageBase(object):
     def write_data(self):
         assert self.storage_writer is not None
         for data_key in self.storage_data_keys:
-            data = self.get_storage_data(data_key)
+            data, data_file_path = self.get_storage_data(data_key)
             if data is not None:
-                self.storage_writer.set_data(self, data_key, data)
+                self.storage_writer.set_data(self, data_key, data, data_file_path)
 
     def rewrite_data(self):
         assert self.storage_writer is not None
@@ -737,7 +752,7 @@ class DictStorageWriter(object):
         properties = item_node.setdefault("properties", {})
         properties[key] = value
 
-    def set_data(self, parent, key, data):
+    def set_data(self, parent, key, data, data_file_path):
         if self.disconnected:
             return
         # get the parent node
@@ -794,7 +809,7 @@ class DictStorageReader(object):
             }
             type = node["type"]
             if type in build_map:
-                item = build_map[type].build(self, node)
+                item = build_map[type].build(self, node, uuid_)
                 item._set_uuid(uuid_)
             if item:
                 self.__item_map[uuid_] = item
@@ -834,7 +849,7 @@ class DictStorageReader(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, key, default_value=None):
+    def get_data(self, parent_node, data_file_path, key, default_value=None):
         data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
         if key in data_items:
             data = data_items[key]
@@ -847,8 +862,9 @@ class DictStorageReader(object):
 
 class DbStorageWriter(object):
 
-    def __init__(self, db_filename):
+    def __init__(self, workspace_dir, db_filename):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
+        self.workspace_dir = workspace_dir
         self.disconnected = False
         self.create()
         self.migrate()
@@ -892,6 +908,7 @@ class DbStorageWriter(object):
         c = self.conn.cursor()
         self.execute(c, "DELETE FROM nodes")
         self.execute(c, "DELETE FROM properties")
+        # TODO: use_external_data
         self.execute(c, "DELETE FROM data")
         self.execute(c, "DELETE FROM relationships")
         self.execute(c, "DELETE FROM items")
@@ -1042,8 +1059,21 @@ class DbStorageWriter(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
-    def set_data(self, parent, key, data):
+    def __make_directory_if_needed(self, directory_path):
+        if os.path.exists(directory_path):
+            if not os.path.isdir(directory_path):
+                raise OSError("Path is not a directory:", directory_path)
+        else:
+            os.makedirs(directory_path)
+
+    def set_data(self, parent, key, data, data_file_path):
         if not self.disconnected:
+            #logging.debug("WRITE %s", os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path))
+            if use_external_data and self.workspace_dir:
+                data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
+                self.__make_directory_if_needed(data_directory)
+                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+                pickle.dump(data, open(absolute_file_path, "wb"))
             c = self.conn.cursor()
             self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
@@ -1051,11 +1081,11 @@ class DbStorageWriter(object):
 
 class DbStorageWriterProxy(object):
 
-    def __init__(self, db_filename):
+    def __init__(self, workspace_dir, db_filename):
         self.storage_writer = None
         self.queue = Queue.Queue()
         self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[db_filename])
+        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename])
         self.__thread.daemon = True
         self.__thread.start()
         self.__started_event.wait()
@@ -1063,8 +1093,8 @@ class DbStorageWriterProxy(object):
     def close(self):
         self.queue.put(None)
 
-    def __run(self, db_filename):
-        self.storage_writer = DbStorageWriter(db_filename)
+    def __run(self, workspace_dir, db_filename):
+        self.storage_writer = DbStorageWriter(workspace_dir, db_filename)
         self.__started_event.set()
         while True:
             action = self.queue.get()
@@ -1160,16 +1190,17 @@ class DbStorageWriterProxy(object):
         self.queue.put((functools.partial(DbStorageWriter.set_property, self.storage_writer, item, key, value), event, "set_property"))
         #event.wait()
 
-    def set_data(self, parent, key, data):
+    def set_data(self, parent, key, data, data_file_path):
         event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_data, self.storage_writer, parent, key, data), event, "set_data"))
+        self.queue.put((functools.partial(DbStorageWriter.set_data, self.storage_writer, parent, key, data, data_file_path), event, "set_data"))
         #event.wait()
 
 
 class DbStorageReader(object):
 
-    def __init__(self, db_filename):
+    def __init__(self, workspace_dir, db_filename):
         self.conn = sqlite3.connect(db_filename)
+        self.workspace_dir = workspace_dir
         self.__item_map = {}
         self.need_rewrite = False
 
@@ -1230,7 +1261,8 @@ class DbStorageReader(object):
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
             type = c.fetchone()[0]
             if type in build_map:
-                item = build_map[type].build(self, uuid_)
+                item_node = uuid_  # use uuid as item_node reference
+                item = build_map[type].build(self, item_node, uuid_)
                 item._set_uuid(uuid.UUID(uuid_))
             if item:
                 self.__item_map[uuid_] = item
@@ -1288,7 +1320,12 @@ class DbStorageReader(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, key, default_value=None):
+    def get_data(self, parent_node, data_file_path, key, default_value=None):
+        #logging.debug("READ %s", os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path))
+        if use_external_data and self.workspace_dir:
+            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+            data = pickle.load(open(absolute_file_path, "rb"))
+            return data if data is not None else default_value
         c = self.conn.cursor()
         c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
         data_row = c.fetchone()

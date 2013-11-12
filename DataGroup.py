@@ -86,7 +86,7 @@ class DataGroup(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         title = storage_reader.get_property(item_node, "title")
         data_groups = storage_reader.get_items(item_node, "data_groups")
         data_items = storage_reader.get_items(item_node, "data_items")
@@ -192,7 +192,7 @@ class SmartDataGroup(Storage.StorageBase):
         return "* " + (self.title if self.title else _("Untitled"))
 
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         title = storage_reader.get_property(item_node, "title")
         data_group = cls()
         data_group.title = title

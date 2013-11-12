@@ -40,7 +40,7 @@ class Calibration(Storage.StorageBase):
         self.__units = units  # the units of the calibrated value
 
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def build(cls, storage_reader, item_node, uuid_):
         origin = storage_reader.get_property(item_node, "origin", None)
         scale = storage_reader.get_property(item_node, "scale", None)
         units = storage_reader.get_property(item_node, "units", None)
@@ -277,7 +277,11 @@ class DataItem(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def build(cls, storage_reader, item_node):
+    def __get_data_file_path(cls, uuid_):
+        return str(uuid_) + ".nsdata"
+
+    @classmethod
+    def build(cls, storage_reader, item_node, uuid_):
         title = storage_reader.get_property(item_node, "title")
         param = storage_reader.get_property(item_node, "param")
         properties = storage_reader.get_property(item_node, "properties")
@@ -286,7 +290,8 @@ class DataItem(Storage.StorageBase):
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
         data_items = storage_reader.get_items(item_node, "data_items")
-        master_data = storage_reader.get_data(item_node, "master_data") if storage_reader.has_data(item_node, "master_data") else None
+        data_file_path = DataItem.__get_data_file_path(uuid_)
+        master_data = storage_reader.get_data(item_node, data_file_path, "master_data") if storage_reader.has_data(item_node, "master_data") else None
         data_item = cls()
         data_item.title = title
         data_item.param = param
@@ -602,11 +607,14 @@ class DataItem(Storage.StorageBase):
                 self.__master_data = data
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
-            self.notify_set_data("master_data", self.__master_data)
+            data_file_path = DataItem.__get_data_file_path(self.uuid)
+            self.notify_set_data("master_data", self.__master_data, data_file_path)
             self.notify_data_item_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()
+    def _get_master_data_data_file_path(self):
+        return DataItem.__get_data_file_path(self.uuid)
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:
