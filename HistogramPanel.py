@@ -77,9 +77,8 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         # draw left display limit
         drawing_context.save()
         drawing_context.begin_path()
-        drawing_context.move_to(left * canvas_width, 0)
-        drawing_context.line_to(left * canvas_width, canvas_height)
-        drawing_context.close_path()
+        drawing_context.move_to(left * canvas_width, 1)
+        drawing_context.line_to(left * canvas_width, canvas_height-1)
         drawing_context.line_width = 2
         drawing_context.stroke_style = "#000"
         drawing_context.stroke()
@@ -88,9 +87,8 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         # draw right display limit
         drawing_context.save()
         drawing_context.begin_path()
-        drawing_context.move_to(right * canvas_width, 0)
-        drawing_context.line_to(right * canvas_width, canvas_height)
-        drawing_context.close_path()
+        drawing_context.move_to(right * canvas_width, 1)
+        drawing_context.line_to(right * canvas_width, canvas_height-1)
         drawing_context.line_width = 2
         drawing_context.stroke_style = "#FFF"
         drawing_context.stroke()
@@ -133,25 +131,25 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
 
+        # canvas size
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
+
+        # draw background
+        if self.background_color:
+            drawing_context.save()
+            drawing_context.begin_path()
+            drawing_context.move_to(0,0)
+            drawing_context.line_to(canvas_width,0)
+            drawing_context.line_to(canvas_width,canvas_height)
+            drawing_context.line_to(0,canvas_height)
+            drawing_context.close_path()
+            drawing_context.fill_style = self.background_color
+            drawing_context.fill()
+            drawing_context.restore()
+
         # draw the data, if any
         if (self.data is not None and len(self.data) > 0):
-
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            # draw background
-            if self.background_color:
-                drawing_context.save()
-                drawing_context.begin_path()
-                drawing_context.move_to(0,0)
-                drawing_context.line_to(canvas_width,0)
-                drawing_context.line_to(canvas_width,canvas_height)
-                drawing_context.line_to(0,canvas_height)
-                drawing_context.close_path()
-                drawing_context.fill_style = self.background_color
-                drawing_context.fill()
-                drawing_context.restore()
 
             # draw the histogram itself
             drawing_context.save()
@@ -199,8 +197,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.data_item_binding.remove_listener(self)
         super(HistogramCanvasItem, self).close()
 
+    # pass this along to the simple line graph canvas item
     def __get_background_color(self):
-        return self.simple_line_graph_canvas_item
+        return self.simple_line_graph_canvas_item.background_color
     def __set_background_color(self, background_color):
         self.simple_line_graph_canvas_item.background_color = background_color
     background_color = property(__get_background_color, __set_background_color)
