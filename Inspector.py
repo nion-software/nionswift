@@ -9,7 +9,6 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import DataItem
 from nion.swift import Panel
 
 _ = gettext.gettext
@@ -50,13 +49,33 @@ class FloatFormatter(object):
     value = property(__get_value, __set_value)
 
 
-class ScalarController(object):
-    def __init__(self, ui, document_controller, object, name, property):
-        self.ui = ui
-        self.document_controller = document_controller
+class PropertyBinding(object):
+    def __init__(self, object, property):
         self.object = object
         self.property = property
+    def __get_value(self):
+        return getattr(self.object, self.property)
+    def __set_value(self, value):
+        setattr(self.object, self.property, value)
+    value = property(__get_value, __set_value)
 
+
+class ArrayBinding(object):
+    def __init__(self, object, property, index):
+        self.object = object
+        self.property = property
+        self.index = index
+    def __get_value(self):
+        return getattr(self.object, self.property)[self.index]
+    def __set_value(self, value):
+        getattr(self.object, self.property)[self.index] = value
+    value = property(__get_value, __set_value)
+
+
+class ScalarController(object):
+    def __init__(self, ui, name, binding):
+        self.ui = ui
+        self.binding = binding
         self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.slider = self.ui.create_slider_widget()
@@ -71,25 +90,23 @@ class ScalarController(object):
         self.widget.add_stretch()
         self.update()
     def update(self):
-        value = getattr(self.object, self.property)
+        value = self.binding.value
         self.field_formatter.value = float(value)
         self.slider.value = int(value * 100)
     def slider_value_changed(self, value):
-        setattr(self.object, self.property, self.slider.value/100.0)
+        self.binding.value = self.slider.value/100.0
         self.update()
     def editing_finished(self, text):
-        setattr(self.object, self.property, self.field_formatter.value)
+        self.binding.value = self.field_formatter.value
         self.update()
         if self.field.focused:
             self.field.select_all()
 
 
 class IntegerFieldController(object):
-    def __init__(self, ui, document_controller, object, name, property):
+    def __init__(self, ui, name, binding):
         self.ui = ui
-        self.document_controller = document_controller
-        self.object = object
-        self.property = property
+        self.binding = binding
         self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
@@ -100,19 +117,17 @@ class IntegerFieldController(object):
         self.widget.add_stretch()
         self.update()
     def update(self):
-        self.field_formatter.value = getattr(self.object, self.property)
+        self.field_formatter.value = self.binding.value
     def editing_finished(self, text):
-        setattr(self.object, self.property, self.field_formatter.value)
+        self.binding.value = self.field_formatter.value
         if self.field.focused:
             self.field.select_all()
 
 
 class FloatFieldController(object):
-    def __init__(self, ui, document_controller, object, name, property):
+    def __init__(self, ui, name, binding):
         self.ui = ui
-        self.document_controller = document_controller
-        self.object = object
-        self.property = property
+        self.binding = binding
         self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
@@ -123,19 +138,17 @@ class FloatFieldController(object):
         self.widget.add_stretch()
         self.update()
     def update(self):
-        self.field_formatter.value = getattr(self.object, self.property)
+        self.field_formatter.value = self.binding.value
     def editing_finished(self, text):
-        setattr(self.object, self.property, self.field_formatter.value)
+        self.binding.value = self.field_formatter.value
         if self.field.focused:
             self.field.select_all()
 
 
 class StringFieldController(object):
-    def __init__(self, ui, document_controller, object, name, property):
+    def __init__(self, ui, name, binding):
         self.ui = ui
-        self.document_controller = document_controller
-        self.object = object
-        self.property = property
+        self.binding = binding
         self.widget = self.ui.create_row_widget()
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
@@ -145,10 +158,10 @@ class StringFieldController(object):
         self.widget.add_stretch()
         self.update()
     def update(self):
-        value = getattr(self.object, self.property)
+        value = self.binding.value
         self.field.text = unicode(value) if value else unicode()
     def editing_finished(self, text):
-        setattr(self.object, self.property, text)
+        self.binding.value = text
         if self.field.focused:
             self.field.select_all()
 
@@ -156,9 +169,8 @@ class StringFieldController(object):
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
 class FixedArrayController(object):
-    def __init__(self, ui, document_controller, object, name, property):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
-        self.document_controller = document_controller
         self.object = object
         self.property = property
         self.widget = self.ui.create_column_widget()
@@ -166,7 +178,7 @@ class FixedArrayController(object):
         array = getattr(self.object, property)
         for item in array:
             column_widget = self.ui.create_column_widget()
-            controller = PropertyEditorController(self.ui, self.document_controller, item)
+            controller = PropertyEditorController(self.ui, item)
             column_widget.add(controller.widget)
             self.__columns.append(controller)
             self.widget.add(column_widget)
@@ -181,15 +193,42 @@ class FixedArrayController(object):
 
 # fixed array means the user cannot add/remove items; but it still tracks additions/removals
 # from its object.
-class ItemController(object):
-    def __init__(self, ui, document_controller, object, name, property):
+class FloatArrayController(object):
+    def __init__(self, ui, object, name, property):
         self.ui = ui
-        self.document_controller = document_controller
+        self.object = object
+        self.property = property
+        self.widget = self.ui.create_column_widget()
+        self.__columns = []
+        array = getattr(self.object, self.property)
+        if array:
+            for index, item in enumerate(array):
+                column_widget = self.ui.create_column_widget()
+                name = str(index)
+                binding = ArrayBinding(object, property, index)
+                controller = FloatFieldController(self.ui, name, binding)
+                column_widget.add(controller.widget)
+                self.__columns.append(controller)
+                self.widget.add(column_widget)
+    def close(self):
+        for controller in self.__columns:
+            if hasattr(controller, 'close'):
+                controller.close()
+    def update(self):
+        for controller in self.__columns:
+            controller.update()
+
+
+# fixed array means the user cannot add/remove items; but it still tracks additions/removals
+# from its object.
+class ItemController(object):
+    def __init__(self, ui, object, name, property):
+        self.ui = ui
         self.object = object
         self.property = property
         self.widget = self.ui.create_column_widget()
         item = getattr(self.object, property)
-        self.controller = PropertyEditorController(self.ui, self.document_controller, item)
+        self.controller = PropertyEditorController(self.ui, item)
         self.widget.add(self.controller.widget)
     def close(self):
         if hasattr(self.controller, 'close'):
@@ -198,40 +237,45 @@ class ItemController(object):
         self.controller.update()
 
 
-def construct_controller(ui, document_controller, object, type, name, property):
+def construct_controller(ui, object, type, name, property):
     controller = None
     if type == "scalar":
-        controller = ScalarController(ui, document_controller, object, name, property)
+        controller = ScalarController(ui, name, PropertyBinding(object, property))
     elif type == "integer-field":
-        controller = IntegerFieldController(ui, document_controller, object, name, property)
+        controller = IntegerFieldController(ui, name, PropertyBinding(object, property))
     elif type == "float-field":
-        controller = FloatFieldController(ui, document_controller, object, name, property)
+        controller = FloatFieldController(ui, name, PropertyBinding(object, property))
     elif type == "string-field":
-        controller = StringFieldController(ui, document_controller, object, name, property)
+        controller = StringFieldController(ui, name, PropertyBinding(object, property))
     elif type == "fixed-array":
-        controller = FixedArrayController(ui, document_controller, object, name, property)
+        controller = FixedArrayController(ui, object, name, property)
+    elif type == "float-array":
+        controller = FloatArrayController(ui, object, name, property)
     elif type == "item":
-        controller = ItemController(ui, document_controller, object, name, property)
+        controller = ItemController(ui, object, name, property)
     return controller
 
 
 class PropertyEditorController(object):
 
-    def __init__(self, ui, document_controller, object):
+    def __init__(self, ui, object):
         self.ui = ui
-        self.document_controller = document_controller
         self.object = object
         self.__controllers = dict()
+        self.__editor = None
         self.__updated_properties = set()
         self.__updated_properties_mutex = threading.RLock()
         self.widget = self.ui.create_column_widget()
         # add self as observer. this will result in property_changed messages.
         self.object.add_observer(self)
+        self.__editor = object.create_editor(self.ui)
+        if self.__editor:
+            self.widget.add(self.__editor.widget)
         for description in object.description:
             name = description["name"]
             type = description["type"]
             property = description["property"]
-            controller = construct_controller(self.ui, document_controller, self.object, type, name, property)
+            controller = construct_controller(self.ui, self.object, type, name, property)
             if controller:
                 self.widget.add(controller.widget)
                 self.__controllers[property] = controller
@@ -246,6 +290,8 @@ class PropertyEditorController(object):
         for controller in self.__controllers.values():
             if hasattr(controller, 'close'):
                 controller.close()
+        if self.__editor:
+            self.__editor.close()
         self.__controllers = {}
 
     def periodic(self):
@@ -255,6 +301,8 @@ class PropertyEditorController(object):
         for updated_property in updated_properties:
             if updated_property in self.__controllers:
                 self.__controllers[updated_property].update()
+        if self.__editor:
+            self.__editor.periodic()
 
     def property_changed(self, sender, property, value):
         with self.__updated_properties_mutex:
@@ -293,7 +341,7 @@ class ProcessingPanel(Panel.Panel):
     def close(self):
         # first set the data item to None
         # this has the side effect of closing the stack groups.
-        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
+        self.selected_data_item_changed(None, set())
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -322,7 +370,7 @@ class ProcessingPanel(Panel.Panel):
             self.widget.add(self.control_row)
             self.widget.add(self.container_widget)
             self.widget.add_stretch()
-            self.property_editor_controller = PropertyEditorController(self.ui, self.document_controller, operation)
+            self.property_editor_controller = PropertyEditorController(self.ui, operation)
             self.container_widget.add(self.property_editor_controller.widget)
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -375,7 +423,8 @@ class ProcessingPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item, changes):
-        if not DataItem.DATA in changes:
+        DataItem_DATA = 1  # argh. avoid circular reference. this will go away (hopefully).
+        if not DataItem_DATA in changes:
             with self.__rebuild_mutex:
                 self.__rebuild = True
                 self.__rebuild_data_item = data_item
@@ -405,7 +454,7 @@ class InspectorPanel(Panel.Panel):
         # close the property controller
         self.data_item = None
         # first set the data item to None
-        self.selected_data_item_changed(None, set([DataItem.SOURCE]))
+        self.selected_data_item_changed(None, set())
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # finish closing
@@ -429,7 +478,7 @@ class InspectorPanel(Panel.Panel):
             self.__pec.close()
             self.__pec = None
         if self.__data_item:
-            self.__pec = PropertyEditorController(self.ui, self.document_controller, self.__data_item)
+            self.__pec = PropertyEditorController(self.ui, self.__data_item)
             self.column.add(self.__pec.widget)
 
     def __get_data_item(self):

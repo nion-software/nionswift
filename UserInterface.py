@@ -495,6 +495,7 @@ class QtWidget(object):
         self.properties = properties if properties else {}
         self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
+        self.__visible = True
 
     # subclasses should override to clear their variable.
     # subclsases should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -516,6 +517,13 @@ class QtWidget(object):
                 self.proxy.Widget_clearFocus(self.widget)
     focused = property(__get_focused, __set_focused)
 
+    def __get_visible(self):
+        return self.__visible
+    def __set_visible(self, visible):
+        if visible != self.__visible:
+            self.proxy.Widget_setVisible(self.widget, visible)
+    visible = property(__get_visible, __set_visible)
+
     def __get_size(self):
         raise NotImplementedError()
     def __set_size(self, size):
@@ -531,6 +539,7 @@ class QtBoxWidget(QtWidget):
     def __init__(self, proxy, widget_type, properties):
         super(QtBoxWidget, self).__init__(proxy, widget_type, properties)
         self.children = []
+        self.spacer_count = 0
 
     def close(self):
         for child in self.children:
@@ -547,7 +556,7 @@ class QtBoxWidget(QtWidget):
         if isinstance(before, numbers.Integral):
             index = before
         else:
-            index = self.index(before) if before else self.count()
+            index = self.index(before) if before else self.count() + self.spacer_count
         self.children.insert(index, child)
         assert self.widget is not None
         assert child.widget is not None
@@ -557,6 +566,8 @@ class QtBoxWidget(QtWidget):
         self.insert(child, None, fill, alignment)
 
     def remove(self, child):
+        if isinstance(child, numbers.Integral):
+            child = self.children[child]
         self.children.remove(child)
         self.proxy.Widget_removeWidget(child.widget)
         child.close()
@@ -565,6 +576,7 @@ class QtBoxWidget(QtWidget):
         self.proxy.Widget_addStretch(self.widget)
 
     def add_spacing(self, spacing):
+        self.spacer_count += 1
         self.proxy.Widget_addSpacing(self.widget, spacing)
 
 

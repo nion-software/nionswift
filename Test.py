@@ -131,6 +131,8 @@ class Widget:
         self.focused = False
     def close(self):
         pass
+    def count(self):
+        return len(self.children)
     def add(self, widget, fill=False, alignment=None):
         self.children.append(widget)
     def insert(self, widget, before, fill=False, alignment=None):

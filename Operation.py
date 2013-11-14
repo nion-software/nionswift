@@ -57,6 +57,8 @@ class Operation(Storage.StorageBase):
         for property in operation.properties:
             setattr(operation, property, storage_reader.get_property(item_node, property, operation.defaults[property]))
         return operation
+    def create_editor(self, ui):
+        return None
     # enabled property
     def __get_enabled(self):
         return self.__enabled

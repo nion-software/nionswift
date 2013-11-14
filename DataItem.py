@@ -14,6 +14,7 @@ import scipy.interpolate
 # local libraries
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
+from nion.swift import Inspector
 from nion.swift import Storage
 
 _ = gettext.gettext
@@ -236,6 +237,183 @@ HISTOGRAM = 6
 SOURCE = 7
 
 
+class DataItemEditor(object):
+    def __init__(self, ui, data_item):
+        self.ui = ui
+        self.data_item = data_item
+        self.widget = self.ui.create_column_widget()
+
+        self.widget.add_spacing(6)
+
+        # param editor
+        self.param_row = self.ui.create_row_widget()
+        param_label = self.ui.create_label_widget(_("Parameter"))
+        self.param_slider = self.ui.create_slider_widget()
+        self.param_slider.maximum = 100
+        self.param_slider.on_value_changed = lambda value: self.param_slider_value_changed(value)
+        self.param_field = self.ui.create_line_edit_widget()
+        self.param_field.on_editing_finished = lambda text: self.param_editing_finished(text)
+        self.param_field_formatter = Inspector.FloatFormatter(self.param_field)
+        self.param_row.add(param_label)
+        self.param_row.add_spacing(8)
+        self.param_row.add(self.param_slider)
+        self.param_row.add_spacing(8)
+        self.param_row.add(self.param_field)
+        self.param_row.add_stretch()
+        self.param_row.visible = False
+        self.widget.add(self.param_row)
+
+        # calibrations editor
+        self.calibrations_section = self.ui.create_column_widget()
+        self.calibrations_section_title = self.ui.create_row_widget()
+        #self.calibrations_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
+        self.calibrations_section_title.add(self.ui.create_label_widget("Calibrations", properties={"stylesheet": "font-weight: bold"}))
+        self.calibrations_section_title.add_stretch()
+        self.calibrations_section.add(self.calibrations_section_title)
+        self.calibrations_table = self.ui.create_column_widget()
+        self.calibrations_labels = self.ui.create_column_widget()
+        self.calibrations_column = self.ui.create_column_widget(properties={"spacing": 2})
+        self.calibrations_table.add(self.calibrations_labels)
+        self.calibrations_column_row = self.ui.create_row_widget()
+        self.calibrations_column_row.add_spacing(20)
+        self.calibrations_column_row.add(self.calibrations_column)
+        self.calibrations_table.add(self.calibrations_column_row)
+        self.calibrations_section.add(self.calibrations_table)
+        self.widget.add(self.calibrations_section)
+
+        # first update to get the values right
+        self.__block = False
+        self.needs_update = False
+        self.update()
+
+        # make sure we're listening to changes of the data item
+        self.data_item.add_listener(self)
+
+    def close(self):
+        # unlisten to the data item
+        self.data_item.remove_listener(self)
+
+    # update the values if needed
+    def periodic(self):
+        if self.needs_update:
+            self.update()
+
+    # this will typically happen on a thread
+    def data_item_changed(self, data_source, changes):
+        if not self.__block:
+            # TODO: this is pretty weak!
+            if not DATA in changes and not THUMBNAIL in changes and not HISTOGRAM in changes:
+                self.needs_update = True
+
+    # update will NEVER be called on a thread
+    def update(self):
+        # param
+        value = self.data_item.param
+        self.param_field_formatter.value = float(value)
+        self.param_slider.value = int(value * 100)
+        # calibrations
+        # first match the number of rows to the number of calibrations
+        # then populate
+        calibrations = self.data_item.calibrations
+        if len(calibrations) > 0:
+            while self.calibrations_labels.count() > 0:
+                self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
+            calibration_row = self.ui.create_row_widget()
+            row_label = self.ui.create_label_widget("Axis", properties={"width":60})
+            origin_field = self.ui.create_label_widget("Origin", properties={"width":60})
+            scale_field = self.ui.create_label_widget("Scale", properties={"width":60})
+            units_field = self.ui.create_label_widget("Units", properties={"width":60})
+            calibration_row.add_spacing(20)
+            calibration_row.add(row_label)
+            calibration_row.add_spacing(12)
+            calibration_row.add(origin_field)
+            calibration_row.add_spacing(12)
+            calibration_row.add(scale_field)
+            calibration_row.add_spacing(12)
+            calibration_row.add(units_field)
+            calibration_row.add_stretch()
+            self.calibrations_labels.add(calibration_row)
+            self.calibrations_labels.add_spacing(4)
+        else:
+            while self.calibrations_labels.count() > 0:
+                self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
+            self.calibrations_none_column = self.ui.create_column_widget()
+            self.calibrations_none_column.add_spacing(4)
+            self.calibrations_none_row = self.ui.create_row_widget()
+            self.calibrations_none_row.add_spacing(20)
+            self.calibrations_none_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
+            self.calibrations_none_column.add(self.calibrations_none_row)
+            self.calibrations_labels.add(self.calibrations_none_column)
+        while self.calibrations_column.count() < len(calibrations):
+            calibration_index = self.calibrations_column.count()
+            calibration_row = self.ui.create_row_widget()
+            row_label = self.ui.create_label_widget(properties={"width":60})
+            origin_field = self.ui.create_line_edit_widget(properties={"width":60})
+            scale_field = self.ui.create_line_edit_widget(properties={"width":60})
+            units_field = self.ui.create_line_edit_widget(properties={"width":60})
+            # notice the binding of calibration_index below.
+            origin_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_origin_editing_finished(i, text)
+            scale_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_scale_editing_finished(i, text)
+            units_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_units_editing_finished(i, text)
+            calibration_row.add(row_label)
+            calibration_row.add_spacing(12)
+            calibration_row.add(origin_field)
+            calibration_row.add_spacing(12)
+            calibration_row.add(scale_field)
+            calibration_row.add_spacing(12)
+            calibration_row.add(units_field)
+            calibration_row.add_stretch()
+            self.calibrations_column.add(calibration_row)
+        while self.calibrations_column.count() > len(calibrations):
+            self.calibrations_column.remove(len(calibrations) - 1)
+        for calibration_index, calibration in enumerate(calibrations):
+            calibration_row = self.calibrations_column.children[calibration_index]
+            calibration_row.children[0].text = str(calibration_index)
+            calibration_row.children[1].text = str(calibration.origin)
+            calibration_row.children[2].text = str(calibration.scale)
+            calibration_row.children[3].text = calibration.units
+        self.needs_update = False
+
+    # handle param editing
+    def param_slider_value_changed(self, value):
+        self.data_item.param = self.param_slider.value/100.0
+        self.update()  # clean up displayed values
+    def param_editing_finished(self, text):
+        self.data_item.param = self.param_field_formatter.value
+        self.update()  # clean up displayed values
+        if self.param_field.focused:
+            self.param_field.select_all()
+
+    # handle calibration editing
+    def calibration_origin_editing_finished(self, calibration_index, text):
+        block = self.__block
+        self.__block = True
+        self.data_item.calibrations[calibration_index].origin = float(text)
+        self.__block = block
+        self.update()  # clean up displayed values
+        line_edit_widget = self.calibrations_column.children[calibration_index].children[1]
+        if line_edit_widget.focused:
+            line_edit_widget.select_all()
+    def calibration_scale_editing_finished(self, calibration_index, text):
+        block = self.__block
+        self.__block = True
+        self.data_item.calibrations[calibration_index].scale = float(text)
+        self.__block = block
+        self.update()  # clean up displayed values
+        line_edit_widget = self.calibrations_column.children[calibration_index].children[2]
+        if line_edit_widget.focused:
+            line_edit_widget.select_all()
+    def calibration_units_editing_finished(self, calibration_index, text):
+        block = self.__block
+        self.__block = True
+        self.data_item.calibrations[calibration_index].units = text
+        self.__block = block
+        self.update()  # clean up displayed values
+        line_edit_widget = self.calibrations_column.children[calibration_index].children[3]
+        if line_edit_widget.focused:
+            line_edit_widget.select_all()
+
+
 class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
@@ -244,10 +422,7 @@ class DataItem(Storage.StorageBase):
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
-        self.description = [
-            {"name": _("Parameter"), "property": "param", "type": "scalar", "default": 0.5},
-            {"name": _("Calibrations"), "property": "calibrations", "type": "fixed-array"},
-        ]
+        self.description = []
         self.closed = False
         self.__title = None
         self.__param = 0.5
@@ -337,6 +512,9 @@ class DataItem(Storage.StorageBase):
         for operation in copy.copy(self.operations):
             self.operations.remove(operation)
         super(DataItem, self).about_to_delete()
+
+    def create_editor(self, ui):
+        return DataItemEditor(ui, self)
 
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
