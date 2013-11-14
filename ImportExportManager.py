@@ -1,4 +1,5 @@
 # standard libraries
+import logging
 import os
 
 # third party libraries
@@ -25,15 +26,16 @@ class ImportExportHandler(object):
         return True
 
     # return a data item
-    def read(self, ui, path, extension):
-        with open(filepath, 'rb') as f:
-            return self.read_file(extension, f)
+    def read(self, ui, file_path, extension):
+        with open(file_path, 'rb') as f:
+            return self.read_file(file_path, extension, f)
 
     # return a data item
-    def read_file(self, extension, file):
+    def read_file(self, file_path, extension, file):
         data = self.read_data(extension, file)
+        #logging.debug("read %s %s %s", file, extension, data)
         if data is not None:
-            root, filename = os.path.split(path)
+            root, filename = os.path.split(file_path)
             title, _ = os.path.splitext(filename)
             data_item = DataItem.DataItem()
             with data_item.create_data_accessor() as data_accessor:
