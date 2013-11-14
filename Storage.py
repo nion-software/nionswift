@@ -294,6 +294,10 @@ class StorageBase(object):
                 self.__object.end_transaction()
         return TransactionContextManager(self)
 
+    def __get_transaction_count(self):
+        return self.__transaction_count
+    transaction_count = property(__get_transaction_count)
+
     def begin_transaction(self, count=1):
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
         assert count > 0

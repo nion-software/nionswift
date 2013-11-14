@@ -697,6 +697,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # image panel is optional.
         if self.image_panel:
             self.document_controller.selected_image_panel = self.image_panel
+        image_position = WidgetMapping(self.data_item.spatial_shape, self.canvas_size).map_point_widget_to_image((y, x))
+        ImagePanelManager().mouse_clicked(self.image_panel, self.data_item, image_position, modifiers)
         return True
 
     def mouse_pressed(self, x, y, modifiers):
@@ -1405,6 +1407,8 @@ class ImagePanelManager(object):
     # events from the image panels
     def key_pressed(self, image_panel, key):
         return self.notify_listeners("image_panel_key_pressed", image_panel, key)
+    def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
+        return self.notify_listeners("image_panel_key_clicked", image_panel, data_item, image_position, modifiers)
     def data_item_changed(self, image_panel):
         self.notify_listeners("image_panel_data_item_changed", image_panel)
 

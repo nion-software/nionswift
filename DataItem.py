@@ -516,6 +516,11 @@ class DataItem(Storage.StorageBase):
     def create_editor(self, ui):
         return DataItemEditor(ui, self)
 
+    # cheap, but incorrect, way to tell whether this is live acquisition
+    def __get_is_live(self):
+        return self.transaction_count > 0
+    is_live = property(__get_is_live)
+
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
             def __init__(self, data_item):
