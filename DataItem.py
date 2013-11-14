@@ -267,7 +267,7 @@ class DataItemEditor(object):
         self.calibrations_section = self.ui.create_column_widget()
         self.calibrations_section_title = self.ui.create_row_widget()
         #self.calibrations_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
-        self.calibrations_section_title.add(self.ui.create_label_widget("Calibrations", properties={"stylesheet": "font-weight: bold"}))
+        self.calibrations_section_title.add(self.ui.create_label_widget(_("Calibrations"), properties={"stylesheet": "font-weight: bold"}))
         self.calibrations_section_title.add_stretch()
         self.calibrations_section.add(self.calibrations_section_title)
         self.calibrations_table = self.ui.create_column_widget()
@@ -280,6 +280,42 @@ class DataItemEditor(object):
         self.calibrations_table.add(self.calibrations_column_row)
         self.calibrations_section.add(self.calibrations_table)
         self.widget.add(self.calibrations_section)
+
+        # display limit editor
+        self.display_limits_section = self.ui.create_column_widget()
+        self.display_limits_section_title = self.ui.create_row_widget()
+        #self.display_limits_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
+        self.display_limits_section_title.add(self.ui.create_label_widget(_("Display Limits"), properties={"stylesheet": "font-weight: bold"}))
+        self.display_limits_section_title.add_stretch()
+        self.display_limits_section.add(self.display_limits_section_title)
+        self.display_limits_section_table = self.ui.create_row_widget()
+        self.display_limits_section_rows = self.ui.create_column_widget()
+        self.display_limits_section_table.add_spacing(20)
+        self.display_limits_section_table.add(self.display_limits_section_rows)
+        self.display_limits_range_row = self.ui.create_row_widget()
+        self.display_limits_range_low = self.ui.create_label_widget(properties={"width":60})
+        self.display_limits_range_high = self.ui.create_label_widget(properties={"width":60})
+        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width":120}))
+        self.display_limits_range_row.add(self.display_limits_range_low)
+        self.display_limits_range_row.add_spacing(8)
+        self.display_limits_range_row.add(self.display_limits_range_high)
+        self.display_limits_range_row.add_stretch()
+        self.display_limits_limit_row = self.ui.create_row_widget()
+        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width":60})
+        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width":60})
+        self.display_limits_limit_low.on_editing_finished = lambda text: self.display_limit_low_editing_finished(text)
+        self.display_limits_limit_high.on_editing_finished = lambda text: self.display_limit_high_editing_finished(text)
+        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width":120}))
+        self.display_limits_limit_row.add(self.display_limits_limit_low)
+        self.display_limits_limit_row.add_spacing(8)
+        self.display_limits_limit_row.add(self.display_limits_limit_high)
+        self.display_limits_limit_row.add_stretch()
+        self.display_limits_section_rows.add_spacing(4)
+        self.display_limits_section_rows.add(self.display_limits_range_row)
+        self.display_limits_section_rows.add_spacing(4)
+        self.display_limits_section_rows.add(self.display_limits_limit_row)
+        self.display_limits_section.add(self.display_limits_section_table)
+        self.widget.add(self.display_limits_section)
 
         # first update to get the values right
         self.__block = False
@@ -332,8 +368,10 @@ class DataItemEditor(object):
             calibration_row.add_spacing(12)
             calibration_row.add(units_field)
             calibration_row.add_stretch()
-            self.calibrations_labels.add(calibration_row)
-            self.calibrations_labels.add_spacing(4)
+            calibration_header_column = self.ui.create_column_widget()
+            calibration_header_column.add(calibration_row)
+            calibration_header_column.add_spacing(4)
+            self.calibrations_labels.add(calibration_header_column)
         else:
             while self.calibrations_labels.count() > 0:
                 self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
@@ -368,10 +406,25 @@ class DataItemEditor(object):
             self.calibrations_column.remove(len(calibrations) - 1)
         for calibration_index, calibration in enumerate(calibrations):
             calibration_row = self.calibrations_column.children[calibration_index]
-            calibration_row.children[0].text = str(calibration_index)
-            calibration_row.children[1].text = str(calibration.origin)
-            calibration_row.children[2].text = str(calibration.scale)
+            calibration_row.children[0].text = "{0:.2f}".format(calibration_index)
+            calibration_row.children[1].text = "{0:.2f}".format(calibration.origin)
+            calibration_row.children[2].text = "{0:.2f}".format(calibration.scale)
             calibration_row.children[3].text = calibration.units
+        # display limits
+        data_range = self.data_item.data_range
+        if data_range:
+            self.display_limits_range_low.text = "{0:.2f}".format(data_range[0])
+            self.display_limits_range_high.text = "{0:.2f}".format(data_range[1])
+        else:
+            self.display_limits_range_low.text = _("N/A")
+            self.display_limits_range_high.text = _("N/A")
+        display_range = self.data_item.display_range
+        if display_range:
+            self.display_limits_limit_low.text = "{0:.2f}".format(display_range[0])
+            self.display_limits_limit_high.text = "{0:.2f}".format(display_range[1])
+        else:
+            self.display_limits_limit_low.text = _("N/A")
+            self.display_limits_limit_high.text = _("N/A")
         self.needs_update = False
 
     # handle param editing
@@ -412,6 +465,28 @@ class DataItemEditor(object):
         line_edit_widget = self.calibrations_column.children[calibration_index].children[3]
         if line_edit_widget.focused:
             line_edit_widget.select_all()
+
+    # handle display limit editing
+    def display_limit_low_editing_finished(self, text):
+        if self.display_limits_range_low.text != text:
+            display_limit_low = float(text)
+            block = self.__block
+            self.__block = True
+            self.data_item.display_limits = (display_limit_low, self.data_item.display_range[1])
+            self.__block = block
+            self.update()  # clean up displayed values
+            if self.display_limits_range_low.focused:
+                self.display_limits_range_low.select_all()
+    def display_limit_high_editing_finished(self, text):
+        if self.display_limits_range_high.text != text:
+            display_limit_high = float(text)
+            block = self.__block
+            self.__block = True
+            self.data_item.display_limits = (self.data_item.display_range[0], display_limit_high)
+            self.__block = block
+            self.update()  # clean up displayed values
+            if self.display_limits_limit_high.focused:
+                self.display_limits_range_high.select_all()
 
 
 class DataItem(Storage.StorageBase):
@@ -595,6 +670,7 @@ class DataItem(Storage.StorageBase):
                 data = data_accessor.data
                 self.__get_data_range_for_data(data)
         return data_range
+    data_range = property(__get_data_range)
 
     def __get_display_range(self):
         data_range = self.__get_data_range()
