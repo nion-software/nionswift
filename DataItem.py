@@ -278,6 +278,17 @@ class DataItem(Storage.StorageBase):
 
     @classmethod
     def __get_data_file_path(cls, uuid_):
+        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
+        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
+        # also:
+        def encode(uuid_, alphabet):
+            result = str()
+            uuid_int = uuid_.int
+            while uuid_int:
+                uuid_int, digit = divmod(uuid_int, len(alphabet))
+                result += alphabet[digit]
+            return result
+        # encode(uuid.uuid4(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
         return str(uuid_) + ".nsdata"
 
     @classmethod

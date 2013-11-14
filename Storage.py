@@ -924,6 +924,7 @@ class DbStorageWriter(object):
             c = self.conn.cursor()
             self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
+            # TODO: use_external_data
             self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
@@ -974,6 +975,7 @@ class DbStorageWriter(object):
             # remove properties
             self.execute(c, "DELETE FROM properties WHERE uuid = ?", (str(uuid_), ))
             # remove data
+            # TODO: use_external_data
             self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
             # remove single items
             self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
@@ -993,6 +995,7 @@ class DbStorageWriter(object):
 
     def erase_data(self, object):
         c = self.conn.cursor()
+        # TODO: use_external_data
         self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(object.uuid), ))
 
     def set_type(self, item, type):
@@ -1075,6 +1078,7 @@ class DbStorageWriter(object):
                 absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
                 pickle.dump(data, open(absolute_file_path, "wb"))
             c = self.conn.cursor()
+            # TODO: use_external_data
             self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
