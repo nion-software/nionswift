@@ -147,6 +147,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         super(CanvasItemComposition, self).__init__()
         self.__canvas_items = []
         self.layout = CanvasItemLayout()
+        self.__mouse_canvas_item = None
 
     def close(self):
         for canvas_item in self.__canvas_items:
@@ -229,19 +230,27 @@ class CanvasItemComposition(AbstractCanvasItem):
                 x -= canvas_item.canvas_origin[1]
                 y -= canvas_item.canvas_origin[0]
                 if canvas_item.mouse_pressed(x, y, modifiers):
+                    self.__mouse_canvas_item = canvas_item
                     return True
         return False
 
     def mouse_released(self, x, y, modifiers):
-        for canvas_item in reversed(self.__canvas_items):
-            if canvas_item.is_point_inside(x, y):
-                x -= canvas_item.canvas_origin[1]
-                y -= canvas_item.canvas_origin[0]
-                if canvas_item.mouse_released(x, y, modifiers):
-                    return True
+        # only the canvas item that accepted the mouse pressed gets mouse released
+        if self.__mouse_canvas_item:
+            x -= self.__mouse_canvas_item.canvas_origin[1]
+            y -= self.__mouse_canvas_item.canvas_origin[0]
+            self.__mouse_canvas_item.mouse_released(x, y, modifiers)
+            self.__mouse_canvas_item = None
         return False
 
     def mouse_position_changed(self, x, y, modifiers):
+        # always cgive the mouse canvas item priority (for tracking outside bounds)
+        if self.__mouse_canvas_item:
+            x -= self.__mouse_canvas_item.canvas_origin[1]
+            y -= self.__mouse_canvas_item.canvas_origin[0]
+            if self.__mouse_canvas_item.mouse_position_changed(x, y, modifiers):
+                return True
+        # now give other canvas items a chance
         for canvas_item in reversed(self.__canvas_items):
             if canvas_item.is_point_inside(x, y):
                 x -= canvas_item.canvas_origin[1]
