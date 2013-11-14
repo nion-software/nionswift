@@ -1055,7 +1055,10 @@ class DataItem(Storage.StorageBase):
     def get_data_value(self, pos):
         # do not force data calculation here
         with self.__data_mutex:
-            if self.is_data_2d:
+            if self.is_data_1d:
+                if self.__cached_data is not None:
+                    return self.__cached_data[pos[0]]
+            elif self.is_data_2d:
                 if self.__cached_data is not None:
                     return self.__cached_data[pos[0], pos[1]]
         return None

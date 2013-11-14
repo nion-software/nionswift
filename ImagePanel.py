@@ -517,6 +517,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
+        
+        self.__last_mouse = None
+        self.__mouse_in = False
 
         # initial data item changed message
         self.data_item_changed(self.data_item_binding.data_item)
@@ -596,6 +599,46 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_canvas_item.update()
 
         self.repaint_if_needed()
+
+    def mouse_entered(self):
+        if super(LinePlotCanvasItem, self).mouse_entered():
+            return True
+        self.__mouse_in = True
+        return True
+
+    def mouse_exited(self):
+        if super(LinePlotCanvasItem, self).mouse_exited():
+            return True
+        self.__mouse_in = False
+        self.mouse_position_changed(0, 0, 0)
+        return True
+
+    def mouse_position_changed(self, x, y, modifiers):
+        if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
+            return True
+        # x,y already have transform applied
+        self.__last_mouse = (y, x)
+        self.__update_cursor_info()
+        return True
+
+    def __get_data_size(self):
+        data_item = self.data_item
+        data_shape = data_item.spatial_shape if data_item else None
+        if not data_shape:
+            return None
+        for d in data_shape:
+            if not d > 0:
+                return None
+        return data_shape
+
+    def __update_cursor_info(self):
+        if self.document_controller:
+            pos = None
+            data_size = self.__get_data_size()
+            if self.__mouse_in and self.__last_mouse:
+                if data_size and len(data_size) == 1:
+                    pos = (data_size[0] * self.__last_mouse[1] / self.canvas_size[1], )
+                self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, list(), data_size)
 
 
 # binding to a child of another data item binding
@@ -1478,29 +1521,35 @@ class InfoPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def cursor_changed(self, data_item, pos, selected_graphics, image_size):
+    def cursor_changed(self, data_item, pos, selected_graphics, data_size):
+        def get_value_text(value):
+            if isinstance(value, numbers.Integral):
+                return '{0:d}'.format(value)
+            elif isinstance(value, numbers.Real) or isinstance(value, numbers.Complex):
+                return '{0:f}'.format(value)
+            elif value is None:
+                return _("N/A")
+            else:
+                return str(value)
         position_text = ""
         value_text = ""
         graphic_text = ""
-        if data_item and image_size:
+        if data_item and data_size:
             calibrations = data_item.calculated_calibrations
-            if pos:
+            if pos and len(pos) == 2:
                 # make sure the position is within the bounds of the image
-                if pos[0] >= 0 and pos[0] < image_size[0] and pos[1] >= 0 and pos[1] < image_size[1]:
-                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * image_size[1]),
-                                                     calibrations[0].convert_to_calibrated_value_str(0.5 * image_size[0] - pos[0]))
-                    value = data_item.get_data_value(pos)
-                    if isinstance(value, numbers.Integral):
-                        value_text = '{0:d}'.format(value)
-                    elif isinstance(value, numbers.Real) or isinstance(value, numbers.Complex):
-                        value_text = '{0:f}'.format(value)
-                    elif value is None:
-                        value_text = _("N/A")
-                    else:
-                        value_text = str(value)
+                if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
+                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
+                                                     calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    value_text = get_value_text(data_item.get_data_value(pos))
+            if pos and len(pos) == 1:
+                # make sure the position is within the bounds of the line plot
+                if pos[0] >= 0 and pos[0] < data_size[0]:
+                    position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    value_text = get_value_text(data_item.get_data_value(pos))
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
-                graphic_text = graphic.calibrated_description(image_size, calibrations)
+                graphic_text = graphic.calibrated_description(data_size, calibrations)
         with self.__pending_info_mutex:
             self.__pending_info = (position_text, value_text, graphic_text)
 
