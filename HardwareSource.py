@@ -368,8 +368,8 @@ class HardwareSourceDataBuffer(object):
             self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
     # must be called on the UI thread
-    def pause(self):
-        logging.info("Pausing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+    def stop(self):
+        logging.info("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
@@ -377,7 +377,8 @@ class HardwareSourceDataBuffer(object):
             self.on_new_data_elements([])
             self.notify_listeners("playing_state_changed", self.hardware_source, False)
 
-    # this will typically happen on the acquisition thread
+    # thread safe
+    # this will typically be called on the acquisition thread
     def on_new_data_elements(self, data_elements):
         if not self.hardware_port:
             data_elements = []
@@ -445,16 +446,21 @@ def __find_hardware_port_by_id(hardware_source_id):
 # data element is a dict which can be processed into a data item
 def create_data_item_from_data_element(data_element):
     data_item = DataItem.DataItem()
-    update_data_item_from_data_element(data_item, data_element)
+    update_data_item_from_data_element(None, data_item, data_element)
     return data_item
 
 
-# TODO: this time consuming method is currently being called on main thread.
-def update_data_item_from_data_element(data_item, data_element):
+# update channel state too.
+# channel state during normal acquisition: started -> (partial -> complete) -> stopped
+# channel state during stop: started -> (partial -> complete) -> marked -> stopped
+def update_data_item_from_data_element(channel_state, data_item, data_element):
+    if channel_state == "stopped":
+        return channel_state
     with data_item.data_item_changes():
         with data_item.create_data_accessor() as data_accessor:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
+            complete = sub_area is None or data_element.get("state") == "complete"
             if data_accessor.master_data is not None and sub_area is not None:
                 top = sub_area[0][0]
                 bottom = sub_area[0][0] + sub_area[1][0]
@@ -463,6 +469,12 @@ def update_data_item_from_data_element(data_item, data_element):
                 data_accessor.master_data[top:bottom, left:right] = data[top:bottom, left:right]
             else:
                 data_accessor.master_data = data
+        # update channel state
+        if channel_state == "marked":
+            channel_state = "stopped" if complete else "marked"
+        else:
+            channel_state = "complete" if complete else "partial"
+        # update spatial calibrations
         if "spatial_calibration" in data_element:
             spatial_calibration = data_element.get("spatial_calibration")
             if len(spatial_calibration) == len(data_item.spatial_shape):
@@ -474,7 +486,9 @@ def update_data_item_from_data_element(data_item, data_element):
                         data_item.calibrations[dimension].origin = origin
                         data_item.calibrations[dimension].scale = scale
                         data_item.calibrations[dimension].units = units
+        # update properties
         if "properties" in data_element:
             properties = data_item.grab_properties()
             properties.update(data_element.get("properties"))
             data_item.release_properties(properties)
+    return channel_state
