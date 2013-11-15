@@ -152,7 +152,8 @@ class TaskSectionController(object):
         in_progress = self.task.in_progress
         if in_progress:
             self.task_progress_label.visible = True
-            self.task_progress_label.text = "{0:.0f}% {1}".format(float(self.task.progress[0])/self.task.progress[1] * 100, self.task.progress_text)
+            done_percentage_str = "{.0f}%".format(float(self.task.progress[0])/self.task.progress[1] * 100) if task_progress else "--"
+            self.task_progress_label.text = "{0} {1}".format(done_percentage_str, self.task.progress_text)
         else:
             self.task_progress_label.visible = False
 
@@ -274,12 +275,12 @@ class TaskContextManager(object):
         self.__task.finish_time = time.time()
         logging.debug("%s: finished", self.__task.title)
 
-    def update_progress(self, progress_text, progress, task_data=None):
+    def update_progress(self, progress_text, progress=None, task_data=None):
         self.__task.progress_text = progress_text
         self.__task.progress = progress
         if task_data:
             self.__task.task_data = task_data
-        logging.debug("%s: %s %s", self.__task.title, progress_text, progress)
+        logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
 @singleton
