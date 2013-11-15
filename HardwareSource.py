@@ -453,7 +453,16 @@ def create_data_item_from_data_element(data_element):
 def update_data_item_from_data_element(data_item, data_element):
     with data_item.data_item_changes():
         with data_item.create_data_accessor() as data_accessor:
-            data_accessor.master_data = data_element["data"]
+            data = data_element["data"]
+            sub_area = data_element.get("sub_area")
+            if data_accessor.master_data is not None and sub_area is not None:
+                top = sub_area[0][0]
+                bottom = sub_area[0][0] + sub_area[1][0]
+                left = sub_area[0][1]
+                right = sub_area[0][1] + sub_area[1][1]
+                data_accessor.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+            else:
+                data_accessor.master_data = data
         if "spatial_calibration" in data_element:
             spatial_calibration = data_element.get("spatial_calibration")
             if len(spatial_calibration) == len(data_item.spatial_shape):
