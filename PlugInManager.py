@@ -6,7 +6,6 @@ import os
 import sys
 import traceback
 import unittest
-import traceback
 
 _testSuites = []
 
