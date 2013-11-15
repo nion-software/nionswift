@@ -152,7 +152,7 @@ class TaskSectionController(object):
         in_progress = self.task.in_progress
         if in_progress:
             self.task_progress_label.visible = True
-            done_percentage_str = "{.0f}%".format(float(self.task.progress[0])/self.task.progress[1] * 100) if task_progress else "--"
+            done_percentage_str = "{0:.0f}%".format(float(self.task.progress[0])/self.task.progress[1] * 100) if self.task.progress else "--"
             self.task_progress_label.text = "{0} {1}".format(done_percentage_str, self.task.progress_text)
         else:
             self.task_progress_label.visible = False
@@ -179,6 +179,8 @@ class Task(Storage.StorageBase):
         self.__task_type = task_type
         self.__task_data = None
         self.__task_data_mutex = threading.RLock()
+        self.__progress = None
+        self.__progress_text = str()
 
     @classmethod
     def build(cls, storage_reader, item_node, uuid_):
