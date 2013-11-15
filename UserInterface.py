@@ -572,6 +572,10 @@ class QtBoxWidget(QtWidget):
         self.proxy.Widget_removeWidget(child.widget)
         child.close()
 
+    def remove_all(self):
+        while self.count() > 0:
+            self.remove(0)
+
     def add_stretch(self):
         self.proxy.Widget_addStretch(self.widget)
 

@@ -114,8 +114,8 @@ class TaskSectionController(object):
         self.task = task
 
         widget = self.ui.create_column_widget()
-        task_header = self.ui.create_row_widget(properties={"stylesheet": "font-weight: bold"})
-        self.title_widget = self.ui.create_label_widget()
+        task_header = self.ui.create_row_widget()
+        self.title_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
         task_header.add(self.title_widget)
         task_spacer_row = self.ui.create_row_widget()
         task_spacer_row_col = self.ui.create_column_widget()
@@ -129,6 +129,11 @@ class TaskSectionController(object):
         task_time_row.add(self.task_progress_state)
         task_spacer_row_col.add(self.task_progress_row)
         task_spacer_row_col.add(task_time_row)
+
+        # add custom ui, if any
+        self.task_ui_controller = TaskManager().build_task_ui(self.ui, task)
+        if self.task_ui_controller:
+            task_spacer_row_col.add(self.task_ui_controller.widget)
 
         widget.add(task_header)
         widget.add(task_spacer_row)
@@ -155,6 +160,10 @@ class TaskSectionController(object):
         task_state_str = _("In Progress") if in_progress else _("Done")
         task_time_str = time.strftime("%c", time.localtime(self.task.start_time if in_progress else self.task.finish_time))
         self.task_progress_state.text = "{} {}".format(task_state_str, task_time_str)
+
+        # update the custom builder, if any
+        if self.task_ui_controller:
+            self.task_ui_controller.update_task(self.task)
 
 
 class Task(Storage.StorageBase):
@@ -244,7 +253,7 @@ class Task(Storage.StorageBase):
     def __set_task_data(self, task_data):
         with self.__task_data_mutex:
             self.__task_data = copy.copy(task_data)
-        self.notify_set_property("task_data", value)
+        self.notify_set_property("task_data", task_data)
         self.notify_listeners("task_changed", self)
     task_data = property(__get_task_data, __set_task_data)
 
@@ -277,4 +286,59 @@ class TaskContextManager(object):
 class TaskManager(object):
 
     def __init__(self):
-        pass
+        self.__task_ui_builder_map = dict()
+
+    def register_task_type_builder(self, task_type, fn):
+        self.__task_ui_builder_map[task_type] = fn
+
+    def unregister_task_type_builder(self, task_type):
+        del self.__task_ui_builder_map[task_type]
+
+    def build_task_ui(self, ui, task):
+        if task.task_type in self.__task_ui_builder_map:
+            return self.__task_ui_builder_map[task.task_type](ui)
+        return None
+
+
+class TableController(object):
+
+    def __init__(self, ui):
+        self.ui = ui
+        self.widget = self.ui.create_row_widget()
+        self.column_widgets = self.ui.create_row_widget()
+        self.widget.add(self.column_widgets)
+
+    def update_task(self, task):
+        if task.task_data:
+            column_count = len(task.task_data["headers"])
+            while self.column_widgets.count() > column_count:
+                self.column_widgets.remove(self.column_widgets.count() - 1)
+            while self.column_widgets.count() < column_count:
+                self.column_widgets.add(self.ui.create_column_widget())
+            row_count = len(task.task_data["data"]) if "data" in task.task_data else 0
+            for column_index, column_widget in enumerate(self.column_widgets.children):
+                while column_widget.count() > row_count + 1:
+                    column_widget.remove(column_widget.count() - 1)
+                while column_widget.count() < row_count + 1:
+                    # bold on first row. not working?
+                    properties = {"stylesheet": "font-weight: bold"} if column_widget.count() == 0 else None
+                    column_widget.add(self.ui.create_label_widget(properties))
+                column_widget.children[0].text = task.task_data["headers"][column_index]
+                for row_index in xrange(row_count):
+                    column_widget.children[row_index + 1].text = str(task.task_data["data"][row_index][column_index])
+        else:
+            self.column_widgets.remove_all()
+
+
+class StringListController(object):
+
+    def __init__(self, ui):
+        self.ui = ui
+        self.widget = self.ui.create_label_widget("[]")
+
+    def update_task(self, task):
+        strings = task.task_data["strings"] if task.task_data else list()
+        self.widget.text = "[" + ":".join(strings) + "]"
+
+TaskManager().register_task_type_builder("string_list", lambda ui: StringListController(ui))
+TaskManager().register_task_type_builder("table", lambda ui: TableController(ui))
