@@ -715,6 +715,9 @@ class QtScrollAreaWidget(QtWidget):
         self.proxy.ScrollArea_setHorizontal(self.widget, float(x))
         self.proxy.ScrollArea_setVertical(self.widget, float(y))
 
+    def set_scrollbar_policies(self, horizontal_policy, vertical_policy):
+        self.proxy.ScrollArea_setScrollbarPolicies(self.widget, horizontal_policy, vertical_policy)
+
     def info(self):
         self.proxy.ScrollArea_info(self.widget)
 

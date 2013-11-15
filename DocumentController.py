@@ -22,6 +22,7 @@ from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import ImportExportManager
 from nion.swift import Operation
+from nion.swift import Task
 from nion.swift import Workspace
 
 _ = gettext.gettext
@@ -48,6 +49,8 @@ class DocumentController(object):
         self.__cursor_weak_listeners = []
         self.__delay_queue = Queue.Queue()
         self.__delay_queue_mutex = threading.RLock()
+        self.__active_tasks = []
+        self.__active_tasks_mutex = threading.RLock()
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -58,6 +61,7 @@ class DocumentController(object):
         assert len(self.__weak_listeners) == 0, 'DocumentController still has listeners'
 
     def close(self):
+        assert len(self.__active_tasks) == 0
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
@@ -235,6 +239,10 @@ class DocumentController(object):
                 if elapsed > 0.05:
                     logging.debug("panel %s %s", panel, elapsed)
                     pass
+        with self.__active_tasks_mutex:
+            active_tasks = self.__active_tasks
+        for active_task in active_tasks:
+            active_task._periodic()
 
     @queue_main_thread
     def select_data_item(self, data_group, data_item):
@@ -330,6 +338,28 @@ class DocumentController(object):
         path = self.document_window.get_save_file_path(_("Export File"), "", filter)
         if path:
             return ImportExportManager.ImportExportManager().write(self.ui, data_item, path)
+
+    # this method creates a task. it is thread safe.
+    def create_task(self, title, task_type):
+        task = Task.Task(title, task_type)
+        task_controller = Task.TaskController(self, task)
+        self.notify_listeners("task_created", task)
+        return task_controller
+
+    # this will be called from the task controller during periodic, on the UI thread.
+    def update_task(self, task):
+        self.notify_listeners("task_updated", task)
+
+    # these two methods will get called from the task controller.
+    # they are thread safe.
+    def task_started(self, task_controller):
+        with self.__active_tasks_mutex:
+            assert not task_controller in self.__active_tasks
+            self.__active_tasks.append(task_controller)
+    def task_finished(self, task_controller):
+        with self.__active_tasks_mutex:
+            assert task_controller in self.__active_tasks
+            self.__active_tasks.remove(task_controller)
 
     def add_smart_group(self):
         smart_data_group = DataGroup.SmartDataGroup()
