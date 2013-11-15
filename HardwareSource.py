@@ -217,8 +217,9 @@ class HardwareSource(object):
         try:
             last_properties = None
             new_data_elements = None
+            bad_frames = 0
 
-            while True:
+            while bad_frames < 5: #stop if there's a significant break in data
                 with self.__portlock:
                     if not self.ports:
                         break
@@ -238,7 +239,17 @@ class HardwareSource(object):
                 new_data_elements = self.acquire_data_elements()
 
                 # new_data_elements should never be empty
-                assert new_data_elements
+                # GSS 14Nov2013: It might be if we don't have a frame available immediately,
+                # and this crashes acquisition in that case. Much better to just keep going
+                # unless there is really nothing coming in
+                if new_data_elements:
+                    bad_frames = 0
+                else:
+                    new_data_elements = None
+                    last_properties = None
+                    bad_frames = bad_frames+1
+                    logging.info("Dropped frame count on %s: %d", self.hardware_source_id, bad_frames)
+                    
         finally:
             self.stop_acquisition()
 
