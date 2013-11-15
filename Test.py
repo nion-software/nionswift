@@ -161,6 +161,8 @@ class Widget:
         self.parent_id = parent_id
     def scroll_to(self, x, y):
         pass
+    def set_scrollbar_policies(self, h, v):
+        pass
     def add_overlay(self, overlay):
         pass
     def show(self):

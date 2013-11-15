@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import threading
@@ -56,29 +57,19 @@ class TaskPanel(Panel.Panel):
         self.column.add(self.scroll_area)
         self.widget = self.column
 
-        # map task (uuid) to widgets
+        # map task to widgets
         self.__pending_tasks = list()
         self.__pending_tasks_mutex = threading.RLock()
-        self.__task_map = dict()
-
-    def add_task_section(self, title):
-        task_section = self.ui.create_column_widget()
-        task_header = self.ui.create_row_widget()
-        task_header.add(self.ui.create_label_widget())
-        task_progress_row = self.ui.create_row_widget()
-        task_progress_row.add(self.ui.create_label_widget())
-        task_time_row = self.ui.create_row_widget()
-        task_time_row.add(self.ui.create_label_widget())
-        task_section.add(task_header)
-        task_section.add(task_progress_row)
-        task_section.add(task_time_row)
-        self.task_column.insert(task_section, 0)
-        self.scroll_area.scroll_to(0, 0)
-        return task_section
+        self.__task_needs_update = set()
+        self.__task_needs_update_mutex = threading.RLock()
+        self.__task_section_controller_list = list()
 
     def close(self):
         # disconnect to the document controller
         self.document_controller.remove_listener(self)
+        # disconnect from tasks
+        for task_section_controller in self.__task_section_controller_list:
+            task_section_controller.task.remove_listener(self)
         # finish closing
         super(TaskPanel, self).close()
 
@@ -87,20 +78,83 @@ class TaskPanel(Panel.Panel):
             pending_tasks = self.__pending_tasks
             self.__pending_tasks = list()
         for task in pending_tasks:
-            task_section = self.add_task_section(task.title)
-            self.__task_map[task.uuid] = task_section
+            task_section_controller = TaskSectionController(self.ui, task)
+            self.task_column.insert(task_section_controller.widget, 0)
+            self.scroll_area.scroll_to(0, 0)
+            self.__task_section_controller_list.append(task_section_controller)
+            with self.__task_needs_update_mutex:
+                self.__task_needs_update.add(task)
+            task.add_listener(self)
+        # allow unfinished tasks to mark themselves as finished.
+        for task_section_controller in self.__task_section_controller_list:
+            task = task_section_controller.task
+            if task in self.__task_needs_update:
+                # remove from update list before updating to prevent a race
+                with self.__task_needs_update_mutex:
+                    self.__task_needs_update.remove(task)
+                # update
+                task_section_controller.update()
 
-    # may be called on a thread
+    # thread safe
     def task_created(self, task):
         with self.__pending_tasks_mutex:
             self.__pending_tasks.append(task)
 
+    # thread safe
+    def task_changed(self, task):
+        with self.__task_needs_update_mutex:
+            self.__task_needs_update.add(task)
+
+
+# this is UI object, and not a thread safe
+class TaskSectionController(object):
+
+    def __init__(self, ui, task):
+        self.ui = ui
+        self.task = task
+
+        widget = self.ui.create_column_widget()
+        task_header = self.ui.create_row_widget(properties={"stylesheet": "font-weight: bold"})
+        self.title_widget = self.ui.create_label_widget()
+        task_header.add(self.title_widget)
+        task_spacer_row = self.ui.create_row_widget()
+        task_spacer_row_col = self.ui.create_column_widget()
+        task_spacer_row.add_spacing(20)
+        task_spacer_row.add(task_spacer_row_col)
+        self.task_progress_row = self.ui.create_row_widget()
+        self.task_progress_label = self.ui.create_label_widget()
+        self.task_progress_row.add(self.task_progress_label)
+        task_time_row = self.ui.create_row_widget()
+        self.task_progress_state = self.ui.create_label_widget(properties={"stylesheet": "font: italic"})
+        task_time_row.add(self.task_progress_state)
+        task_spacer_row_col.add(self.task_progress_row)
+        task_spacer_row_col.add(task_time_row)
+
+        widget.add(task_header)
+        widget.add(task_spacer_row)
+
+        self.widget = widget
+
+        self.update()
+
     # only called on UI thread
-    def task_updated(self, task):
-        if task.uuid in self.__task_map:
-            task_section = self.__task_map[task.uuid]
-            task_section.children[1].children[0].text = "{} {}".format(task.progress_text, task.progress)
-            task_section.children[2].children[0].text = "{}".format(time.strftime("%c", time.gmtime(task.finish_time if task.finish_time else task.start_time)))
+    def update(self):
+
+        # update the title
+        self.title_widget.text = "{}".format(self.task.title)
+
+        # update the progress label
+        in_progress = self.task.in_progress
+        if in_progress:
+            self.task_progress_label.visible = True
+            self.task_progress_label.text = "{0:.0f}% {1}".format(float(self.task.progress[0])/self.task.progress[1] * 100, self.task.progress_text)
+        else:
+            self.task_progress_label.visible = False
+
+        # update the state text
+        task_state_str = _("In Progress") if in_progress else _("Done")
+        task_time_str = time.strftime("%c", time.localtime(self.task.start_time if in_progress else self.task.finish_time))
+        self.task_progress_state.text = "{} {}".format(task_state_str, task_time_str)
 
 
 class Task(Storage.StorageBase):
@@ -136,6 +190,7 @@ class Task(Storage.StorageBase):
     def __set_title(self, value):
         self.__title = value
         self.notify_set_property("title", value)
+        self.notify_listeners("task_changed", self)
     title = property(__get_title, __set_title)
 
     # start time
@@ -144,6 +199,7 @@ class Task(Storage.StorageBase):
     def __set_start_time(self, value):
         self.__start_time = value
         self.notify_set_property("start_time", value)
+        self.notify_listeners("task_changed", self)
     start_time = property(__get_start_time, __set_start_time)
 
     # finish time
@@ -152,7 +208,29 @@ class Task(Storage.StorageBase):
     def __set_finish_time(self, value):
         self.__finish_time = value
         self.notify_set_property("finish_time", value)
+        self.notify_listeners("task_changed", self)
     finish_time = property(__get_finish_time, __set_finish_time)
+
+    # in progress
+    def __get_in_progress(self):
+        return self.finish_time is None
+    in_progress = property(__get_in_progress)
+
+    # progress
+    def __get_progress(self):
+        return self.__progress
+    def __set_progress(self, progress):
+        self.__progress = progress
+        self.notify_listeners("task_changed", self)
+    progress = property(__get_progress, __set_progress)
+
+    # progress_text
+    def __get_progress_text(self):
+        return self.__progress_text
+    def __set_progress_text(self, progress_text):
+        self.__progress_text = progress_text
+        self.notify_listeners("task_changed", self)
+    progress_text = property(__get_progress_text, __set_progress_text)
 
     # task type
     def __get_task_type(self):
@@ -166,12 +244,13 @@ class Task(Storage.StorageBase):
     def __set_task_data(self, task_data):
         with self.__task_data_mutex:
             self.__task_data = copy.copy(task_data)
-        self.notify_set_property("origin", value)
+        self.notify_set_property("task_data", value)
+        self.notify_listeners("task_changed", self)
     task_data = property(__get_task_data, __set_task_data)
 
 
 # all public methods are thread safe
-class TaskController(object):
+class TaskContextManager(object):
 
     def __init__(self, container, task):
         self.__container = container
@@ -180,11 +259,9 @@ class TaskController(object):
     def __enter__(self):
         logging.debug("%s: started", self.__task.title)
         self.__task.start_time = time.time()
-        self.__container.task_started(self)
         return self
 
     def __exit__(self, type, value, traceback):
-        self.__container.task_finished(self)
         self.__task.finish_time = time.time()
         logging.debug("%s: finished", self.__task.title)
 
@@ -193,14 +270,7 @@ class TaskController(object):
         self.__task.progress = progress
         if task_data:
             self.__task.task_data = task_data
-        self.__task_updated = True
         logging.debug("%s: %s %s", self.__task.title, progress_text, progress)
-
-    # this is guaranteed to be called on the UI thread
-    def _periodic(self):
-        if self.__task_updated:
-            self.__container.update_task(self.__task)
-            self.__task_updated = False
 
 
 @singleton
