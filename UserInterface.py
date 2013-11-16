@@ -228,7 +228,7 @@ class QtItemModelController(object):
 
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
         if self.on_item_drop_mime_data:
-            return self.on_item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row, parent_id)
+            return self.on_item_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row, parent_id)
         return False
 
     def itemMimeData(self, row, parent_row, parent_id):
@@ -325,7 +325,7 @@ class QtListModelController(object):
             return None
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row):
         if self.on_item_drop_mime_data:
-            return self.on_item_drop_mime_data(QtMimeData(raw_mime_data), action, row, parent_row)
+            return self.on_item_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row)
         return False
     def itemMimeData(self, row):
         if self.on_item_mime_data:
