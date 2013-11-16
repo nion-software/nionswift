@@ -69,7 +69,7 @@ class Application(object):
         cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
         create_new_document = not os.path.exists(db_filename)
         if create_new_document:
-            workspace_dir = self.ui.get_existing_directory_dialog(_("Choose Workspace Location"), documents_dir, str())
+            workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Workspace Location"), documents_dir)
             if not workspace_dir: return False
             db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
             cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")

@@ -1314,11 +1314,20 @@ class QtDocumentWindow(object):
         self.root_widget = root_widget
         self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
 
-    def get_file_paths_dialog(self, title, directory, filter):
-        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", unicode(title), unicode(directory), unicode(filter))
+    def get_file_paths_dialog(self, title, directory, filter, selected_filter=None):
+        selected_filter = selected_filter if selected_filter else unicode()
+        file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", unicode(title), unicode(directory), unicode(filter), selected_filter)
+        return file_paths, filter, directory
 
-    def get_save_file_path(self, title, directory, filter):
-        return self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", unicode(title), unicode(directory), unicode(filter))
+    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+        selected_filter = selected_filter if selected_filter else unicode()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "load", unicode(title), unicode(directory), unicode(filter), selected_filter)
+        return file_path, filter, directory
+
+    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+        selected_filter = selected_filter if selected_filter else unicode()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", unicode(title), unicode(directory), unicode(filter), selected_filter)
+        return file_path, filter, directory
 
     def create_dock_widget(self, widget, panel_id, title, positions, position):
         return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
@@ -1464,8 +1473,9 @@ class QtUserInterface(object):
     def save_rgba_data_to_file(self, data, filename, format):
         return self.proxy.Core_writePyArrayToImage(data, unicode(filename), str(format))
 
-    def get_existing_directory_dialog(self, title, directory, filter):
-        return self.proxy.DocumentWindow_getFilePath(None, "directory", unicode(title), unicode(directory), unicode(filter))
+    def get_existing_directory_dialog(self, title, directory):
+        existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", unicode(title), unicode(directory), unicode(), unicode())
+        return existing_directory, directory
 
     # persistence (associated with application)
 

@@ -308,12 +308,18 @@ class DocumentController(object):
     def import_file(self):
         # present a loadfile dialog to the user
         readers = ImportExportManager.ImportExportManager().get_readers()
-        filter = ";;".join(
+        all_extensions = []
+        for reader_extension_list in [reader.extensions for reader in readers]:
+            all_extensions.extend(reader_extension_list)
+        filter = "All Readable Files (" + " ".join(["*."+extension for extension in all_extensions]) + ")"
+        filter += ";;" + ";;".join(
             [reader.name + " files (" + " ".join(
                 ["*."+extension for extension in reader.extensions])
              + ")" for reader in readers])
         filter += ";;All Files (*.*)"
-        paths = self.document_window.get_file_paths_dialog(_("Import File(s)"), "", filter)
+        import_dir = self.ui.get_persistent_string("import_directory", "")
+        paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
+        self.ui.set_persistent_string("import_directory", selected_directory)
         for path in paths:
             data_item = ImportExportManager.ImportExportManager().read(self.ui, path)
             if data_item:
@@ -328,7 +334,9 @@ class DocumentController(object):
                 ["*."+extension for extension in writer.extensions])
              + ")" for writer in writers])
         filter += ";;All Files (*.*)"
-        path = self.document_window.get_save_file_path(_("Export File"), "", filter)
+        export_dir = self.ui.get_persistent_string("export_directory", "")
+        path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter)
+        self.ui.set_persistent_string("export_directory", selected_directory)
         if path:
             return ImportExportManager.ImportExportManager().write(self.ui, data_item, path)
 
