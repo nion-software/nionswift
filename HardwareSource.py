@@ -456,6 +456,7 @@ def update_data_item_from_data_element(channel_state, data_item, data_element):
                 left = sub_area[0][1]
                 right = sub_area[0][1] + sub_area[1][1]
                 data_accessor.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                data_accessor.master_data = data_accessor.master_data  # trigger change notifications, for lack of better mechanism
             else:
                 data_accessor.master_data = data
         # update channel state
