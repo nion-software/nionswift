@@ -321,8 +321,8 @@ class DocumentController(object):
         paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         for path in paths:
-            data_item = ImportExportManager.ImportExportManager().read(self.ui, path)
-            if data_item:
+            data_items = ImportExportManager.ImportExportManager().read(self.ui, path)
+            for data_item in data_items:
                 self.document_model.default_data_group.data_items.append(data_item)
 
     def export_file(self):
