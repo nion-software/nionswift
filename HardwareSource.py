@@ -18,12 +18,14 @@ from contextlib import contextmanager
 import gettext
 import logging
 import numbers
+import Queue as queue
 import threading
 import time
 import weakref
 
 # local imports
 from nion.swift import Decorators
+from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import ImportExportManager
 from nion.swift import Storage
@@ -95,13 +97,13 @@ class HardwareSourceManager(Storage.Broadcaster):
         assert hardware_source is not None
         hardware_source.start_playing()
 
-    def abort_hardware_source(self, hardware_source_id):
+    def abort_hardware_source(self, hardware_source):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         hardware_source.abort_playing()
 
-    def stop_hardware_source(self, hardware_source_id):
+    def stop_hardware_source(self, hardware_source):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
@@ -249,12 +251,34 @@ class HardwareSource(Storage.Broadcaster):
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.__data_buffer = None
-        self.channel_states = {}
-        self.channel_states_mutex = threading.RLock()
+        self.__channel_states = {}
+        self.__channel_states_mutex = threading.RLock()
+        self.last_channel_to_data_item_dict = {}
+        self.__periodic_queue = queue.Queue()
+        # TODO: hack to get data group working. not sure how to handle this in the long run.
+        self.data_group = None
+
+    def close(self):
+        if self.__data_buffer:
+            self.__data_buffer.remove_listener(self)
+            self.__data_buffer = None
+
+    # user interfaces using hardware sources should call this periodically
+    def periodic(self):
+        if self.__should_abort():
+            self.abort_playing()
+        try:
+            task = self.__periodic_queue.get(False)
+        except queue.Empty:
+            had_task = False
+        else:
+            task()
+            self.__periodic_queue.task_done()
 
     def __get_data_buffer(self):
         if not self.__data_buffer:
             self.__data_buffer = HardwareSourceDataBuffer(self)
+            self.__data_buffer.add_listener(self)
         return self.__data_buffer
     data_buffer = property(__get_data_buffer)
 
@@ -350,37 +374,29 @@ class HardwareSource(Storage.Broadcaster):
     # call this to stop acquisition gracefully
     # thread safe
     def stop_playing(self):
-        with self.channel_states_mutex:
-            for channel in self.channel_states.keys():
-                self.channel_states[channel] = "marked"
+        with self.__channel_states_mutex:
+            for channel in self.__channel_states.keys():
+                self.__channel_states[channel] = "marked"
 
     # if all channels are in stopped state, some controller should abort the acquisition.
     # thread safe
-    def should_abort(self):
-        with self.channel_states_mutex:
-            are_all_channel_stopped = len(self.channel_states) > 0
-            for channel, state in self.channel_states.iteritems():
+    def __should_abort(self):
+        with self.__channel_states_mutex:
+            are_all_channel_stopped = len(self.__channel_states) > 0
+            for channel, state in self.__channel_states.iteritems():
                 if state != "stopped":
                     are_all_channel_stopped = False
                     break
             return are_all_channel_stopped
 
-    # call this to clean up the channel states periodically
-    # thread safe
-    def maintain_active_channels(self, channels):
-        with self.channel_states_mutex:
-            for channel in self.channel_states.keys():
-                if not channel in channels:
-                    del self.channel_states[channel]
-
     # call this to update data items
     # thread safe
-    def update_channel(self, channel, data_item, data_element):
-        with self.channel_states_mutex:
-            channel_state = self.channel_states.get(channel)
+    def __update_channel(self, channel, data_item, data_element):
+        with self.__channel_states_mutex:
+            channel_state = self.__channel_states.get(channel)
         new_channel_state = self.__update_channel_state(channel_state, data_item, data_element)
-        with self.channel_states_mutex:
-            self.channel_states[channel] = new_channel_state
+        with self.__channel_states_mutex:
+            self.__channel_states[channel] = new_channel_state
 
     # update channel state.
     # channel state during normal acquisition: started -> (partial -> complete) -> stopped
@@ -398,6 +414,70 @@ class HardwareSource(Storage.Broadcaster):
         else:
             channel_state = "complete" if complete else "partial"
         return channel_state
+
+    # this message comes from the data buffer.
+    # thread safe
+    def data_elements_changed(self, hardware_source, data_elements):
+        # TODO: deal wth overrun by asking for latest values.
+
+        # TODO: get the data group here. how?
+        data_group = self.data_group
+
+        # build useful data structures (channel -> data)
+        channel_to_data_element_map = {}
+        channels = []
+        for channel, data_element in enumerate(data_elements):
+            if data_element is not None:
+                channels.append(channel)
+                channel_to_data_element_map[channel] = data_element
+
+        # sync to data items
+        new_channel_to_data_item_dict = self.__sync_channels_to_data_items(channels, data_group, self.display_name)
+
+        # these items are now live if we're playing right now. mark as such.
+        for data_item in new_channel_to_data_item_dict.values():
+            data_item.begin_transaction()
+
+        # update the data items with the new data.
+        for channel in channels:
+            data_element = channel_to_data_element_map[channel]
+            data_item = new_channel_to_data_item_dict[channel]
+            self.__update_channel(channel, data_item, data_element)
+
+        # these items are no longer live. mark live_data as False.
+        for channel, data_item in self.last_channel_to_data_item_dict.iteritems():
+            data_item.end_transaction()
+
+        # keep the channel to data item map around so that we know what changed between
+        # last iteration and this one. also handle reference counts.
+        old_channel_to_data_item_dict = self.last_channel_to_data_item_dict
+        self.last_channel_to_data_item_dict = new_channel_to_data_item_dict
+        for data_item in self.last_channel_to_data_item_dict.values():
+            data_item.add_ref()
+        for data_item in old_channel_to_data_item_dict.values():
+            data_item.remove_ref()
+
+        # remove channel states that are no longer used.
+        # cem 2013-11-16: this is untested and channel shutdown during acquisition may not work as expected.
+        with self.__channel_states_mutex:
+            for channel in self.__channel_states.keys():
+                if not channel in channels:
+                    del self.__channel_states[channel]
+
+    def __sync_channels_to_data_items(self, channels, data_group, prefix):
+        data_item_set = {}
+        for channel in channels:
+            data_item_name = "%s.%s" % (prefix, channel)
+            # only use existing data item if it has a data buffer that matches
+            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
+            if not data_item:
+                data_item = DataItem.DataItem()
+                data_item.title = data_item_name
+                def append_data_item_to_data_group_task():
+                    data_group.data_items.append(data_item)
+                self.__periodic_queue.put(append_data_item_to_data_group_task)
+            data_item_set[channel] = data_item
+        return data_item_set
 
 
 class HardwareSourceDataBuffer(Storage.Broadcaster):

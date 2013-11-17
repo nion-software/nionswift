@@ -64,6 +64,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertIsNone(port.properties)
         self.assertIsNone(port.filter)
         port.close()
+        hardware_source_manager.unregister_hardware_source(source)
 
     def test_events(self):
         SimpleHardwareSource.image = np.zeros(256)
@@ -81,6 +82,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         # print "got %d images in 1s"%tl_pixel
         self.assertTrue(3.0 < tl_pixel < 7.0)
         p.close()
+        hardware_source_manager.unregister_hardware_source(source)
 
 if __name__ == '__main__':
     unittest.main()
