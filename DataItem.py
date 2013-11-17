@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import gettext
 import logging
 import threading
@@ -245,6 +246,31 @@ class DataItemEditor(object):
 
         self.widget.add_spacing(6)
 
+        # info editor
+        self.info_section = self.ui.create_column_widget()
+        self.info_section_title = self.ui.create_row_widget()
+        #self.info_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
+        self.info_section_title.add(self.ui.create_label_widget(_("Info"), properties={"stylesheet": "font-weight: bold"}))
+        self.info_section_title.add_stretch()
+        self.info_section.add(self.info_section_title)
+        self.info_section_title_row = self.ui.create_row_widget()
+        self.info_section_title_row.add_spacing(20)
+        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width":60}))
+        self.info_title_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_title_row.add(self.info_title_label)
+        self.info_section_title_row.add_stretch()
+        self.info_section.add(self.info_section_title_row)
+        self.info_section.add_spacing(2)
+        self.info_section_datetime_row = self.ui.create_row_widget()
+        self.info_section_datetime_row.add_spacing(20)
+        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width":60}))
+        self.info_datetime_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_datetime_row.add(self.info_datetime_label)
+        self.info_section_datetime_row.add_stretch()
+        self.info_section.add(self.info_section_datetime_row)
+        self.info_section.add_spacing(8)
+        self.widget.add(self.info_section)
+
         # param editor
         self.param_row = self.ui.create_row_widget()
         param_label = self.ui.create_label_widget(_("Parameter"))
@@ -338,11 +364,20 @@ class DataItemEditor(object):
     def data_item_changed(self, data_source, changes):
         if not self.__block:
             # TODO: this is pretty weak!
-            if not DATA in changes and not THUMBNAIL in changes and not HISTOGRAM in changes:
+            if any (k in changes for k in (DISPLAY, )):
                 self.needs_update = True
 
     # update will NEVER be called on a thread
     def update(self):
+        # info
+        self.info_title_label.text = self.data_item.title
+        datetime_original = self.data_item.datetime_original
+        if datetime_original:
+            datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
+            datetime_str = datetime_.strftime("%c")
+        else:
+            datetime_str = _("N/A")
+        self.info_datetime_label.text = datetime_str
         # param
         value = self.data_item.param
         self.param_field_formatter.value = float(value)
