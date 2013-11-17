@@ -469,7 +469,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.fill_text(self.data_item.calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                     data_item_properties = self.data_item.properties
                     info_items = list()
-                    voltage = data_item_properties.get("voltage", 0)
+                    voltage = data_item_properties.get("extra_high_tension", 0)
                     if voltage:
                         units = "V"
                         if voltage % 1000 == 0:
