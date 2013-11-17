@@ -493,7 +493,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "display_limits", "properties"]
+        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "properties"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -502,6 +502,8 @@ class DataItem(Storage.StorageBase):
         self.__title = None
         self.__param = 0.5
         self.__display_limits = None  # auto
+        self.__datetime_modified = None
+        self.__datetime_original = None
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
@@ -548,6 +550,8 @@ class DataItem(Storage.StorageBase):
         properties = storage_reader.get_property(item_node, "properties")
         display_limits = storage_reader.get_property(item_node, "display_limits")
         calibrations = storage_reader.get_items(item_node, "calibrations")
+        datetime_modified = storage_reader.get_property(item_node, "datetime_modified")
+        datetime_original = storage_reader.get_property(item_node, "datetime_original")
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
         data_items = storage_reader.get_items(item_node, "data_items")
@@ -566,6 +570,10 @@ class DataItem(Storage.StorageBase):
         data_item.calibrations.extend(calibrations)
         if display_limits:
             data_item.display_limits = display_limits
+        if datetime_modified:
+            data_item.datetime_modified = datetime_modified
+        if datetime_original:
+            data_item.datetime_original = datetime_original
         data_item.graphics.extend(graphics)
         return data_item
 
@@ -681,6 +689,26 @@ class DataItem(Storage.StorageBase):
     def __is_calibrated(self):
         return len(self.calibrations) == len(self.spatial_shape)
     is_calibrated = property(__is_calibrated)
+
+    # date times
+
+    def __get_datetime_modified(self):
+        return self.__datetime_modified
+    def __set_datetime_modified(self, datetime_modified):
+        if self.__datetime_modified != datetime_modified:
+            self.__datetime_modified = datetime_modified
+            self.notify_set_property("datetime_modified", datetime_modified)
+            self.notify_data_item_changed(set([DISPLAY]))
+    datetime_modified = property(__get_datetime_modified, __set_datetime_modified)
+
+    def __get_datetime_original(self):
+        return self.__datetime_original
+    def __set_datetime_original(self, datetime_original):
+        if self.__datetime_original != datetime_original:
+            self.__datetime_original = datetime_original
+            self.notify_set_property("datetime_original", datetime_original)
+            self.notify_data_item_changed(set([DISPLAY]))
+    datetime_original = property(__get_datetime_original, __set_datetime_original)
 
     # access properties
 
@@ -1178,6 +1206,8 @@ class DataItem(Storage.StorageBase):
         data_item_copy.title = self.title
         data_item_copy.param = self.param
         data_item_copy.display_limits = self.display_limits
+        data_item_copy.datetime_modified = self.datetime_modified
+        data_item_copy.datetime_original = self.datetime_original
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))
         # graphic must be copied before operation, since operations can

@@ -1,6 +1,8 @@
 # standard libraries
+import datetime
 import logging
 import os
+import time
 
 # third party libraries
 # None
@@ -40,6 +42,7 @@ class ImportExportHandler(object):
                     root, filename = os.path.split(file_path)
                     title, _ = os.path.splitext(filename)
                     data_element["title"] = title
+                data_element["filepath"] = file_path
                 data_item = create_data_item_from_data_element(data_element)
                 data_items.append(data_item)
         return data_items
@@ -126,6 +129,8 @@ def create_data_item_from_data_element(data_element):
 
 def update_data_item_from_data_element(data_item, data_element):
     with data_item.data_item_changes():
+        # file path
+        # master data
         with data_item.create_data_accessor() as data_accessor:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
@@ -138,7 +143,7 @@ def update_data_item_from_data_element(data_item, data_element):
                 data_accessor.master_data = data_accessor.master_data  # trigger change notifications, for lack of better mechanism
             else:
                 data_accessor.master_data = data
-        # update spatial calibrations
+        # spatial calibrations
         if "spatial_calibration" in data_element:
             spatial_calibration = data_element.get("spatial_calibration")
             if len(spatial_calibration) == len(data_item.spatial_shape):
@@ -150,11 +155,57 @@ def update_data_item_from_data_element(data_item, data_element):
                         data_item.calibrations[dimension].origin = origin
                         data_item.calibrations[dimension].scale = scale
                         data_item.calibrations[dimension].units = units
-        # update properties
+        # properties (general tags)
         if "properties" in data_element:
             properties = data_item.grab_properties()
             properties.update(data_element.get("properties"))
             data_item.release_properties(properties)
+        # title
+        if "title" in data_element:
+            data_item.title = data_element["title"]
+        # description
+        # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
+        # time zones are offsets (east of UTC) in the following format "+HH:MM" or "-HH:MM"
+        # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
+        # time zone name is for display only and has no specified format
+        # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
+        # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
+        # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
+        def get_current_datetime_element():
+            datetime_element = dict()
+            datetime_element["local_datetime"] = datetime.datetime.now().isoformat()
+            tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
+            datetime_element["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes/60, tz_minutes%60)
+            datetime_element["dst"] = "+60" if time.localtime().tm_isdst else "+00"
+            return datetime_element
+        def parse_datetime_keys(root, default=None):
+            if root in data_element:
+                datetime_element = dict()
+                datetime_element["local_datetime"] = datetime.datetime.strptime(data_element[root], "%Y-%m-%dT%H:%M:%S.%f")
+                if root + "_tz" in data_element:
+                    tz_match = re.compile("([-+])(\d{4})").match(data_element[root + "_tz"])
+                    if tz_match:
+                        datetime_element["tz"] = tz_match.group(0)
+                if root + "_dst" in data_element:
+                    dst_match = re.compile("([-+])(\d{2})").match(data_element[root + "_dst"])
+                    if dst_match:
+                        datetime_element["dst"] = dst_match.group(0)
+                if "datatime_tzname" in data_element:
+                    datetime_element["tzname"] = data_element["datatime_tzname"]
+                return datetime_element
+            return default
+        current_datetime_element = get_current_datetime_element()  # get this once to be consistent
+        data_item.datetime_modified = parse_datetime_keys("datetime_modified", current_datetime_element)
+        data_item.datetime_original = parse_datetime_keys("datetime_original", data_item.datetime_modified)
+        # author
+        # sample
+        # facility
+        # location
+        # gps
+        # instrument
+        # copyright
+        # exposure
+        # extra_high_tension
 
 
 class StandardImportExportHandler(ImportExportHandler):
