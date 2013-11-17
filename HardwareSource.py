@@ -7,14 +7,12 @@ A client accesses data_elements through the create_port function
 which changes the mode of the source, and starts it, and starts notifying the returned
 port object. The port object should not do any significant processing in its on_new_data_elements
 function but should instead just notify another thread that new data is available.
-
-The hardware source does allow processing to happen at acquisition time, by setting its
-filter member to a method that takes a data element and returns a data element.
 """
 
 # system imports
 import collections
 from contextlib import contextmanager
+import copy
 import gettext
 import logging
 import numbers
@@ -33,23 +31,11 @@ from nion.swift import Storage
 _ = gettext.gettext
 
 
+# Keeps track of all registered hardware sources and instruments.
+# Also keeps track of aliases between hardware sources and logical names.
 class HardwareSourceManager(Storage.Broadcaster):
     __metaclass__ = Decorators.Singleton
 
-    """
-    Keeps track of all registered hardware sources and instruments.
-    Also keeps track of aliases between hardware sources and logical names.
-    The aliases can contain a filter to only return a subset of data_elements.
-    This way we can create an alias for the 'RonchigramCamera' to, say,
-    NionCCD1010, channel 0, properties="Tuning", and HAADF Signal to
-    superscan, channel 1 (we can override the properties when we create the
-    port if necessary too).
-
-    And should we alias SuperScan,0 to HAADF Signal, or SuperScan to 'ScanUnit' and let
-    users know that ScanUnit,0 is HAADF? I think I prefer the former approach, and we might
-    be able to do this by sepcifying a filter to the port class.
-
-    """
     def __init__(self):
         super(HardwareSourceManager, self).__init__()
         self.hardware_sources = []
@@ -91,35 +77,54 @@ class HardwareSourceManager(Storage.Broadcaster):
 
     # handle acquisition style devices
 
+    # not thread safe
     def start_hardware_source(self, hardware_source, mode=None):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
-        hardware_source.start_playing()
+        hardware_source.start_playing(mode)
 
+    # not thread safe
     def abort_hardware_source(self, hardware_source):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         hardware_source.abort_playing()
 
+    # not thread safe
     def stop_hardware_source(self, hardware_source):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         hardware_source.stop_playing()
 
+    # not thread safe
     def get_hardware_source_settings(self, hardware_source_id, mode):
-        return dict()
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        return hardware_source.get_mode_settings(mode)
 
-    def set_hardware_source_settings(self, hardware_source_id, mode, dict):
-        pass
+    # not thread safe
+    def set_hardware_source_settings(self, hardware_source_id, mode, mode_data):
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        hardware_source.set_mode_settings(mode, mode_data)
 
+    # not thread safe
     def get_hardware_source_mode(self, hardware_source_id):
-        return mode
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        return hardware_source.mode
 
+    # not thread safe
     def set_hardware_source_mode(self, hardware_source_id, mode):
-        pass
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        hardware_source.mode = mode
 
     # pass on messages from hardware sources to hardware source manager listeners
 
@@ -134,91 +139,47 @@ class HardwareSourceManager(Storage.Broadcaster):
         return self.instruments.get(instrument_id)
 
     def __get_info_for_hardware_source_id(self, hardware_source_id):
-
-        display_name, properties, filter = (unicode(), None, None)
-
+        display_name = unicode()
         seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
         while hardware_source_id in self.__hardware_source_aliases and hardware_source_id not in seen_hardware_source_ids:
             seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
-            hardware_source_id, display_name, properties, filter = self.__hardware_source_aliases[hardware_source_id]
-
+            hardware_source_id, display_name = self.__hardware_source_aliases[hardware_source_id]
         for hardware_source in self.hardware_sources:
             if hardware_source.hardware_source_id == hardware_source_id:
-                return hardware_source, display_name, properties, filter
-
+                return hardware_source, display_name
         return None
 
     def get_hardware_source_for_hardware_source_id(self, hardware_source_id):
-
         info = self.__get_info_for_hardware_source_id(hardware_source_id)
-
         if info:
-            hardware_source, display_name, properties, filter = info
+            hardware_source, display_name = info
             return hardware_source
-
         return None
 
-    def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
-        """
-        Alias for create_port, with the added benefit
-        of looking up aliases.
-
-        Returns a newly created port for the given hardware_source_id.
-        it will return that source, with the port listening for all channels.
-        If hardware_source_id is an alias, it will return the hardware source it
-        refers to with the filter and properties registered for that alias.
-
-        Eg:
-        manager.make_hardware_source_alias("existing_hw_src_id", "new_hw_src_id", _("New Camera"))
-        port = manager.create_port_for_hardware_source_id("ronchigramcamera")
-        ...
-        port.close()
-        """
-
+    # Create_port, resolving aliases for the hardware_source_id.
+    def create_port_for_hardware_source_id(self, hardware_source_id):
         info = self.__get_info_for_hardware_source_id(hardware_source_id)
-
         if info:
-
-            hardware_source, display_name, properties, filter = info
-
-            if override_properties:
-                properties = override_properties
-
-            return hardware_source.create_port(properties, filter)
-
+            hardware_source, display_name = info
+            return hardware_source.create_port()
         return None
 
-    def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name, properties=None, filter=None):
-        if isinstance(filter, numbers.Integral):
-            filter = (filter, )
-        self.__hardware_source_aliases[alias_hardware_source_id] = (hardware_source_id, display_name, properties, filter)
+    def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name):
+        self.__hardware_source_aliases[alias_hardware_source_id] = (hardware_source_id, display_name)
 
 
 class HardwareSourcePort(object):
 
-    def __init__(self, hardware_source, properties, filter):
-        self.properties = properties
+    def __init__(self, hardware_source):
         self.hardware_source = hardware_source
         self.on_new_data_elements = None
         self.last_data_elements = None
-        self.filter = filter
-        if isinstance(self.filter, numbers.Integral):
-            self.filter = (self.filter, )
-
-    def want_data_element(self, properties):
-        """
-            Return True if we will accept a data element with the given properties.
-            """
-        return True
 
     def get_last_data_elements(self):
         return self.last_data_elements
 
     def _set_new_data_elements(self, data_elements):
-        if self.filter:
-            self.last_data_elements = [data_element for i, data_element in enumerate(data_elements) if i in self.filter]
-        else:
-            self.last_data_elements = data_elements
+        self.last_data_elements = data_elements
         if self.on_new_data_elements:
             self.on_new_data_elements(self.last_data_elements)
 
@@ -230,24 +191,15 @@ class HardwareSource(Storage.Broadcaster):
     """
     A hardware source provides ports, which in turn provide data_elements.
 
-    Ports are created based on asked-for properties. The current properties of
-    the HW source are always those most recently requested, ie the properties
-    of the last port created. A filter can optionally be passed to a port which
-    selects which of the returned list of data_elements to return. It should be either
-    a single index or a list of indices. If None, all data_elements are returned.
-
     A separate acquisition thread is used for acquiring all data and
     passing on to the ports. When a HardwareSource has no ports, this
-    thread can stop running (when appropriate). The start_acquisition,
-    stop_acquisition, and set_from_properties functions are always only ever
-    called from the acquisition thread
+    thread can stop running (when appropriate).
     """
 
     def __init__(self, hardware_source_id, display_name):
         super(HardwareSource, self).__init__()
         self.ports = []
         self.__portlock = threading.Lock()
-        self.filter = None
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.__data_buffer = None
@@ -257,6 +209,9 @@ class HardwareSource(Storage.Broadcaster):
         self.__periodic_queue = queue.Queue()
         # TODO: hack to get data group working. not sure how to handle this in the long run.
         self.data_group = None
+        self.__mode = None
+        self.__mode_data = dict()
+        self.__mode_lock = threading.RLock()
 
     def close(self):
         if self.__data_buffer:
@@ -282,17 +237,36 @@ class HardwareSource(Storage.Broadcaster):
         return self.__data_buffer
     data_buffer = property(__get_data_buffer)
 
+    # get mode settings. thread safe.
+    def get_mode_settings(self, mode):
+        with self.__mode_lock:
+            return copy.copy(self.__mode_data.get(self.__mode))
+
+    # set mode settings. thread safe.
+    def set_mode_settings(self, mode, mode_data):
+        with self.__mode_lock:
+            __mode_data[self.__mode] = copy.copy(mode_data)
+
+    # mode property. thread safe.
+    def __get_mode(self):
+        return self.__mode
+    def __set_mode(self, mode):
+        self.__mode = mode
+    mode = property(__get_mode, __set_mode)
+
     # only a single acquisition thread is created per hardware source
-    def create_port(self, properties=None, filter=None):
+    def create_port(self, mode=None):
         with self.__portlock:
-            port = HardwareSourcePort(self, properties, filter)
+            port = HardwareSourcePort(self)
             start_thread = len(self.ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
             self.ports.append(port)
-            self.set_from_properties(properties)
         if start_thread:
             # we should do this a little nicer. Specifically, if we start a new thread
             # the existing one could carry on two. We should make sure we can only have one
-            self.acquire_thread = threading.Thread(target=self.acquire_thread_loop)
+            with self.__mode_lock:
+                mode = mode if mode else self.__mode
+                mode_data = self.get_mode_settings(mode)
+            self.acquire_thread = threading.Thread(target=self.acquire_thread_loop, args=(mode, mode_data))
             self.acquire_thread.start()
         return port
 
@@ -303,32 +277,29 @@ class HardwareSource(Storage.Broadcaster):
         with self.__portlock:
             self.ports.remove(lst)
 
-    def acquire_thread_loop(self):
+    def acquire_thread_loop(self, mode, mode_data):
         try:
-            self.start_acquisition()
+            self.start_acquisition(mode, mode_data)
         except Exception as e:
             import traceback
             traceback.print_exc()
             return
         try:
-            last_properties = None
             new_data_elements = None
 
             while True:
                 with self.__portlock:
+
                     if not self.ports:
                         break
 
-                    if last_properties != self.ports[-1].properties:
-                        last_properties = self.ports[-1].properties
-                        self.set_from_properties(last_properties)
+                    # check to make sure we actually have new data elements,
+                    # since this might be the first time through the loop.
+                    # otherwise the data element list gets cleared and new data elements
+                    # get created when the data elements become available.
 
                     for port in self.ports:
-                        # check to make sure we actually have new data elements,
-                        # since this might be the first time through the loop.
-                        # otherwise the data element list gets cleared and new data elements
-                        # get created when the data elements become available.
-                        if port.want_data_element(last_properties) and new_data_elements:
+                        if new_data_elements is not None:
                             port._set_new_data_elements(new_data_elements)
 
                 new_data_elements = self.acquire_data_elements()
@@ -338,9 +309,13 @@ class HardwareSource(Storage.Broadcaster):
         finally:
             self.stop_acquisition()
 
-    def start_acquisition(self):
+    # subclasses can implement this method which is called when acquisition starts.
+    # must be thread safe
+    def start_acquisition(self, mode, mode_data):
         pass
 
+    # subclasses can implement this method which is called when acquisition stops.
+    # must be thread safe
     def stop_acquisition(self):
         pass
 
@@ -348,31 +323,29 @@ class HardwareSource(Storage.Broadcaster):
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
     # or indirectly) unless the data is immediately available, which it shouldn't be on
     # a regular basis. it is an error for this function to return an empty list of data_elements.
+    # must be thread safe
     def acquire_data_elements(self):
         raise NotImplementedError()
-
-    def set_from_properties(self, properties):
-        pass
 
     def __str__(self):
         raise NotImplementedError()
 
     # call this to start acquisition
-    # thread safe
-    def start_playing(self):
+    # not thread safe
+    def start_playing(self, mode=None):
         if not self.data_buffer.is_playing:
             self.data_buffer.start()
             self.notify_listeners("hardware_source_started", self)
 
     # call this to stop acquisition immediately
-    # thread safe
+    # not thread safe
     def abort_playing(self):
         if self.data_buffer.is_playing:
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
 
     # call this to stop acquisition gracefully
-    # thread safe
+    # not thread safe
     def stop_playing(self):
         with self.__channel_states_mutex:
             for channel in self.__channel_states.keys():
@@ -543,10 +516,10 @@ class HardwareSourceDataBuffer(Storage.Broadcaster):
     snapshots = property(__get_snapshots)
 
     # must be called on the UI thread
-    def start(self):
+    def start(self, mode=None):
         logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is None:
-            self.hardware_port = self.hardware_source.create_port()
+            self.hardware_port = self.hardware_source.create_port(mode)
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
             self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
