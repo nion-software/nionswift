@@ -137,9 +137,46 @@ class MutableMapping(collections.MutableMapping):
     if it is not referenced by anything else.
 """
 
-class StorageBase(object):
+class Broadcaster(object):
 
     def __init__(self):
+        self.__weak_listeners = []
+        self.__weak_listeners_mutex = threading.RLock()
+
+    def __del__(self):
+        # There should not be listeners or references at this point.
+        assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
+
+    # Add a listener.
+    def add_listener(self, listener):
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.append(weakref.ref(listener))
+
+    # Remove a listener.
+    def remove_listener(self, listener):
+        with self.__weak_listeners_mutex:
+            assert listener is not None
+            self.__weak_listeners.remove(weakref.ref(listener))
+
+    # Send a message to the listeners
+    def notify_listeners(self, fn, *args, **keywords):
+        try:
+            with self.__weak_listeners_mutex:
+                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                if hasattr(listener, fn):
+                    getattr(listener, fn)(*args, **keywords)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logging.debug("Notify Error: %s", e)
+
+
+class StorageBase(Broadcaster):
+
+    def __init__(self):
+        super(StorageBase, self).__init__()
         self.__storage_writer = None
         self.__storage_cache = None
         self.storage_properties = []
@@ -150,8 +187,6 @@ class StorageBase(object):
         self.__cache = dict()
         self.__cache_dirty = dict()
         self.__weak_observers = []
-        self.__weak_listeners = []
-        self.__weak_listeners_mutex = threading.RLock()
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
@@ -162,7 +197,6 @@ class StorageBase(object):
     def __del__(self):
         # There should not be listeners or references at this point.
         assert len(self.__weak_observers) == 0, 'Observable still has observers'
-        assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
         assert len(self.__weak_parents) == 0, 'Observable still has parents'
         assert self.__ref_count == 0, 'Observable still has references'
 
@@ -199,31 +233,6 @@ class StorageBase(object):
     # set is used by document controller
     def _set_uuid(self, uuid):
         self.__uuid = uuid
-
-    # Add a listener.
-    def add_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.append(weakref.ref(listener))
-
-    # Remove a listener.
-    def remove_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.remove(weakref.ref(listener))
-
-    # Send a message to the listeners
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            with self.__weak_listeners_mutex:
-                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
 
     # Add a parent.
     def add_parent(self, parent):

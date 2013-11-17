@@ -23,15 +23,17 @@ import time
 import weakref
 
 # local imports
-from nion.swift.Decorators import singleton
+from nion.swift import Decorators
 from nion.swift import DataItem
 from nion.swift import ImportExportManager
+from nion.swift import Storage
 
 _ = gettext.gettext
 
 
-@singleton
-class HardwareSourceManager(object):
+class HardwareSourceManager(Storage.Broadcaster):
+    __metaclass__ = Decorators.Singleton
+
     """
     Keeps track of all registered hardware sources and instruments.
     Also keeps track of aliases between hardware sources and logical names.
@@ -47,6 +49,7 @@ class HardwareSourceManager(object):
 
     """
     def __init__(self):
+        super(HardwareSourceManager, self).__init__()
         self.hardware_sources = []
         self.__hardware_source_aliases = {}
         self.instruments = {}
@@ -263,7 +266,7 @@ class HardwareSource(object):
         raise NotImplementedError()
 
 
-class HardwareSourceDataBuffer(object):
+class HardwareSourceDataBuffer(Storage.Broadcaster):
     """
     For the given HWSource (which can either be an object with a create_port function, or a name. If
     a name, ports are created using the HardwareSourceManager.create_port_for_hardware_source_id function,
@@ -280,13 +283,12 @@ class HardwareSourceDataBuffer(object):
     """
 
     def __init__(self, hardware_source):
+        super(HardwareSourceDataBuffer, self).__init__()
         assert hardware_source
         self.hardware_source = hardware_source
         self.hardware_port = None
         self.__snapshots = collections.deque(maxlen=30)
         self.__current_snapshot = 0
-        self.__weak_listeners = []
-        self.__weak_listeners_mutex = threading.RLock()
 
     def close(self):
         logging.info("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
@@ -299,29 +301,6 @@ class HardwareSourceDataBuffer(object):
             # now that we've set hardware_port to None
             # if we do want to keep data items, it should be done in on_new_data_elements
             self.on_new_data_elements([])
-
-    # Add a listener
-    def add_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.append(weakref.ref(listener))
-    # Remove a listener.
-    def remove_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.remove(weakref.ref(listener))
-    # Send a message to the listeners
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            with self.__weak_listeners_mutex:
-                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
 
     def __get_is_playing(self):
         return self.hardware_port is not None

@@ -9,7 +9,7 @@ import time
 # None
 
 # local libraries
-from nion.swift.Decorators import singleton
+from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import Storage
 
@@ -285,8 +285,8 @@ class TaskContextManager(object):
         logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
-@singleton
 class TaskManager(object):
+    __metaclass__ = Decorators.Singleton
 
     def __init__(self):
         self.__task_ui_builder_map = dict()

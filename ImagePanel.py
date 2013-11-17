@@ -17,13 +17,14 @@ from nion.swift import CanvasItem
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
-from nion.swift.Decorators import singleton
+from nion.swift import Decorators
 from nion.swift import Graphics
 from nion.swift import HistogramPanel
 from nion.swift import Image
 from nion.swift import Inspector
 from nion.swift import Operation
 from nion.swift import Panel
+from nion.swift import Storage
 
 _ = gettext.gettext
 
@@ -151,19 +152,10 @@ class WidgetMapping(object):
         return None
 
 
-class GraphicSelection(object):
+class GraphicSelection(Storage.Broadcaster):
     def __init__(self):
-        self.__weak_listeners = []
+        super(GraphicSelection, self).__init__()
         self.__indexes = set()
-    # implement listener architecture
-    def _notify_listeners(self):
-        for weak_listener in self.__weak_listeners:
-            listener = weak_listener()
-            listener.selection_changed(self)
-    def add_listener(self, listener):
-        self.__weak_listeners.append(weakref.ref(listener))
-    def remove_listener(self, listener):
-        self.__weak_listeners.remove(weakref.ref(listener))
     # manage selection
     def __get_current_index(self):
         if len(self.__indexes) == 1:
@@ -182,26 +174,26 @@ class GraphicSelection(object):
         old_index = self.__indexes.copy()
         self.__indexes = set()
         if old_index != self.__indexes:
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def add(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def remove(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.remove(index)
         if old_index != self.__indexes:
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def set(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes = set()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def toggle(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
@@ -210,7 +202,7 @@ class GraphicSelection(object):
         else:
             self._indexes.add(index)
         if old_index != self.__indexes:
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def insert_index(self, new_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -220,7 +212,7 @@ class GraphicSelection(object):
                 new_indexes.add(index+1)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
     def remove_index(self, remove_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -231,7 +223,7 @@ class GraphicSelection(object):
                     new_indexes.add(index)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self._notify_listeners()
+            self.notify_listeners("selection_changes")
 
 
 class DataItemThread(ProcessingThread):
@@ -1426,27 +1418,11 @@ class ImagePanel(Panel.Panel):
 # and receive messages regarding image panels. for instance, when the user
 # presses a key on an image panel that isn't handled directly by the image
 # panel, listeners can be advised of this event.
-@singleton
-class ImagePanelManager(object):
+class ImagePanelManager(Storage.Broadcaster):
+    __metaclass__ = Decorators.Singleton
     def __init__(self):
-        self.__weak_listeners = []
-    # implement listener architecture
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    if getattr(listener, fn)(*args, **keywords):
-                        return True
-            return False
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
-    def add_listener(self, listener):
-        self.__weak_listeners.append(weakref.ref(listener))
-    def remove_listener(self, listener):
-        self.__weak_listeners.remove(weakref.ref(listener))
+        super(ImagePanelManager, self).__init__()
+        pass
     # events from the image panels
     def key_pressed(self, image_panel, key):
         return self.notify_listeners("image_panel_key_pressed", image_panel, key)

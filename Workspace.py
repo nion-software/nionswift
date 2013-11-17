@@ -11,7 +11,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataItem
-from nion.swift.Decorators import singleton
+from nion.swift import Decorators
 from nion.swift import UserInterface
 
 
@@ -252,8 +252,9 @@ class Workspace(object):
         self.__current_layout_id = layout_id
 
 
-@singleton
 class WorkspaceManager(object):
+    __metaclass__ = Decorators.Singleton
+
     """
         The WorkspaceManager object keeps a list of workspaces and a list of panel
         types. It also creates workspace objects.

@@ -65,8 +65,9 @@ class ImportExportHandler(object):
         pass
 
 
-@Decorators.singleton
 class ImportExportManager(object):
+    __metaclass__ = Decorators.Singleton
+
     """
     Keeps track of import/export plugins.
     """

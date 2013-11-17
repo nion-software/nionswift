@@ -22,13 +22,14 @@ from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import ImportExportManager
 from nion.swift import Operation
+from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Workspace
 
 _ = gettext.gettext
 
 
-class DocumentController(object):
+class DocumentController(Storage.Broadcaster):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
@@ -42,8 +43,6 @@ class DocumentController(object):
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
         self.workspace = None
-        self.__weak_listeners = []
-        self.__weak_listeners_mutex = threading.RLock()
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.__cursor_weak_listeners = []
@@ -53,10 +52,6 @@ class DocumentController(object):
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self, workspace_id)
-
-    def __del__(self):
-        # There should not be listeners or references at this point.
-        assert len(self.__weak_listeners) == 0, 'DocumentController still has listeners'
 
     def close(self):
         # recognize when we're running as test and finish out periodic operations
@@ -79,32 +74,6 @@ class DocumentController(object):
     def about_to_close(self, geometry, state):
         self.workspace.save_geometry_state(geometry, state)
         self.close()
-
-    # Add a listener. Listeners will receive data_item_changed message when this
-    # DataItem is notified of a change via the notify_data_item_changed() method.
-    def add_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.append(weakref.ref(listener))
-
-    # Remove a listener.
-    def remove_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.remove(weakref.ref(listener))
-
-    # Send a message to the listeners
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            with self.__weak_listeners_mutex:
-                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
 
     def register_console(self, console):
         self.console = console
