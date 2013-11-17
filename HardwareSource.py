@@ -446,9 +446,9 @@ class HardwareSource(Storage.Broadcaster):
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = data_item_name
-                def append_data_item_to_data_group_task():
-                    data_group.data_items.append(data_item)
-                self.__periodic_queue.put(append_data_item_to_data_group_task)
+                def append_data_item_to_data_group_task(append_data_item):
+                    data_group.data_items.append(append_data_item)
+                self.__periodic_queue.put(lambda value=data_item: append_data_item_to_data_group_task(value))
             data_item_set[channel] = data_item
         return data_item_set
 
