@@ -140,7 +140,7 @@ class FFTOperation(Operation):
             raise NotImplementedError()
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        return data_shape, numpy.complex128
+        return data_shape, numpy.dtype(numpy.complex128)
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
@@ -314,7 +314,7 @@ class HistogramOperation(Operation):
         return histogram_operation
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        return (self.bins, ), numpy.int
+        return (self.bins, ), numpy.dtype(numpy.int)
 
     def process_data_in_place(self, data):
         histogram_data = numpy.histogram(data, bins=self.bins)
@@ -377,7 +377,7 @@ class LineProfileOperation(Operation):
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return (length, data_shape[-1]), data_dtype
         else:
-            return (length, ), numpy.double
+            return (length, ), numpy.dtype(numpy.double)
 
     def process_data_in_place(self, data):
         if self.graphic:
@@ -412,5 +412,5 @@ class ConvertToScalarOperation(Operation):
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
-            return data_shape[:-1], numpy.double
+            return data_shape[:-1], numpy.dtype(numpy.double)
         return data_shape, data_dtype

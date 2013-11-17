@@ -111,6 +111,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.calculated_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_real.remove_ref()
         data_item_complex.remove_ref()
@@ -139,6 +140,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.calculated_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_real.remove_ref()
 
@@ -165,6 +167,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.calculated_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_rgb.remove_ref()
 
@@ -191,6 +194,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.calculated_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_rgb.remove_ref()
 
@@ -210,6 +214,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.calculated_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_complex.remove_ref()
 
@@ -238,3 +243,8 @@ class TestOperationClass(unittest.TestCase):
         with fft_data_item.create_data_accessor() as fft_data_accessor:
             self.assertEqual(fft_data_accessor.data.shape, (512, 512))
             self.assertEqual(fft_data_accessor.data.dtype, numpy.complex128)
+
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
+    unittest.main()

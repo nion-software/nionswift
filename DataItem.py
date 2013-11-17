@@ -252,6 +252,7 @@ class DataItemEditor(object):
         #self.info_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
         self.info_section_title.add(self.ui.create_label_widget(_("Info"), properties={"stylesheet": "font-weight: bold"}))
         self.info_section_title.add_stretch()
+        # title
         self.info_section.add(self.info_section_title)
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add_spacing(20)
@@ -260,6 +261,7 @@ class DataItemEditor(object):
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         self.info_section.add(self.info_section_title_row)
+        # date
         self.info_section.add_spacing(2)
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add_spacing(20)
@@ -268,7 +270,18 @@ class DataItemEditor(object):
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         self.info_section.add(self.info_section_datetime_row)
+        # format (size, datatype)
+        self.info_section.add_spacing(2)
+        self.info_section_format_row = self.ui.create_row_widget()
+        self.info_section_format_row.add_spacing(20)
+        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width":60}))
+        self.info_format_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_format_row.add(self.info_format_label)
+        self.info_section_format_row.add_stretch()
+        self.info_section.add(self.info_section_format_row)
+        # extra space
         self.info_section.add_spacing(8)
+        # add to enclosing widget
         self.widget.add(self.info_section)
 
         # param editor
@@ -371,13 +384,8 @@ class DataItemEditor(object):
     def update(self):
         # info
         self.info_title_label.text = self.data_item.title
-        datetime_original = self.data_item.datetime_original
-        if datetime_original:
-            datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
-            datetime_str = datetime_.strftime("%c")
-        else:
-            datetime_str = _("N/A")
-        self.info_datetime_label.text = datetime_str
+        self.info_datetime_label.text = self.data_item.datetime_original_as_string
+        self.info_format_label.text = self.data_item.size_and_data_format_as_string
         # param
         value = self.data_item.param
         self.param_field_formatter.value = float(value)
@@ -745,6 +753,15 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_changed(set([DISPLAY]))
     datetime_original = property(__get_datetime_original, __set_datetime_original)
 
+    def __get_datetime_original_as_string(self):
+        datetime_original = self.datetime_original
+        if datetime_original:
+            datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
+            return datetime_.strftime("%c")
+        else:
+            return _("N/A")
+    datetime_original_as_string = property(__get_datetime_original_as_string)
+
     # access properties
 
     def __get_properties(self):
@@ -1082,6 +1099,35 @@ class DataItem(Storage.StorageBase):
             return data_shape, data_dtype
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
+    def __get_size_and_data_format_as_string(self):
+        spatial_shape = self.spatial_shape
+        data_dtype = self.data_dtype
+        if spatial_shape is not None and data_dtype is not None:
+            spatial_shape_str = " x ".join([str(d) for d in spatial_shape])
+            dtype_names = {
+                numpy.int8: _("Integer (8-bit)"),
+                numpy.int16: _("Integer (16-bit)"),
+                numpy.int32: _("Integer (32-bit)"),
+                numpy.int64: _("Integer (64-bit)"),
+                numpy.uint8: _("Unsigned Integer (8-bit)"),
+                numpy.uint16: _("Unsigned Integer (16-bit)"),
+                numpy.uint32: _("Unsigned Integer (32-bit)"),
+                numpy.uint64: _("Unsigned Integer (64-bit)"),
+                numpy.float32: _("Real (32-bit)"),
+                numpy.float64: _("Real (64-bit)"),
+                numpy.complex64: _("Complex (2 x 32-bit)"),
+                numpy.complex128: _("Complex (2 x 64-bit)"),
+            }
+            if self.is_data_rgb_type:
+                data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
+            else:
+                if not self.data_dtype.type in dtype_names:
+                    logging.debug("Unknown %s", self.data_dtype)
+                data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
+            return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
+        return _("No Data")
+    size_and_data_format_as_string = property(__get_size_and_data_format_as_string)
+
     def __get_data_shape(self):
         return self.data_shape_and_dtype[0]
     data_shape = property(__get_data_shape)
@@ -1104,6 +1150,16 @@ class DataItem(Storage.StorageBase):
         data_shape, data_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
     is_data_2d = property(__is_data_2d)
+
+    def __is_data_rgb(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgb(data_shape, data_dtype)
+    is_data_rgb = property(__is_data_rgb)
+
+    def __is_data_rgba(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
+    is_data_rgba = property(__is_data_rgba)
 
     def __is_data_rgb_type(self):
         data_shape, data_dtype = self.data_shape_and_dtype

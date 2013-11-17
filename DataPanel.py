@@ -256,7 +256,7 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
-            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display", "display2"])
+            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
             self.list_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row: self.item_drop_mime_data(mime_data, action, row, parent_row)
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
             self.list_model_controller.on_remove_rows = lambda row, count: self.remove_rows(row, count)
@@ -312,9 +312,11 @@ class DataPanel(Panel.Panel):
             data_item.add_observer(self)
             data_item.add_ref()
             # do the insert
-            data_shape = data_item.data_shape if data_item else None
-            data_shape_str = " x ".join([str(d) for d in data_shape]) if data_shape else "No Data"
-            properties = {"uuid": str(data_item.uuid), "level": level, "display": str(data_item), "display2": data_shape_str}
+            properties = {
+                "uuid": str(data_item.uuid),
+                "level": level,
+                "display": str(data_item),
+            }
             self.list_model_controller.begin_insert(before_index_flat, before_index_flat)
             self.list_model_controller.model.insert(before_index_flat, properties)
             self.list_model_controller.end_insert()
@@ -454,8 +456,9 @@ class DataPanel(Panel.Panel):
             thumbnail_data = data_item.get_thumbnail_data(72, 72)
             data = self.get_model_data(index)
             level = data["level"]
-            display = data["display"]
-            display2 = data["display2"]
+            display = data_item.title
+            display2 = data_item.size_and_data_format_as_string
+            display3 = data_item.datetime_original_as_string
             ctx.save()
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
@@ -465,6 +468,8 @@ class DataPanel(Panel.Panel):
             ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
             ctx.font = "italic"
             ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
+            ctx.font = "italic"
+            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17 + 17)
             ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):
