@@ -67,10 +67,12 @@ class HardwareSourceManager(Storage.Broadcaster):
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
+        hardware_source.add_listener(self)
         for f in self.hardware_source_added_removed:
             f()
 
     def unregister_hardware_source(self, hardware_source):
+        hardware_source.remove_listener(self)
         self.hardware_sources.remove(hardware_source)
         for f in self.hardware_source_added_removed:
             f()
@@ -85,9 +87,74 @@ class HardwareSourceManager(Storage.Broadcaster):
         for f in self.instrument_added_removed:
             f()
 
+    # handle acquisition style devices
+
+    def start_hardware_source(self, hardware_source, mode=None):
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        hardware_source.start_playing()
+
+    def abort_hardware_source(self, hardware_source_id):
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        hardware_source.abort_playing()
+
+    def stop_hardware_source(self, hardware_source_id):
+        if not isinstance(hardware_source, HardwareSource):
+            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
+        assert hardware_source is not None
+        hardware_source.stop_playing()
+
+    def get_hardware_source_settings(self, hardware_source_id, mode):
+        return dict()
+
+    def set_hardware_source_settings(self, hardware_source_id, mode, dict):
+        pass
+
+    def get_hardware_source_mode(self, hardware_source_id):
+        return mode
+
+    def set_hardware_source_mode(self, hardware_source_id, mode):
+        pass
+
+    # pass on messages from hardware sources to hardware source manager listeners
+
+    def hardware_source_started(self, hardware_source):
+        self.notify_listeners("hardware_source_started", hardware_source)
+
+    def hardware_source_stopped(self, hardware_source):
+        self.notify_listeners("hardware_source_stopped", hardware_source)
+
     # may return None
     def get_instrument_by_id(self, instrument_id):
         return self.instruments.get(instrument_id)
+
+    def __get_info_for_hardware_source_id(self, hardware_source_id):
+
+        display_name, properties, filter = (unicode(), None, None)
+
+        seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
+        while hardware_source_id in self.__hardware_source_aliases and hardware_source_id not in seen_hardware_source_ids:
+            seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
+            hardware_source_id, display_name, properties, filter = self.__hardware_source_aliases[hardware_source_id]
+
+        for hardware_source in self.hardware_sources:
+            if hardware_source.hardware_source_id == hardware_source_id:
+                return hardware_source, display_name, properties, filter
+
+        return None
+
+    def get_hardware_source_for_hardware_source_id(self, hardware_source_id):
+
+        info = self.__get_info_for_hardware_source_id(hardware_source_id)
+
+        if info:
+            hardware_source, display_name, properties, filter = info
+            return hardware_source
+
+        return None
 
     def create_port_for_hardware_source_id(self, hardware_source_id, override_properties=None):
         """
@@ -106,19 +173,17 @@ class HardwareSourceManager(Storage.Broadcaster):
         port.close()
         """
 
-        display_name, properties, filter = (unicode(), None, None)
+        info = self.__get_info_for_hardware_source_id(hardware_source_id)
 
-        seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
-        while hardware_source_id in self.__hardware_source_aliases and hardware_source_id not in seen_hardware_source_ids:
-            seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
-            hardware_source_id, display_name, properties, filter = self.__hardware_source_aliases[hardware_source_id]
+        if info:
 
-        if override_properties:
-            properties = override_properties
+            hardware_source, display_name, properties, filter = info
 
-        for hardware_source in self.hardware_sources:
-            if hardware_source.hardware_source_id == hardware_source_id:
-                return hardware_source.create_port(properties, filter)
+            if override_properties:
+                properties = override_properties
+
+            return hardware_source.create_port(properties, filter)
+
         return None
 
     def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name, properties=None, filter=None):
@@ -159,7 +224,7 @@ class HardwareSourcePort(object):
         self.hardware_source.remove_port(self)
 
 
-class HardwareSource(object):
+class HardwareSource(Storage.Broadcaster):
     """
     A hardware source provides ports, which in turn provide data_elements.
 
@@ -177,12 +242,15 @@ class HardwareSource(object):
     """
 
     def __init__(self, hardware_source_id, display_name):
+        super(HardwareSource, self).__init__()
         self.ports = []
         self.__portlock = threading.Lock()
         self.filter = None
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.__data_buffer = None
+        self.channel_states = {}
+        self.channel_states_mutex = threading.RLock()
 
     def __get_data_buffer(self):
         if not self.__data_buffer:
@@ -264,6 +332,72 @@ class HardwareSource(object):
 
     def __str__(self):
         raise NotImplementedError()
+
+    # call this to start acquisition
+    # thread safe
+    def start_playing(self):
+        if not self.data_buffer.is_playing:
+            self.data_buffer.start()
+            self.notify_listeners("hardware_source_started", self)
+
+    # call this to stop acquisition immediately
+    # thread safe
+    def abort_playing(self):
+        if self.data_buffer.is_playing:
+            self.data_buffer.stop()
+            self.notify_listeners("hardware_source_stopped", self)
+
+    # call this to stop acquisition gracefully
+    # thread safe
+    def stop_playing(self):
+        with self.channel_states_mutex:
+            for channel in self.channel_states.keys():
+                self.channel_states[channel] = "marked"
+
+    # if all channels are in stopped state, some controller should abort the acquisition.
+    # thread safe
+    def should_abort(self):
+        with self.channel_states_mutex:
+            are_all_channel_stopped = len(self.channel_states) > 0
+            for channel, state in self.channel_states.iteritems():
+                if state != "stopped":
+                    are_all_channel_stopped = False
+                    break
+            return are_all_channel_stopped
+
+    # call this to clean up the channel states periodically
+    # thread safe
+    def maintain_active_channels(self, channels):
+        with self.channel_states_mutex:
+            for channel in self.channel_states.keys():
+                if not channel in channels:
+                    del self.channel_states[channel]
+
+    # call this to update data items
+    # thread safe
+    def update_channel(self, channel, data_item, data_element):
+        with self.channel_states_mutex:
+            channel_state = self.channel_states.get(channel)
+        new_channel_state = self.__update_channel_state(channel_state, data_item, data_element)
+        with self.channel_states_mutex:
+            self.channel_states[channel] = new_channel_state
+
+    # update channel state.
+    # channel state during normal acquisition: started -> (partial -> complete) -> stopped
+    # channel state during stop: started -> (partial -> complete) -> marked -> stopped
+    # thread safe
+    def __update_channel_state(self, channel_state, data_item, data_element):
+        if channel_state == "stopped":
+            return channel_state
+        sub_area = data_element.get("sub_area")
+        complete = sub_area is None or data_element.get("state") == "complete"
+        ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+        # update channel state
+        if channel_state == "marked":
+            channel_state = "stopped" if complete else "marked"
+        else:
+            channel_state = "complete" if complete else "partial"
+        return channel_state
 
 
 class HardwareSourceDataBuffer(Storage.Broadcaster):
@@ -410,20 +544,3 @@ def __find_hardware_port_by_id(hardware_source_id):
     if port.get_last_data_elements() is None:
         logging.warn("Could not start data_source %s", image_source_name)
     return port
-
-
-# update channel state too.
-# channel state during normal acquisition: started -> (partial -> complete) -> stopped
-# channel state during stop: started -> (partial -> complete) -> marked -> stopped
-def update_channel(channel_state, data_item, data_element):
-    if channel_state == "stopped":
-        return channel_state
-    sub_area = data_element.get("sub_area")
-    complete = sub_area is None or data_element.get("state") == "complete"
-    ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-    # update channel state
-    if channel_state == "marked":
-        channel_state = "stopped" if complete else "marked"
-    else:
-        channel_state = "complete" if complete else "partial"
-    return channel_state
