@@ -2,6 +2,7 @@
 import collections
 import copy
 import gettext
+import logging
 
 # third party libraries
 # None
@@ -81,6 +82,7 @@ class DataGroup(Storage.StorageBase):
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.__counted_data_items = collections.Counter()
+        self.__moving = False  # ugh
 
     def __str__(self):
         return self.title if self.title else _("Untitled")
@@ -115,7 +117,7 @@ class DataGroup(Storage.StorageBase):
     def notify_insert_item(self, key, value, before_index):
         super(DataGroup, self).notify_insert_item(key, value, before_index)
         if key == "data_items":
-            self.notify_listeners("data_item_inserted", self, value, before_index)
+            self.notify_listeners("data_item_inserted", self, value, before_index, self.__moving)
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
         if key == "data_groups":
             self.update_counted_data_items(value.counted_data_items)
@@ -125,7 +127,7 @@ class DataGroup(Storage.StorageBase):
         super(DataGroup, self).notify_remove_item(key, value, index)
         if key == "data_items":
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            self.notify_listeners("data_item_removed", self, value, index)
+            self.notify_listeners("data_item_removed", self, value, index, self.__moving)
         if key == "data_groups":
             self.subtract_counted_data_items(value.counted_data_items)
     # override from StorageBase.
@@ -159,6 +161,18 @@ class DataGroup(Storage.StorageBase):
         for data_group in self.data_groups:
             if hasattr(data_group, "subtract_counted_data_items_for_filter"):
                 data_group.subtract_counted_data_items_for_filter(counted_data_items)
+
+    def move_data_item(self, data_item, before_index):
+        index = self.data_items.index(data_item)
+        if index != before_index:
+            data_item.add_ref()
+            self.__moving = True
+            self.data_items.remove(data_item)
+            if index < before_index:
+                before_index -= 1
+            self.data_items.insert(before_index, data_item)
+            self.__moving = False
+            data_item.remove_ref()
 
     # watch for property changes to data items so that smart filters get updated.
     # tell any data groups to update their filter.
@@ -234,13 +248,13 @@ class SmartDataGroup(Storage.StorageBase):
         if not data_item in self.__data_items and self.__includes(data_item):
             before_index = self.__position(data_item)
             self.__data_items.insert(before_index, data_item)
-            self.notify_listeners("data_item_inserted", self, data_item, before_index)
+            self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
 
     def __remove_data_item(self, data_item):
         if data_item in self.__data_items:
             index = self.__data_items.index(data_item)
             del self.__data_items[index]
-            self.notify_listeners("data_item_removed", self, data_item, index)
+            self.notify_listeners("data_item_removed", self, data_item, index, False)
 
     # TODO: how will filters based on data get updated?
     # TODO: how will filters based on time stamp get updated?

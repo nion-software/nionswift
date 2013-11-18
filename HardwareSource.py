@@ -205,6 +205,9 @@ class HardwareSource(Storage.Broadcaster):
         self.__data_buffer = None
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
+        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
+        self.__channel_activations = set()
+        self.__channel_activations_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
         self.__periodic_queue = queue.Queue()
         # TODO: hack to get data group working. not sure how to handle this in the long run.
@@ -343,6 +346,8 @@ class HardwareSource(Storage.Broadcaster):
         if self.data_buffer.is_playing:
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
+            with self.__channel_activations_mutex:
+                self.__channel_activations.clear()
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -446,10 +451,25 @@ class HardwareSource(Storage.Broadcaster):
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = data_item_name
+                # this function will be run on the main thread.
+                # be careful about binding the parameter. cannot use 'data_item' directly.
                 def append_data_item_to_data_group_task(append_data_item):
-                    data_group.data_items.append(append_data_item)
+                    data_group.data_items.insert(0, append_data_item)
                 self.__periodic_queue.put(lambda value=data_item: append_data_item_to_data_group_task(value))
+                with self.__channel_activations_mutex:
+                    self.__channel_activations.add(channel)
             data_item_set[channel] = data_item
+            # check to see if its been activated. if not, activate it.
+            with self.__channel_activations_mutex:
+                if channel not in self.__channel_activations:
+                    # this function will be run on the main thread.
+                    # be careful about binding the parameter. cannot use 'data_item' directly.
+                    def activate_data_item(data_item_to_activate):
+                        # TODO: if the data item is selected in the data panel, then moving it
+                        # will deselect it and never reselect.
+                        data_group.move_data_item(data_item_to_activate, 0)
+                    self.__periodic_queue.put(lambda value=data_item: activate_data_item(value))
+                    self.__channel_activations.add(channel)
         return data_item_set
 
 

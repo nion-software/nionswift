@@ -1237,9 +1237,9 @@ class ImagePanel(Panel.Panel):
     def item_removed(self, object, key, value, index):
         self.image_canvas_item.item_removed(object, key, value, index)
 
-    def data_item_removed(self, container, data_item, index):
+    def data_item_removed(self, container, data_item, index, moving):
         # if our item gets deleted, clear the selection
-        if container == self.data_item_container and data_item == self.data_item:
+        if not moving and container == self.data_item_container and data_item == self.data_item:
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
 
     # tell our listeners the we changed.

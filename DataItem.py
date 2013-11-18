@@ -826,7 +826,7 @@ class DataItem(Storage.StorageBase):
             self.sync_operations()
             self.notify_data_item_changed(set([DATA]))
         elif key == "data_items":
-            self.notify_listeners("data_item_inserted", self, value, before_index)  # see note about smart groups
+            self.notify_listeners("data_item_inserted", self, value, before_index, False)  # see note about smart groups
             value.data_source = self
             self.notify_data_item_changed(set([CHILDREN]))
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
@@ -845,7 +845,7 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_changed(set([DATA]))
         elif key == "data_items":
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            self.notify_listeners("data_item_removed", self, value, index)  # see note about smart groups
+            self.notify_listeners("data_item_removed", self, value, index, False)  # see note about smart groups
             value.data_source = None
             self.notify_data_item_changed(set([CHILDREN]))
         elif key == "calibrations":

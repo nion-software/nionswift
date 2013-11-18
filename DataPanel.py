@@ -164,11 +164,11 @@ class DataPanel(Panel.Panel):
                 self.__update_item_count(data_group)
 
         # this method if called when one of our listened to data groups changes
-        def data_item_inserted(self, container, data_item, before_index):
+        def data_item_inserted(self, container, data_item, before_index, moving):
             self.__update_item_count(container)
 
         # this method if called when one of our listened to data groups changes
-        def data_item_removed(self, container, data_item, index):
+        def data_item_removed(self, container, data_item, index, moving):
             self.__update_item_count(container)
 
         def item_set_data(self, data, index, parent_row, parent_id):
@@ -267,6 +267,11 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items = set()
             self.__changed_data_items_mutex = threading.RLock()
             self.on_receive_files = None
+            # here lies some really ugly code. still thinking about better architecture.
+            # this is here to allow the data panel to keep the selection the same when
+            # a data item is being moved.
+            self.on_data_item_begin_move = None
+            self.on_data_item_finish_move = None
 
         def close(self):
             self.data_group = None
@@ -301,7 +306,7 @@ class DataPanel(Panel.Panel):
             return len(self.list_model_controller.model)
 
         # this method if called when one of our listened to items changes
-        def data_item_inserted(self, container, data_item, before_index):
+        def data_item_inserted(self, container, data_item, before_index, moving):
             data_items_flat = self.get_data_items_flat()
             before_data_item = container.get_storage_relationship("data_items", before_index)
             before_index_flat = data_items_flat.index(before_data_item)
@@ -322,14 +327,18 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.end_insert()
             # recursively insert items that already exist
             for index, child_data_item in enumerate(data_item.data_items):
-                self.data_item_inserted(data_item, child_data_item, index)
+                self.data_item_inserted(data_item, child_data_item, index, moving)
+            if moving and self.on_data_item_finish_move:
+                self.on_data_item_finish_move(data_item)
 
         # this method if called when one of our listened to items changes
-        def data_item_removed(self, container, data_item, index):
+        def data_item_removed(self, container, data_item, index, moving):
+            if moving and self.on_data_item_begin_move:
+                self.on_data_item_begin_move(data_item)
             assert isinstance(data_item, DataItem.DataItem)
             # recursively remove child items
             for index in reversed(range(len(data_item.data_items))):
-                self.data_item_removed(data_item, data_item.data_items[index], index)
+                self.data_item_removed(data_item, data_item.data_items[index], index, moving)
             # now figure out which index was removed
             index_flat = 0
             for item in self.list_model_controller.model:
@@ -396,12 +405,12 @@ class DataPanel(Panel.Panel):
                     # remove existing items
                     data_items = self.__data_group.data_items
                     for index in reversed(range(len(data_items))):
-                        self.data_item_removed(self.__data_group, data_items[index], index)
+                        self.data_item_removed(self.__data_group, data_items[index], index, False)
                 self.__data_group = data_group
                 if self.__data_group:
                     # add new items
                     for index, child_data_item in enumerate(self.__data_group.data_items):
-                        self.data_item_inserted(self.__data_group, child_data_item, index)
+                        self.data_item_inserted(self.__data_group, child_data_item, index, False)
                     # watch fo changes
                     self.__data_group.add_listener(self)
         data_group = property(__get_data_group, __set_data_group)
@@ -490,6 +499,8 @@ class DataPanel(Panel.Panel):
                 return False
 
         self.data_item_model_controller.on_receive_files = data_item_model_receive_files
+        self.data_item_model_controller.on_data_item_begin_move = lambda data_item: self.data_item_begin_move(data_item)
+        self.data_item_model_controller.on_data_item_finish_move = lambda data_item: self.data_item_finish_move(data_item)
 
         ui = document_controller.ui
 
@@ -525,6 +536,7 @@ class DataPanel(Panel.Panel):
                 data_items = self.data_item_model_controller.get_data_items_flat()
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
+                self.__current_data_item = data_item  # useful for on_data_item_begin_move
                 # update the selected image panel
                 image_panel = self.document_controller.selected_image_panel
                 if image_panel:
@@ -593,6 +605,16 @@ class DataPanel(Panel.Panel):
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         self.__block1 = saved_block1
+
+    # ugly code to keep the selection the same when _moving_ a data item.
+    def data_item_begin_move(self, data_item):
+        #logging.debug("before move %s", self.__current_data_item)
+        self.__block1 = True
+    def data_item_finish_move(self, data_item):
+        flat_data_items = self.data_item_model_controller.get_data_items_flat()
+        self.data_item_widget.current_index = flat_data_items.index(self.__current_data_item) if self.__current_data_item else -1
+        #logging.debug("after move %s %s", self.data_item_widget.current_index, self.__current_data_item)
+        self.__block1 = False
 
     # this message is received from the document controller when the user or program selects
     # a new image panel by clicking on it or otherwise selecting it.
