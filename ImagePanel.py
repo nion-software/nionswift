@@ -278,6 +278,8 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
 
         self.focused = False
         self.selected = False
+        self.selected_style = "#CCC"  # TODO: platform dependent
+        self.focused_style = "#3876D6"  # TODO: platform dependent
 
     def _repaint(self, drawing_context):
 
@@ -287,9 +289,9 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
             canvas_width = self.canvas_size[1]
             canvas_height = self.canvas_size[0]
 
-            stroke_style = "#CCC"  # TODO: platform dependent
+            stroke_style = self.selected_style
             if self.focused:
-                stroke_style = "#3876D6"  # TODO: platform dependent
+                stroke_style = self.focused_style
 
             drawing_context.save()
 
@@ -589,7 +591,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # activate this view. this has the side effect of grabbing focus.
         # image panel is optional.
         if self.image_panel:
-            logging.debug("ACTIVATING?")
             self.document_controller.selected_image_panel = self.image_panel
 
     def __get_focused(self):
@@ -1121,6 +1122,7 @@ class ImagePanel(Panel.Panel):
 
         self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.line_plot_root_canvas_item.focusable = True
+        self.line_plot_root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.line_plot_item_binding = DataItem.DataItemBinding()
         self.line_plot_canvas_item = LinePlotCanvasItem(self.line_plot_item_binding, document_controller, self)
         self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
