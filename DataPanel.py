@@ -444,6 +444,7 @@ class DataPanel(Panel.Panel):
             if data_item:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+                mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
                 return mime_data
             return None
 
@@ -509,10 +510,12 @@ class DataPanel(Panel.Panel):
             self.__block1 = True
             data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
             self.data_item_model_controller.data_group = data_group
+            self.__current_data_item = None
+            self.update_data_panel_selection(self._get_data_panel_selection())
             # if the new data group matches the one in the image panel, make sure to select the data item too
-            image_panel = self.document_controller.selected_image_panel
-            if image_panel and data_group == image_panel.data_panel_selection.data_group:
-                self.update_data_panel_selection(image_panel.data_panel_selection)
+            #image_panel = self.document_controller.selected_image_panel
+            #if image_panel and data_group == image_panel.data_panel_selection.data_group:
+            #self.update_data_panel_selection(image_panel.data_panel_selection)
             self.__block1 = saved_block1
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
@@ -540,10 +543,10 @@ class DataPanel(Panel.Panel):
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 self.__current_data_item = data_item  # useful for on_data_item_begin_move
                 # update the selected image panel
-                image_panel = self.document_controller.selected_image_panel
-                if image_panel:
+                #image_panel = self.document_controller.selected_image_panel
+                #if image_panel:
                     # this next statement will eventually end up back in this class via the data_panel_selection_changed_from_image_panel method.
-                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
+                    #image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
 
         def data_item_widget_key_pressed(index, key):
             data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
@@ -591,6 +594,9 @@ class DataPanel(Panel.Panel):
     def periodic(self):
         self.data_item_model_controller.periodic()
 
+    def _get_data_panel_selection(self):
+        return DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, self.__current_data_item)
+
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
     # update cycles.
@@ -606,6 +612,7 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller.data_group = data_group
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
+        self.__current_data_item = data_panel_selection.data_item  # useful for on_data_item_begin_move. redundant in some cases. argh.
         self.__block1 = saved_block1
 
     # ugly code to keep the selection the same when _moving_ a data item.
@@ -621,9 +628,9 @@ class DataPanel(Panel.Panel):
     # this message is received from the document controller when the user or program selects
     # a new image panel by clicking on it or otherwise selecting it.
     # the connection to the document controller is established using add_listener
-    def selected_image_panel_changed(self, image_panel):
-        data_panel_selection = image_panel.data_panel_selection if image_panel else DataItem.DataItemSpecifier()
-        self.update_data_panel_selection(data_panel_selection)
+#    def selected_image_panel_changed(self, image_panel):
+#        data_panel_selection = image_panel.data_panel_selection if image_panel else DataItem.DataItemSpecifier()
+#        self.update_data_panel_selection(data_panel_selection)
 
     # this message is received from the document controller when the user or program selects
     # a new data item to be displayed in the current image panel. this can happen when the user
@@ -661,8 +668,9 @@ class DataPanel(Panel.Panel):
                     logging.debug("Could not read image %s", file_path)
             if first_data_item:
                 # select the first item/group
-                image_panel = self.document_controller.selected_image_panel
-                if image_panel:
-                    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, first_data_item)
+                self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, first_data_item))
+                #image_panel = self.document_controller.selected_image_panel
+                #if image_panel:
+                #    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, first_data_item)
                 return True
         return False

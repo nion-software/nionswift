@@ -91,32 +91,26 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
         data_group.data_items.append(data_item2)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
         self.assertEqual(data_panel.data_item_widget.current_index, -1)
-        document_controller.selected_image_panel = image_panel1
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
-        document_controller.selected_image_panel = image_panel2
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item2))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
-        document_controller.selected_image_panel = image_panel1
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
-        image_panel1.close()
-        image_panel2.close()
 
     # make sure switching between two data items in different groups works
     # then make sure the same group is selected if the data item is in multiple groups
@@ -139,82 +133,76 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "Data 2"
         data_group2.data_items.append(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group1, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group2, data_item2)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
         self.assertEqual(data_panel.data_item_widget.current_index, -1)
-        document_controller.selected_image_panel = image_panel1
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
-        document_controller.selected_image_panel = image_panel2
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item2))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
-        document_controller.selected_image_panel = image_panel1
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
         # now make sure if a data item is in multiple groups, the right one is selected
         data_group2.data_items.append(data_item1)
-        document_controller.selected_image_panel = image_panel2
-        data_panel.data_item_widget.on_current_item_changed(1)
-        document_controller.selected_image_panel = image_panel1
-        data_panel.data_item_widget.on_current_item_changed(0)
-        self.assertEqual(image_panel1.data_item, data_item1)
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item2))
+        data_panel.data_item_widget.on_current_item_changed(1)  # data_group2 now has data_item1 selected
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
+        data_panel.data_item_widget.on_current_item_changed(0)  # data_group1 still has data_item1 selected
+        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
-        document_controller.selected_image_panel = image_panel2
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
-        document_controller.selected_image_panel = image_panel1
-        self.assertEqual(image_panel1.data_item, data_item1)
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
+        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
         # now make sure group selections are preserved
-        document_controller.selected_image_panel = image_panel1
-        data_panel.data_group_widget.on_current_item_changed(1, 0, 1)
-        data_panel.data_item_widget.on_current_item_changed(-1)
-        self.assertIsNone(image_panel1.data_item)
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
+        data_panel.data_group_widget.on_current_item_changed(1, 0, 1)  # data_group1 now has data_group2 selected
+        data_panel.data_item_widget.on_current_item_changed(-1)  # data_group1 now has no data item selected
+        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, -1)
-        document_controller.selected_image_panel = image_panel2
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
-        document_controller.selected_image_panel = image_panel1
-        self.assertIsNone(image_panel1.data_item)
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, None))
+        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, -1)
         # make sure root level is handled ok
-        document_controller.selected_image_panel = image_panel1  # image_panel1 contains nothing here
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, None))
         data_panel.data_group_widget.on_current_item_changed(0, -1, 0)
-        document_controller.selected_image_panel = image_panel2
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
-        image_panel1.close()
-        image_panel2.close()
 
     def test_selection_during_operations(self):
         storage_writer = Storage.DictStorageWriter()
@@ -282,10 +270,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
         data_group.data_items.append(data_item3)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
-        document_controller.selected_image_panel = image_panel
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item2))
         # verify assumptions
         self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 3)
         # delete 2nd item
@@ -302,7 +288,6 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(1)["uuid"], str(data_item4.uuid))
         self.assertEqual(data_panel.data_item_model_controller.get_model_data(2)["uuid"], str(data_item3.uuid))
         # finish up
-        image_panel.close()
         data_panel.close()
 
     def test_select_after_receive_files(self):
@@ -315,15 +300,12 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         data_group.data_items.append(data_item1)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
-        document_controller.selected_image_panel = image_panel
-        self.assertIsNone(image_panel.data_panel_selection.data_group)
-        self.assertIsNone(image_panel.data_panel_selection.data_item)
+        self.assertIsNone(data_panel._get_data_panel_selection().data_group)
+        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
         data_panel.data_group_model_receive_files(data_group, 0, [":/app/scroll_gem.png"])
-        self.assertEqual(image_panel.data_panel_selection.data_group, data_group)
-        self.assertEqual(image_panel.data_panel_selection.data_item, data_group.data_items[0])
-        image_panel.close()
+        self.assertEqual(data_panel._get_data_panel_selection().data_group, data_group)
+        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_group.data_items[0])
         data_panel.close()
 
     def test_data_panel_remove_group(self):
@@ -363,4 +345,5 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertFalse(data_item1 in data_group1.data_items)
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

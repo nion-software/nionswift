@@ -695,6 +695,30 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     pos = (data_size[0] * mouse_x / line_graph_width, )
                 self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, list(), data_size)
 
+    def drag_enter(self, mime_data):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            return "copy"
+        return "ignore"
+
+    def drag_leave(self):
+        return False
+
+    def drag_move(self, mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            return "copy"
+        return "ignore"
+
+    def drop(self, mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/ref_data_group_uuid"))
+            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+            if self.image_panel:
+                self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+            return "copy"
+        return "ignore"
+
 
 # binding to a child of another data item binding
 class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
@@ -1081,6 +1105,30 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.info_overlay_canvas_item.update()
 
         self.repaint_if_needed()
+
+    def drag_enter(self, mime_data):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            return "copy"
+        return "ignore"
+
+    def drag_leave(self):
+        return False
+
+    def drag_move(self, mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            return "copy"
+        return "ignore"
+
+    def drop(self, mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/ref_data_group_uuid"))
+            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+            if self.image_panel:
+                self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+            return "copy"
+        return "ignore"
 
 
 
