@@ -127,18 +127,60 @@ class CanvasItemLayout(object):
 
 class CanvasItemColumnLayout(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, origin=None, spacing=None, fraction=None, min_width=None, max_width=None):
+        self.origin = origin
+        self.spacing = spacing if spacing else 0
+        self.fraction = fraction
+        self.min_width = min_width
+        self.max_width = max_width
 
     def layout(self, canvas_origin, canvas_size, canvas_items):
-        canvas_item_origin = (16, 20)
-        # prefer 200 pixels wide, but not more than 1/8 of the canvas size, but a minimum of 120 pixels wide
-        canvas_item_width = max(min(320, int(canvas_size[1]/4)), 200)
+        canvas_item_origin = self.origin if self.origin else (0, 0)
+        # prefer min_width pixels wide, but not more than fraction of the canvas size, but a maximum of max_width pixels wide
+        min_width = self.min_width if self.min_width else canvas_size[1]
+        max_width = self.max_width if self.max_width else canvas_size[1]
+        fraction = self.fraction if self.fraction else 1.0
+        canvas_item_width = max(min(max_width, int(canvas_size[1] * fraction)), min_width)
         for canvas_item in canvas_items:
-            canvas_item_height = int(canvas_item_width / canvas_item.preferred_aspect_ratio)
+            # this is not a complete layout -- just something to get by for now
+            if hasattr(canvas_item, "preferred_height"):
+                canvas_item_height = canvas_item.preferred_height
+            elif hasattr(canvas_item, "preferred_aspect_ratio"):
+                canvas_item_height = int(canvas_item_width / canvas_item.preferred_aspect_ratio)
+            else:  # use up remaining height
+                canvas_item_height = canvas_size[1] - canvas_item_origin[1]
             canvas_item_size = (canvas_item_height, canvas_item_width)
             canvas_item.update_layout(canvas_item_origin, canvas_item_size)
-            canvas_item_origin = (canvas_item_origin[0] + canvas_item_height + 12, canvas_item_origin[1])
+            canvas_item_origin = (canvas_item_origin[0] + canvas_item_height + self.spacing, canvas_item_origin[1])
+
+
+class CanvasItemRowLayout(object):
+
+    def __init__(self, origin=None, spacing=None, fraction=None, min_height=None, max_height=None):
+        self.origin = origin
+        self.spacing = spacing if spacing else 0
+        self.fraction = fraction
+        self.min_height = min_height
+        self.max_height = max_height
+
+    def layout(self, canvas_origin, canvas_size, canvas_items):
+        canvas_item_origin = self.origin if self.origin else (0, 0)
+        # prefer min_height pixels wide, but not more than fraction of the canvas size, but a maximum of max_height pixels wide
+        min_height = self.min_height if self.min_height else canvas_size[1]
+        max_height = self.max_height if self.max_height else canvas_size[1]
+        fraction = self.fraction if self.fraction else 1.0
+        canvas_item_height = max(min(max_height, int(canvas_size[1] * fraction)), min_height)
+        for canvas_item in canvas_items:
+            # this is not a complete layout -- just something to get by for now
+            if hasattr(canvas_item, "preferred_width"):
+                canvas_item_width = canvas_item.preferred_width
+            elif hasattr(canvas_item, "preferred_aspect_ratio"):
+                canvas_item_width = int(canvas_item_height * canvas_item.preferred_aspect_ratio)
+            else:  # use up remaining height
+                canvas_item_width = canvas_size[0] - canvas_item_origin[0]
+            canvas_item_size = (canvas_item_height, canvas_item_width)
+            canvas_item.update_layout(canvas_item_origin, canvas_item_size)
+            canvas_item_origin = (canvas_item_origin[0], canvas_item_origin[1] + canvas_item_width + self.spacing)
 
 
 class CanvasItemComposition(AbstractCanvasItem):

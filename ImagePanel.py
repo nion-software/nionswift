@@ -498,10 +498,18 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.image_panel = image_panel
 
         # create the child canvas items
+        #self.horizontal_canvas_item = CanvasItem.CanvasItemComposition()
+        #self.horizontal_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        #self.vertical_canvas_item = CanvasItem.CanvasItemComposition()
+        #self.vertical_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.line_graph_canvas_item = LineGraphCanvasItem()
         self.focus_ring_canvas_item = FocusRingCanvasItem()
 
         # canvas items get added back to front
+        #self.vertical_canvas_item.add_canvas_item(self.line_graph_canvas_item)
+        #self.horizontal_canvas_item.add_canvas_item(self.vertical_canvas_item)
+        #self.horizontal_canvas_item.add_canvas_item(self.vertical_canvas_item)
+        #self.add_canvas_item(self.horizontal_canvas_item)
         self.add_canvas_item(self.line_graph_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
@@ -678,7 +686,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.bitmap_canvas_item = BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()
         self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
-        self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(origin=(16, 20), spacing=12, fraction=0.25, min_width=200, max_width=320)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         self.focus_ring_canvas_item = FocusRingCanvasItem()
 
