@@ -327,6 +327,14 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             self.right_margin = 6
 
             rect = ((0, 0), (canvas_height, canvas_width))
+
+            drawing_context.save()
+
+            drawing_context.begin_path()
+            drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+            drawing_context.fill_style = "#888"
+            drawing_context.fill()
+
             rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
             intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1]), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
             caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
@@ -335,13 +343,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_height = int(plot_rect[1][0])
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
-
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
-            drawing_context.fill_style = "#888"
-            drawing_context.fill()
 
             data_min = numpy.amin(self.data)
             data_max = numpy.amax(self.data)

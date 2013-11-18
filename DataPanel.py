@@ -465,7 +465,7 @@ class DataPanel(Panel.Panel):
             thumbnail_data = data_item.get_thumbnail_data(72, 72)
             data = self.get_model_data(index)
             level = data["level"]
-            display = data_item.title
+            display = str(data_item)
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
             ctx.save()
