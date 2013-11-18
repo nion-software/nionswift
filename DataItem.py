@@ -1104,6 +1104,8 @@ class DataItem(Storage.StorageBase):
         data_dtype = self.data_dtype
         if spatial_shape is not None and data_dtype is not None:
             spatial_shape_str = " x ".join([str(d) for d in spatial_shape])
+            if len(spatial_shape) == 1:
+                spatial_shape_str += " x 1"
             dtype_names = {
                 numpy.int8: _("Integer (8-bit)"),
                 numpy.int16: _("Integer (16-bit)"),
@@ -1207,7 +1209,7 @@ class DataItem(Storage.StorageBase):
         data_min = numpy.amin(data_scaled)
         data_max = numpy.amax(data_scaled)
         if data_max - data_min != 0.0:
-            data_scaled[:] = height * (data_scaled - data_min) / (data_max - data_min)
+            data_scaled[:] = height * (data_scaled) / data_max
         else:
             data_scaled[:] = height * 0.5
         rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))

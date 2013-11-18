@@ -305,6 +305,8 @@ class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    golden_ratio = 1.618
+
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
         self.data = None
@@ -318,7 +320,21 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             canvas_width = self.canvas_size[1]
             canvas_height = self.canvas_size[0]
 
+            self.font_size = max(9, min(13, int(canvas_height/25.0)))
+            self.left_caption_width = max(36, min(60, int(canvas_width/8.0)))
+            self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
+            self.bottom_caption_height = self.top_margin
+            self.right_margin = 6
+
             rect = ((0, 0), (canvas_height, canvas_width))
+            rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
+            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1]), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
+            caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
+            plot_rect = ((rect[0][0] + self.top_margin, rect[0][1] + self.left_caption_width), (rect[1][0] - self.bottom_caption_height - self.top_margin, rect[1][1] - self.left_caption_width - self.right_margin))
+            plot_width = int(plot_rect[1][1])
+            plot_height = int(plot_rect[1][0])
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
 
             drawing_context.save()
 
@@ -330,25 +346,51 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             data_min = numpy.amin(self.data)
             data_max = numpy.amax(self.data)
             data_len = self.data.shape[0]
-            golden_ratio = 1.618
-            display_rect = Graphics.fit_to_aspect_ratio(rect, golden_ratio)
-            display_width = int(display_rect[1][1])
-            display_height = int(display_rect[1][0])
-            display_origin_x = int(display_rect[0][1])
-            display_origin_y = int(display_rect[0][0])
             # draw the background
             drawing_context.begin_path()
-            drawing_context.rect(display_origin_x, display_origin_y, display_width, display_height)
+            drawing_context.rect(int(rect[0][1]), int(rect[0][0]), int(rect[1][1]), int(rect[1][0]))
             drawing_context.fill_style = "#FFF"
             drawing_context.fill()
+            # draw the intensity scale
+            vertical_tick_count = 4
+            data_max = make_pretty(data_max, round_up=True)
+            tick_size = intensity_rect[1][0] / vertical_tick_count
+            drawing_context.text_baseline = "middle"
+            drawing_context.font = "{0:d}px".format(self.font_size)
+            for i in range(vertical_tick_count+1):
+                drawing_context.begin_path()
+                y = int(intensity_rect[0][0] + intensity_rect[1][0] - tick_size * i)
+                w = 3
+                if i == 0:
+                    y = plot_origin_y + plot_height  # match it with the plot_rect
+                    w = 6
+                elif i == vertical_tick_count:
+                    y = plot_origin_y  # match it with the plot_rect
+                    w = 6
+                drawing_context.move_to(intensity_rect[0][1] + intensity_rect[1][1], y)
+                drawing_context.line_to(intensity_rect[0][1] + intensity_rect[1][1] - w, y)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text("{0:g}".format(data_max * float(i) / vertical_tick_count), 8, y)
+                #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
+            drawing_context.text_baseline = "alphabetic"
+            drawing_context.line_width = 1
+            # draw the horizontal axis
             # draw the line plot itself
             drawing_context.begin_path()
-            drawing_context.move_to(display_origin_x, display_origin_y + display_height)
-            for i in xrange(0, display_width,3):
-                px = display_origin_x + i
-                py = display_origin_y + display_height - (display_height * (float(self.data[int(data_len*float(i)/display_width)]) - data_min) / (data_max - data_min))
+            drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height)
+            for i in xrange(0, plot_width, 3):
+                px = plot_origin_x + i
+                py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)]) / data_max)
                 drawing_context.line_to(px, py)
-            drawing_context.line_to(display_origin_x + display_width-1, display_origin_y + display_height)
+            # finish off last line
+            px = plot_origin_x + plot_width
+            py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1]) / data_max)
+            drawing_context.line_to(px, py)
+            drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height)
+            # close it up and draw
             drawing_context.close_path()
             drawing_context.fill_style = '#AFA'
             drawing_context.fill()
@@ -358,7 +400,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.stroke_style = '#2A2'
             drawing_context.stroke()
             drawing_context.begin_path()
-            drawing_context.rect(display_origin_x, display_origin_y, display_width, display_height)
+            drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
             drawing_context.line_width = 1
             drawing_context.stroke_style = '#888'
             drawing_context.stroke()
@@ -513,6 +555,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.line_graph_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
+        class LinePlotLayout(object):
+            def __init__(self, line_plot_canvas_item):
+                self.line_plot_canvas_item = line_plot_canvas_item
+            def layout(self, canvas_origin, canvas_size, canvas_items):
+                canvas_items[0].update_layout((canvas_origin[0], canvas_origin[1] + 80), (canvas_size[0], canvas_size[1] - 80))
+                canvas_items[1].update_layout(canvas_origin, canvas_size)
+        #self.layout = LinePlotLayout(self)
+
         # a thread for updating
         self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
 
@@ -538,6 +588,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # activate this view. this has the side effect of grabbing focus.
         # image panel is optional.
         if self.image_panel:
+            logging.debug("ACTIVATING?")
             self.document_controller.selected_image_panel = self.image_panel
 
     def __get_focused(self):
@@ -637,7 +688,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_size = self.__get_data_size()
             if self.__mouse_in and self.__last_mouse:
                 if data_size and len(data_size) == 1:
-                    pos = (data_size[0] * self.__last_mouse[1] / self.canvas_size[1], )
+                    mouse_x = self.__last_mouse[1] - self.line_graph_canvas_item.left_caption_width
+                    line_graph_width = self.canvas_size[1] - self.line_graph_canvas_item.left_caption_width - self.line_graph_canvas_item.right_margin
+                    pos = (data_size[0] * mouse_x / line_graph_width, )
                 self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, list(), data_size)
 
 
@@ -1539,14 +1592,25 @@ class InfoPanel(Panel.Panel):
 
 
 # make val into a pretty number
-def make_pretty(val):
+def make_pretty(val, round_up=True):
     factor10 = math.pow(10, int(math.log10(abs(val))))
     val_norm = val/factor10
     if val_norm < 1.0:
         val_norm = val_norm * 10
         factor10 = factor10 / 10
-    # val_norm is now between 1 and 10
-    if val_norm < 5.0:
-        return 0.5 * round(val_norm/0.5) * factor10
+    if round_up:
+        #print "val_norm " + str(val_norm)
+        if val_norm < 1.5:
+            val_norm = math.ceil(val_norm * 5) / 5  # move up to next 0.2
+        elif val_norm < 3.0:
+            val_norm = math.ceil(val_norm * 2) / 2  # move up to next 0.5
+        else:
+            val_norm = math.ceil(val_norm)  # movie up to next 1.0
+        #print "val_norm+ " + str(val_norm)
+        return val_norm * factor10
     else:
-        return round(val_norm) * factor10
+        # val_norm is now between 1 and 10
+        if val_norm < 5.0:
+            return 0.5 * round(val_norm/0.5) * factor10
+        else:
+            return round(val_norm) * factor10

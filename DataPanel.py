@@ -529,6 +529,8 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.on_current_item_changed = data_group_widget_current_item_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
 
+        self.__current_data_item = None
+
         # this message is received when the current item changes in the widget
         self.__block1 = False
         def data_item_widget_current_item_changed(index):
