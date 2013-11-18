@@ -114,6 +114,18 @@ class AbstractCanvasItem(object):
     def key_pressed(self, key):
         return False
 
+    def drag_enter(self, mime_data):
+        return "ignore"
+
+    def drag_leave(self):
+        return "ignore"
+
+    def drag_move(self, mime_data, x, y):
+        return "ignore"
+
+    def drop(self, mime_data, x, y):
+        return "ignore"
+
 
 class CanvasItemLayout(object):
 
@@ -307,6 +319,34 @@ class CanvasItemComposition(AbstractCanvasItem):
                 return True
         return False
 
+    def drag_enter(self, mime_data):
+        for canvas_item in reversed(self.__canvas_items):
+            action = canvas_item.drag_enter(mime_data)
+            if action != "ignore":
+                return action
+        return "ignore"
+
+    def drag_leave(self):
+        for canvas_item in reversed(self.__canvas_items):
+            action = canvas_item.drag_leave()
+            if action != "ignore":
+                return action
+        return "ignore"
+
+    def drag_move(self, mime_data, x, y):
+        for canvas_item in reversed(self.__canvas_items):
+            action = canvas_item.drag_move(mime_data, x, y)
+            if action != "ignore":
+                return action
+        return "ignore"
+
+    def drop(self, mime_data, x, y):
+        for canvas_item in reversed(self.__canvas_items):
+            action = canvas_item.drop(mime_data, x, y)
+            if action != "ignore":
+                return action
+        return "ignore"
+
 
 class RootCanvasItem(CanvasItemComposition):
 
@@ -323,6 +363,10 @@ class RootCanvasItem(CanvasItemComposition):
         self._canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
         self._canvas.on_key_pressed = lambda key: self.key_pressed(key)
         self._canvas.on_focus_changed = lambda focused: self.__focus_changed(focused)
+        self._canvas.on_drag_enter = lambda mime_data: self.drag_enter(mime_data)
+        self._canvas.on_drag_leave = lambda: self.drag_leave()
+        self._canvas.on_drag_move = lambda mime_data, x, y: self.drag_move(mime_data, x, y)
+        self._canvas.on_drop = lambda mime_data, x, y: self.drop(mime_data, x, y)
         self.on_focus_changed = None
 
     def __get_canvas(self):

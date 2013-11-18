@@ -947,6 +947,10 @@ class QtCanvasWidget(QtWidget):
         self.__on_key_pressed = None
         self.__on_size_changed = None
         self.__on_focus_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
         self.width = 0
         self.height = 0
         self.__focusable = False
@@ -1100,6 +1104,26 @@ class QtCanvasWidget(QtWidget):
         if self.__on_key_pressed:
             return self.__on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
+
+    def dragEnterEvent(self, raw_mime_data):
+        if self.on_drag_enter:
+            return self.on_drag_enter(QtMimeData(self.proxy, raw_mime_data))
+        return "ignore"
+
+    def dragLeaveEvent(self):
+        if self.on_drag_leave:
+            return self.on_drag_leave()
+        return "ignore"
+
+    def dragMoveEvent(self, raw_mime_data, x, y):
+        if self.on_drag_move:
+            return self.on_drag_move(QtMimeData(self.proxy, raw_mime_data), x, y)
+        return "ignore"
+
+    def dropEvent(self, raw_mime_data, x, y):
+        if self.on_drop:
+            return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
+        return "ignore"
 
 
 # pobj
