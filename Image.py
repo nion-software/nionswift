@@ -227,12 +227,42 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
     return None
 
 
-def read_image_from_file(ui, filename, dtype=numpy.uint32):
-    rgba_image = ui.load_rgba_data_from_file(filename)
-    assert rgba_image is not None
-    if dtype != numpy.uint32:
-        image = numpy.zeros(rgba_image.shape, dtype)
-        image[:, :] = numpy.mean(get_rgb_view(rgba_image), 2)
+# convert data to grayscale. may return same copy of data, or a copy.
+def convert_to_grayscale(data, dtype=numpy.uint32):
+    if is_data_rgb(data) or is_data_rgba(data):
+        image = numpy.empty(data.shape[:-1], dtype)
+        # don't be tempted to use the numpy.dot operator; after testing, this explicit method
+        # is faster by a factor of two. cem 2013-11-02.
+        # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
+        image[...] = 0.0722 * data[..., 0] + 0.7152 * data[..., 1] + 0.2126 * data[..., 2]
         return image
     else:
-        return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (4,))  # expand the color into uint8s
+        return scalar_from_array(data)
+
+
+# return True if data is grayscale.
+def is_grayscale(data):
+    if is_data_rgb(data) or is_data_rgba(data):
+        return numpy.array_equal(data[..., 0],data[..., 1]) and numpy.array_equal(data[..., 1],data[..., 2])
+    return True
+
+
+# read image file. return as rgba uint8.
+def read_rgba_image_from_file(ui, filename):
+    rgba_image = ui.load_rgba_data_from_file(filename)  # always loads rgba
+    assert rgba_image is not None
+    return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (4,))
+
+
+# read image file. convert to dtype.
+def read_grayscale_image_from_file(ui, filename, dtype=numpy.uint32):
+    data = read_rgba_image_from_file(ui, filename)
+    return convert_to_grayscale(data, dtype)
+
+
+# read image file. convert to dtype if it is grayscale.
+def read_image_from_file(ui, filename, dtype=numpy.uint32):
+    data = read_rgba_image_from_file(ui, filename)
+    if is_grayscale(data):
+        return convert_to_grayscale(data, dtype)
+    return data

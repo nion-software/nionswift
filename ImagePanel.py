@@ -466,9 +466,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         assert data is not None
 
         # make sure RGB becomes scalar
-        if Image.is_data_rgb(data) or Image.is_data_rgba(data):
-            # note 0=b, 1=g, 2=r, 3=a. calculate luminosity.
-            data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
+        data = Image.convert_to_grayscale(data)
         assert data is not None
 
         # update the line graph

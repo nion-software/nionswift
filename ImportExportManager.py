@@ -28,13 +28,8 @@ class ImportExportHandler(object):
         return True
 
     # return data items
-    def read(self, ui, file_path, extension):
-        with open(file_path, 'rb') as f:
-            return self.read_file(file_path, extension, f)
-
-    # return data items
-    def read_file(self, file_path, extension, file):
-        data_elements = self.read_data(extension, file)
+    def read_data_items(self, ui, extension, file_path):
+        data_elements = self.read_data_elements(ui, extension, file_path)
         data_items = list()
         for data_element in data_elements:
             if "data" in data_element:
@@ -48,7 +43,7 @@ class ImportExportHandler(object):
         return data_items
 
     # return data
-    def read_data(self, extension, file):
+    def read_data_elements(self, ui, extension, file_path):
         return None
 
     def can_write(self, data_item, extension):
@@ -102,16 +97,16 @@ class ImportExportManager(object):
         return writers
 
     # read file, return data items
-    def read(self, ui, path):
+    def read_data_items(self, ui, path):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
-                    return io_handler.read(ui, path, extension)
+                    return io_handler.read_data_items(ui, extension, path)
         return None
 
-    def write(self, ui, data_item, path):
+    def write_data_items(self, ui, data_item, path):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
@@ -213,17 +208,13 @@ class StandardImportExportHandler(ImportExportHandler):
     def __init__(self, name, extensions):
         super(StandardImportExportHandler, self).__init__(name, extensions)
 
-    def read(self, ui, path, extension):
+    def read_data_elements(self, ui, extension, path):
         data = Image.read_image_from_file(ui, path)
         if data is not None:
-            root, filename = os.path.split(path)
-            title, _ = os.path.splitext(filename)
-            data_item = DataItem.DataItem()
-            with data_item.create_data_accessor() as data_accessor:
-                data_accessor.master_data = data
-            data_item.title = title
-            return data_item
-        return None
+            data_element = dict()
+            data_element["data"] = data
+            return [data_element]
+        return list()
 
     def can_write(self, data_item, extension):
         return len(data_item.spatial_shape) == 2

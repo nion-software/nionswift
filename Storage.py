@@ -60,6 +60,7 @@ class MutableRelationship(collections.MutableSequence):
 
     def insert(self, index, value):
         assert value not in self.store
+        assert index <= len(self.store) and index >= 0
         # ref count
         value.add_ref()
         # insert in internal list

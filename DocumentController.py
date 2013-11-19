@@ -308,7 +308,7 @@ class DocumentController(Storage.Broadcaster):
         paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         for path in paths:
-            data_items = ImportExportManager.ImportExportManager().read(self.ui, path)
+            data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, path)
             for data_item in data_items:
                 self.document_model.default_data_group.data_items.append(data_item)
 
@@ -325,7 +325,7 @@ class DocumentController(Storage.Broadcaster):
         path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter)
         self.ui.set_persistent_string("export_directory", selected_directory)
         if path:
-            return ImportExportManager.ImportExportManager().write(self.ui, data_item, path)
+            return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type):
@@ -489,35 +489,24 @@ class DocumentController(Storage.Broadcaster):
             self.console.insert_lines(lines)
 
     def receive_files(self, file_paths, data_group, index=-1):
-        data_items = list()
+        received_data_items = list()
         if data_group and isinstance(data_group, DataGroup.DataGroup):
             for file_path in file_paths:
                 try:
-                    # TODO: use import export manager
-                    raw_image = self.ui.load_rgba_data_from_file(file_path)
-                    rgba_image = Image.get_rgb_view(raw_image)
-                    if numpy.array_equal(rgba_image[..., 0],rgba_image[..., 1]) and numpy.array_equal(rgba_image[..., 1],rgba_image[..., 2]):
-                        image_data = numpy.zeros(raw_image.shape, numpy.uint32)
-                        image_data[:, :] = numpy.mean(rgba_image, 2)
-                    else:
-                        image_data = rgba_image
-                    # create the data item
-                    data_item = DataItem.DataItem()
-                    with data_item.ref():
-                        data_item.title = os.path.basename(file_path)
-                        with data_item.create_data_accessor() as data_accessor:
-                            data_accessor.master_data = image_data
+                    data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+                    for data_item in data_items:
                         if index >= 0:
                             data_group.data_items.insert(index, data_item)
+                            index += 1
                         else:
                             data_group.data_items.append(data_item)
-                        data_items.append(data_item)
+                        received_data_items.append(data_item)
                 except Exception as e:
                     logging.debug("Could not read image %s", file_path)
                     import traceback
                     traceback.print_exc()
                     logging.debug("Error: %s", e)
-        return data_items
+        return received_data_items
 
 
 # binding to the selected data item in the document controller

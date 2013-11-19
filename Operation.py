@@ -403,10 +403,7 @@ class ConvertToScalarOperation(Operation):
 
     def process_data_in_place(self, data):
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
-            # don't be tempted to use the numpy.dot operator; after testing, this explicit method
-            # is faster by a factor of two. cem 2013-11-02.
-            new_data = 0.0722 * data[..., 0] + 0.7152 * data[..., 1] + 0.2126 * data[..., 2]
-            return new_data
+            return Image.convert_to_grayscale(data, numpy.double)
         else:
             return data.copy()
 
