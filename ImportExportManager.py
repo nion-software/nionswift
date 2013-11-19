@@ -181,7 +181,7 @@ def update_data_item_from_data_element(data_item, data_element):
         def parse_datetime_keys(root, default=None):
             if root in data_element:
                 datetime_element = dict()
-                datetime_element["local_datetime"] = datetime.datetime.strptime(data_element[root], "%Y-%m-%dT%H:%M:%S.%f")
+                datetime_element["local_datetime"] = datetime.datetime.strptime(data_element[root], "%Y-%m-%dT%H:%M:%S.%f").isoformat()
                 if root + "_tz" in data_element:
                     tz_match = re.compile("([-+])(\d{4})").match(data_element[root + "_tz"])
                     if tz_match:

@@ -1,4 +1,5 @@
 # standard libraries
+import datetime
 import logging
 import unittest
 
@@ -7,6 +8,7 @@ import numpy
 
 # local libraries
 from nion.swift import ImportExportManager
+from nion.swift import DataItem
 
 
 class TestImportExportManagerClass(unittest.TestCase):
@@ -28,6 +30,11 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual(len(data_item.datetime_original["dst"]), 3)
         data_item.add_ref()
         data_item.remove_ref()
+
+    def test_date_formats(self):
+        data_item = DataItem.DataItem()
+        data_item.datetime_original = {"local_datetime": datetime.datetime(2013, 11, 18, 14, 5, 4, 0).isoformat(), "tz": "+0000", "dst": "+00"}
+        data_item.datetime_original_as_string
 
 
 if __name__ == '__main__':

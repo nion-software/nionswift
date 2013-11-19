@@ -756,7 +756,10 @@ class DataItem(Storage.StorageBase):
     def __get_datetime_original_as_string(self):
         datetime_original = self.datetime_original
         if datetime_original:
-            datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
+            if len(datetime_original["local_datetime"]) == 26:
+                datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
+            else:
+                datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S")
             return datetime_.strftime("%c")
         else:
             return _("N/A")
