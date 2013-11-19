@@ -174,26 +174,26 @@ class GraphicSelection(Storage.Broadcaster):
         old_index = self.__indexes.copy()
         self.__indexes = set()
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def add(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def remove(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.remove(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def set(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes = set()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def toggle(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
@@ -202,7 +202,7 @@ class GraphicSelection(Storage.Broadcaster):
         else:
             self._indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def insert_index(self, new_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -212,7 +212,7 @@ class GraphicSelection(Storage.Broadcaster):
                 new_indexes.add(index+1)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
     def remove_index(self, remove_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -223,7 +223,7 @@ class GraphicSelection(Storage.Broadcaster):
                     new_indexes.add(index)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("selection_changes")
+            self.notify_listeners("selection_changed", self)
 
 
 class DataItemThread(ProcessingThread):
