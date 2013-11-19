@@ -271,187 +271,6 @@ class DataItemThread(ProcessingThread):
         data_item.remove_ref()
 
 
-class FocusRingCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    def __init__(self):
-        super(FocusRingCanvasItem, self).__init__()
-
-        self.focused = False
-        self.selected = False
-        self.selected_style = "#CCC"  # TODO: platform dependent
-        self.focused_style = "#3876D6"  # TODO: platform dependent
-
-    def _repaint(self, drawing_context):
-
-        if self.selected:
-
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            stroke_style = self.selected_style
-            if self.focused:
-                stroke_style = self.focused_style
-
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
-            drawing_context.line_join = "miter"
-            drawing_context.stroke_style = stroke_style
-            drawing_context.line_width = 4.0
-            drawing_context.stroke()
-
-            drawing_context.restore()
-
-
-class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    golden_ratio = 1.618
-
-    def __init__(self):
-        super(LineGraphCanvasItem, self).__init__()
-        self.data = None
-
-    def _repaint(self, drawing_context):
-
-        # draw the data, if any
-        if (self.data is not None and len(self.data) > 0):
-
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            self.font_size = max(9, min(13, int(canvas_height/25.0)))
-            self.left_caption_width = max(36, min(60, int(canvas_width/8.0)))
-            self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
-            self.bottom_caption_height = self.top_margin
-            self.right_margin = 6
-
-            rect = ((0, 0), (canvas_height, canvas_width))
-
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
-            drawing_context.fill_style = "#888"
-            drawing_context.fill()
-
-            rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
-            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1]), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
-            caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
-            plot_rect = ((rect[0][0] + self.top_margin, rect[0][1] + self.left_caption_width), (rect[1][0] - self.bottom_caption_height - self.top_margin, rect[1][1] - self.left_caption_width - self.right_margin))
-            plot_width = int(plot_rect[1][1])
-            plot_height = int(plot_rect[1][0])
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
-
-            data_min = numpy.amin(self.data)
-            data_max = numpy.amax(self.data)
-            data_len = self.data.shape[0]
-            # draw the background
-            drawing_context.begin_path()
-            drawing_context.rect(int(rect[0][1]), int(rect[0][0]), int(rect[1][1]), int(rect[1][0]))
-            drawing_context.fill_style = "#FFF"
-            drawing_context.fill()
-            # draw the intensity scale
-            vertical_tick_count = 4
-            data_max = make_pretty(data_max, round_up=True)
-            data_min = make_pretty(data_min, round_up=True)
-            data_min = data_min if data_min < 0 else 0.0
-            tick_size = intensity_rect[1][0] / vertical_tick_count
-            drawing_context.text_baseline = "middle"
-            drawing_context.font = "{0:d}px".format(self.font_size)
-            for i in range(vertical_tick_count+1):
-                drawing_context.begin_path()
-                y = int(intensity_rect[0][0] + intensity_rect[1][0] - tick_size * i)
-                w = 3
-                if i == 0:
-                    y = plot_origin_y + plot_height  # match it with the plot_rect
-                    w = 6
-                elif i == vertical_tick_count:
-                    y = plot_origin_y  # match it with the plot_rect
-                    w = 6
-                drawing_context.move_to(intensity_rect[0][1] + intensity_rect[1][1], y)
-                drawing_context.line_to(intensity_rect[0][1] + intensity_rect[1][1] - w, y)
-                drawing_context.move_to(plot_rect[0][1], y)
-                drawing_context.line_to(plot_rect[0][1] + plot_rect[1][1], y)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-                drawing_context.fill_style = "#000"
-                drawing_context.fill_text("{0:g}".format(data_min + (data_max - data_min) * float(i) / vertical_tick_count), 8, y)
-                #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
-            drawing_context.text_baseline = "alphabetic"
-            drawing_context.line_width = 1
-            # draw the horizontal axis
-            # draw the line plot itself
-            baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / (data_max - data_min))
-            drawing_context.begin_path()
-            drawing_context.move_to(plot_origin_x, baseline)
-            for i in xrange(0, plot_width, 2):
-                px = plot_origin_x + i
-                py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)] - data_min) / (data_max - data_min))
-                drawing_context.line_to(px, py)
-                drawing_context.line_to(px + 2, py)
-            # finish off last line
-            px = plot_origin_x + plot_width
-            py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1] - data_min) / (data_max - data_min))
-            drawing_context.line_to(plot_origin_x + plot_width, baseline)
-            # close it up and draw
-            drawing_context.close_path()
-            drawing_context.fill_style = '#AFA'
-            drawing_context.fill()
-            drawing_context.line_width = 0.5
-            drawing_context.line_cap = 'round'
-            drawing_context.line_join = 'round'
-            drawing_context.stroke_style = '#040'
-            drawing_context.stroke()
-            drawing_context.begin_path()
-            drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
-            drawing_context.line_width = 1
-            drawing_context.stroke_style = '#888'
-            drawing_context.stroke()
-
-            drawing_context.restore()
-
-
-class BitmapCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    def __init__(self):
-        super(BitmapCanvasItem, self).__init__()
-        self.rgba_bitmap_data = None
-
-    def _repaint(self, drawing_context):
-
-        # draw the data, if any
-        if self.rgba_bitmap_data is not None:
-
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            if canvas_height > 0 and canvas_width > 0:
-
-                image_size = self.rgba_bitmap_data.shape
-
-                rect = ((0, 0), (canvas_height, canvas_width))
-
-                display_rect = Graphics.fit_to_size(rect, image_size)
-
-                drawing_context.save()
-
-                drawing_context.begin_path()
-                drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
-                drawing_context.fill_style = "#888"
-                drawing_context.fill()
-
-                if display_rect and display_rect[1][0] > 0 and display_rect[1][1] > 0:
-                    drawing_context.draw_image(self.rgba_bitmap_data, display_rect[0][1], display_rect[0][0], display_rect[1][1], display_rect[1][0])
-
-                drawing_context.restore()
-
-
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
@@ -499,7 +318,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = make_pretty(scale_marker_image_width * self.data_item.calibrations[0].scale)
+                    calibrated_scale_marker_width = Graphics.make_pretty(scale_marker_image_width * self.data_item.calibrations[0].scale)
                     # update the scale marker width
                     scale_marker_image_width = calibrated_scale_marker_width / self.data_item.calibrations[0].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
@@ -552,8 +371,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         #self.horizontal_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         #self.vertical_canvas_item = CanvasItem.CanvasItemComposition()
         #self.vertical_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.line_graph_canvas_item = LineGraphCanvasItem()
-        self.focus_ring_canvas_item = FocusRingCanvasItem()
+        self.line_graph_canvas_item = CanvasItem.LineGraphCanvasItem()
+        self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
 
         # canvas items get added back to front
         #self.vertical_canvas_item.add_canvas_item(self.line_graph_canvas_item)
@@ -767,12 +586,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.accessories = dict()
 
         # create the child canvas items
-        self.bitmap_canvas_item = BitmapCanvasItem()
+        self.bitmap_canvas_item = CanvasItem.BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()
         self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
         self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(origin=(16, 20), spacing=12, fraction=0.25, min_width=200, max_width=320)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
-        self.focus_ring_canvas_item = FocusRingCanvasItem()
+        self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
 
         # canvas items get added back to front
         self.add_canvas_item(self.bitmap_canvas_item)
@@ -1645,29 +1464,3 @@ class InfoPanel(Panel.Panel):
                 graphic_text = graphic.calibrated_description(data_size, calibrations)
         with self.__pending_info_mutex:
             self.__pending_info = (position_text, value_text, graphic_text)
-
-
-# make val into a pretty number
-def make_pretty(val, round_up=False):
-    positive = val > 0
-    factor10 = math.pow(10, int(math.log10(abs(val))))
-    val_norm = abs(val)/factor10
-    if val_norm < 1.0:
-        val_norm = val_norm * 10
-        factor10 = factor10 / 10
-    if round_up:
-        #print "val_norm " + str(val_norm)
-        if val_norm < 1.5:
-            val_norm = math.ceil(val_norm * 5) / 5  # move up to next 0.2
-        elif val_norm < 3.0:
-            val_norm = math.ceil(val_norm * 2) / 2  # move up to next 0.5
-        else:
-            val_norm = math.ceil(val_norm)  # movie up to next 1.0
-        #print "val_norm+ " + str(val_norm)
-        return math.copysign(val_norm * factor10, val)
-    else:
-        # val_norm is now between 1 and 10
-        if val_norm < 5.0:
-            return math.copysign(0.5 * round(val_norm/0.5) * factor10, val)
-        else:
-            return math.copysign(round(val_norm) * factor10, val)

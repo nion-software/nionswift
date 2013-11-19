@@ -463,7 +463,7 @@ class DataPanel(Panel.Panel):
             rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
             index = options["index"]["row"]
             data_item = self.get_data_items_flat()[index]
-            thumbnail_data = data_item.get_thumbnail_data(72, 72)
+            thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
             data = self.get_model_data(index)
             level = data["level"]
             display = str(data_item)

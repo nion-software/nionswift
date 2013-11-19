@@ -488,7 +488,6 @@ class QtDrawingContext(object):
         self.commands.extend(gradient.commands)
         return gradient
 
-
 class QtWidget(object):
     def __init__(self, proxy, widget_type, properties):
         self.proxy = proxy
@@ -1528,3 +1527,9 @@ class QtUserInterface(object):
     def create_key_by_id(self, key_id):
         if key_id == "delete": return QtKey(chr(127), 0, 0)
         return None
+
+    def create_offscreen_drawing_context(self):
+        return QtDrawingContext()
+
+    def create_rgba_image(self, drawing_context, width, height):
+        return self.proxy.DrawingContext_paintRGBA(drawing_context.commands, width, height)

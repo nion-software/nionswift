@@ -13,6 +13,7 @@ import numpy
 import scipy.interpolate
 
 # local libraries
+from nion.swift import CanvasItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
 from nion.swift import Inspector
@@ -105,6 +106,7 @@ class ThumbnailThread(ProcessingThread):
 
     def __init__(self):
         super(ThumbnailThread, self).__init__(minimum_interval=0.2)
+        self.ui = None
         self.__data_item = None
         self.__mutex = threading.RLock()  # access to the data item
         # mutex is needed to avoid case where grab data is called
@@ -137,7 +139,7 @@ class ThumbnailThread(ProcessingThread):
             return data_item
 
     def process_data(self, data_item):
-        data_item.load_thumbnail_on_thread()
+        data_item.load_thumbnail_on_thread(self.ui)
 
     def release_data(self, data_item):
         data_item.remove_ref()
@@ -1198,7 +1200,7 @@ class DataItem(Storage.StorageBase):
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
-    def __get_thumbnail_1d_data(self, data, height, width):
+    def __get_thumbnail_1d_data(self, ui, data, height, width):
         assert data is not None
         assert Image.is_data_1d(data)
         if Image.is_data_rgb(data) or Image.is_data_rgba(data):
@@ -1206,20 +1208,19 @@ class DataItem(Storage.StorageBase):
             data = 0.0722 * data[:,0] + 0.7152 * data[:,1] + 0.2126 * data[:,2]
         else:
             data = Image.scalar_from_array(data)
-        rgba = numpy.empty((height, width, 4), numpy.uint8)
-        rgba[:] = 64
-        data_scaled = Image.scale_multidimensional(data, (width,))
-        data_min = numpy.amin(data_scaled)
-        data_max = numpy.amax(data_scaled)
-        data_min = data_min if data_min < 0 else 0.0
-        if data_max - data_min != 0.0:
-            data_scaled[:] = height * (data_scaled - data_min) / (data_max - data_min)
-        else:
-            data_scaled[:] = height * 0.5
-        rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))
-        return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+        line_graph_canvas_item = CanvasItem.LineGraphCanvasItem()
+        line_graph_canvas_item.update_layout((0, 0), (height, width))
+        line_graph_canvas_item.draw_captions = False
+        line_graph_canvas_item.draw_grid = False
+        line_graph_canvas_item.draw_frame = False
+        line_graph_canvas_item.background_color = "#EEEEEE"
+        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
+        line_graph_canvas_item.data = data
+        drawing_context = ui.create_offscreen_drawing_context()
+        line_graph_canvas_item._repaint(drawing_context)
+        return ui.create_rgba_image(drawing_context, width, height)
 
-    def __get_thumbnail_2d_data(self, image, height, width, data_range, display_limits):
+    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
         assert image is not None
         assert image.ndim in (2,3)
         image = Image.scalar_from_array(image)
@@ -1242,17 +1243,17 @@ class DataItem(Storage.StorageBase):
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
     # this will be invoked on a thread
-    def load_thumbnail_on_thread(self):
+    def load_thumbnail_on_thread(self, ui):
         with self.create_data_accessor() as data_accessor:
             data = data_accessor.data
         if data is not None:  # for data to load and make sure it has data
             #logging.debug("load_thumbnail_on_thread")
             height, width = self.__thumbnail_size
             if Image.is_data_1d(data):
-                self.set_cached_value("thumbnail_data", self.__get_thumbnail_1d_data(data, height, width))
+                self.set_cached_value("thumbnail_data", self.__get_thumbnail_1d_data(ui, data, height, width))
             elif Image.is_data_2d(data):
                 data_range = self.__get_data_range()
-                self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(data, height, width, data_range, self.display_limits))
+                self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(ui, data, height, width, data_range, self.display_limits))
             else:
                 self.remove_cached_value("thumbnail_data")
             self.notify_data_item_changed(set([THUMBNAIL]))
@@ -1260,9 +1261,10 @@ class DataItem(Storage.StorageBase):
             self.remove_cached_value("thumbnail_data")
 
     # returns a 2D uint32 array interpreted as RGBA pixels
-    def get_thumbnail_data(self, height, width):
+    def get_thumbnail_data(self, ui, height, width):
         if self.thumbnail_data_dirty:
             if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
+                self.__thumbnail_thread.ui = ui
                 self.__thumbnail_size = (height, width)
                 self.__thumbnail_thread.update_data(self)
         thumbnail_data = self.get_cached_value("thumbnail_data")
