@@ -223,30 +223,27 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         data_group2.data_items.append(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
-        image_panel1 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel1.data_panel_selection = DataItem.DataItemSpecifier(data_group1, data_item1)
-        image_panel2 = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel2.data_panel_selection = DataItem.DataItemSpecifier(data_group2, data_item2)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
-        document_controller.selected_image_panel = image_panel1
+        data_panel.focused = True
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
         # make sure our preconditions are right
         self.assertEqual(document_controller.selected_data_item, data_item1)
         self.assertEqual(len(data_item1.data_items), 0)
         # add processing and make sure it appeared
         document_controller.processing_invert()
         self.assertEqual(len(data_item1.data_items), 1)
-        # now make sure both the image panel and data panel show it as selected
-        self.assertEqual(image_panel1.data_panel_selection.data_item, data_item1.data_items[0])
+        # now make sure data panel shows it as selected
+        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1.data_items[0])
         data_group_widget = data_panel.data_group_widget
         data_item_widget = data_panel.data_item_widget
-        selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
+        selected_data_group = data_panel._get_data_panel_selection().data_group
         self.assertEqual(selected_data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.get_data_items_flat()[data_item_widget.current_index], data_item1.data_items[0])
         # switch away and back and make sure selection is still correct
-        document_controller.selected_image_panel = image_panel2
-        document_controller.selected_image_panel = image_panel1
-        self.assertEqual(image_panel1.data_panel_selection.data_item, data_item1.data_items[0])
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item2))
+        data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1.data_items[0]))
+        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1.data_items[0])
         selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
         self.assertEqual(selected_data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)

@@ -73,6 +73,7 @@ class TestImagePanelClass(unittest.TestCase):
         data_group = self.document_controller.document_model.data_groups[0]
         data_item_container = data_group.data_items[0]
         data_item = data_item_container.data_items[0]
+        self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
         self.assertEqual(self.image_panel.data_panel_selection.data_group, data_group)
         self.assertEqual(self.image_panel.data_panel_selection.data_item_container, data_item_container)
         self.assertEqual(self.image_panel.data_panel_selection.data_item, data_item)
