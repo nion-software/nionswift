@@ -1137,6 +1137,7 @@ class QtTreeWidget(QtWidget):
         self.on_current_item_changed = None
         self.on_item_clicked = None
         self.on_item_double_clicked = None
+        self.on_focus_changed = None
 
     def __get_item_model_controller(self):
         return self.__item_model_controller
@@ -1164,6 +1165,14 @@ class QtTreeWidget(QtWidget):
             return self.on_item_double_clicked(index, parent_row, parent_id)
         return False
 
+    def focusIn(self):
+        if self.on_focus_changed:
+            self.on_focus_changed(True)
+
+    def focusOut(self):
+        if self.on_focus_changed:
+            self.on_focus_changed(False)
+
     def set_current_row(self, index, parent_row, parent_id):
         self.proxy.PyTreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
 
@@ -1182,6 +1191,7 @@ class QtListWidget(QtWidget):
         self.on_item_clicked = None
         self.on_item_double_clicked = None
         self.on_item_size = None
+        self.on_focus_changed = None
         self.__delegate = None
 
     def __get_list_model_controller(self):
@@ -1239,6 +1249,14 @@ class QtListWidget(QtWidget):
         if self.on_item_size:
             return self.on_item_size(row)
         return (200, 80)
+
+    def focusIn(self):
+        if self.on_focus_changed:
+            self.on_focus_changed(True)
+
+    def focusOut(self):
+        if self.on_focus_changed:
+            self.on_focus_changed(False)
 
 
 class QtOutputWidget(QtWidget):

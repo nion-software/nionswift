@@ -485,6 +485,9 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
+        self.__focused = False
+        self.__current_data_item = None
+
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
 
@@ -531,8 +534,7 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
         self.data_group_widget.on_current_item_changed = data_group_widget_current_item_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
-
-        self.__current_data_item = None
+        self.data_group_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
         # this message is received when the current item changes in the widget
         self.__block1 = False
@@ -568,6 +570,7 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.on_current_item_changed = data_item_widget_current_item_changed
         self.data_item_widget.on_item_key_pressed = data_item_widget_key_pressed
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
+        self.data_item_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
         self.splitter = ui.create_splitter_widget("vertical", properties)
         self.splitter.orientation = "vertical"
@@ -579,6 +582,7 @@ class DataPanel(Panel.Panel):
 
         # connect self as listener. this will result in calls to selected_image_panel_changed
         self.document_controller.add_listener(self)
+        self.document_controller.weak_data_panel = weakref.ref(self)
 
     def close(self):
         self.splitter.save_state("window/v1/data_panel_splitter")
@@ -587,12 +591,19 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller.close()
         self.data_group_model_controller.close()
         # disconnect self as listener
+        self.document_controller.weak_data_panel = None
         self.document_controller.remove_listener(self)
         # finish closing
         super(DataPanel, self).close()
 
     def periodic(self):
         self.data_item_model_controller.periodic()
+
+    def __get_focused(self):
+        return self.__focused
+    def __set_focused(self, focused):
+        self.__focused = focused
+    focused = property(__get_focused, __set_focused)
 
     def _get_data_panel_selection(self):
         return DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, self.__current_data_item)

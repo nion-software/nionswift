@@ -45,6 +45,7 @@ class DocumentController(Storage.Broadcaster):
         self.workspace = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
+        self.weak_data_panel = None
         self.__cursor_weak_listeners = []
         self.__delay_queue = Queue.Queue()
         self.__delay_queue_mutex = threading.RLock()
@@ -254,9 +255,22 @@ class DocumentController(Storage.Broadcaster):
             self.notify_listeners("selected_data_item_changed", selected_data_item, set([DataItem.PANEL]))
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
+    def __get_selected_data_panel_selection(self):
+        data_panel_selection = None
+        # first check focused data panel
+        if self.weak_data_panel:
+            data_panel = self.weak_data_panel()
+            if data_panel and data_panel.focused:
+                data_panel_selection = data_panel._get_data_panel_selection()
+        # if not found, check for focused or selected image panel
+        if not data_panel_selection and self.selected_image_panel:
+            data_panel_selection = self.selected_image_panel.data_panel_selection
+        return data_panel_selection
+    selected_data_panel_selection = property(__get_selected_data_panel_selection)
+
     def __get_selected_data_item(self):
-        selected_image_panel = self.selected_image_panel
-        return selected_image_panel.data_item if selected_image_panel else None
+        selected_data_panel_selection = self.selected_data_panel_selection
+        return selected_data_panel_selection.data_item if selected_data_panel_selection else None
     selected_data_item = property(__get_selected_data_item)
 
     def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
@@ -379,8 +393,7 @@ class DocumentController(Storage.Broadcaster):
         if data_item:
             data_item.operations.remove(operation)
 
-    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
-        data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
+    def add_processing_operation(self, data_panel_selection, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
@@ -393,27 +406,29 @@ class DocumentController(Storage.Broadcaster):
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
-                    self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
+                    # incorrect usage of 'data_panel_selection_changed_from_image_panel', fix later
+                    self.data_panel_selection_changed_from_image_panel(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
+                    #self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
                 return new_data_item
         return None
 
     def processing_fft(self, select=True):
-        return self.add_processing_operation(Operation.FFTOperation(), prefix=_("FFT of "), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.FFTOperation(), prefix=_("FFT of "), select=select)
 
     def processing_ifft(self, select=True):
-        return self.add_processing_operation(Operation.IFFTOperation(), prefix=_("Inverse FFT of "), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.IFFTOperation(), prefix=_("Inverse FFT of "), select=select)
 
     def processing_gaussian_blur(self, select=True):
-        return self.add_processing_operation(Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "), select=select)
 
     def processing_resample(self, select=True):
-        return self.add_processing_operation(Operation.Resample2dOperation(), prefix=_("Resample of "), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.Resample2dOperation(), prefix=_("Resample of "), select=select)
 
     def processing_histogram(self, select=True):
-        return self.add_processing_operation(Operation.HistogramOperation(), prefix=_("Histogram of "), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.HistogramOperation(), prefix=_("Histogram of "), select=select)
 
     def processing_crop(self, select=True):
-        data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
+        data_panel_selection = self.selected_data_panel_selection
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             operation = Operation.Crop2dOperation()
@@ -421,10 +436,10 @@ class DocumentController(Storage.Broadcaster):
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)
             operation.graphic = graphic
-            return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
+            return self.add_processing_operation(data_panel_selection, operation, prefix=_("Crop of "), select=select)
 
     def processing_line_profile(self, select=True):
-        data_panel_selection = self.selected_image_panel.data_panel_selection if self.selected_image_panel else None
+        data_panel_selection = self.selected_data_panel_selection
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             operation = Operation.LineProfileOperation()
@@ -433,11 +448,11 @@ class DocumentController(Storage.Broadcaster):
             graphic.end = (0.75,0.75)
             data_item.graphics.append(graphic)
             operation.graphic = graphic
-            return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
+            return self.add_processing_operation(data_panel_selection, operation, prefix=_("Line Profile of "), select=select)
         return None
 
     def processing_invert(self, select=True):
-        return self.add_processing_operation(Operation.InvertOperation(), suffix=_(" Inverted"), select=select)
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.InvertOperation(), suffix=_(" Inverted"), select=select)
 
     def processing_duplicate(self, select=True):
         data_item = self.selected_data_item
@@ -449,27 +464,18 @@ class DocumentController(Storage.Broadcaster):
         return None
 
     def processing_snapshot(self, select=True):
-        data_item = self.selected_data_item
+        data_panel_selection = self.selected_data_panel_selection
+        data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             data_item_copy = copy.deepcopy(data_item)
             data_item_copy.title = _("Copy of ") + str(data_item_copy)
-            self.document_model.default_data_group.data_items.append(data_item_copy)
+            data_panel_selection.data_group.data_items.append(data_item_copy)
             return data_item_copy
         return None
 
     def processing_convert_to_scalar(self, select=True):
-        return self.add_processing_operation(Operation.ConvertToScalarOperation(), suffix=_(" Gray"), select=select)
-
-    def add_custom_processing_operation(self, data_item, fn, title=None):
-        class ZOperation(Operation.Operation):
-            def __init__(self, fn):
-                description = []
-                Operation.Operation.__init__(self, title if title else _("Processing"), description)
-                self.fn = fn
-            def process_data_copy(self, data_array):
-                return self.fn(data_array)
-        self.add_processing_operation(ZOperation(fn))
+        return self.add_processing_operation(self.selected_data_panel_selection, Operation.ConvertToScalarOperation(), suffix=_(" Gray"), select=select)
 
     def prepare_data_item_script(self):
         def find_var():
