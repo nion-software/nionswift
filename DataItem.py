@@ -605,7 +605,7 @@ class DataItem(Storage.StorageBase):
         data_item = cls()
         data_item.title = title
         data_item.param = param
-        data_item.set_properties(properties if properties else dict())
+        data_item.__properties = properties if properties else dict()
         data_item.__set_master_data(master_data)
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
@@ -773,15 +773,26 @@ class DataItem(Storage.StorageBase):
         return self.__properties.copy()
     properties = property(__get_properties)
 
-    def set_properties(self, properties):
-        self.__properties = properties
-
-    def grab_properties(self):
+    def __grab_properties(self):
         return self.__properties
-    def release_properties(self, properties):
-        self.__properties = properties
-        self.notify_set_property("properties", properties)
+    def __release_properties(self):
+        self.notify_set_property("properties", self.__properties)
         self.notify_data_item_changed(set([DISPLAY]))
+
+    def property_changes(self):
+        grab_properties = DataItem.__grab_properties
+        release_properties = DataItem.__release_properties
+        class PropertyChangeContextManager(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __enter__(self):
+                return self
+            def __exit__(self, type, value, traceback):
+                release_properties(self.__data_item)
+            def __get_properties(self):
+                return grab_properties(self.__data_item)
+            properties = property(__get_properties)
+        return PropertyChangeContextManager(self)
 
     # call this when data changes. this makes sure that the right number
     # of calibrations exist in this object. it also propogates the calibrations

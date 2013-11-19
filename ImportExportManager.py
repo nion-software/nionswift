@@ -152,9 +152,8 @@ def update_data_item_from_data_element(data_item, data_element):
                         data_item.calibrations[dimension].units = units
         # properties (general tags)
         if "properties" in data_element:
-            properties = data_item.grab_properties()
-            properties.update(data_element.get("properties"))
-            data_item.release_properties(properties)
+            with data_item.property_changes() as context:
+                context.properties.update(data_element.get("properties"))
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]

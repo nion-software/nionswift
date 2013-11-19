@@ -44,7 +44,8 @@ class TestStorageClass(unittest.TestCase):
         data[8, 8] = 2020
         data_item = DataItem.DataItem(data)
         data_item.display_limits = (500, 1000)
-        data_item.set_properties({ "one": 1 })
+        with data_item.property_changes() as context:
+            context.properties["one"] = 1
         data_group = DataGroup.DataGroup()
         data_group.data_items.append(data_item)
         document_controller.document_model.data_groups.append(data_group)
