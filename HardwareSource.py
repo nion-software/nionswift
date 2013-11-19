@@ -374,7 +374,10 @@ class HardwareSource(Storage.Broadcaster):
             channel_state = self.__channel_states.get(channel)
         new_channel_state = self.__update_channel_state(channel_state, data_item, data_element)
         with self.__channel_states_mutex:
-            self.__channel_states[channel] = new_channel_state
+            # avoid race condition where 'marked' is set during 'update_channel_state'...
+            # i.e. 'marked' can only transition to 'stopped'. leave it as 'marked' if nothing else.
+            if not channel in self.__channel_states or self.__channel_states[channel] != "marked" or new_channel_state == "stopped":
+                self.__channel_states[channel] = new_channel_state
 
     # update channel state.
     # channel state during normal acquisition: started -> (partial -> complete) -> stopped
