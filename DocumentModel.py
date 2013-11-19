@@ -29,6 +29,7 @@ class DocumentModel(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
+        self.session_uuid = uuid.uuid4()
         if storage_reader:
             storage_writer.disconnected = True
             need_rewrite = self.read(storage_reader)

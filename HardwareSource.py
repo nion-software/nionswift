@@ -19,6 +19,7 @@ import numbers
 import Queue as queue
 import threading
 import time
+import uuid
 import weakref
 
 # local imports
@@ -210,8 +211,9 @@ class HardwareSource(Storage.Broadcaster):
         self.__channel_activations_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
         self.__periodic_queue = queue.Queue()
-        # TODO: hack to get data group working. not sure how to handle this in the long run.
+        # TODO: hack to get data group and session working. not sure how to handle this in the long run.
         self.data_group = None
+        self.session_uuid = uuid.uuid4()
         self.__mode = None
         self.__mode_data = dict()
         self.__mode_lock = threading.RLock()
@@ -451,9 +453,22 @@ class HardwareSource(Storage.Broadcaster):
             data_item_name = "%s.%s" % (prefix, channel)
             # only use existing data item if it has a data buffer that matches
             data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
+            # to reuse, first verify that the hardware source id, if any, matches
+            if data_item:
+                hardware_source_id = data_item.properties.get("hardware_source_id")
+                if hardware_source_id != self.hardware_source_id:
+                    data_item = None
+            # next verify that that session id matches. disabled for now until re-use of data between sessions is figured out.
+            #session_uuid = data_item.properties.get("session_uuid")
+            #if session_uuid != self.session_uuid:
+            #    data_item = None
+            # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = data_item_name
+                with data_item.property_changes() as context:
+                    context.properties["hardware_source_id"] = self.hardware_source_id
+                    context.properties["session_uuid"] = self.session_uuid
                 # this function will be run on the main thread.
                 # be careful about binding the parameter. cannot use 'data_item' directly.
                 def append_data_item_to_data_group_task(append_data_item):
