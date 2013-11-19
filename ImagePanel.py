@@ -357,6 +357,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # draw the intensity scale
             vertical_tick_count = 4
             data_max = make_pretty(data_max, round_up=True)
+            data_min = make_pretty(data_min, round_up=True)
+            data_min = data_min if data_min < 0 else 0.0
             tick_size = intensity_rect[1][0] / vertical_tick_count
             drawing_context.text_baseline = "middle"
             drawing_context.font = "{0:d}px".format(self.font_size)
@@ -372,35 +374,38 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     w = 6
                 drawing_context.move_to(intensity_rect[0][1] + intensity_rect[1][1], y)
                 drawing_context.line_to(intensity_rect[0][1] + intensity_rect[1][1] - w, y)
+                drawing_context.move_to(plot_rect[0][1], y)
+                drawing_context.line_to(plot_rect[0][1] + plot_rect[1][1], y)
                 drawing_context.line_width = 1
                 drawing_context.stroke_style = '#888'
                 drawing_context.stroke()
                 drawing_context.fill_style = "#000"
-                drawing_context.fill_text("{0:g}".format(data_max * float(i) / vertical_tick_count), 8, y)
+                drawing_context.fill_text("{0:g}".format(data_min + (data_max - data_min) * float(i) / vertical_tick_count), 8, y)
                 #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
             drawing_context.text_baseline = "alphabetic"
             drawing_context.line_width = 1
             # draw the horizontal axis
             # draw the line plot itself
+            baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / (data_max - data_min))
             drawing_context.begin_path()
-            drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height)
-            for i in xrange(0, plot_width, 3):
+            drawing_context.move_to(plot_origin_x, baseline)
+            for i in xrange(0, plot_width, 2):
                 px = plot_origin_x + i
-                py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)]) / data_max)
+                py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)] - data_min) / (data_max - data_min))
                 drawing_context.line_to(px, py)
+                drawing_context.line_to(px + 2, py)
             # finish off last line
             px = plot_origin_x + plot_width
-            py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1]) / data_max)
-            drawing_context.line_to(px, py)
-            drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height)
+            py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1] - data_min) / (data_max - data_min))
+            drawing_context.line_to(plot_origin_x + plot_width, baseline)
             # close it up and draw
             drawing_context.close_path()
             drawing_context.fill_style = '#AFA'
             drawing_context.fill()
-            drawing_context.line_width = 2
+            drawing_context.line_width = 0.5
             drawing_context.line_cap = 'round'
             drawing_context.line_join = 'round'
-            drawing_context.stroke_style = '#2A2'
+            drawing_context.stroke_style = '#040'
             drawing_context.stroke()
             drawing_context.begin_path()
             drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
@@ -1643,9 +1648,10 @@ class InfoPanel(Panel.Panel):
 
 
 # make val into a pretty number
-def make_pretty(val, round_up=True):
+def make_pretty(val, round_up=False):
+    positive = val > 0
     factor10 = math.pow(10, int(math.log10(abs(val))))
-    val_norm = val/factor10
+    val_norm = abs(val)/factor10
     if val_norm < 1.0:
         val_norm = val_norm * 10
         factor10 = factor10 / 10
@@ -1658,10 +1664,10 @@ def make_pretty(val, round_up=True):
         else:
             val_norm = math.ceil(val_norm)  # movie up to next 1.0
         #print "val_norm+ " + str(val_norm)
-        return val_norm * factor10
+        return math.copysign(val_norm * factor10, val)
     else:
         # val_norm is now between 1 and 10
         if val_norm < 5.0:
-            return 0.5 * round(val_norm/0.5) * factor10
+            return math.copysign(0.5 * round(val_norm/0.5) * factor10, val)
         else:
-            return round(val_norm) * factor10
+            return math.copysign(round(val_norm) * factor10, val)

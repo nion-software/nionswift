@@ -1211,8 +1211,9 @@ class DataItem(Storage.StorageBase):
         data_scaled = Image.scale_multidimensional(data, (width,))
         data_min = numpy.amin(data_scaled)
         data_max = numpy.amax(data_scaled)
+        data_min = data_min if data_min < 0 else 0.0
         if data_max - data_min != 0.0:
-            data_scaled[:] = height * (data_scaled) / data_max
+            data_scaled[:] = height * (data_scaled - data_min) / (data_max - data_min)
         else:
             data_scaled[:] = height * 0.5
         rgba[:,:,3] = numpy.fromfunction(lambda y,x: numpy.where(height-1-y<data_scaled,255,0), (height,width))
