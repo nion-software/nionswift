@@ -495,6 +495,7 @@ class QtWidget(object):
         self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
         self.update_properties()
         self.__visible = True
+        self.__enabled = True
 
     # subclasses should override to clear their variable.
     # subclsases should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -522,6 +523,13 @@ class QtWidget(object):
         if visible != self.__visible:
             self.proxy.Widget_setVisible(self.widget, visible)
     visible = property(__get_visible, __set_visible)
+
+    def __get_enabled(self):
+        return self.__enabled
+    def __set_enabled(self, enabled):
+        if enabled != self.__enabled:
+            self.proxy.Widget_setEnabled(self.widget, enabled)
+    enabled = property(__get_enabled, __set_enabled)
 
     def __get_size(self):
         raise NotImplementedError()
