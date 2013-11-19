@@ -498,7 +498,7 @@ class HardwareSourceDataBuffer(Storage.Broadcaster):
         self.__current_snapshot = 0
 
     def close(self):
-        logging.info("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        logging.debug("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.pause()
             # we should be consistent about how we stop live acquisitions:
@@ -537,7 +537,7 @@ class HardwareSourceDataBuffer(Storage.Broadcaster):
 
     # must be called on the UI thread
     def start(self, mode=None):
-        logging.info("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        logging.debug("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is None:
             self.hardware_port = self.hardware_source.create_port(mode)
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
@@ -545,7 +545,7 @@ class HardwareSourceDataBuffer(Storage.Broadcaster):
 
     # must be called on the UI thread
     def stop(self):
-        logging.info("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
