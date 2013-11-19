@@ -205,6 +205,17 @@ class StorageBase(Broadcaster):
     def about_to_delete(self):
         pass
 
+    def ref(self):
+        class RefContextManager(object):
+            def __init__(self, item):
+                self.__item = item
+            def __enter__(self):
+                self.__item.add_ref()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__item.remove_ref()
+        return RefContextManager(self)
+
     # Anytime you store a reference to this item, call add_ref.
     # This allows the class to disconnect from its own sources
     # automatically when the reference count goes to zero.
