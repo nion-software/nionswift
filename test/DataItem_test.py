@@ -9,10 +9,12 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift import Application
 from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import Operation
+from nion.swift import Test
 
 
 class TestCalibrationClass(unittest.TestCase):
@@ -89,8 +91,9 @@ class TestCalibrationClass(unittest.TestCase):
 
 
 class TestDataItemClass(unittest.TestCase):
+
     def setUp(self):
-        pass
+        self.app = Application.Application(Test.UserInterface(), set_global=False)
 
     def tearDown(self):
         pass
@@ -171,7 +174,7 @@ class TestDataItemClass(unittest.TestCase):
         listener = Listener()
         data_item.add_listener(listener)
         # the next line also triggers the thumbnail calculation
-        self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
+        self.assertIsNotNone(data_item.get_thumbnail_data(self.app.ui, 64, 64))
         # wait for the thumbnail
         event.wait()
         data_item.remove_listener(listener)
@@ -184,7 +187,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         data_item.add_ref()
-        self.assertIsNotNone(data_item.get_thumbnail_data(64, 64))
+        self.assertIsNotNone(data_item.get_thumbnail_data(self.app.ui, 64, 64))
         data_item.remove_ref()
 
     # make sure thumbnail raises exception if a bad operation is involved
@@ -204,7 +207,7 @@ class TestDataItemClass(unittest.TestCase):
             # is required to trigger the thumbnail data functionality.
             # thumbnails no longer trigger a call to data.
             # CEM 2013-10-18
-            data_item2.get_thumbnail_data(64, 64)
+            data_item2.get_thumbnail_data(self.app.ui, 64, 64)
         data_item.remove_ref()
 
     def test_delete_nested_data_item(self):

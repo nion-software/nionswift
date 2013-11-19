@@ -481,6 +481,7 @@ class LineGraphCanvasItem(AbstractCanvasItem):
 
             data_min = numpy.amin(self.data)
             data_max = numpy.amax(self.data)
+            data_range = data_max - data_min
             data_len = self.data.shape[0]
             # draw the background
             drawing_context.begin_path()
@@ -517,25 +518,29 @@ class LineGraphCanvasItem(AbstractCanvasItem):
                 drawing_context.stroke()
                 if self.draw_captions:
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text("{0:g}".format(data_min + (data_max - data_min) * float(i) / vertical_tick_count), 8, y)
+                    drawing_context.fill_text("{0:g}".format(data_min + data_range * float(i) / vertical_tick_count), 8, y)
                 #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
             if self.draw_captions:
                 drawing_context.text_baseline = "alphabetic"
             drawing_context.line_width = 1
             # draw the horizontal axis
             # draw the line plot itself
-            baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / (data_max - data_min))
             drawing_context.begin_path()
-            drawing_context.move_to(plot_origin_x, baseline)
-            for i in xrange(0, plot_width, 2):
-                px = plot_origin_x + i
-                py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)] - data_min) / (data_max - data_min))
-                drawing_context.line_to(px, py)
-                drawing_context.line_to(px + 2, py)
-            # finish off last line
-            px = plot_origin_x + plot_width
-            py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1] - data_min) / (data_max - data_min))
-            drawing_context.line_to(plot_origin_x + plot_width, baseline)
+            if data_range != 0.0:
+                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / data_range)
+                drawing_context.move_to(plot_origin_x, baseline)
+                for i in xrange(0, plot_width, 2):
+                    px = plot_origin_x + i
+                    py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)] - data_min) / data_range)
+                    drawing_context.line_to(px, py)
+                    drawing_context.line_to(px + 2, py)
+                # finish off last line
+                px = plot_origin_x + plot_width
+                py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1] - data_min) / data_range)
+                drawing_context.line_to(plot_origin_x + plot_width, baseline)
+            else:
+                drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
+                drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
             # close it up and draw
             drawing_context.close_path()
             drawing_context.fill_style = '#AFA'

@@ -356,7 +356,10 @@ class UserInterface:
         return str()
     def create_key_by_id(self, key_id):
         return Key(key_id, 0, 0)
-
+    def create_offscreen_drawing_context(self):
+        return DrawingContext()
+    def create_rgba_image(self, drawing_context, width, height):
+        return numpy.zeros((height, width), dtype=numpy.uint32)
 
 class KeyboardModifiers(object):
     def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):

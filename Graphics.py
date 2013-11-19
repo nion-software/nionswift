@@ -14,6 +14,8 @@ from nion.swift import Storage
 # make val into a pretty number
 def make_pretty(val, round_up=False):
     positive = val > 0
+    if not positive and not val < 0:
+        return 0.0
     factor10 = math.pow(10, int(math.log10(abs(val))))
     val_norm = abs(val)/factor10
     if val_norm < 1.0:
