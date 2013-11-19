@@ -2,22 +2,18 @@
 import copy
 import gettext
 import logging
-import os
-import random
 import threading
 import uuid
 import weakref
 
 # third party libraries
-import numpy
+# None
 
 # local libraries
 from nion.swift import DataItem
 from nion.swift import DataGroup
 from nion.swift import Graphics
-from nion.swift import Image
 from nion.swift import Panel
-from nion.swift import UserInterface
 
 _ = gettext.gettext
 
@@ -654,34 +650,12 @@ class DataPanel(Panel.Panel):
 
     # this message comes from the data group model
     def data_group_model_receive_files(self, data_group, index, file_paths):
-        if data_group and isinstance(data_group, DataGroup.DataGroup):
-            first_data_item = None
-            for file_path in file_paths:
-                try:
-                    raw_image = self.ui.load_rgba_data_from_file(file_path)
-                    rgba_image = Image.get_rgb_view(raw_image)
-                    if numpy.array_equal(rgba_image[..., 0],rgba_image[..., 1]) and numpy.array_equal(rgba_image[..., 1],rgba_image[..., 2]):
-                        image_data = numpy.zeros(raw_image.shape, numpy.uint32)
-                        image_data[:, :] = numpy.mean(rgba_image, 2)
-                    else:
-                        image_data = rgba_image
-                    data_item = DataItem.DataItem()
-                    data_item.title = os.path.basename(file_path)
-                    with data_item.create_data_accessor() as data_accessor:
-                        data_accessor.master_data = image_data
-                    if index >= 0:
-                        data_group.data_items.insert(index, data_item)
-                    else:
-                        data_group.data_items.append(data_item)
-                    if not first_data_item:
-                        first_data_item = data_item
-                except Exception as e:
-                    logging.debug("Could not read image %s", file_path)
-            if first_data_item:
-                # select the first item/group
-                self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, first_data_item))
-                #image_panel = self.document_controller.selected_image_panel
-                #if image_panel:
-                #    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, first_data_item)
-                return True
+        data_items = self.document_controller.receive_files(file_paths, data_group, index)
+        if len(data_items) > 0:
+            # select the first item/group
+            self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_items[0]))
+            #image_panel = self.document_controller.selected_image_panel
+            #if image_panel:
+            #    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_items[0])
+            return True
         return False

@@ -3,13 +3,14 @@ import copy
 import gettext
 import logging
 import Queue
+import os
 import random
 import threading
 import time
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift.Decorators import queue_main_thread
@@ -108,9 +109,8 @@ class DocumentController(Storage.Broadcaster):
         self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
         self.file_menu.add_separator()
-        self.add_smart_group_action = self.file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
+        #self.add_smart_group_action = self.file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
-        self.add_green_action = self.file_menu.add_menu_item(_("Add Green"), lambda: self.add_green_data_item(), key_sequence="Ctrl+Shift+G")
         self.file_menu.add_separator()
         self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
 
@@ -145,6 +145,10 @@ class DocumentController(Storage.Broadcaster):
         self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
         self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
         self.layout_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
+        #self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
+        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+7")
+        #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
+        #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
@@ -346,13 +350,6 @@ class DocumentController(Storage.Broadcaster):
             assert data_group in container.data_groups
             container.data_groups.remove(data_group)
 
-    def add_green_data_item(self):
-        color_image_source = DataItem.DataItem()
-        color_image_source.title = "Green " + str(random.randint(1,1000000))
-        with color_image_source.create_data_accessor() as data_accessor:
-            data_accessor.master_data = Image.create_color_image((512, 512), 128, 255, 128)
-        self.document_model.default_data_group.data_items.append(color_image_source)
-
     def add_line_graphic(self):
         data_item = self.selected_data_item
         if data_item:
@@ -490,6 +487,37 @@ class DocumentController(Storage.Broadcaster):
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
+
+    def receive_files(self, file_paths, data_group, index=-1):
+        data_items = list()
+        if data_group and isinstance(data_group, DataGroup.DataGroup):
+            for file_path in file_paths:
+                try:
+                    # TODO: use import export manager
+                    raw_image = self.ui.load_rgba_data_from_file(file_path)
+                    rgba_image = Image.get_rgb_view(raw_image)
+                    if numpy.array_equal(rgba_image[..., 0],rgba_image[..., 1]) and numpy.array_equal(rgba_image[..., 1],rgba_image[..., 2]):
+                        image_data = numpy.zeros(raw_image.shape, numpy.uint32)
+                        image_data[:, :] = numpy.mean(rgba_image, 2)
+                    else:
+                        image_data = rgba_image
+                    # create the data item
+                    data_item = DataItem.DataItem()
+                    with data_item.ref():
+                        data_item.title = os.path.basename(file_path)
+                        with data_item.create_data_accessor() as data_accessor:
+                            data_accessor.master_data = image_data
+                        if index >= 0:
+                            data_group.data_items.insert(index, data_item)
+                        else:
+                            data_group.data_items.append(data_item)
+                        data_items.append(data_item)
+                except Exception as e:
+                    logging.debug("Could not read image %s", file_path)
+                    import traceback
+                    traceback.print_exc()
+                    logging.debug("Error: %s", e)
+        return data_items
 
 
 # binding to the selected data item in the document controller
