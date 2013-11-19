@@ -285,6 +285,8 @@ class HardwareSource(Storage.Broadcaster):
     def acquire_thread_loop(self, mode, mode_data):
         try:
             self.start_acquisition(mode, mode_data)
+            minimum_period = 1/20.0  # don't allow acquisition to starve main thread
+            last_acquire_time = time.time() - minimum_period
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -307,7 +309,14 @@ class HardwareSource(Storage.Broadcaster):
                         if new_data_elements is not None:
                             port._set_new_data_elements(new_data_elements)
 
+                # impose maximum frame rate so that acquire_data_elements can't starve main thread
+                elapsed = time.time() - last_acquire_time
+                time.sleep(max(0.0, minimum_period - elapsed))
+
                 new_data_elements = self.acquire_data_elements()
+
+                # record the last acquisition time
+                last_acquire_time = time.time()
 
                 # new_data_elements should never be empty
                 assert new_data_elements is not None
