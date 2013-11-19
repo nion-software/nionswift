@@ -643,6 +643,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # image panel is optional.
         if self.image_panel:
             self.document_controller.selected_image_panel = self.image_panel
+        # now let the image panel handle mouse clicking if desired
         image_position = WidgetMapping(self.data_item.spatial_shape, self.canvas_size).map_point_widget_to_image((y, x))
         ImagePanelManager().mouse_clicked(self.image_panel, self.data_item, image_position, modifiers)
         return True
