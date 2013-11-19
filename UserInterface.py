@@ -522,6 +522,7 @@ class QtWidget(object):
     def __set_visible(self, visible):
         if visible != self.__visible:
             self.proxy.Widget_setVisible(self.widget, visible)
+            self.__visible = visible
     visible = property(__get_visible, __set_visible)
 
     def __get_enabled(self):
@@ -529,6 +530,7 @@ class QtWidget(object):
     def __set_enabled(self, enabled):
         if enabled != self.__enabled:
             self.proxy.Widget_setEnabled(self.widget, enabled)
+            self.__enabled = enabled
     enabled = property(__get_enabled, __set_enabled)
 
     def __get_size(self):
