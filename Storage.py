@@ -187,6 +187,7 @@ class StorageBase(Broadcaster):
         self.storage_type = None
         self.__cache = dict()
         self.__cache_dirty = dict()
+        self.__cache_mutex = threading.RLock()
         self.__weak_observers = []
         self.__weak_parents = []
         self.__transaction_count = 0
@@ -569,48 +570,80 @@ class StorageBase(Broadcaster):
         self.storage_writer.erase_data(self)
         self.write_data()
 
-    # move local cache items into permanent cache
-    def spill_cache(self):
-        for key, value in self.__cache.iteritems():
-            if self.storage_cache:
-                self.storage_cache.set_cached_value(self, key, value, self.__cache_dirty.get(key, False))
-        self.__cache.clear()
-        self.__cache_dirty.clear()
+    # the cache system stores values that are expensive to calculate for quick retrieval.
+    # an item can be marked dirty in the cache so that callers can determine whether that
+    # value needs to be recalculated. marking a value as dirty doesn't affect the current
+    # value in the cache. callers can still retrieve the latest value for an item in the
+    # cache even when it is marked dirty. this way the cache is used to retrieve the best
+    # available data without doing additional calculations.
 
+    # move local cache items into permanent cache when transaction is finished.
+    def spill_cache(self):
+        with self.__cache_mutex:
+            cache_copy = copy.copy(self.__cache)
+            cache_dirty_copy = copy.copy(self.__cache_dirty)
+            self.__cache.clear()
+            self.__cache_dirty.clear()
+        for key, value in cache_copy.iteritems():
+            if self.storage_cache:
+                self.storage_cache.set_cached_value(self, key, value, cache_dirty_copy.get(key, False))
+
+    # update the value in the cache. usually updating a value in the cache
+    # means it will no longer be dirty.
     def set_cached_value(self, key, value, dirty=False):
+        # if transaction count is 0, cache directly
         if self.storage_cache and self.__transaction_count == 0:
             self.storage_cache.set_cached_value(self, key, value, dirty)
+        # otherwise, store it temporarily until transaction is finished
         else:
-            self.__cache[key] = value
-            self.__cache_dirty[key] = False
+            with self.__cache_mutex:
+                self.__cache[key] = value
+                self.__cache_dirty[key] = dirty
 
+    # grab the last cached value, if any, from the cache.
     def get_cached_value(self, key, default_value=None):
-        if key in self.__cache:
-            return self.__cache.get(key)
+        # first check temporary cache.
+        with self.__cache_mutex:
+            if key in self.__cache:
+                return self.__cache.get(key)
+        # not there, go to cache db
         if self.storage_cache:
             return self.storage_cache.get_cached_value(self, key, default_value)
         return default_value
 
+    # removing values from the cache happens immediately under a transaction.
+    # this is an area of improvement if it becomes a bottleneck.
     def remove_cached_value(self, key):
+        # remove it from the cache db.
         if self.storage_cache:
             self.storage_cache.remove_cached_value(self, key)
-        if key in self.__cache:
-            del self.__cache[key]
-        if key in self.__cache_dirty:
-            del self.__cache_dirty[key]
+        # if its in the temporary cache, remove it
+        with self.__cache_mutex:
+            if key in self.__cache:
+                del self.__cache[key]
+            if key in self.__cache_dirty:
+                del self.__cache_dirty[key]
 
+    # determines whether the item in the cache is dirty.
     def is_cached_value_dirty(self, key):
-        if key in self.__cache_dirty:
-            return self.__cache_dirty[key]
+        # check the temporary cache first
+        with self.__cache_mutex:
+            if key in self.__cache_dirty:
+                return self.__cache_dirty[key]
+        # not there, go to the db cache
         if self.storage_cache:
             return self.storage_cache.is_cached_value_dirty(self, key)
         return True
 
+    # set whether the cache value is dirty.
     def set_cached_value_dirty(self, key, dirty=True):
+        # go directory to the db cache if not under a transaction
         if self.storage_cache and self.__transaction_count == 0:
             self.storage_cache.set_cached_value_dirty(self, key, dirty)
+        # otherwise mark it in the temporary cache
         else:
-            self.__cache_dirty[key] = dirty
+            with self.__cache_mutex:
+                self.__cache_dirty[key] = dirty
 
 # design considerations: fast, threaded, future proof, object oriented items
 # two techniques:
