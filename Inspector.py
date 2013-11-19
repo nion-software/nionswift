@@ -411,6 +411,7 @@ class ProcessingPanel(Panel.Panel):
                 self.__stack_groups.append(stack_group)
 
     def periodic(self):
+        super(ProcessingPanel, self).periodic()
         with self.__rebuild_mutex:
             rebuild = self.__rebuild
             data_item = self.__rebuild_data_item
@@ -461,6 +462,7 @@ class InspectorPanel(Panel.Panel):
         super(InspectorPanel, self).close()
 
     def periodic(self):
+        super(InspectorPanel, self).periodic()
         if self.__pec:
             self.__pec.periodic()
         with self.__update_data_item_mutex:

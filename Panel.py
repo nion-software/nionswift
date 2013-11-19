@@ -13,7 +13,7 @@ from StringIO import StringIO
 # None
 
 # local libraries
-# None
+from nion.swift import Decorators
 
 
 _ = gettext.gettext
@@ -33,6 +33,9 @@ class Panel(object):
         self.panel_id = panel_id
         self.dock_widget = None
         self.display_name = display_name
+        # useful for many panels.
+        self.__periodic_task_queue = Decorators.TaskQueue()
+        self.__periodic_task_set = Decorators.TaskSet()
 
     # subclasses can override to clean up when the panel closes.
     def close(self):
@@ -41,6 +44,20 @@ class Panel(object):
     def __get_document_controller(self):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
+
+    # not thread safe. always call from main thread.
+    def periodic(self):
+        self.__periodic_task_queue.perform_tasks()
+        self.__periodic_task_set.perform_tasks()
+
+    # tasks can be added in two ways, queued or added
+    # queued tasks are guaranteed to be executed in the order queued.
+    # added tasks are only executed if not replaced before execution.
+    # added tasks do not guarantee execution order or execution at all.
+    def add_task(self, key, task):
+        self.__periodic_task_set.add_task(key, task)
+    def queue_task(self, task):
+        self.__periodic_task_queue.put(task)
 
     def __str__(self):
         return self.display_name

@@ -1420,6 +1420,7 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     def periodic(self):
+        super(InfoPanel, self).periodic()
         with self.__pending_info_mutex:
             do_update = self.__pending_info is not None
             if do_update:

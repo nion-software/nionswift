@@ -593,6 +593,7 @@ class DataPanel(Panel.Panel):
         super(DataPanel, self).close()
 
     def periodic(self):
+        super(DataPanel, self).periodic()
         self.data_item_model_controller.periodic()
 
     def __get_focused(self):
