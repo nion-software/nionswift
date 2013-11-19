@@ -446,17 +446,20 @@ class DataPanel(Panel.Panel):
             display = str(data_item)
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
+            display4 = data_item.live_status_as_string
             ctx.save()
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
                 draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
                 ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             ctx.fill_style = "#000"
-            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17)
-            ctx.font = "italic"
-            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17)
-            ctx.font = "italic"
-            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 17 + 17 + 17)
+            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12)
+            ctx.font = "11px italic"
+            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+            ctx.font = "11px italic"
+            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+            ctx.font = "11px italic"
+            ctx.fill_text(display4, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
             ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):

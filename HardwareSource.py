@@ -214,6 +214,7 @@ class HardwareSource(Storage.Broadcaster):
         # TODO: hack to get data group and session working. not sure how to handle this in the long run.
         self.data_group = None
         self.session_uuid = uuid.uuid4()
+        self.frame_index = 0
         self.__mode = None
         self.__mode_data = dict()
         self.__mode_lock = threading.RLock()
@@ -314,6 +315,11 @@ class HardwareSource(Storage.Broadcaster):
                 time.sleep(max(0.0, minimum_period - elapsed))
 
                 new_data_elements = self.acquire_data_elements()
+
+                # update frame_index if not supplied
+                for data_element in new_data_elements:
+                    data_element.setdefault("properties", dict()).setdefault("frame_index", self.frame_index)
+                self.frame_index += 1
 
                 # record the last acquisition time
                 last_acquire_time = time.time()

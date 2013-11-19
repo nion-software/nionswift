@@ -649,6 +649,12 @@ class DataItem(Storage.StorageBase):
         return self.transaction_count > 0
     is_live = property(__get_is_live)
 
+    def __get_live_status_as_string(self):
+        if self.is_live:
+            return _("{0:s} {1:s}".format(_("Live"), str(self.__properties.get("frame_index", str()))))
+        return str()
+    live_status_as_string = property(__get_live_status_as_string)
+
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
             def __init__(self, data_item):
@@ -764,7 +770,7 @@ class DataItem(Storage.StorageBase):
                 datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S")
             return datetime_.strftime("%c")
         else:
-            return _("N/A")
+            return str()
     datetime_original_as_string = property(__get_datetime_original_as_string)
 
     # access properties
