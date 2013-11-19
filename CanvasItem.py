@@ -481,7 +481,6 @@ class LineGraphCanvasItem(AbstractCanvasItem):
 
             data_min = numpy.amin(self.data)
             data_max = numpy.amax(self.data)
-            data_range = data_max - data_min
             data_len = self.data.shape[0]
             # draw the background
             drawing_context.begin_path()
@@ -493,6 +492,7 @@ class LineGraphCanvasItem(AbstractCanvasItem):
             data_max = Graphics.make_pretty(data_max, round_up=True)
             data_min = Graphics.make_pretty(data_min, round_up=True)
             data_min = data_min if data_min < 0 else 0.0
+            data_range = data_max - data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
             if self.draw_captions:
                 drawing_context.text_baseline = "middle"
