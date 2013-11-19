@@ -18,30 +18,11 @@ from nion.swift import Panel
 _ = gettext.gettext
 
 
-"""
-    When the user changes image panels, the data panel must update itself to reflect what
-    is selected in the image panel. It does this by receiving the selected_image_panel_changed
-    message.
-
-    When the user selects a new data item or group, the data panel must notify the selected
-    image panel. It does this in the itemChanged method.
-"""
-
-
-# TODO: The selection will change when the user changes focused image panel
-# TODO: If the user selects a different data item, it needs to be associated with focused image panel
-# TODO: Data panel has two selections: a folder and a data item
-# TODO: Each folder remembers its data item selection (or has an algorithm if selected item was deleted)
 # TODO: User can delete items from just that folder (delete), or from all folders (shift-delete)
-# TODO: Image panel should retain the folder/data item combination, not just the data item.
-# TODO: User needs to be able to select folder. But what happens when they do?
-#       What if image panel selection becomes just a folder, it displays a blank, but retains the selection
-# TODO: What happens when a group/item selected in a different image panel is deleted?
 
 """
     User clicks on data item -> update data_panel_selection, highlight data group and data item
     User clicks on data group -> highlight data group, highlight data item if data_panel_selection matches data group
-    User switches image panels -> highlight data group and data item to match new data_panel_selection
 """
 
 
@@ -511,10 +492,6 @@ class DataPanel(Panel.Panel):
             self.data_item_model_controller.data_group = data_group
             self.__current_data_item = None
             self.update_data_panel_selection(self._get_data_panel_selection())
-            # if the new data group matches the one in the image panel, make sure to select the data item too
-            #image_panel = self.document_controller.selected_image_panel
-            #if image_panel and data_group == image_panel.data_panel_selection.data_group:
-            #self.update_data_panel_selection(image_panel.data_panel_selection)
             self.__block1 = saved_block1
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
@@ -540,11 +517,6 @@ class DataPanel(Panel.Panel):
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 self.__current_data_item = data_item  # useful for on_data_item_begin_move
-                # update the selected image panel
-                #image_panel = self.document_controller.selected_image_panel
-                #if image_panel:
-                    # this next statement will eventually end up back in this class via the data_panel_selection_changed_from_image_panel method.
-                    #image_panel.data_panel_selection = DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item)
 
         def data_item_widget_key_pressed(index, key):
             data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
@@ -576,7 +548,7 @@ class DataPanel(Panel.Panel):
 
         self.widget = self.splitter
 
-        # connect self as listener. this will result in calls to selected_image_panel_changed
+        # connect self as listener. this will result in calls to update_data_panel_selection
         self.document_controller.add_listener(self)
         self.document_controller.weak_data_panel = weakref.ref(self)
 
@@ -607,7 +579,8 @@ class DataPanel(Panel.Panel):
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
-    # update cycles.
+    # update cycles. this message is also received directly from the document_controller via
+    # add_listener.
     def update_data_panel_selection(self, data_panel_selection):
         saved_block1 = self.__block1
         self.__block1 = True
@@ -633,30 +606,11 @@ class DataPanel(Panel.Panel):
         #logging.debug("after move %s %s", self.data_item_widget.current_index, self.__current_data_item)
         self.__block1 = False
 
-    # this message is received from the document controller when the user or program selects
-    # a new image panel by clicking on it or otherwise selecting it.
-    # the connection to the document controller is established using add_listener
-#    def selected_image_panel_changed(self, image_panel):
-#        data_panel_selection = image_panel.data_panel_selection if image_panel else DataItem.DataItemSpecifier()
-#        self.update_data_panel_selection(data_panel_selection)
-
-    # this message is received from the document controller when the user or program selects
-    # a new data item to be displayed in the current image panel. this can happen when the user
-    # selects a new data item in this data panel which will send a message to the current image
-    # panel to set the data item, which in turn will result in this message, leading to the selection
-    # being updated in this data panel.
-    # the connection to the document controller is established using add_listener
-    def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
-        self.update_data_panel_selection(data_panel_selection)
-
     # this message comes from the data group model
     def data_group_model_receive_files(self, data_group, index, file_paths):
         data_items = self.document_controller.receive_files(file_paths, data_group, index)
         if len(data_items) > 0:
             # select the first item/group
             self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_items[0]))
-            #image_panel = self.document_controller.selected_image_panel
-            #if image_panel:
-            #    image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_items[0])
             return True
         return False

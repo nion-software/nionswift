@@ -515,6 +515,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     mouse_x = self.__last_mouse[1] - self.line_graph_canvas_item.left_caption_width
                     line_graph_width = self.canvas_size[1] - self.line_graph_canvas_item.left_caption_width - self.line_graph_canvas_item.right_margin
                     pos = (data_size[0] * mouse_x / line_graph_width, )
+                # TODO: don't call notify_listeners directly, let document controller notify its own listeners
                 self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, list(), data_size)
 
     def drag_enter(self, mime_data):
@@ -906,6 +907,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 data_item = self.data_item
                 graphics = data_item.graphics if data_item else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
+                # TODO: don't call notify_listeners directly, let document controller notify its own listeners
                 self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
 
     # this method will be invoked from the paint thread.

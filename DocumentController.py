@@ -278,7 +278,7 @@ class DocumentController(Storage.Broadcaster):
     selected_data_item = property(__get_selected_data_item)
 
     def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
-        self.notify_listeners("data_panel_selection_changed_from_image_panel", data_panel_selection)
+        self.notify_listeners("update_data_panel_selection", data_panel_selection)
 
     # this message comes from the selected image panel. the connection is established
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
@@ -403,9 +403,7 @@ class DocumentController(Storage.Broadcaster):
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
-                    # incorrect usage of 'data_panel_selection_changed_from_image_panel', fix later
-                    self.data_panel_selection_changed_from_image_panel(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
-                    #self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item)
+                    self.notify_listeners("update_data_panel_selection", DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
                 return new_data_item
         return None
 
