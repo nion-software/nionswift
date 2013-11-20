@@ -28,5 +28,10 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace.change_layout("2x1")
         document_controller.workspace.change_layout("3x1")
         document_controller.workspace.change_layout("2x2")
+        document_controller.workspace.change_layout("3x2")
         document_controller.workspace.change_layout("1x2")
         document_controller.workspace.change_layout("1x1")
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
+    unittest.main()

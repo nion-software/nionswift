@@ -145,8 +145,8 @@ class DocumentController(Storage.Broadcaster):
         self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
         self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
         self.layout_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
-        #self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
-        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+7")
+        self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
+        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
         #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
         #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
 
