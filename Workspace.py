@@ -202,7 +202,6 @@ class Workspace(object):
             self.image_row.add(image_row)
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "3x2":
-            logging.debug(layout_id)
             image_row = self.ui.create_splitter_widget("horizontal")
             image_column1 = self.ui.create_splitter_widget("vertical")
             image_column2 = self.ui.create_splitter_widget("vertical")
