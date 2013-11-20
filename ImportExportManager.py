@@ -5,7 +5,7 @@ import os
 import time
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import DataItem
@@ -224,6 +224,29 @@ class StandardImportExportHandler(ImportExportHandler):
             ui.save_rgba_data_to_file(data, path, extension)
 
 
+class CSVImportExportHandler(ImportExportHandler):
+
+    def __init__(self, name, extensions):
+        super(CSVImportExportHandler, self).__init__(name, extensions)
+
+    def read_data_elements(self, ui, extension, path):
+        data = numpy.loadtxt(path, delimiter=',')
+        if data is not None:
+            data_element = dict()
+            data_element["data"] = data
+            return [data_element]
+        return list()
+
+    def can_write(self, data_item, extension):
+        return True
+
+    def write(self, ui, data_item, path, extension):
+        data = data_item.preview_2d
+        if data is not None:
+            numpy.savetxt(path, data, delimiter=', ')
+
+
 ImportExportManager().register_io_handler(StandardImportExportHandler("JPEG", ["jpg", "jpeg"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("PNG", ["png"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))
+ImportExportManager().register_io_handler(CSVImportExportHandler("CSV", ["csv"]))
