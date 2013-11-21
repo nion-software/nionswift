@@ -253,10 +253,15 @@ class HardwareSource(Storage.Broadcaster):
         with self.__mode_lock:
             __mode_data[self.__mode] = copy.copy(mode_data)
 
+    # subclasses may override this to respond to mode changes
+    def set_mode(self, mode):
+        pass
+
     # mode property. thread safe.
     def __get_mode(self):
         return self.__mode
     def __set_mode(self, mode):
+        self.set_mode(mode)
         self.__mode = mode
     mode = property(__get_mode, __set_mode)
 
