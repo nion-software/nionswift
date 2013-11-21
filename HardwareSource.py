@@ -100,28 +100,28 @@ class HardwareSourceManager(Storage.Broadcaster):
         hardware_source.stop_playing()
 
     # not thread safe
-    def get_hardware_source_settings(self, hardware_source_id, mode):
+    def get_hardware_source_settings(self, hardware_source, mode):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         return hardware_source.get_mode_settings(mode)
 
     # not thread safe
-    def set_hardware_source_settings(self, hardware_source_id, mode, mode_data):
+    def set_hardware_source_settings(self, hardware_source, mode, mode_data):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         hardware_source.set_mode_settings(mode, mode_data)
 
     # not thread safe
-    def get_hardware_source_mode(self, hardware_source_id):
+    def get_hardware_source_mode(self, hardware_source):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
         return hardware_source.mode
 
     # not thread safe
-    def set_hardware_source_mode(self, hardware_source_id, mode):
+    def set_hardware_source_mode(self, hardware_source, mode):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
