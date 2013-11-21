@@ -404,7 +404,7 @@ class HardwareSource(Storage.Broadcaster):
         if channel_state == "stopped":
             return channel_state
         sub_area = data_element.get("sub_area")
-        complete = sub_area is None or data_element.get("state") == "complete"
+        complete = sub_area is None or data_element.get("state", "complete") == "complete"
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
         # update channel state
         if channel_state == "marked":
