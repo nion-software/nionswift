@@ -219,7 +219,7 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_item.spatial_shape) == 2
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.preview_2d
+        data = data_item.preview_2d  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path, extension)
 
@@ -241,7 +241,8 @@ class CSVImportExportHandler(ImportExportHandler):
         return True
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.preview_2d
+        with data_item.create_data_accessor() as data_accessor:
+            data = data_accessor.data
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
 
