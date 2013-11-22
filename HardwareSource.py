@@ -204,6 +204,7 @@ class HardwareSource(Storage.Broadcaster):
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.__data_buffer = None
+        self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
@@ -300,26 +301,35 @@ class HardwareSource(Storage.Broadcaster):
         try:
             new_data_elements = None
 
-            while True:
+            # return whether to break out of loop
+            def update_ports(updated_data_elements):
                 with self.__portlock:
-
                     if not self.ports:
-                        break
-
+                        return False
                     # check to make sure we actually have new data elements,
                     # since this might be the first time through the loop.
                     # otherwise the data element list gets cleared and new data elements
                     # get created when the data elements become available.
-
                     for port in self.ports:
-                        if new_data_elements is not None:
-                            port._set_new_data_elements(new_data_elements)
+                        if updated_data_elements is not None:
+                            port._set_new_data_elements(updated_data_elements)
+                    return True
+
+            while True:
+                if not update_ports(new_data_elements):
+                    break
 
                 # impose maximum frame rate so that acquire_data_elements can't starve main thread
                 elapsed = time.time() - last_acquire_time
                 time.sleep(max(0.0, minimum_period - elapsed))
 
-                new_data_elements = self.acquire_data_elements()
+                try:
+                    new_data_elements = self.acquire_data_elements()
+                except Exception as e:
+                    update_ports([])
+                    self.__abort_signal = True
+                    # caller will print stack trace
+                    raise
 
                 # update frame_index if not supplied
                 for data_element in new_data_elements:
@@ -359,6 +369,7 @@ class HardwareSource(Storage.Broadcaster):
     # not thread safe
     def start_playing(self, mode=None):
         if not self.data_buffer.is_playing:
+            self.__abort_signal = False
             self.data_buffer.start()
             self.notify_listeners("hardware_source_started", self)
 
@@ -381,6 +392,8 @@ class HardwareSource(Storage.Broadcaster):
     # if all channels are in stopped state, some controller should abort the acquisition.
     # thread safe
     def __should_abort(self):
+        if self.__abort_signal:
+            return self.__should_abort
         with self.__channel_states_mutex:
             are_all_channel_stopped = len(self.__channel_states) > 0
             for channel, state in self.__channel_states.iteritems():
