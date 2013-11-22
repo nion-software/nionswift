@@ -2,6 +2,7 @@
 import logging
 import numbers
 import os
+import threading
 import weakref
 
 # third party libraries
@@ -354,6 +355,8 @@ class QtListModelController(object):
 
 
 class QtDrawingContext(object):
+    __image_id = 0
+    __image_id_lock = threading.RLock()
     def __init__(self):
         self.js = ""
         self.commands = []
@@ -405,7 +408,10 @@ class QtDrawingContext(object):
     def draw_image(self, img, a, b, c, d):
         self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
         assert str(img.dtype) == 'uint32'
-        self.commands.append(("image", img, float(a), float(b), float(c), float(d)))
+        with QtDrawingContext.__image_id_lock:
+            QtDrawingContext.__image_id += 1
+            image_id = QtDrawingContext.__image_id
+        self.commands.append(("image", img, int(image_id), float(a), float(b), float(c), float(d)))
     def stroke(self):
         self.js += "ctx.stroke();"
         self.commands.append(("stroke", ))
@@ -1203,6 +1209,7 @@ class QtListWidget(QtWidget):
         self.on_item_size = None
         self.on_focus_changed = None
         self.__delegate = None
+        self.drawing_context = QtDrawingContext()
 
     def __get_list_model_controller(self):
         return self.__list_model_controller
@@ -1250,9 +1257,9 @@ class QtListWidget(QtWidget):
     # this message comes from the styled item delegate
     def paint(self, dc, options):
         if self.__on_paint:
-            drawing_context = QtDrawingContext()
-            self.__on_paint(drawing_context, options)
-            self.proxy.DrawingContext_drawCommands(dc, drawing_context.commands)
+            self.drawing_context.clear()
+            self.__on_paint(self.drawing_context, options)
+            self.proxy.DrawingContext_drawCommands(dc, self.drawing_context.commands)
 
     # message from styled item delegate
     def sizeHint(self, row, parent_row, parent_id):

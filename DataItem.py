@@ -105,7 +105,7 @@ class Calibration(Storage.StorageBase):
 class ThumbnailThread(ProcessingThread):
 
     def __init__(self):
-        super(ThumbnailThread, self).__init__(minimum_interval=0.2)
+        super(ThumbnailThread, self).__init__(minimum_interval=0.5)
         self.ui = None
         self.__data_item = None
         self.__mutex = threading.RLock()  # access to the data item

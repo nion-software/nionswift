@@ -391,7 +391,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         #self.layout = LinePlotLayout(self)
 
         # a thread for updating
-        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
+        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.05)
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
         
@@ -600,7 +600,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.focus_ring_canvas_item)
 
         # a thread for updating
-        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.04)
+        self.__paint_thread = DataItemThread(lambda data_item: self.__update_data_item(data_item), 0.05)
 
         # used for dragging graphic items
         self.graphic_drag_items = []
