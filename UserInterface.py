@@ -393,6 +393,9 @@ class QtDrawingContext(object):
     def scale(self, x, y):
         self.js += "ctx.scale({0}, {1});".format(x, y)
         self.commands.append(("scale", float(x), float(y)))
+    def rotate(self, radians):
+        self.js += "ctx.rotate({0});".format(radians)
+        self.commands.append(("rotate", math.degrees(float(radians))))
     def move_to(self, x, y):
         self.js += "ctx.moveTo({0}, {1});".format(x, y)
         self.commands.append(("moveTo", float(x), float(y)))

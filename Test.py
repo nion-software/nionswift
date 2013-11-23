@@ -88,6 +88,8 @@ class DrawingContext(object):
         pass
     def scale(self, x, y):
         pass
+    def rotate(self, radians):
+        pass
     def move_to(self, x, y):
         pass
     def line_to(self, x, y):
