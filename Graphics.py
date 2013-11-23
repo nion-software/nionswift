@@ -444,11 +444,13 @@ class EllipseGraphic(Graphic):
 class LineGraphic(Graphic):
     def __init__(self):
         super(LineGraphic, self).__init__()
-        self.storage_properties += ["start", "end"]
+        self.storage_properties += ["start", "end", "start_arrow_enabled", "end_arrow_enabled"]
         self.storage_type = "line-graphic"
         # start and end points are stored in image normalized coordinates
         self.__start = (0.0, 0.0)
         self.__end = (1.0, 1.0)
+        self.__start_arrow_enabled = False
+        self.__end_arrow_enabled = False
     def deepcopy_from(self, line_graphic, memo):
         super(LineGraphic, self).deepcopy_from(line_graphic, memo)
         self.start = line_graphic.start
@@ -457,9 +459,13 @@ class LineGraphic(Graphic):
     def build(cls, storage_reader, item_node, uuid_):
         start = storage_reader.get_property(item_node, "start", (0.0, 0.0))
         end = storage_reader.get_property(item_node, "end", (1.0, 1.0))
+        start_arrow_enabled = storage_reader.get_property(item_node, "start_arrow_enabled", False)
+        end_arrow_enabled = storage_reader.get_property(item_node, "end_arrow_enabled", False)
         graphic = cls()
         graphic.start = start
         graphic.end = end
+        graphic.start_arrow_enabled = start_arrow_enabled
+        graphic.end_arrow_enabled = end_arrow_enabled
         return graphic
     # accessors
     def __get_start(self):
@@ -474,6 +480,19 @@ class LineGraphic(Graphic):
         self.__end = end
         self.notify_set_property("end", self.__end)
     end = property(__get_end, __set_end)
+    # arrowhead accessors
+    def __get_start_arrow_enabled(self):
+        return self.__start_arrow_enabled
+    def __set_start_arrow_enabled(self, start_arrow_enabled):
+        self.__start_arrow_enabled = start_arrow_enabled
+        self.notify_set_property("start_arrow_enabled", self.__start_arrow_enabled)
+    start_arrow_enabled = property(__get_start_arrow_enabled, __set_start_arrow_enabled)
+    def __get_end_arrow_enabled(self):
+        return self.__end_arrow_enabled
+    def __set_end_arrow_enabled(self, end_arrow_enabled):
+        self.__end_arrow_enabled = end_arrow_enabled
+        self.notify_set_property("end_arrow_enabled", self.__end_arrow_enabled)
+    end_arrow_enabled = property(__get_end_arrow_enabled, __set_end_arrow_enabled)
     # implement storage protocol
     def get_storage_property(self, key):
         if key == "start":
@@ -534,6 +553,13 @@ class LineGraphic(Graphic):
             p = mapping.map_point_widget_to_image_norm(current)
             self.start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
             self.end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
+    def draw_arrow(self, ctx, p1, p2):
+        arrow_size = 8
+        angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])
+        ctx.move_to(p2[1], p2[0])
+        ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
+        ctx.move_to(p2[1], p2[0])
+        ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
     def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
@@ -541,6 +567,10 @@ class LineGraphic(Graphic):
         ctx.begin_path()
         ctx.move_to(p1[1], p1[0])
         ctx.line_to(p2[1], p2[0])
+        if self.__start_arrow_enabled:
+            self.draw_arrow(ctx, p2, p1)
+        if self.__end_arrow_enabled:
+            self.draw_arrow(ctx, p1, p2)
         ctx.line_width = 1
         ctx.stroke_style = '#FF0000'
         ctx.stroke()

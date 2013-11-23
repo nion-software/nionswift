@@ -200,7 +200,15 @@ def update_data_item_from_data_element(data_item, data_element):
         # copyright
         # exposure
         # extra_high_tension
-
+        if "arrows" in data_element:
+            for arrow_coordinates in data_element["arrows"]:
+                start, end = arrow_coordinates
+                spatial_shape = data_item.spatial_shape
+                line_graphic = Graphics.LineGraphic()
+                line_graphic.start = (start[0] / spatial_shape[0], start[1] / spatial_shape[1])
+                line_graphic.end = (end[0] / spatial_shape[0], end[1] / spatial_shape[1])
+                line_graphic.end_arrow = True
+                data_item.graphics.append(graphic)
 
 class StandardImportExportHandler(ImportExportHandler):
 
