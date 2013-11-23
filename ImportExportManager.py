@@ -10,6 +10,7 @@ import numpy
 # local libraries
 from nion.swift import DataItem
 from nion.swift import Decorators
+from nion.swift import Graphics
 from nion.swift import Image
 
 
@@ -205,10 +206,10 @@ def update_data_item_from_data_element(data_item, data_element):
                 start, end = arrow_coordinates
                 spatial_shape = data_item.spatial_shape
                 line_graphic = Graphics.LineGraphic()
-                line_graphic.start = (start[0] / spatial_shape[0], start[1] / spatial_shape[1])
-                line_graphic.end = (end[0] / spatial_shape[0], end[1] / spatial_shape[1])
+                line_graphic.start = (float(start[0]) / spatial_shape[0], float(start[1]) / spatial_shape[1])
+                line_graphic.end = (float(end[0]) / spatial_shape[0], float(end[1]) / spatial_shape[1])
                 line_graphic.end_arrow = True
-                data_item.graphics.append(graphic)
+                data_item.graphics.append(line_graphic)
 
 class StandardImportExportHandler(ImportExportHandler):
 

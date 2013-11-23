@@ -245,11 +245,6 @@ class RectangleGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
-    # implement storage protocol
-    def get_storage_property(self, key):
-        if key == "bounds":
-            return self.bounds
-        return super(RectangleGraphic, self).get_storage_property(key)
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -361,11 +356,6 @@ class EllipseGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
-    # implement storage protocol
-    def get_storage_property(self, key):
-        if key == "bounds":
-            return self.bounds
-        return super(EllipseGraphic, self).get_storage_property(key)
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -493,13 +483,6 @@ class LineGraphic(Graphic):
         self.__end_arrow_enabled = end_arrow_enabled
         self.notify_set_property("end_arrow_enabled", self.__end_arrow_enabled)
     end_arrow_enabled = property(__get_end_arrow_enabled, __set_end_arrow_enabled)
-    # implement storage protocol
-    def get_storage_property(self, key):
-        if key == "start":
-            return self.start
-        if key == "end":
-            return self.end
-        return super(LineGraphic, self).get_storage_property(self, key)
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
