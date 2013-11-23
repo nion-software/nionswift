@@ -13,11 +13,10 @@ import weakref
 import numpy
 
 # local libraries
-from nion.swift.Decorators import queue_main_thread
-from nion.swift.Decorators import queue_main_thread_sync
 from nion.swift.Decorators import timeit
 from nion.swift import DataGroup
 from nion.swift import DataItem
+from nion.swift import Decorators
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import Image
@@ -48,8 +47,7 @@ class DocumentController(Storage.Broadcaster):
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
         self.__cursor_weak_listeners = []
-        self.__delay_queue = Queue.Queue()
-        self.__delay_queue_mutex = threading.RLock()
+        self.__periodic_queue = Decorators.TaskQueue()
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -182,26 +180,14 @@ class DocumentController(Storage.Broadcaster):
         return []
     panels = property(__get_panels)
 
-    delay_queue = property(lambda self: self)
-
     def queue_main_thread_task(self, task):
-        with self.__delay_queue_mutex:
-            self.__delay_queue.put(task)
+        self.__periodic_queue.put(task)
 
     #@timeit
     def periodic(self):
         # perform any pending operations
-        with self.__delay_queue_mutex:
-            qsize = self.__delay_queue.qsize()
-        while not self.__delay_queue.empty() and qsize > 0:
-            try:
-                task = self.__delay_queue.get(False)
-            except Queue.Empty:
-                pass
-            else:
-                task()
-                self.__delay_queue.task_done()
-            qsize -= 1
+        self.__periodic_queue.perform_tasks()
+        # for each of the panels too
         for panel in self.panels:
             if hasattr(panel, "periodic"):
                 start = time.time()
@@ -210,10 +196,6 @@ class DocumentController(Storage.Broadcaster):
                 if elapsed > 0.05:
                     logging.debug("panel %s %s", panel, elapsed)
                     pass
-
-    @queue_main_thread
-    def select_data_item(self, data_group, data_item):
-        self.selected_image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)

@@ -60,11 +60,6 @@ class DocumentModel(Storage.StorageBase):
             data_group.title = _("Data")
             self.data_groups.append(data_group)
             need_rewrite = True
-        # this is extra code for backwards compatibility
-        if storage_reader.has_relationship(parent_node, "data_items"):
-            data_items = storage_reader.get_items(parent_node, "data_items")
-            self.default_data_group.data_items.extend(data_items)
-            need_rewrite = True
         need_rewrite = storage_reader.need_rewrite or need_rewrite
         return need_rewrite
 
