@@ -156,6 +156,8 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers):
 class Graphic(Storage.StorageBase):
     def __init__(self):
         Storage.StorageBase.__init__(self)
+        self.storage_properties += ["color"]
+        self.__color = "#F00"
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
         graphic = self.__class__()
@@ -163,7 +165,22 @@ class Graphic(Storage.StorageBase):
         memo[id(self)] = graphic
         return graphic
     def deepcopy_from(self, graphic, memo):
-        pass
+        self.color = graphic.color
+    @classmethod
+    def build(cls, storage_reader, item_node, uuid_):
+        graphic = cls()
+        color = storage_reader.get_property(item_node, "color", graphic.color)  # red
+        graphic.color = color
+        return graphic
+    # accessors
+    def __get_color(self):
+        return self.__color
+    def __set_color(self, color):
+        # set it
+        self.__color = color
+        # notify
+        self.notify_set_property("color", self.__color)
+    color = property(__get_color, __set_color)
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0]-p2[0], 2)+pow(p1[1]-p2[1], 2)) < radius
@@ -227,8 +244,8 @@ class RectangleGraphic(Graphic):
         self.bounds = graphic.bounds
     @classmethod
     def build(cls, storage_reader, item_node, uuid_):
+        graphic = super(RectangleGraphic, cls).build(storage_reader, item_node, uuid_)
         bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
-        graphic = cls()
         graphic.bounds = bounds
         return graphic
     # accessors
@@ -245,6 +262,7 @@ class RectangleGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
+    # test point hit
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
@@ -295,7 +313,7 @@ class RectangleGraphic(Graphic):
         ctx.line_to(origin[1], origin[0] + size[0])
         ctx.close_path()
         ctx.line_width = 1
-        ctx.stroke_style = '#FF0000'
+        ctx.stroke_style = self.color
         ctx.stroke()
         ctx.restore()
         if is_selected:
@@ -303,6 +321,7 @@ class RectangleGraphic(Graphic):
             self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
             self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
             self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
+            # draw center marker
             mark_size = 8
             if size[0] > mark_size:
                 mid_x = origin[1] + 0.5*size[1]
@@ -311,7 +330,7 @@ class RectangleGraphic(Graphic):
                 ctx.begin_path()
                 ctx.move_to(mid_x - 0.5*mark_size, mid_y)
                 ctx.line_to(mid_x + 0.5*mark_size, mid_y)
-                ctx.stroke_style = '#FF0000'
+                ctx.stroke_style = self.color
                 ctx.stroke()
                 ctx.restore()
             if size[1] > mark_size:
@@ -321,7 +340,7 @@ class RectangleGraphic(Graphic):
                 ctx.begin_path()
                 ctx.move_to(mid_x, mid_y - 0.5*mark_size)
                 ctx.line_to(mid_x, mid_y + 0.5*mark_size)
-                ctx.stroke_style = '#FF0000'
+                ctx.stroke_style = self.color
                 ctx.stroke()
                 ctx.restore()
 
@@ -338,8 +357,8 @@ class EllipseGraphic(Graphic):
         self.bounds = graphic.bounds
     @classmethod
     def build(cls, storage_reader, item_node, uuid_):
+        graphic = super(EllipseGraphic, cls).build(storage_reader, item_node, uuid_)
         bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
-        graphic = cls()
         graphic.bounds = bounds
         return graphic
     # accessors
@@ -400,7 +419,7 @@ class EllipseGraphic(Graphic):
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         ctx.save()
         ctx.line_width = 1
-        ctx.stroke_style = '#FF0000'
+        ctx.stroke_style = self.color
         self.draw_ellipse(ctx, origin[1] + size[1]*0.5, origin[0] + size[0]*0.5, size[1], size[0])
         ctx.restore()
         if is_selected:
@@ -408,6 +427,7 @@ class EllipseGraphic(Graphic):
             self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
             self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
             self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
+            # draw center marker
             mark_size = 8
             if size[0] > mark_size:
                 mid_x = origin[1] + 0.5*size[1]
@@ -416,7 +436,7 @@ class EllipseGraphic(Graphic):
                 ctx.begin_path()
                 ctx.move_to(mid_x - 0.5*mark_size, mid_y)
                 ctx.line_to(mid_x + 0.5*mark_size, mid_y)
-                ctx.stroke_style = '#FF0000'
+                ctx.stroke_style = self.color
                 ctx.stroke()
                 ctx.restore()
             if size[1] > mark_size:
@@ -426,7 +446,7 @@ class EllipseGraphic(Graphic):
                 ctx.begin_path()
                 ctx.move_to(mid_x, mid_y - 0.5*mark_size)
                 ctx.line_to(mid_x, mid_y + 0.5*mark_size)
-                ctx.stroke_style = '#FF0000'
+                ctx.stroke_style = self.color
                 ctx.stroke()
                 ctx.restore()
 
@@ -447,11 +467,11 @@ class LineGraphic(Graphic):
         self.end = line_graphic.end
     @classmethod
     def build(cls, storage_reader, item_node, uuid_):
+        graphic = super(LineGraphic, cls).build(storage_reader, item_node, uuid_)
         start = storage_reader.get_property(item_node, "start", (0.0, 0.0))
         end = storage_reader.get_property(item_node, "end", (1.0, 1.0))
         start_arrow_enabled = storage_reader.get_property(item_node, "start_arrow_enabled", False)
         end_arrow_enabled = storage_reader.get_property(item_node, "end_arrow_enabled", False)
-        graphic = cls()
         graphic.start = start
         graphic.end = end
         graphic.start_arrow_enabled = start_arrow_enabled
@@ -555,7 +575,7 @@ class LineGraphic(Graphic):
         if self.__end_arrow_enabled:
             self.draw_arrow(ctx, p1, p2)
         ctx.line_width = 1
-        ctx.stroke_style = '#FF0000'
+        ctx.stroke_style = self.color
         ctx.stroke()
         ctx.restore()
         if is_selected:

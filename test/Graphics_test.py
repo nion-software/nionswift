@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import logging
 import unittest
 
 # third party libraries
@@ -64,3 +65,7 @@ class TestGraphicsClass(unittest.TestCase):
         for rect, size in zip(rects, sizes):
             fit = Graphics.fit_to_size(rect, size)
             self.assertTrue(abs(float(fit[1][1])/float(fit[1][0]) - float(size[1])/float(size[0])) < eps)
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
+    unittest.main()
