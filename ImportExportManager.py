@@ -208,7 +208,7 @@ def update_data_item_from_data_element(data_item, data_element):
                 line_graphic = Graphics.LineGraphic()
                 line_graphic.start = (float(start[0]) / spatial_shape[0], float(start[1]) / spatial_shape[1])
                 line_graphic.end = (float(end[0]) / spatial_shape[0], float(end[1]) / spatial_shape[1])
-                line_graphic.end_arrow = True
+                line_graphic.end_arrow_enabled = True
                 data_item.graphics.append(line_graphic)
 
 class StandardImportExportHandler(ImportExportHandler):
