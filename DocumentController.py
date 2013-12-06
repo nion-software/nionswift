@@ -235,8 +235,14 @@ class DocumentController(Storage.Broadcaster):
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             selected_data_item = selected_image_panel.data_item if selected_image_panel else None
-            self.notify_listeners("selected_data_item_changed", selected_data_item)
+            self.set_selected_data_item(selected_data_item)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
+
+    # track the selected data item. this can be called by ui elements when
+    # they get focus. the selected data item will stay the same until another ui
+    # element gets focus or the data item is removed from the document.
+    def set_selected_data_item(self, selected_data_item):
+        self.notify_listeners("selected_data_item_changed", selected_data_item)
 
     def __get_selected_data_panel_selection(self):
         data_panel_selection = None
@@ -266,8 +272,9 @@ class DocumentController(Storage.Broadcaster):
     # this message can mean that the data itself changed, a property changed, a source
     # changed, or the data item displayed in the image panel changed.
     def image_panel_data_item_content_changed(self, image_panel, changes):
-        data_item = image_panel.data_item if image_panel else None
-        self.notify_listeners("selected_data_item_content_changed", data_item, changes)
+        pass
+        #data_item = image_panel.data_item if image_panel else None
+        #self.notify_listeners("selected_data_item_content_changed", data_item, changes)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
@@ -493,6 +500,11 @@ class DocumentController(Storage.Broadcaster):
 
 
 # binding to the selected data item in the document controller
+# the selected data item may be in an image panel, in the data panel,
+# or in another user interface element. the document controller will
+# send selected_data_item_changed when the data item changes.
+# this object will listen to the data item to know when its data
+# changes or when it gets deleted.
 class SelectedDataItemBinding(DataItem.DataItemBinding):
 
     def __init__(self, document_controller):
@@ -501,16 +513,34 @@ class SelectedDataItemBinding(DataItem.DataItemBinding):
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
         self.notify_data_item_binding_data_item_changed(document_controller.selected_data_item)
+        self.__data_item = None
 
     def close(self):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
+        # disconnect data item
+        if self.__data_item:
+            self.__data_item.remove_ref()
+            self.__data_item.remove_listener(self)
+        # super
         super(SelectedDataItemBinding, self).close()
 
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item):
-        self.notify_data_item_binding_data_item_changed(data_item)
+        if data_item != self.__data_item:
+            if data_item:
+                data_item.add_ref()
+                data_item.add_listener(self)
+            self.notify_data_item_binding_data_item_changed(data_item)
+            if self.__data_item:
+                self.__data_item.remove_ref()
+                self.__data_item.remove_listener(self)
+            self.__data_item = data_item
+
+    def data_item_content_changed(self, data_item, changes):
+        if data_item == self.__data_item:
+            self.selected_data_item_content_changed(data_item, changes)
 
     # this message is received from the document controller.
     # it is established using add_listener

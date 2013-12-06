@@ -413,10 +413,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_clicked(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
-        # activate this view. this has the side effect of grabbing focus.
-        # image panel is optional.
-        if self.image_panel:
-            self.document_controller.selected_image_panel = self.image_panel
+        return False
 
     def __get_focused(self):
         return self.focus_ring_canvas_item.focused
@@ -653,10 +650,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_clicked(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
-        # activate this view. this has the side effect of grabbing focus.
-        # image panel is optional.
-        if self.image_panel:
-            self.document_controller.selected_image_panel = self.image_panel
         # now let the image panel handle mouse clicking if desired
         image_position = WidgetMapping(self.data_item.spatial_shape, self.canvas_size).map_point_widget_to_image((y, x))
         ImagePanelManager().mouse_clicked(self.image_panel, self.data_item, image_position, modifiers)
@@ -1130,10 +1123,13 @@ class ImagePanel(Panel.Panel):
         self.image_canvas_item.selected = selected
         self.line_plot_canvas_item.selected = selected
 
+    # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
         if self.closed: return  # argh
         self.image_canvas_item.focused = focused
         self.line_plot_canvas_item.focused = focused
+        self.document_controller.selected_image_panel = self
+        self.document_controller.set_selected_data_item(self.data_item)
 
     def __get_data_item(self):
         return self.__data_panel_selection.data_item

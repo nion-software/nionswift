@@ -521,6 +521,8 @@ class DataPanel(Panel.Panel):
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 self.__current_data_item = data_item  # useful for on_data_item_begin_move
+                if self.focused:
+                    self.document_controller.set_selected_data_item(data_item)
                 self.save_state()
 
         def data_item_widget_key_pressed(index, key):
@@ -601,10 +603,12 @@ class DataPanel(Panel.Panel):
                 self.ui.remove_persistent_key("selected_data_group")
                 self.ui.remove_persistent_key("selected_data_item")
 
+    # the focused property gets set from on_focus_changed on the data item widget
     def __get_focused(self):
         return self.__focused
     def __set_focused(self, focused):
         self.__focused = focused
+        self.document_controller.set_selected_data_item(self._get_data_panel_selection().data_item)
     focused = property(__get_focused, __set_focused)
 
     def _get_data_panel_selection(self):
