@@ -453,6 +453,7 @@ class HardwareSource(Storage.Broadcaster):
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
             data_item.begin_transaction()
+            data_item.increment_accessor_count()
 
         # update the data items with the new data.
         for channel in channels:
@@ -462,6 +463,7 @@ class HardwareSource(Storage.Broadcaster):
 
         # these items are no longer live. mark live_data as False.
         for channel, data_item in self.last_channel_to_data_item_dict.iteritems():
+            data_item.decrement_accessor_count()
             data_item.end_transaction()
 
         # keep the channel to data item map around so that we know what changed between
