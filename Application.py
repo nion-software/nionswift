@@ -19,6 +19,7 @@ from nion.swift import ImagePanel
 from nion.swift import Inspector
 from nion.swift import Panel
 from nion.swift import PlugInManager
+from nion.swift import Session
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Test
@@ -48,6 +49,7 @@ class Application(object):
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(ImagePanel.ImagePanel, "image-panel", _("Image Panel"), ["central"], "central")
+        workspace_manager.register_panel(Session.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"width": 320, "height": 80})
         workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 320, "height": 400})
         workspace_manager.register_panel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 320, "height": 80})
         workspace_manager.register_panel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 320, "height": 96})
