@@ -214,24 +214,11 @@ class DocumentController(Storage.Broadcaster):
             selected_image_panel = self.workspace.primary_image_panel
         weak_selected_image_panel = weakref.ref(selected_image_panel) if selected_image_panel else None
         if weak_selected_image_panel != self.__weak_selected_image_panel:
-
-            # first un-listen to the old selected panel, if any
-            old_selected_image_panel = self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
-            if old_selected_image_panel:
-                old_selected_image_panel.remove_listener(self)
-
             # save the selected panel
             self.__weak_selected_image_panel = weak_selected_image_panel
-
-            # now listen to the new selected panel, if any.
-            # this will result in calls to image_panel_data_item_content_changed.
-            if selected_image_panel:
-                selected_image_panel.add_listener(self)
-
             # iterate through the image panels and update their 'focused' property
             for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
                 image_panel.set_selected(image_panel == self.selected_image_panel)
-
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             selected_data_item = selected_image_panel.data_item if selected_image_panel else None
@@ -266,15 +253,6 @@ class DocumentController(Storage.Broadcaster):
     # in the data panel. this would typically be from the image or line plot canvas.
     def cursor_changed(self, data_item, pos, selected_graphics, image_size):
         self.notify_listeners("cursor_changed", data_item, pos, selected_graphics, image_size)
-
-    # this message comes from the selected image panel. the connection is established
-    # in __set_selected_image_panel via a call to ImagePanel.addListener.
-    # this message can mean that the data itself changed, a property changed, a source
-    # changed, or the data item displayed in the image panel changed.
-    def image_panel_data_item_content_changed(self, image_panel, changes):
-        pass
-        #data_item = image_panel.data_item if image_panel else None
-        #self.notify_listeners("selected_data_item_content_changed", data_item, changes)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.

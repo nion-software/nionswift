@@ -975,8 +975,6 @@ class ImagePanel(Panel.Panel):
 
         self.__data_panel_selection = DataItem.DataItemSpecifier()
 
-        self.__weak_listeners = []
-
         self.__block_scrollers = False
 
         self.image_canvas_zoom = 1.0
@@ -1189,27 +1187,12 @@ class ImagePanel(Panel.Panel):
         if not moving and container == self.data_item_container and data_item == self.data_item:
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
 
-    # tell our listeners the we changed. the change can be anything including attributes
-    # or the data itself.
-    def notify_image_panel_data_item_content_changed(self, changes):
-        for weak_listener in self.__weak_listeners:
-            listener = weak_listener()
-            listener.image_panel_data_item_content_changed(self, changes)
-
-    # this will result in image_panel_data_item_content_changed being called when the data item changes.
-    def add_listener(self, listener):
-        self.__weak_listeners.append(weakref.ref(listener))
-
-    def remove_listener(self, listener):
-        self.__weak_listeners.remove(weakref.ref(listener))
-
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
     def data_item_content_changed(self, data_item, changes):
         if data_item == self.data_item:  # we can get messages from our source data items too
-            self.notify_image_panel_data_item_content_changed(changes)
             self.image_header_controller.title = str(data_item)
             self.line_plot_header_controller.title = str(data_item)
             selected = self.document_controller.selected_image_panel == self
