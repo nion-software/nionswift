@@ -467,6 +467,7 @@ class DataPanel(Panel.Panel):
 
         self.__focused = False
         self.__current_data_item = None
+        self.__closing = False
 
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
@@ -520,6 +521,7 @@ class DataPanel(Panel.Panel):
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = data_items[index] if index >= 0 and index < len(data_items) else None
                 self.__current_data_item = data_item  # useful for on_data_item_begin_move
+                self.save_state()
 
         def data_item_widget_key_pressed(index, key):
             data_item = self.data_item_model_controller.get_data_items_flat()[index] if index >= 0 else None
@@ -555,7 +557,11 @@ class DataPanel(Panel.Panel):
         self.document_controller.add_listener(self)
         self.document_controller.weak_data_panel = weakref.ref(self)
 
+        # restore selection
+        self.restore_state()
+
     def close(self):
+        self.__closing = True
         self.splitter.save_state("window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataItem.DataItemSpecifier())
         # close the models
@@ -571,6 +577,30 @@ class DataPanel(Panel.Panel):
         super(DataPanel, self).periodic()
         self.data_item_model_controller.periodic()
 
+    def restore_state(self):
+        data_group_uuid_str = self.ui.get_persistent_string("selected_data_group")
+        data_item_uuid_str = self.ui.get_persistent_string("selected_data_item")
+        data_group_uuid = uuid.UUID(data_group_uuid_str) if data_group_uuid_str else None
+        data_item_uuid = uuid.UUID(data_item_uuid_str) if data_item_uuid_str else None
+        if data_group_uuid:
+            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+            if data_group:
+                data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
+                self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
+
+    def save_state(self):
+        if not self.__closing:
+            data_panel_selection = self._get_data_panel_selection()
+            if data_panel_selection.data_group:
+                self.ui.set_persistent_string("selected_data_group", str(data_panel_selection.data_group.uuid))
+                if data_panel_selection.data_item:
+                    self.ui.set_persistent_string("selected_data_item", str(data_panel_selection.data_item.uuid))
+                else:
+                    self.ui.remove_persistent_key("selected_data_item")
+            else:
+                self.ui.remove_persistent_key("selected_data_group")
+                self.ui.remove_persistent_key("selected_data_item")
+
     def __get_focused(self):
         return self.__focused
     def __set_focused(self, focused):
@@ -585,6 +615,7 @@ class DataPanel(Panel.Panel):
     # update cycles. this message is also received directly from the document_controller via
     # add_listener.
     def update_data_panel_selection(self, data_panel_selection):
+        # block. why? so we don't get infinite loops.
         saved_block1 = self.__block1
         self.__block1 = True
         data_group = data_panel_selection.data_group
@@ -597,6 +628,9 @@ class DataPanel(Panel.Panel):
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         self.__current_data_item = data_panel_selection.data_item  # useful for on_data_item_begin_move. redundant in some cases. argh.
+        # save the users selection
+        self.save_state()
+        # unblock
         self.__block1 = saved_block1
 
     # ugly code to keep the selection the same when _moving_ a data item.

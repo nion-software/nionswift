@@ -1567,6 +1567,9 @@ class QtUserInterface(object):
     def set_persistent_byte_array(self, key, value):
         self.proxy.Settings_setByteArray(key, value)
 
+    def remove_persistent_key(self, key):
+        self.proxy.Settings_remove(key)
+
     # misc
 
     def create_key_by_id(self, key_id):

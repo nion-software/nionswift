@@ -352,6 +352,8 @@ class UserInterface:
         return default_value
     def set_persistent_string(self, key, value):
         pass
+    def remove_persistent_key(self, key):
+        pass
     def get_data_location(self):
         return str()
     def get_document_location(self):
