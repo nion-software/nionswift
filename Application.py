@@ -85,8 +85,9 @@ class Application(object):
             document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", db_filename)
-            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
             storage_reader = Storage.DbStorageReader(workspace_dir, db_filename)
+            storage_reader.check_integrity()
+            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
             document_model.create_default_data_groups()

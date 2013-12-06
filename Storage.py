@@ -516,13 +516,6 @@ class StorageBase(Broadcaster):
             if observer and getattr(observer, "item_removed", None):
                 observer.item_removed(self, key, value, index)
 
-    def rewrite_storage(self):
-        assert self.storage_writer is not None
-        self.storage_writer.begin_rewrite_storage()
-        self.storage_writer.set_root(self)
-        self.write()
-        self.storage_writer.end_rewrite_storage()
-
     def rewrite(self):
         assert self.storage_writer is not None
         assert self.__transaction_count == 0
@@ -684,12 +677,6 @@ class DictStorageWriter(object):
     def save_file(self, db_filename):
         pickle.dump(self.__node_map, open(db_filename, "wb"))
 
-    def begin_rewrite_storage(self):
-        self.__node_map = {}
-
-    def end_rewrite_storage(self):
-        pass
-
     def __make_node(self, uuid):
         if uuid in self.__node_map:
             return self.__node_map[uuid]
@@ -824,7 +811,6 @@ class DictStorageReader(object):
     def __init__(self, node_map=None):
         self.__node_map = node_map if node_map else {}
         self.__item_map = {}
-        self.need_rewrite = False
 
     def log(self):
         for key in self.__node_map.keys():
@@ -961,18 +947,6 @@ class DbStorageWriter(object):
         logging.debug("relationships: %s", c.fetchone()[0])
         c.execute("SELECT COUNT(*) FROM items")
         logging.debug("items: %s", c.fetchone()[0])
-
-    def begin_rewrite_storage(self):
-        c = self.conn.cursor()
-        self.execute(c, "DELETE FROM nodes")
-        self.execute(c, "DELETE FROM properties")
-        # TODO: use_external_data
-        self.execute(c, "DELETE FROM data")
-        self.execute(c, "DELETE FROM relationships")
-        self.execute(c, "DELETE FROM items")
-
-    def end_rewrite_storage(self):
-        self.conn.commit()
 
     def set_root(self, root):
         self.__make_node(root.uuid)
@@ -1197,16 +1171,6 @@ class DbStorageWriterProxy(object):
         self.queue.put((functools.partial(DbStorageWriter.create, self.storage_writer), event, "create"))
         #event.wait()
 
-    def begin_rewrite_storage(self):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.begin_rewrite_storage, self.storage_writer), event, "begin_rewrite_storage"))
-        #event.wait()
-
-    def end_rewrite_storage(self):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.end_rewrite_storage, self.storage_writer), event, "end_rewrite_storage"))
-        #event.wait()
-
     def set_root(self, root):
         event = threading.Event()
         self.queue.put((functools.partial(DbStorageWriter.set_root, self.storage_writer, root), event, "set_root"))
@@ -1264,7 +1228,6 @@ class DbStorageReader(object):
         self.conn = sqlite3.connect(db_filename)
         self.workspace_dir = workspace_dir
         self.__item_map = {}
-        self.need_rewrite = False
 
     def from_string(self, str):
         self.conn.cursor().executescript(str)
@@ -1293,6 +1256,16 @@ class DbStorageReader(object):
         c.execute("SELECT uuid FROM nodes WHERE type=? AND refcount=0", (type, ))
         uuid_ = c.fetchone()[0]
         return uuid_, uuid.UUID(uuid_)
+
+    def get_version(self):
+        c = self.conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
+        c.execute("SELECT COUNT(*) FROM version")
+        has_version = c.fetchone()[0] == 1
+        if has_version:
+            c.execute("SELECT version FROM version")
+            return c.fetchone()[0]
+        return 0  # no version, it's zero
 
     def build_item(self, uuid_):
         item = None
@@ -1358,6 +1331,13 @@ class DbStorageReader(object):
             return item
         return default_value
 
+    def check_integrity(self):
+        # check for duplicated items in relationships
+        c = self.conn.cursor()
+        c.execute("SELECT item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
+        for row in c.fetchall():
+            logging.debug("Duplicate item in relationship %s", row[0])
+
     def get_items(self, parent_node, key):
         c = self.conn.cursor()
         c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key=? ORDER BY item_index ASC", (str(parent_node), key, ))
@@ -1365,11 +1345,10 @@ class DbStorageReader(object):
         for row in c.fetchall():
             item = self.build_item(row[0])
             if item:
-                if item not in items:  # this is a recoverable error condition
+                # this should be fixed in the integrity check, but until that
+                # is fully implemented, just skip it.
+                if item not in items:
                     items.append(item)
-                else:
-                    logging.debug("Duplicate item %s (%s)", item, parent_node)
-                    self.need_rewrite = True
         #items = [self.build_item(row[0]) for row in c.fetchall()]
         return items
 

@@ -313,7 +313,8 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DictStorageCache()
         document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller.document_model.rewrite_storage()
+        storage_writer.set_root(document_model)
+        document_model.write()
         # check that the graphic associated with the operation was read back
         self.verify_and_test_set_item(document_controller)
         # clean up
@@ -377,7 +378,8 @@ class TestStorageClass(unittest.TestCase):
         storage_reader = Storage.DbStorageReader(None, db_name)
         storage_reader.from_string(storage_str)
         document_model.read(storage_reader)
-        document_model.rewrite_storage()
+        storage_writer.set_root(document_model)
+        document_model.write()
         data_group = document_model.data_groups[0]
         self.assertEqual(len(data_group.data_items), 1)
         data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))

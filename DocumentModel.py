@@ -32,13 +32,8 @@ class DocumentModel(Storage.StorageBase):
         self.session_uuid = uuid.uuid4()
         if storage_reader:
             storage_writer.disconnected = True
-            need_rewrite = self.read(storage_reader)
+            self.read(storage_reader)
             storage_writer.disconnected = False
-            # the structure of the document might have changed; rewrite
-            # TODO: formalized db migration
-            if need_rewrite:
-                logging.debug("Rewriting database")
-                self.rewrite_storage()
         else:
             storage_writer.set_root(self)
             self.write()
@@ -49,19 +44,10 @@ class DocumentModel(Storage.StorageBase):
             self.data_groups.remove(data_group)
 
     def read(self, storage_reader):
-        need_rewrite = False
         parent_node, uuid = storage_reader.find_root_node("document")
         self._set_uuid(uuid)
         data_groups = storage_reader.get_items(parent_node, "data_groups")
         self.data_groups.extend(data_groups)
-        # this is extra code for first launch
-        if len(self.data_groups) == 0:
-            data_group = DataGroup.DataGroup()
-            data_group.title = _("Data")
-            self.data_groups.append(data_group)
-            need_rewrite = True
-        need_rewrite = storage_reader.need_rewrite or need_rewrite
-        return need_rewrite
 
     def create_default_data_groups(self):
         # ensure there is at least one group
