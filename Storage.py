@@ -1247,7 +1247,7 @@ class DbDatastore(object):
         return default_value
 
     def check_integrity(self, raise_exception=False):
-        # check for duplicated items in relationships
+        # check for duplicated items in relationships.
         c = self.conn.cursor()
         c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
         for row in c.fetchall():
@@ -1323,6 +1323,10 @@ class DbDatastoreProxy(object):
     def __get_initialized(self):
         return self.__datastore.initialized
     initialized = property(__get_initialized)
+
+    def __get_conn(self):
+        return self.__datastore.conn
+    conn = property(__get_conn)
 
     def __get_disconnected(self):
         return self.__datastore.disconnected
