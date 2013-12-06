@@ -564,7 +564,10 @@ class DataItem(Storage.StorageBase):
         self.__data_mutex = threading.RLock()
         self.__cached_data = None
         self.__cached_data_dirty = True
+        # master data shape and dtype are always valid if there is no data source.
         self.__master_data = None
+        self.__master_data_shape = None
+        self.__master_data_dtype = None
         self.__data_source = None
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()

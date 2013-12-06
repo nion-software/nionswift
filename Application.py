@@ -80,7 +80,7 @@ class Application(object):
             create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
-            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
+            storage_writer = Storage.DbStorageWriter(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
             document_model.create_default_data_groups()
@@ -92,7 +92,7 @@ class Application(object):
             if version == 0:
                 logging.debug("Updating database from version 0 to version 1.")
                 c = storage_reader.conn.cursor()
-                c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, relative_file STRING, PRIMARY KEY(uuid, key))")
+                c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
                 c.execute("SELECT uuid, key, data FROM data")
                 for row in c.fetchall():
                     data_uuid = row[0]
@@ -108,7 +108,7 @@ class Application(object):
                 storage_reader.conn.commit()
                 logging.debug("Committed")
             storage_reader.check_integrity()
-            storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
+            storage_writer = Storage.DbStorageWriter(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
             document_model.create_default_data_groups()

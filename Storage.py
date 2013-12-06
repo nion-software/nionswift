@@ -913,12 +913,19 @@ def db_make_directory_if_needed(directory_path):
 # utility function for db migration
 def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data_table):
     assert workspace_dir
+    assert data is not None
     data_directory = os.path.join(workspace_dir, "Nion Swift Data")
     absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
     logging.debug("WRITE data file %s for %s", absolute_file_path, key)
     db_make_directory_if_needed(os.path.dirname(absolute_file_path))
     pickle.dump(data, open(absolute_file_path, "wb"))
-    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, relative_file) VALUES (?, ?, ?)".format(data_table), (str(parent_uuid), key, data_file_path))
+    args = list()
+    args.append(str(parent_uuid))
+    args.append(key)
+    args.append(sqlite3.Binary(pickle.dumps(data.shape)))
+    args.append(sqlite3.Binary(pickle.dumps(data.dtype)))
+    args.append(data_file_path)
+    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, shape, dtype, relative_file) VALUES (?, ?, ?, ?, ?)".format(data_table), args)
 
 # utility function to read data from external file.
 def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
@@ -933,6 +940,17 @@ def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
             data = pickle.load(open(absolute_file_path, "rb"))
             return data if data is not None else default_value
     return default_value
+
+# utility function to read data shape and dtype from external file.
+def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
+    assert workspace_dir
+    c.execute("SELECT shape, dtype FROM data WHERE uuid=? AND key=?", (str(parent_uuid), key))
+    data_row = c.fetchone()
+    if data_row:
+        data_shape = pickle.loads(str(data_row[0]))
+        data_dtype = pickle.loads(str(data_row[1]))
+        return data_shape, data_dtype
+    return None
 
 
 
@@ -989,7 +1007,7 @@ class DbStorageWriter(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
             if self.workspace_dir:  # may be None for testing
-                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, relative_file STRING, PRIMARY KEY(uuid, key))")
+                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
             else:  # testing (data stored in memory)
                 self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
@@ -1157,14 +1175,27 @@ class DbStorageWriter(object):
     def get_data(self, parent_uuid, key, default_value=None):
         c = self.conn.cursor()
         if self.workspace_dir:  # may be None for testing
-            return db_get_data(c, workspace_dir, parent_node, key, default_value)
+            return db_get_data(c, workspace_dir, parent_uuid, key, default_value)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_uuid, key, ))
             data_row = c.fetchone()
             if data_row:
                 return pickle.loads(str(data_row[0]))
             else:
                 return default_value
+
+    def get_data_shape_and_dtype(self, parent_uuid, key):
+        c = self.conn.cursor()
+        if self.workspace_dir:  # may be None for testing
+            return db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key)
+        else:  # testing
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_uuid, key, ))
+            data_row = c.fetchone()
+            if data_row:
+                data = pickle.loads(str(data_row[0]))
+                return data.shape, data.dtype
+            else:
+                return None
 
 
 class DbStorageWriterProxy(object):
@@ -1424,6 +1455,19 @@ class DbStorageReader(object):
                 return pickle.loads(str(data_row[0]))
             else:
                 return default_value
+
+    def get_data_shape_and_dtype(self, parent_node, key):
+        c = self.conn.cursor()
+        if self.workspace_dir:  # may be None for testing
+            return db_get_data_shape_and_dtype(c, workspace_dir, parent_node, key)
+        else:  # testing
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            data_row = c.fetchone()
+            if data_row:
+                data = pickle.loads(str(data_row[0]))
+                return data.shape, data.dtype
+            else:
+                return None
 
 
 class DictStorageCache(object):
