@@ -1298,26 +1298,30 @@ class DbDatastore(object):
                 return None
 
 
-# unusable for now.
-class __DbDatastoreProxy(object):
+class DbDatastoreProxy(object):
 
-    def __init__(self, workspace_dir, db_filename):
-        self.datastore = None
-        self.queue = Queue.Queue()
+    def __init__(self, workspace_dir, db_filename, create=True, db_data_str=None):
+        self.__datastore = None
+        self.__queue = Queue.Queue()
         self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename])
+        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename, create, db_data_str])
         self.__thread.daemon = True
         self.__thread.start()
         self.__started_event.wait()
 
     def close(self):
-        self.queue.put(None)
+        self.__queue.put(None)
+        self.__queue.join()
 
-    def __run(self, workspace_dir, db_filename):
-        self.datastore = DbDatastore(workspace_dir, db_filename)
+    def __get_initialized(self):
+        return self.__datastore.initialized
+    initialized = property(__get_initialized)
+
+    def __run(self, workspace_dir, db_filename, create, db_data_str):
+        self.__datastore = DbDatastore(workspace_dir, db_filename, create=create, db_data_str=db_data_str)
         self.__started_event.set()
         while True:
-            action = self.queue.get()
+            action = self.__queue.get()
             item = action[0]
             event = action[1]
             action_name = action[2]
@@ -1332,78 +1336,132 @@ class __DbDatastoreProxy(object):
                 finally:
                     #logging.debug("FINISH")
                     event.set()
-            self.queue.task_done()
+            self.__queue.task_done()
             if not item:
                 break
 
     def __get_disconnected(self):
-        return self.datastore.disconnected
+        return self.__datastore.disconnected
     def __set_disconnected(self, disconnected):
-        self.datastore.disconnected = disconnected
+        self.__datastore.disconnected = disconnected
     disconnected = property(__get_disconnected, __set_disconnected)
 
     def to_string(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.to_string, self.datastore), event, "to_string"))
+        self.__queue.put((functools.partial(DbDatastore.to_string, self.__datastore), event, "to_string"))
         event.wait()
-        str = self.datastore.last_to_string
-        self.datastore.last_to_string = None
+        str = self.__datastore.last_to_string
+        self.__datastore.last_to_string = None
         return str
 
     def create(self):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.create, self.datastore), event, "create"))
+        self.__queue.put((functools.partial(DbDatastore.create, self.__datastore), event, "create"))
         #event.wait()
 
     def set_root(self, root):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.set_root, self.datastore, root), event, "set_root"))
+        self.__queue.put((functools.partial(DbDatastore.set_root, self.__datastore, root), event, "set_root"))
         #event.wait()
 
     def erase_object(self, object):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.erase_object, self.datastore, object), event, "erase_object"))
+        self.__queue.put((functools.partial(DbDatastore.erase_object, self.__datastore, object), event, "erase_object"))
         #event.wait()
 
     def erase_data(self, object):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.erase_data, self.datastore, object), event, "erase_data"))
+        self.__queue.put((functools.partial(DbDatastore.erase_data, self.__datastore, object), event, "erase_data"))
         #event.wait()
 
     def set_type(self, item, type):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.set_type, self.datastore, item, type), event, "set_type"))
+        self.__queue.put((functools.partial(DbDatastore.set_type, self.__datastore, item, type), event, "set_type"))
         #event.wait()
 
     def set_item(self, parent, key, item):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.set_item, self.datastore, parent, key, item), event, "set_item"))
+        self.__queue.put((functools.partial(DbDatastore.set_item, self.__datastore, parent, key, item), event, "set_item"))
         #event.wait()
 
     def clear_item(self, parent, key):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.clear_item, self.datastore, parent, key), event, "clear_item"))
+        self.__queue.put((functools.partial(DbDatastore.clear_item, self.__datastore, parent, key), event, "clear_item"))
         #event.wait()
 
     def insert_item(self, parent, key, item, before):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.insert_item, self.datastore, parent, key, item, before), event, "insert_item"))
+        self.__queue.put((functools.partial(DbDatastore.insert_item, self.__datastore, parent, key, item, before), event, "insert_item"))
         #event.wait()
 
     def remove_item(self, parent, key, index):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.remove_item, self.datastore, parent, key, index), event, "remove_item"))
+        self.__queue.put((functools.partial(DbDatastore.remove_item, self.__datastore, parent, key, index), event, "remove_item"))
         #event.wait()
 
     def set_property(self, item, key, value):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.set_property, self.datastore, item, key, value), event, "set_property"))
+        self.__queue.put((functools.partial(DbDatastore.set_property, self.__datastore, item, key, value), event, "set_property"))
         #event.wait()
 
     def set_data(self, parent, key, data, data_file_path):
         event = threading.Event()
-        self.queue.put((functools.partial(DbDatastore.set_data, self.datastore, parent, key, data, data_file_path), event, "set_data"))
+        self.__queue.put((functools.partial(DbDatastore.set_data, self.__datastore, parent, key, data, data_file_path), event, "set_data"))
         #event.wait()
+
+    # these methods read data. they must wait for the queue to finish.
+
+    def find_root_node(self, type):
+        self.__queue.join()
+        return self.__datastore.find_root_node(type)
+
+    def find_parent_node(self, item):
+        self.__queue.join()
+        return self.__datastore.find_parent_node(item)
+
+    def get_version(self):
+        self.__queue.join()
+        return self.__datastore.get_version()
+
+    def build_item(self, uuid_):
+        self.__queue.join()
+        return self.__datastore.build_item(uuid_)
+
+    def has_data(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.has_data(parent_node, key)
+
+    def has_item(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.has_item(parent_node, key)
+
+    def has_relationship(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.has_relationship(parent_node, key)
+
+    def get_item(self, parent_node, key, default_value=None):
+        self.__queue.join()
+        return self.__datastore.get_item(parent_node, key, default_value)
+
+    def check_integrity(self):
+        self.__queue.join()
+        self.__datastore.check_integrity()
+
+    def get_items(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.get_items(parent_node, key)
+
+    def get_property(self, parent_node, key, default_value=None):
+        self.__queue.join()
+        return self.__datastore.get_property(parent_node, key, default_value)
+
+    def get_data(self, parent_node, key, default_value=None):
+        self.__queue.join()
+        return self.__datastore.get_data(parent_node, key, default_value)
+
+    def get_data_shape_and_dtype(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.get_data_shape_and_dtype(parent_node, key)
 
 
 class DictStorageCache(object):

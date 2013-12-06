@@ -80,14 +80,14 @@ class Application(object):
             create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
-            datastore = Storage.DbDatastore(workspace_dir, db_filename)
+            datastore = Storage.DbDatastoreProxy(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
             document_model.create_default_data_groups()
             document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", db_filename)
-            datastore = Storage.DbDatastore(workspace_dir, db_filename, create=False)
+            datastore = Storage.DbDatastoreProxy(workspace_dir, db_filename, create=False)
             version = datastore.get_version()
             logging.debug("Database at version %s.", version)
             if version == 0:
