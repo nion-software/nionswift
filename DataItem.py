@@ -568,6 +568,7 @@ class DataItem(Storage.StorageBase):
         self.__master_data = None
         self.__master_data_shape = None
         self.__master_data_dtype = None
+        self.__has_master_data = False
         self.__data_source = None
         self.__data_accessor_count = 0
         self.__data_accessor_count_mutex = threading.RLock()
@@ -610,12 +611,18 @@ class DataItem(Storage.StorageBase):
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
         data_items = storage_reader.get_items(item_node, "data_items")
-        master_data = storage_reader.get_data(item_node, "master_data") if storage_reader.has_data(item_node, "master_data") else None
+        has_master_data = storage_reader.has_data(item_node, "master_data")
+        if has_master_data:
+            master_data_shape, master_data_dtype = storage_reader.get_data_shape_and_dtype(item_node, "master_data")
+        else:
+            master_data_shape, master_data_dtype = None, None
         data_item = cls()
         data_item.title = title
         data_item.param = param
         data_item.__properties = properties if properties else dict()
-        data_item.__set_master_data(master_data)
+        data_item.__master_data_shape = master_data_shape
+        data_item.__master_data_dtype = master_data_dtype
+        data_item.__has_master_data = has_master_data
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
         # setting master data may add calibrations automatically. remove them here to start from clean slate.
@@ -985,6 +992,9 @@ class DataItem(Storage.StorageBase):
                     self.remove_cached_value("master_data_shape")
                     self.remove_cached_value("master_data_dtype")
                 self.__master_data = data
+                self.__master_data_shape = data.shape if data is not None else None
+                self.__master_data_dtype = data.dtype if data is not None else None
+                self.__has_master_data = data is not None
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid)
@@ -1001,21 +1011,25 @@ class DataItem(Storage.StorageBase):
             initial_count = self.__data_accessor_count
             self.__data_accessor_count += 1
         if initial_count == 0:
-            import traceback
-            #logging.debug("loading %s", self)
-            #traceback.print_stack()
+            if self.has_master_data:
+                logging.debug("loading %s (%s)", self, self.uuid)
+                master_data = self.storage_reader.get_data(self, "master_data")
+                self.__master_data = master_data
+                #import traceback
+                #traceback.print_stack()
         return initial_count+1
     def decrement_accessor_count(self):
         with self.__data_accessor_count_mutex:
             self.__data_accessor_count -= 1
             final_count = self.__data_accessor_count
         if final_count == 0:
-            pass
-            #logging.debug("unloading %s", self)
+            if self.has_master_data:
+                self.__master_data = None
+                logging.debug("unloading %s (%s)", self, self.uuid)
         return final_count
 
     def __get_has_master_data(self):
-        return self.__master_data is not None
+        return self.__has_master_data
     has_master_data = property(__get_has_master_data)
 
     def __get_has_data_source(self):
@@ -1064,13 +1078,9 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             master_data = None
             if self.has_master_data:
-                with self.create_data_accessor() as data_accessor:
-                    master_data = data_accessor.master_data
-            if master_data is not None:
-                return master_data.shape, master_data.dtype
-            data_source = self.data_source
-            if data_source:
-                return data_source.data_shape_and_dtype
+                return self.__master_data_shape, self.__master_data_dtype
+            if self.has_data_source:
+                return self.data_source.data_shape_and_dtype
         return None, None
 
     def __clear_cached_data(self):
@@ -1107,19 +1117,9 @@ class DataItem(Storage.StorageBase):
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
             if self.has_master_data:
-                data_shape = self.get_cached_value("master_data_shape")
-                data_dtype = self.get_cached_value("master_data_dtype")
-                if data_shape is None or data_dtype is None:
-                    # typically we shouldn't encounter this unless the cache
-                    # has been lost. this happens during tests but is also
-                    # possible in the wild. recalculate shape and dtype here.
-                    with self.create_data_accessor() as data_accessor:
-                        data = data_accessor.master_data
-                        data_shape = data.shape
-                        data_dtype = data.dtype
-                        self.set_cached_value("master_data_shape", data.shape)
-                        self.set_cached_value("master_data_dtype", data.dtype)
-            elif self.data_source:
+                data_shape = self.__master_data_shape
+                data_dtype = self.__master_data_dtype
+            elif self.has_data_source:
                 data_shape = self.data_source.data_shape
                 data_dtype = self.data_source.data_dtype
             else:

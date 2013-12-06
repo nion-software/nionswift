@@ -173,11 +173,11 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_writer = Storage.DbStorageWriter(None, db_name)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         storage_reader = Storage.DbStorageReader(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
         storage_reader.from_string(storage_str)
+        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         document_controller.document_model.read(storage_reader)
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
             self.assertEqual(data_accessor.data[0,0], 2)

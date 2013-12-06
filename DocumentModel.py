@@ -25,6 +25,7 @@ class DocumentModel(Storage.StorageBase):
         super(DocumentModel, self).__init__()
         self.__counted_data_items = collections.Counter()
         self.storage_writer = storage_writer
+        self.storage_reader = storage_reader
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"

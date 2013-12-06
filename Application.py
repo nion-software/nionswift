@@ -107,6 +107,8 @@ class Application(object):
                 logging.debug("Preparing to commit")
                 storage_reader.conn.commit()
                 logging.debug("Committed")
+                c.execute("VACUUM")
+                logging.debug("Vacuumed")
             storage_reader.check_integrity()
             storage_writer = Storage.DbStorageWriter(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)

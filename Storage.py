@@ -178,6 +178,7 @@ class StorageBase(Broadcaster):
     def __init__(self):
         super(StorageBase, self).__init__()
         self.__storage_writer = None
+        self.__storage_reader = None
         self.__storage_cache = None
         self.storage_properties = []
         self.storage_relationships = []
@@ -287,6 +288,21 @@ class StorageBase(Broadcaster):
                 if transaction_level == "strong" and self.__transaction_count > 0:
                     item.begin_transaction(self.__transaction_count)
     storage_writer = property(__get_storage_writer, __set_storage_writer)
+
+    def __get_storage_reader(self):
+        return self.__storage_reader
+    def __set_storage_reader(self, storage_reader):
+        self.__storage_reader = storage_reader
+        for item_key in self.storage_items:
+            item = self.get_storage_item(item_key)
+            if item:
+                item.storage_reader = storage_reader
+        for relationship_key in self.storage_relationships:
+            count = self.get_storage_relationship_count(relationship_key)
+            for index in range(count):
+                item = self.get_storage_relationship(relationship_key, index)
+                item.storage_reader = storage_reader
+    storage_reader = property(__get_storage_reader, __set_storage_reader)
 
     def __get_storage_cache(self):
         return self.__storage_cache
@@ -449,6 +465,7 @@ class StorageBase(Broadcaster):
                 self.storage_writer.set_item(self, key, item)
             else:
                 item.begin_transaction(self.__transaction_count)
+        item.storage_reader = self.storage_reader
         if self.storage_cache:
             item.storage_cache = self.storage_cache
         if item:
@@ -467,6 +484,7 @@ class StorageBase(Broadcaster):
                     item.storage_writer = None
                 else:
                     item.end_transaction(self.__transaction_count)
+            item.storage_reader = None
             if self.storage_cache:
                 item.storage_cache = None
             item.remove_parent(self)
@@ -491,6 +509,7 @@ class StorageBase(Broadcaster):
                 self.storage_writer.insert_item(self, key, value, before_index)
             else:
                 value.begin_transaction(self.__transaction_count)
+        value.storage_reader = self.storage_reader
         if self.storage_cache:
             value.storage_cache = self.storage_cache
         value.add_parent(self)
@@ -507,6 +526,7 @@ class StorageBase(Broadcaster):
                 value.storage_writer = None
             else:
                 value.end_transaction(self.__transaction_count)
+        value.storage_reader = None
         if self.storage_cache:
             value.storage_cache = None
         value.remove_parent(self)
@@ -532,7 +552,9 @@ class StorageBase(Broadcaster):
             for item_key in self.storage_items:
                 item = self.get_storage_item(item_key)
                 if item:
+                    # TODO: are these redundant?
                     item.storage_writer = self.storage_writer
+                    item.storage_reader = self.storage_reader
                     item.storage_cache = self.storage_cache
                     self.storage_writer.set_item(self, item_key, item)
             for data_key in self.storage_data_keys:
@@ -543,7 +565,9 @@ class StorageBase(Broadcaster):
                 count = self.get_storage_relationship_count(relationship_key)
                 for index in range(count):
                     item = self.get_storage_relationship(relationship_key, index)
+                    # TODO: are these redundant?
                     item.storage_writer = self.storage_writer
+                    item.storage_reader = self.storage_reader
                     item.storage_cache = self.storage_cache
                     self.storage_writer.insert_item(self, relationship_key, item, index)
             if self.storage_writer:
@@ -806,6 +830,7 @@ class DictStorageWriter(object):
         data_arrays[key] = data
 
 
+# parent_nodes are dicts for this class
 class DictStorageReader(object):
     def __init__(self, node_map=None):
         self.__node_map = node_map if node_map else {}
@@ -897,9 +922,18 @@ class DictStorageReader(object):
         if key in data_items:
             data = data_items[key]
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            return data_items[key]
+            return data
         else:
             return default_value
+
+    def get_data_shape_and_dtype(self, parent_node, key):
+        data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
+        if key in data_items:
+            data = data_items[key]
+            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
+            return data.shape, data.dtype
+        else:
+            return None
 
 
 
@@ -930,6 +964,7 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
 # utility function to read data from external file.
 def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
     assert workspace_dir
+    assert parent_uuid
     c.execute("SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
     if data_row:
@@ -1172,31 +1207,6 @@ class DbStorageWriter(object):
                 c = self.conn.cursor()
                 self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
 
-    def get_data(self, parent_uuid, key, default_value=None):
-        c = self.conn.cursor()
-        if self.workspace_dir:  # may be None for testing
-            return db_get_data(c, workspace_dir, parent_uuid, key, default_value)
-        else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_uuid, key, ))
-            data_row = c.fetchone()
-            if data_row:
-                return pickle.loads(str(data_row[0]))
-            else:
-                return default_value
-
-    def get_data_shape_and_dtype(self, parent_uuid, key):
-        c = self.conn.cursor()
-        if self.workspace_dir:  # may be None for testing
-            return db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key)
-        else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_uuid, key, ))
-            data_row = c.fetchone()
-            if data_row:
-                data = pickle.loads(str(data_row[0]))
-                return data.shape, data.dtype
-            else:
-                return None
-
 
 class DbStorageWriterProxy(object):
 
@@ -1305,6 +1315,7 @@ class DbStorageWriterProxy(object):
         #event.wait()
 
 
+# parent_nodes are uuids for this class
 class DbStorageReader(object):
 
     def __init__(self, workspace_dir, db_filename):
@@ -1449,7 +1460,7 @@ class DbStorageReader(object):
         if self.workspace_dir:  # may be None for testing
             return db_get_data(c, self.workspace_dir, parent_node, key, default_value)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (str(parent_node), key, ))
             data_row = c.fetchone()
             if data_row:
                 return pickle.loads(str(data_row[0]))
@@ -1459,9 +1470,9 @@ class DbStorageReader(object):
     def get_data_shape_and_dtype(self, parent_node, key):
         c = self.conn.cursor()
         if self.workspace_dir:  # may be None for testing
-            return db_get_data_shape_and_dtype(c, workspace_dir, parent_node, key)
+            return db_get_data_shape_and_dtype(c, self.workspace_dir, parent_node, key)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (str(parent_node), key, ))
             data_row = c.fetchone()
             if data_row:
                 data = pickle.loads(str(data_row[0]))
