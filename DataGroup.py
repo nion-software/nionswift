@@ -88,10 +88,10 @@ class DataGroup(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        title = storage_reader.get_property(item_node, "title")
-        data_groups = storage_reader.get_items(item_node, "data_groups")
-        data_items = storage_reader.get_items(item_node, "data_items")
+    def build(cls, datastore, item_node, uuid_):
+        title = datastore.get_property(item_node, "title")
+        data_groups = datastore.get_items(item_node, "data_groups")
+        data_items = datastore.get_items(item_node, "data_items")
         data_group = cls()
         data_group.title = title
         data_group.data_groups.extend(data_groups)
@@ -206,8 +206,8 @@ class SmartDataGroup(Storage.StorageBase):
         return "* " + (self.title if self.title else _("Untitled"))
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        title = storage_reader.get_property(item_node, "title")
+    def build(cls, datastore, item_node, uuid_):
+        title = datastore.get_property(item_node, "title")
         data_group = cls()
         data_group.title = title
         return data_group

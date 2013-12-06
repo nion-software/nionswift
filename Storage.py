@@ -173,8 +173,7 @@ class StorageBase(Broadcaster):
 
     def __init__(self):
         super(StorageBase, self).__init__()
-        self.__storage_writer = None
-        self.__storage_reader = None
+        self.__datastore = None
         self.__storage_cache = None
         self.storage_properties = []
         self.storage_relationships = []
@@ -266,35 +265,20 @@ class StorageBase(Broadcaster):
             if hasattr(parent, fn):
                 getattr(parent, fn)(*args, **keywords)
 
-    def __get_storage_writer(self):
-        return self.__storage_writer
-    def __set_storage_writer(self, storage_writer):
-        self.__storage_writer = storage_writer
+    def __get_datastore(self):
+        return self.__datastore
+    def __set_datastore(self, datastore):
+        self.__datastore = datastore
         for item_key in self.storage_items:
             item = self.get_storage_item(item_key)
             if item:
-                item.storage_writer = storage_writer
+                item.datastore = datastore
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
                 item = self.get_storage_relationship(relationship_key, index)
-                item.storage_writer = storage_writer
-    storage_writer = property(__get_storage_writer, __set_storage_writer)
-
-    def __get_storage_reader(self):
-        return self.__storage_reader
-    def __set_storage_reader(self, storage_reader):
-        self.__storage_reader = storage_reader
-        for item_key in self.storage_items:
-            item = self.get_storage_item(item_key)
-            if item:
-                item.storage_reader = storage_reader
-        for relationship_key in self.storage_relationships:
-            count = self.get_storage_relationship_count(relationship_key)
-            for index in range(count):
-                item = self.get_storage_relationship(relationship_key, index)
-                item.storage_reader = storage_reader
-    storage_reader = property(__get_storage_reader, __set_storage_reader)
+                item.datastore = datastore
+    datastore = property(__get_datastore, __set_datastore)
 
     def __get_storage_cache(self):
         return self.__storage_cache
@@ -341,7 +325,7 @@ class StorageBase(Broadcaster):
             transaction_count = self.__transaction_count
         if transaction_count == 0:
             self.spill_cache()
-            if self.storage_writer:
+            if self.datastore:
                 self.rewrite_data()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
@@ -419,8 +403,8 @@ class StorageBase(Broadcaster):
         self.__weak_observers.remove(weakref.ref(observer))
 
     def notify_set_property(self, key, value):
-        if self.storage_writer:
-            self.storage_writer.set_property(self, key, value)
+        if self.datastore:
+            self.datastore.set_property(self, key, value)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
             if observer and getattr(observer, "property_changed", None):
@@ -428,10 +412,9 @@ class StorageBase(Broadcaster):
 
     def notify_set_item(self, key, item):
         assert item is not None
-        if self.storage_writer:
-            item.storage_writer = self.storage_writer
-            self.storage_writer.set_item(self, key, item)
-        item.storage_reader = self.storage_reader
+        if self.datastore:
+            item.datastore = self.datastore
+            self.datastore.set_item(self, key, item)
         if self.storage_cache:
             item.storage_cache = self.storage_cache
         if item:
@@ -444,10 +427,9 @@ class StorageBase(Broadcaster):
     def notify_clear_item(self, key):
         item = self.get_storage_item(key)
         if item:
-            if self.storage_writer:
-                self.storage_writer.clear_item(self, key)
-                item.storage_writer = None
-            item.storage_reader = None
+            if self.datastore:
+                self.datastore.clear_item(self, key)
+                item.datastore = None
             if self.storage_cache:
                 item.storage_cache = None
             item.remove_parent(self)
@@ -457,8 +439,8 @@ class StorageBase(Broadcaster):
                     observer.item_cleared(self, key)
 
     def notify_set_data(self, key, data, data_file_path):
-        if self.storage_writer and self.__transaction_count == 0:
-            self.storage_writer.set_data(self, key, data, data_file_path)
+        if self.datastore and self.__transaction_count == 0:
+            self.datastore.set_data(self, key, data, data_file_path)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
             if observer and getattr(observer, "data_set", None):
@@ -466,10 +448,9 @@ class StorageBase(Broadcaster):
 
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
-        if self.storage_writer:
-            value.storage_writer = self.storage_writer
-            self.storage_writer.insert_item(self, key, value, before_index)
-        value.storage_reader = self.storage_reader
+        if self.datastore:
+            value.datastore = self.datastore
+            self.datastore.insert_item(self, key, value, before_index)
         if self.storage_cache:
             value.storage_cache = self.storage_cache
         value.add_parent(self)
@@ -480,10 +461,9 @@ class StorageBase(Broadcaster):
 
     def notify_remove_item(self, key, value, index):
         assert value is not None
-        if self.storage_writer:
-            self.storage_writer.remove_item(self, key, index)
-            value.storage_writer = None
-        value.storage_reader = None
+        if self.datastore:
+            self.datastore.remove_item(self, key, index)
+            value.datastore = None
         if self.storage_cache:
             value.storage_cache = None
         value.remove_parent(self)
@@ -493,53 +473,51 @@ class StorageBase(Broadcaster):
                 observer.item_removed(self, key, value, index)
 
     def rewrite(self):
-        assert self.storage_writer is not None
+        assert self.datastore is not None
         assert self.__transaction_count == 0
-        self.storage_writer.erase_object(self)
+        self.datastore.erase_object(self)
         self.write()
 
     def write(self):
-        assert self.storage_writer is not None
+        assert self.datastore is not None
         # assert self.__transaction_count == 0  # not always True, see test_insert_item_with_transaction
         for property_key in self.storage_properties:
             value = self.get_storage_property(property_key)
             if value:
-                self.storage_writer.set_property(self, property_key, value)
+                self.datastore.set_property(self, property_key, value)
         for item_key in self.storage_items:
             item = self.get_storage_item(item_key)
             if item:
                 # TODO: are these redundant?
-                item.storage_writer = self.storage_writer
-                item.storage_reader = self.storage_reader
+                item.datastore = self.datastore
                 item.storage_cache = self.storage_cache
-                self.storage_writer.set_item(self, item_key, item)
+                self.datastore.set_item(self, item_key, item)
         for data_key in self.storage_data_keys:
             data, data_file_path = self.get_storage_data(data_key)
             if data is not None:
-                self.storage_writer.set_data(self, data_key, data, data_file_path)
+                self.datastore.set_data(self, data_key, data, data_file_path)
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
                 item = self.get_storage_relationship(relationship_key, index)
                 # TODO: are these redundant?
-                item.storage_writer = self.storage_writer
-                item.storage_reader = self.storage_reader
+                item.datastore = self.datastore
                 item.storage_cache = self.storage_cache
-                self.storage_writer.insert_item(self, relationship_key, item, index)
-        if self.storage_writer:
-            self.storage_writer.set_type(self, self.storage_type)
+                self.datastore.insert_item(self, relationship_key, item, index)
+        if self.datastore:
+            self.datastore.set_type(self, self.storage_type)
 
     def write_data(self):
-        assert self.storage_writer is not None
+        assert self.datastore is not None
         for data_key in self.storage_data_keys:
             data, data_file_path = self.get_storage_data(data_key)
             if data is not None:
-                self.storage_writer.set_data(self, data_key, data, data_file_path)
+                self.datastore.set_data(self, data_key, data, data_file_path)
 
     def rewrite_data(self):
-        assert self.storage_writer is not None
+        assert self.datastore is not None
         assert self.__transaction_count == 0
-        self.storage_writer.erase_data(self)
+        self.datastore.erase_data(self)
         self.write_data()
 
     # the cache system stores values that are expensive to calculate for quick retrieval.
@@ -634,10 +612,13 @@ class StorageBase(Broadcaster):
 # save thumbnails?
 # save processed data?
 # TODO: revisit core data design from Apple
-class DictStorageWriter(object):
+class DictDatastore(object):
 
-    def __init__(self):
-        self.__node_map = {}
+    def __init__(self, node_map=None):
+        self.__node_map = node_map if node_map else {}
+        # item map is used during item construction.
+        self.__item_map = {}
+        self.initialized = node_map is not None
         self.disconnected = False
 
     def __get_node_map(self):
@@ -648,13 +629,11 @@ class DictStorageWriter(object):
         if self.disconnected:
             return
         self.__make_node(root.uuid)
+        self.initialized = True
 
     def log(self):
         for key in self.__node_map.keys():
             logging.debug("%s %s: %s", type(self.__node_map[key]), key, self.__node_map[key])
-
-    def save_file(self, db_filename):
-        pickle.dump(self.__node_map, open(db_filename, "wb"))
 
     def __make_node(self, uuid):
         if uuid in self.__node_map:
@@ -785,25 +764,16 @@ class DictStorageWriter(object):
         data_arrays = parent_node.setdefault("data_arrays", {})
         data_arrays[key] = data
 
-
-# parent_nodes are dicts for this class
-class DictStorageReader(object):
-    def __init__(self, node_map=None):
-        self.__node_map = node_map if node_map else {}
-        self.__item_map = {}
-
-    def log(self):
-        for key in self.__node_map.keys():
-            logging.debug("%s: %s", key, self.__node_map[key])
-
-    def load_file(self, db_filename):
-        self.__node_map = pickle.load(open(db_filename, "rb"))
+    # NOTE: parent_nodes are dicts for this class
 
     def find_root_node(self, type):
         for item in self.__node_map:
             if self.__node_map[item]["type"] == type:
                 return self.__node_map[item], item
         return None
+
+    def find_parent_node(self, item):
+        return self.__node_map[item.uuid]
 
     def build_item(self, uuid_):
         item = None
@@ -945,17 +915,49 @@ def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
 
 
 
-class DbStorageWriter(object):
+class DbDatastore(object):
 
-    def __init__(self, workspace_dir, db_filename):
+    def __init__(self, workspace_dir, db_filename, str=None):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
         self.workspace_dir = workspace_dir  # may be None for testing only
+        # item map is used during item construction.
+        self.__item_map = {}
         self.disconnected = False
-        self.create()
-        self.migrate()
+        if str:
+            self.from_string(str)
+        else:
+            self.create()
 
     def close(self):
         pass
+
+    def __get_initialized(self):
+        c = self.conn.cursor()
+        c.execute("SELECT uuid FROM nodes WHERE refcount=0")
+        return c.fetchone() is not None
+    initialized = property(__get_initialized)
+
+    def from_string(self, str):
+        self.conn.cursor().executescript(str)
+        self.conn.commit()
+        self.conn.row_factory = sqlite3.Row
+
+    def print_counts(self):
+        c = self.conn.cursor()
+        if False:
+            c.execute("SELECT * FROM nodes")
+            for row in c.fetchall():
+                logging.debug(str(row))
+                for key in row.keys():
+                    logging.debug("%s: %s", key, row[key])
+        c.execute("SELECT COUNT(*) FROM nodes")
+        logging.debug("nodes: %s", c.fetchone()[0])
+        c.execute("SELECT COUNT(*) FROM properties")
+        logging.debug("properties: %s", c.fetchone()[0])
+        c.execute("SELECT COUNT(*) FROM data")
+        logging.debug("data: %s", c.fetchone()[0])
+        c.execute("SELECT COUNT(*) FROM relationships")
+        logging.debug("relationships: %s", c.fetchone()[0])
 
     def execute(self, c, stmt, args=None, log=False):
         if args:
@@ -1006,14 +1008,6 @@ class DbStorageWriter(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
             self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
             self.conn.commit()
-
-    def migrate(self):
-        # do this whether disconnected or not
-        c = self.conn.cursor()
-        self.execute(c, "SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
-        if c.fetchone() is None:
-            self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
-        self.conn.commit()
 
     # keep. used for testing
     def find_node_or_none(self, item):
@@ -1163,150 +1157,16 @@ class DbStorageWriter(object):
                 c = self.conn.cursor()
                 self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
 
-
-# unusable for now.
-class __DbStorageWriterProxy(object):
-
-    def __init__(self, workspace_dir, db_filename):
-        self.storage_writer = None
-        self.queue = Queue.Queue()
-        self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename])
-        self.__thread.daemon = True
-        self.__thread.start()
-        self.__started_event.wait()
-
-    def close(self):
-        self.queue.put(None)
-
-    def __run(self, workspace_dir, db_filename):
-        self.storage_writer = DbStorageWriter(workspace_dir, db_filename)
-        self.__started_event.set()
-        while True:
-            action = self.queue.get()
-            item = action[0]
-            event = action[1]
-            action_name = action[2]
-            if item:
-                try:
-                    #logging.debug("EXECUTE %s", action_name)
-                    item()
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    logging.debug("DB Error: %s", e)
-                finally:
-                    #logging.debug("FINISH")
-                    event.set()
-            self.queue.task_done()
-            if not item:
-                break
-
-    def __get_disconnected(self):
-        return self.storage_writer.disconnected
-    def __set_disconnected(self, disconnected):
-        self.storage_writer.disconnected = disconnected
-    disconnected = property(__get_disconnected, __set_disconnected)
-
-    def to_string(self):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.to_string, self.storage_writer), event, "to_string"))
-        event.wait()
-        str = self.storage_writer.last_to_string
-        self.storage_writer.last_to_string = None
-        return str
-
-    def create(self):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.create, self.storage_writer), event, "create"))
-        #event.wait()
-
-    def set_root(self, root):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_root, self.storage_writer, root), event, "set_root"))
-        #event.wait()
-
-    def erase_object(self, object):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.erase_object, self.storage_writer, object), event, "erase_object"))
-        #event.wait()
-
-    def erase_data(self, object):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.erase_data, self.storage_writer, object), event, "erase_data"))
-        #event.wait()
-
-    def set_type(self, item, type):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_type, self.storage_writer, item, type), event, "set_type"))
-        #event.wait()
-
-    def set_item(self, parent, key, item):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_item, self.storage_writer, parent, key, item), event, "set_item"))
-        #event.wait()
-
-    def clear_item(self, parent, key):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.clear_item, self.storage_writer, parent, key), event, "clear_item"))
-        #event.wait()
-
-    def insert_item(self, parent, key, item, before):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.insert_item, self.storage_writer, parent, key, item, before), event, "insert_item"))
-        #event.wait()
-
-    def remove_item(self, parent, key, index):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.remove_item, self.storage_writer, parent, key, index), event, "remove_item"))
-        #event.wait()
-
-    def set_property(self, item, key, value):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_property, self.storage_writer, item, key, value), event, "set_property"))
-        #event.wait()
-
-    def set_data(self, parent, key, data, data_file_path):
-        event = threading.Event()
-        self.queue.put((functools.partial(DbStorageWriter.set_data, self.storage_writer, parent, key, data, data_file_path), event, "set_data"))
-        #event.wait()
-
-
-# parent_nodes are uuids for this class
-class DbStorageReader(object):
-
-    def __init__(self, workspace_dir, db_filename):
-        self.conn = sqlite3.connect(db_filename)
-        self.workspace_dir = workspace_dir  # may be None for testing
-        self.__item_map = {}
-
-    def from_string(self, str):
-        self.conn.cursor().executescript(str)
-        self.conn.commit()
-        self.conn.row_factory = sqlite3.Row
-
-    def print_counts(self):
-        c = self.conn.cursor()
-        if False:
-            c.execute("SELECT * FROM nodes")
-            for row in c.fetchall():
-                logging.debug(str(row))
-                for key in row.keys():
-                    logging.debug("%s: %s", key, row[key])
-        c.execute("SELECT COUNT(*) FROM nodes")
-        logging.debug("nodes: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM properties")
-        logging.debug("properties: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM data")
-        logging.debug("data: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM relationships")
-        logging.debug("relationships: %s", c.fetchone()[0])
+    # NOTE: parent_nodes are uuid strings for this class
 
     def find_root_node(self, type):
         c = self.conn.cursor()
         c.execute("SELECT uuid FROM nodes WHERE type=? AND refcount=0", (type, ))
         uuid_ = c.fetchone()[0]
         return uuid_, uuid.UUID(uuid_)
+
+    def find_parent_node(self, item):
+        return str(item.uuid)
 
     def get_version(self):
         c = self.conn.cursor()
@@ -1417,7 +1277,7 @@ class DbStorageReader(object):
         if self.workspace_dir:  # may be None for testing
             return db_get_data(c, self.workspace_dir, parent_node, key, default_value)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (str(parent_node), key, ))
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
             if data_row:
                 return pickle.loads(str(data_row[0]))
@@ -1429,13 +1289,121 @@ class DbStorageReader(object):
         if self.workspace_dir:  # may be None for testing
             return db_get_data_shape_and_dtype(c, self.workspace_dir, parent_node, key)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (str(parent_node), key, ))
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
             if data_row:
                 data = pickle.loads(str(data_row[0]))
                 return data.shape, data.dtype
             else:
                 return None
+
+
+# unusable for now.
+class __DbDatastoreProxy(object):
+
+    def __init__(self, workspace_dir, db_filename):
+        self.datastore = None
+        self.queue = Queue.Queue()
+        self.__started_event = threading.Event()
+        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename])
+        self.__thread.daemon = True
+        self.__thread.start()
+        self.__started_event.wait()
+
+    def close(self):
+        self.queue.put(None)
+
+    def __run(self, workspace_dir, db_filename):
+        self.datastore = DbDatastore(workspace_dir, db_filename)
+        self.__started_event.set()
+        while True:
+            action = self.queue.get()
+            item = action[0]
+            event = action[1]
+            action_name = action[2]
+            if item:
+                try:
+                    #logging.debug("EXECUTE %s", action_name)
+                    item()
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    logging.debug("DB Error: %s", e)
+                finally:
+                    #logging.debug("FINISH")
+                    event.set()
+            self.queue.task_done()
+            if not item:
+                break
+
+    def __get_disconnected(self):
+        return self.datastore.disconnected
+    def __set_disconnected(self, disconnected):
+        self.datastore.disconnected = disconnected
+    disconnected = property(__get_disconnected, __set_disconnected)
+
+    def to_string(self):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.to_string, self.datastore), event, "to_string"))
+        event.wait()
+        str = self.datastore.last_to_string
+        self.datastore.last_to_string = None
+        return str
+
+    def create(self):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.create, self.datastore), event, "create"))
+        #event.wait()
+
+    def set_root(self, root):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.set_root, self.datastore, root), event, "set_root"))
+        #event.wait()
+
+    def erase_object(self, object):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.erase_object, self.datastore, object), event, "erase_object"))
+        #event.wait()
+
+    def erase_data(self, object):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.erase_data, self.datastore, object), event, "erase_data"))
+        #event.wait()
+
+    def set_type(self, item, type):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.set_type, self.datastore, item, type), event, "set_type"))
+        #event.wait()
+
+    def set_item(self, parent, key, item):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.set_item, self.datastore, parent, key, item), event, "set_item"))
+        #event.wait()
+
+    def clear_item(self, parent, key):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.clear_item, self.datastore, parent, key), event, "clear_item"))
+        #event.wait()
+
+    def insert_item(self, parent, key, item, before):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.insert_item, self.datastore, parent, key, item, before), event, "insert_item"))
+        #event.wait()
+
+    def remove_item(self, parent, key, index):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.remove_item, self.datastore, parent, key, index), event, "remove_item"))
+        #event.wait()
+
+    def set_property(self, item, key, value):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.set_property, self.datastore, item, key, value), event, "set_property"))
+        #event.wait()
+
+    def set_data(self, parent, key, data, data_file_path):
+        event = threading.Event()
+        self.queue.put((functools.partial(DbDatastore.set_data, self.datastore, parent, key, data, data_file_path), event, "set_data"))
+        #event.wait()
 
 
 class DictStorageCache(object):

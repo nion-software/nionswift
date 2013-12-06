@@ -21,33 +21,33 @@ _ = gettext.gettext
 
 class DocumentModel(Storage.StorageBase):
 
-    def __init__(self, storage_writer, storage_cache=None, storage_reader=None):
+    def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
         self.__counted_data_items = collections.Counter()
-        self.storage_writer = storage_writer
-        self.storage_reader = storage_reader
+        self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.session_uuid = uuid.uuid4()
-        if storage_reader:
-            storage_writer.disconnected = True
-            self.read(storage_reader)
-            storage_writer.disconnected = False
+        if self.datastore.initialized:
+            self.datastore.disconnected = True
+            self.read()
+            self.datastore.disconnected = False
         else:
-            storage_writer.set_root(self)
+            self.datastore.set_root(self)
             self.write()
 
     def about_to_delete(self):
-        self.storage_writer.disconnected = True
+        self.datastore.disconnected = True
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
 
-    def read(self, storage_reader):
-        parent_node, uuid = storage_reader.find_root_node("document")
+    # TODO: make DocumentModel.read private
+    def read(self):
+        parent_node, uuid = self.datastore.find_root_node("document")
         self._set_uuid(uuid)
-        data_groups = storage_reader.get_items(parent_node, "data_groups")
+        data_groups = self.datastore.get_items(parent_node, "data_groups")
         self.data_groups.extend(data_groups)
 
     def create_default_data_groups(self):

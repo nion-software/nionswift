@@ -79,25 +79,24 @@ class TestStorageClass(unittest.TestCase):
         image_panel.close()
 
     def test_save_document(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
 
     def test_save_load_document(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_items_count = len(document_controller.document_model.default_data_group.data_items)
         data_items_type = type(document_controller.document_model.default_data_group.data_items)
         document_controller.close()
         # read it back
-        node_map_copy = copy.deepcopy(storage_writer.node_map)
-        storage_writer = Storage.DictStorageWriter()
-        storage_reader = Storage.DictStorageReader(node_map_copy)
+        node_map_copy = copy.deepcopy(datastore.node_map)
+        datastore = Storage.DictDatastore(node_map_copy)
         storage_cache = Storage.DictStorageCache()
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
@@ -105,12 +104,12 @@ class TestStorageClass(unittest.TestCase):
 
     def write_read_db_storage(self, include_rewrite=False):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        storage_str = storage_writer.to_string()
+        storage_str = datastore.to_string()
         document_model_uuid = document_controller.document_model.uuid
         data_items_count = len(document_controller.document_model.default_data_group.data_items)
         data_items_type = type(document_controller.document_model.default_data_group.data_items)
@@ -120,17 +119,12 @@ class TestStorageClass(unittest.TestCase):
         if include_rewrite:
             document_controller.document_model.default_data_group.data_items[0].rewrite()
         document_controller.close()
-        storage_writer.close()
+        datastore.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name, storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.assertNotEqual(document_model_uuid, document_controller.document_model.uuid)
-        storage_reader = Storage.DbStorageReader(None, db_name)
-        storage_writer.close()
-        storage_reader.from_string(storage_str)
-        document_controller.document_model.read(storage_reader)
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
@@ -155,9 +149,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -169,16 +163,13 @@ class TestStorageClass(unittest.TestCase):
         data2[0,0] = 2
         with data_item.create_data_accessor() as data_accessor:
             data_accessor.master_data = data2
-        storage_str = storage_writer.to_string()
+        storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(None, db_name)
-        storage_reader = Storage.DbStorageReader(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name, storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
-        storage_reader.from_string(storage_str)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller.document_model.read(storage_reader)
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
             self.assertEqual(data_accessor.data[0,0], 2)
 
@@ -191,9 +182,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -204,24 +195,21 @@ class TestStorageClass(unittest.TestCase):
         thread = threading.Thread(target=self.update_data, args=[data_item])
         thread.start()
         thread.join()
-        storage_str = storage_writer.to_string()
+        storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name, storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_reader = Storage.DbStorageReader(None, db_name)
-        storage_reader.from_string(storage_str)
-        document_controller.document_model.read(storage_reader)
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
             self.assertEqual(data_accessor.data[0,0], 2)
 
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         # insert two items at beginning. this generates primary key error unless key updating is carefully handled
@@ -229,7 +217,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].data_items.insert(0, data_item4)
         data_item5 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         document_controller.document_model.data_groups[0].data_items.insert(0, data_item5)
-        c = storage_writer.conn.cursor()
+        c = datastore.conn.cursor()
         c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 4", (str(document_controller.document_model.data_groups[0].uuid), ))
         self.assertEqual(c.fetchone()[0], 5)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
@@ -239,15 +227,15 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].data_items.insert(1, data_item7)
         document_controller.document_model.data_groups[0].data_items.remove(document_controller.document_model.data_groups[0].data_items[2])
         # make sure indexes are in sequence still
-        c = storage_writer.conn.cursor()
+        c = datastore.conn.cursor()
         c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 5", (str(document_controller.document_model.data_groups[0].uuid), ))
         self.assertEqual(c.fetchone()[0], 6)
 
     def test_copy_data_group(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         document_controller.document_model.data_groups.append(data_group1)
@@ -276,44 +264,43 @@ class TestStorageClass(unittest.TestCase):
         # test setting original graphic to None. the graphic is still referenced by the data item
         # so it should not be None
         old_graphic = crop_operation.graphic
-        self.assertIsNotNone(document_controller.document_model.storage_writer.find_node_or_none(old_graphic))
+        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(old_graphic))
         old_graphic.add_ref()
         crop_operation.graphic = None
-        self.assertIsNotNone(document_controller.document_model.storage_writer.find_node_or_none(old_graphic))
+        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(old_graphic))
         old_graphic.remove_ref()
         # test replacing the graphic
         graphic1 = Graphics.RectangleGraphic()
         graphic1.add_ref()
         graphic1.bounds = ((0.25,0.25), (0.5,0.5))
         crop_operation.graphic = graphic1
-        self.assertIsNotNone(document_controller.document_model.storage_writer.find_node_or_none(graphic1))
+        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(graphic1))
         graphic2 = Graphics.RectangleGraphic()
         graphic2.add_ref()
         graphic2.bounds = ((0.25,0.25), (0.5,0.5))
         crop_operation.graphic = graphic2
-        self.assertIsNone(document_controller.document_model.storage_writer.find_node_or_none(graphic1))
-        self.assertIsNotNone(document_controller.document_model.storage_writer.find_node_or_none(graphic2))
+        self.assertIsNone(document_controller.document_model.datastore.find_node_or_none(graphic1))
+        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(graphic2))
         crop_operation.graphic = None
-        self.assertIsNone(document_controller.document_model.storage_writer.find_node_or_none(graphic2))
+        self.assertIsNone(document_controller.document_model.datastore.find_node_or_none(graphic2))
         # finally test setting it to None
         graphic1.remove_ref()
         graphic2.remove_ref()
 
     def test_dict_storage_set_item(self):
         # write to storage
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         document_controller.close()
         # read it back
-        node_map_copy = copy.deepcopy(storage_writer.node_map)
-        storage_writer = Storage.DictStorageWriter()
-        storage_reader = Storage.DictStorageReader(node_map_copy)
+        node_map_copy = copy.deepcopy(datastore.node_map)
+        datastore = Storage.DictDatastore(node_map_copy)
         storage_cache = Storage.DictStorageCache()
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache, storage_reader)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_writer.set_root(document_model)
+        datastore.set_root(document_model)
         document_model.write()
         # check that the graphic associated with the operation was read back
         self.verify_and_test_set_item(document_controller)
@@ -323,21 +310,18 @@ class TestStorageClass(unittest.TestCase):
     def test_db_storage_set_item(self):
         # write to storage
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        storage_str = storage_writer.to_string()
+        storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name, storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        storage_reader = Storage.DbStorageReader(None, db_name)
-        storage_reader.from_string(storage_str)
-        document_controller.document_model.read(storage_reader)
         # check that the graphic associated with the operation was read back
         self.verify_and_test_set_item(document_controller)
         # clean up
@@ -345,8 +329,8 @@ class TestStorageClass(unittest.TestCase):
 
     # make sure thumbnail raises exception if a bad operation is involved
     def test_duplicate_item(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -356,9 +340,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_insert_item_with_transaction(self):
         db_name = ":memory:"
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_model.add_ref()
         data_group = DataGroup.DataGroup()
         document_model.data_groups.append(data_group)
@@ -368,17 +352,14 @@ class TestStorageClass(unittest.TestCase):
             with data_item.create_data_accessor() as data_accessor:
                 data_accessor.master_data = numpy.zeros((16, 16), numpy.uint32)
             data_group.data_items.append(data_item)
-        storage_str = storage_writer.to_string()
+        storage_str = datastore.to_string()
         document_model.remove_ref()
         # make sure it reloads
-        storage_writer = Storage.DbStorageWriter(None, db_name)
+        datastore = Storage.DbDatastore(None, db_name, storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(storage_writer, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_model.add_ref()
-        storage_reader = Storage.DbStorageReader(None, db_name)
-        storage_reader.from_string(storage_str)
-        document_model.read(storage_reader)
-        storage_writer.set_root(document_model)
+        datastore.set_root(document_model)
         document_model.write()
         data_group = document_model.data_groups[0]
         self.assertEqual(len(data_group.data_items), 1)

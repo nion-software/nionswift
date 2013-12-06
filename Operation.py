@@ -51,11 +51,11 @@ class Operation(Storage.StorageBase):
         self.storage_properties += self.properties
         self.__initialized = True
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
+    def build(cls, datastore, item_node, uuid_):
         operation = cls()
-        operation.enabled = storage_reader.get_property(item_node, "enabled", True)
+        operation.enabled = datastore.get_property(item_node, "enabled", True)
         for property in operation.properties:
-            setattr(operation, property, storage_reader.get_property(item_node, property, operation.defaults[property]))
+            setattr(operation, property, datastore.get_property(item_node, property, operation.defaults[property]))
         return operation
     def create_editor(self, ui):
         return None
@@ -212,9 +212,9 @@ class Crop2dOperation(Operation):
         super(Crop2dOperation, self).about_to_delete()
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        crop_operation = super(Crop2dOperation, cls).build(storage_reader, item_node, uuid_)
-        graphic = storage_reader.get_item(item_node, "graphic")
+    def build(cls, datastore, item_node, uuid_):
+        crop_operation = super(Crop2dOperation, cls).build(datastore, item_node, uuid_)
+        graphic = datastore.get_item(item_node, "graphic")
         crop_operation.graphic = graphic
         return crop_operation
 
@@ -309,8 +309,8 @@ class HistogramOperation(Operation):
         self.bins = 256
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        histogram_operation = super(HistogramOperation, cls).build(storage_reader, item_node, uuid_)
+    def build(cls, datastore, item_node, uuid_):
+        histogram_operation = super(HistogramOperation, cls).build(datastore, item_node, uuid_)
         return histogram_operation
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
@@ -336,9 +336,9 @@ class LineProfileOperation(Operation):
         super(LineProfileOperation, self).about_to_delete()
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        line_profile_operation = super(LineProfileOperation, cls).build(storage_reader, item_node, uuid_)
-        graphic = storage_reader.get_item(item_node, "graphic")
+    def build(cls, datastore, item_node, uuid_):
+        line_profile_operation = super(LineProfileOperation, cls).build(datastore, item_node, uuid_)
+        graphic = datastore.get_item(item_node, "graphic")
         line_profile_operation.graphic = graphic
         return line_profile_operation
 

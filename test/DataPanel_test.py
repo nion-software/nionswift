@@ -27,8 +27,8 @@ class TestDataPanelClass(unittest.TestCase):
 
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # data_group
         #   data_item1
@@ -76,8 +76,8 @@ class TestDataPanelClass(unittest.TestCase):
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
@@ -115,8 +115,8 @@ class TestDataPanelClass(unittest.TestCase):
     # make sure switching between two data items in different groups works
     # then make sure the same group is selected if the data item is in multiple groups
     def test_selected_group_persistence(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
@@ -205,8 +205,8 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
 
     def test_selection_during_operations(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
@@ -252,8 +252,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.close()
 
     def test_add_remove_sync(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -288,8 +288,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.close()
 
     def test_select_after_receive_files(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -306,8 +306,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.close()
 
     def test_data_panel_remove_group(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
@@ -323,8 +323,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
 
     def test_data_panel_remove_item_by_key(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"

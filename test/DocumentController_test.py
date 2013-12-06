@@ -21,8 +21,8 @@ from nion.swift import UserInterface
 
 
 def construct_test_document(app, workspace_id=None):
-    storage_writer = Storage.DictStorageWriter()
-    document_model = DocumentModel.DocumentModel(storage_writer)
+    datastore = Storage.DictDatastore()
+    document_model = DocumentModel.DocumentModel(datastore)
     document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
     data_group1 = DataGroup.DataGroup()
     document_controller.document_model.data_groups.append(data_group1)
@@ -55,8 +55,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         pass
 
     def test_delete_document_controller(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_model = None
         weak_document_model = weakref.ref(document_controller.document_model)
@@ -72,8 +72,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_document_model())
 
     def test_image_panel_releases_data_item(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_controller.document_model.create_default_data_groups()
         default_data_group = document_controller.document_model.data_groups[0]

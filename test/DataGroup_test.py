@@ -34,6 +34,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_group.data_items.append(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group.data_groups.append(data_group2)
+        # attempt to copy
         data_group_copy = copy.deepcopy(data_group)
         data_group_copy.add_ref()
         # make sure data_items are not shared
@@ -45,8 +46,8 @@ class TestDataGroupClass(unittest.TestCase):
         data_group.remove_ref()
 
     def test_counted_data_items(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
         document_controller.document_model.data_groups.append(data_group)
@@ -116,8 +117,8 @@ class TestDataGroupClass(unittest.TestCase):
 
     # make sure that smart groups that get added have their counted set updated with any existing data items
     def test_counted_data_items_order(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
@@ -132,8 +133,8 @@ class TestDataGroupClass(unittest.TestCase):
 
     # make sure that property changes (title) trigger the smart group to update
     def test_smart_group_property_change(self):
-        storage_writer = Storage.DictStorageWriter()
-        document_model = DocumentModel.DocumentModel(storage_writer)
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
@@ -151,3 +152,6 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(green_group.data_items), 1)
 
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
+
+if __name__ == '__main__':
+    unittest.main()

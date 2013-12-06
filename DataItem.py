@@ -44,10 +44,10 @@ class Calibration(Storage.StorageBase):
         self.__units = units  # the units of the calibrated value
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        origin = storage_reader.get_property(item_node, "origin", None)
-        scale = storage_reader.get_property(item_node, "scale", None)
-        units = storage_reader.get_property(item_node, "units", None)
+    def build(cls, datastore, item_node, uuid_):
+        origin = datastore.get_property(item_node, "origin", None)
+        scale = datastore.get_property(item_node, "scale", None)
+        units = datastore.get_property(item_node, "units", None)
         return cls(origin, scale, units)
 
     def __deepcopy__(self, memo):
@@ -600,20 +600,20 @@ class DataItem(Storage.StorageBase):
         return "master-data-" + str(uuid_) + ".nsdata"
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        title = storage_reader.get_property(item_node, "title")
-        param = storage_reader.get_property(item_node, "param")
-        properties = storage_reader.get_property(item_node, "properties")
-        display_limits = storage_reader.get_property(item_node, "display_limits")
-        calibrations = storage_reader.get_items(item_node, "calibrations")
-        datetime_modified = storage_reader.get_property(item_node, "datetime_modified")
-        datetime_original = storage_reader.get_property(item_node, "datetime_original")
-        graphics = storage_reader.get_items(item_node, "graphics")
-        operations = storage_reader.get_items(item_node, "operations")
-        data_items = storage_reader.get_items(item_node, "data_items")
-        has_master_data = storage_reader.has_data(item_node, "master_data")
+    def build(cls, datastore, item_node, uuid_):
+        title = datastore.get_property(item_node, "title")
+        param = datastore.get_property(item_node, "param")
+        properties = datastore.get_property(item_node, "properties")
+        display_limits = datastore.get_property(item_node, "display_limits")
+        calibrations = datastore.get_items(item_node, "calibrations")
+        datetime_modified = datastore.get_property(item_node, "datetime_modified")
+        datetime_original = datastore.get_property(item_node, "datetime_original")
+        graphics = datastore.get_items(item_node, "graphics")
+        operations = datastore.get_items(item_node, "operations")
+        data_items = datastore.get_items(item_node, "data_items")
+        has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
-            master_data_shape, master_data_dtype = storage_reader.get_data_shape_and_dtype(item_node, "master_data")
+            master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
         else:
             master_data_shape, master_data_dtype = None, None
         data_item = cls()
@@ -1011,9 +1011,10 @@ class DataItem(Storage.StorageBase):
             initial_count = self.__data_accessor_count
             self.__data_accessor_count += 1
         if initial_count == 0:
-            if self.has_master_data:
-                logging.debug("loading %s (%s)", self, self.uuid)
-                master_data = self.storage_reader.get_data(self, "master_data")
+            # load data from datastore if not present
+            if self.has_master_data and self.datastore and self.__master_data is None:
+                #logging.debug("loading %s (%s)", self, self.uuid)
+                master_data = self.datastore.get_data(self.datastore.find_parent_node(self), "master_data")
                 self.__master_data = master_data
                 #import traceback
                 #traceback.print_stack()
@@ -1023,9 +1024,10 @@ class DataItem(Storage.StorageBase):
             self.__data_accessor_count -= 1
             final_count = self.__data_accessor_count
         if final_count == 0:
-            if self.has_master_data:
+            # unload data if it can be reloaded from datastore
+            if self.has_master_data and self.datastore:
                 self.__master_data = None
-                logging.debug("unloading %s (%s)", self, self.uuid)
+                #logging.debug("unloading %s (%s)", self, self.uuid)
         return final_count
 
     def __get_has_master_data(self):

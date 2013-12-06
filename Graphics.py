@@ -167,9 +167,9 @@ class Graphic(Storage.StorageBase):
     def deepcopy_from(self, graphic, memo):
         self.color = graphic.color
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
+    def build(cls, datastore, item_node, uuid_):
         graphic = cls()
-        color = storage_reader.get_property(item_node, "color", graphic.color)  # red
+        color = datastore.get_property(item_node, "color", graphic.color)  # red
         graphic.color = color
         return graphic
     # accessors
@@ -243,9 +243,9 @@ class RectangleGraphic(Graphic):
         super(RectangleGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        graphic = super(RectangleGraphic, cls).build(storage_reader, item_node, uuid_)
-        bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
+    def build(cls, datastore, item_node, uuid_):
+        graphic = super(RectangleGraphic, cls).build(datastore, item_node, uuid_)
+        bounds = datastore.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
         graphic.bounds = bounds
         return graphic
     # accessors
@@ -356,9 +356,9 @@ class EllipseGraphic(Graphic):
         super(EllipseGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        graphic = super(EllipseGraphic, cls).build(storage_reader, item_node, uuid_)
-        bounds = storage_reader.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
+    def build(cls, datastore, item_node, uuid_):
+        graphic = super(EllipseGraphic, cls).build(datastore, item_node, uuid_)
+        bounds = datastore.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
         graphic.bounds = bounds
         return graphic
     # accessors
@@ -466,12 +466,12 @@ class LineGraphic(Graphic):
         self.start = line_graphic.start
         self.end = line_graphic.end
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        graphic = super(LineGraphic, cls).build(storage_reader, item_node, uuid_)
-        start = storage_reader.get_property(item_node, "start", (0.0, 0.0))
-        end = storage_reader.get_property(item_node, "end", (1.0, 1.0))
-        start_arrow_enabled = storage_reader.get_property(item_node, "start_arrow_enabled", False)
-        end_arrow_enabled = storage_reader.get_property(item_node, "end_arrow_enabled", False)
+    def build(cls, datastore, item_node, uuid_):
+        graphic = super(LineGraphic, cls).build(datastore, item_node, uuid_)
+        start = datastore.get_property(item_node, "start", (0.0, 0.0))
+        end = datastore.get_property(item_node, "end", (1.0, 1.0))
+        start_arrow_enabled = datastore.get_property(item_node, "start_arrow_enabled", False)
+        end_arrow_enabled = datastore.get_property(item_node, "end_arrow_enabled", False)
         graphic.start = start
         graphic.end = end
         graphic.start_arrow_enabled = start_arrow_enabled

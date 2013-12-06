@@ -183,12 +183,12 @@ class Task(Storage.StorageBase):
         self.__progress_text = str()
 
     @classmethod
-    def build(cls, storage_reader, item_node, uuid_):
-        title = storage_reader.get_property(item_node, "title", None)
-        task_type = storage_reader.get_property(item_node, "task_type", None)
-        task_data = storage_reader.get_property(item_node, "task_data", None)
-        start_time = storage_reader.get_property(item_node, "start_time", None)
-        finish_time = storage_reader.get_property(item_node, "finish_time", None)
+    def build(cls, datastore, item_node, uuid_):
+        title = datastore.get_property(item_node, "title", None)
+        task_type = datastore.get_property(item_node, "task_type", None)
+        task_data = datastore.get_property(item_node, "task_data", None)
+        start_time = datastore.get_property(item_node, "start_time", None)
+        finish_time = datastore.get_property(item_node, "finish_time", None)
         return cls(title, task_type, task_data=task_datam, start_time=start_time, finish_time=finish_time)
 
     def __deepcopy__(self, memo):
