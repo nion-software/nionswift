@@ -949,7 +949,7 @@ class DataItem(Storage.StorageBase):
     def __get_data_source(self):
         return self.__data_source
     def __set_data_source(self, data_source):
-        assert data_source is None or self.__master_data is None  # can't have master data and data source
+        assert data_source is None or not self.has_master_data  # can't have master data and data source
         if self.__data_source:
             with self.__data_mutex:
                 self.__data_source.remove_listener(self)
@@ -1014,6 +1014,10 @@ class DataItem(Storage.StorageBase):
     def __get_has_master_data(self):
         return self.__master_data is not None
     has_master_data = property(__get_has_master_data)
+
+    def __get_has_data_source(self):
+        return self.__data_source is not None
+    has_data_source = property(__get_has_data_source)
 
     def create_data_accessor(self):
         get_master_data = DataItem.__get_master_data
@@ -1281,7 +1285,7 @@ class DataItem(Storage.StorageBase):
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, ui, height, width):
         if self.thumbnail_data_dirty:
-            if self.__thumbnail_thread and self.__master_data is not None or self.__data_source is not None:
+            if self.__thumbnail_thread and (self.has_master_data or self.has_data_source):
                 self.__thumbnail_thread.ui = ui
                 self.__thumbnail_size = (height, width)
                 self.__thumbnail_thread.update_data(self)
@@ -1311,7 +1315,7 @@ class DataItem(Storage.StorageBase):
 
     def get_histogram_data(self):
         if self.is_cached_value_dirty("histogram_data"):
-            if self.__histogram_thread and self.__master_data is not None or self.__data_source is not None:
+            if self.__histogram_thread and (self.has_master_data or self.has_data_source):
                 self.__histogram_thread.update_data(self)
         histogram_data = self.get_cached_value("histogram_data")
         if histogram_data is not None:
