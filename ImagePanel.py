@@ -515,8 +515,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     mouse_x = self.__last_mouse[1] - self.line_graph_canvas_item.left_caption_width
                     line_graph_width = self.canvas_size[1] - self.line_graph_canvas_item.left_caption_width - self.line_graph_canvas_item.right_margin
                     pos = (data_size[0] * mouse_x / line_graph_width, )
-                # TODO: don't call notify_listeners directly, let document controller notify its own listeners
-                self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, list(), data_size)
+                self.document_controller.cursor_changed(self.data_item, pos, list(), data_size)
 
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
@@ -907,8 +906,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 data_item = self.data_item
                 graphics = data_item.graphics if data_item else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
-                # TODO: don't call notify_listeners directly, let document controller notify its own listeners
-                self.document_controller.notify_listeners("cursor_changed", self.data_item, pos, selected_graphics, image_size)
+                self.document_controller.cursor_changed(self.data_item, pos, selected_graphics, image_size)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -1146,10 +1144,6 @@ class ImagePanel(Panel.Panel):
         if self.__data_panel_selection and self.__data_panel_selection.data_item:
             self.__data_panel_selection.data_item.decrement_accessor_count()
         self.__data_panel_selection = data_panel_selection
-        # send out messages telling everyone we changed
-        for weak_listener in self.__weak_listeners:
-            listener = weak_listener()
-            listener.data_panel_selection_changed_from_image_panel(data_panel_selection)
         self.data_item_changed(self.data_item, set([DataItem.SOURCE]))
         #self.update_image_canvas_size()
         # these connections should be configured after the messages above.
@@ -1371,6 +1365,14 @@ class ImagePanelManager(Storage.Broadcaster):
 
 class InfoPanel(Panel.Panel):
 
+    """
+    The info panel will display cursor information. user interface items that want to
+    update the cursor info should called cursor_changed on the document controller.
+    This info panel will listen to the document controller for cursor updates and update
+    itself in respsone. all cursor update calls are thread safe. this class uses periodic
+    to do ui updates from the main thread.
+    """
+
     def __init__(self, document_controller, panel_id, properties):
         super(InfoPanel, self).__init__(document_controller, panel_id, _("Info"))
 
@@ -1411,7 +1413,7 @@ class InfoPanel(Panel.Panel):
 
         self.widget = column
 
-        # connect self as listener. this will result in calls to selected_data_item_changed and cursor_changed
+        # connect self as listener. this will result in calls to cursor_changed
         self.document_controller.add_listener(self)
 
     def close(self):

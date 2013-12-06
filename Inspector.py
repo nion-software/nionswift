@@ -333,17 +333,21 @@ class ProcessingPanel(Panel.Panel):
         self.__rebuild_data_item = None
         self.__rebuild_mutex = threading.RLock()
 
-        # connect self as listener. this will result in calls to selected_data_item_changed
-        self.document_controller.add_listener(self)
+        self.data_item_binding = document_controller.create_selected_data_item_binding()
+
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding.add_listener(self)
 
         self.widget = self.column
 
     def close(self):
         # first set the data item to None
         # this has the side effect of closing the stack groups.
-        self.selected_data_item_changed(None, set())
+        self.data_item_changed(None)
         # disconnect self as listener
-        self.document_controller.remove_listener(self)
+        self.data_item_binding.remove_listener(self)
+        # close the property controller
+        self.data_item_binding.close()
         # finish closing
         super(ProcessingPanel, self).close()
 
@@ -423,12 +427,13 @@ class ProcessingPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, changes):
-        DataItem_DATA = 1  # argh. avoid circular reference. this will go away (hopefully).
-        if not DataItem_DATA in changes:
-            with self.__rebuild_mutex:
-                self.__rebuild = True
-                self.__rebuild_data_item = data_item
+    def data_item_changed(self, data_item):
+        # TODO: THIS IS WRONG. WE NEED TO KNOW WHETHER IT WAS JUST DATA.
+        # IF JUST DATA, DO NOT REBUILD HERE. ALSO, WHAT IF IT'S JUST A
+        # THUMBNAIL?
+        with self.__rebuild_mutex:
+            self.__rebuild = True
+            self.__rebuild_data_item = data_item
 
 
 class InspectorPanel(Panel.Panel):
@@ -444,20 +449,22 @@ class InspectorPanel(Panel.Panel):
         self.__update_data_item_data_item = None
         self.__update_data_item_mutex = threading.RLock()
 
+        self.data_item_binding = document_controller.create_selected_data_item_binding()
         self.data_item = None
 
-        # connect self as listener. this will result in calls to selected_data_item_changed
-        self.document_controller.add_listener(self)
+        # connect self as listener. this will result in calls to data_item_changed
+        self.data_item_binding.add_listener(self)
 
         self.widget = self.column
 
     def close(self):
-        # close the property controller
-        self.data_item = None
         # first set the data item to None
-        self.selected_data_item_changed(None, set())
+        self.data_item_changed(None)
         # disconnect self as listener
-        self.document_controller.remove_listener(self)
+        self.data_item_binding.remove_listener(self)
+        # close the property controller
+        self.data_item_binding.close()
+        self.data_item = None
         # finish closing
         super(InspectorPanel, self).close()
 
@@ -492,9 +499,9 @@ class InspectorPanel(Panel.Panel):
             self.image_canvas_zoom = 1.0
     data_item = property(__get_data_item, __set_data_item)
 
-    # this message is received from the document controller.
+    # this message is received from the data item binding.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, changes):
+    def data_item_changed(self, data_item):
         with self.__update_data_item_mutex:
             self.__update_data_item = True
             self.__update_data_item_data_item = data_item

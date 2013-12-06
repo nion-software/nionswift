@@ -212,8 +212,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__data_item
     def _set_data_item(self, data_item):
         # this will get invoked whenever the data item changes too. it gets invoked
-        # from the histogram thread which gets triggered via the selected_data_item_changed
-        # message below.
+        # from the histogram thread which gets triggered via the data_item_changed
+        # message from the data item binding.
         self.__data_item = data_item
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
@@ -279,7 +279,7 @@ class HistogramPanel(Panel.Panel):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
         self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties)
         self.widget = self.root_canvas_item.canvas
-        self.data_item_binding = DocumentController.SelectedDataItemBinding(document_controller)
+        self.data_item_binding = document_controller.create_selected_data_item_binding()
         self.root_canvas_item.add_canvas_item(HistogramCanvasItem(self.data_item_binding))
 
     def close(self):

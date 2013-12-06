@@ -259,8 +259,10 @@ class DocumentController(Storage.Broadcaster):
         return selected_data_panel_selection.data_item if selected_data_panel_selection else None
     selected_data_item = property(__get_selected_data_item)
 
-    def data_panel_selection_changed_from_image_panel(self, data_panel_selection):
-        self.notify_listeners("update_data_panel_selection", data_panel_selection)
+    # this can be called from any user interface element that wants to update the cursor info
+    # in the data panel. this would typically be from the image or line plot canvas.
+    def cursor_changed(self, data_item, pos, selected_graphics, image_size):
+        self.notify_listeners("cursor_changed", data_item, pos, selected_graphics, image_size)
 
     # this message comes from the selected image panel. the connection is established
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
@@ -487,6 +489,10 @@ class DocumentController(Storage.Broadcaster):
                     traceback.print_exc()
                     logging.debug("Error: %s", e)
         return received_data_items
+
+    # this helps avoid circular imports
+    def create_selected_data_item_binding(self):
+        return SelectedDataItemBinding(self)
 
 
 # binding to the selected data item in the document controller

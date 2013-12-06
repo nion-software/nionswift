@@ -1414,7 +1414,7 @@ class DataItemBinding(object):
             traceback.print_exc()
             logging.debug("Notify Error: %s", e)
 
-    # this message is received from the canvas item.
+    # this message is received from subclasses (and tests).
     def notify_data_item_changed(self, data_item):
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         self.notify_listeners("data_item_changed", data_item)
