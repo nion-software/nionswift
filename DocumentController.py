@@ -224,7 +224,7 @@ class DocumentController(Storage.Broadcaster):
             self.__weak_selected_image_panel = weak_selected_image_panel
 
             # now listen to the new selected panel, if any.
-            # this will result in calls to image_panel_data_item_changed.
+            # this will result in calls to image_panel_data_item_content_changed.
             if selected_image_panel:
                 selected_image_panel.add_listener(self)
 
@@ -232,13 +232,10 @@ class DocumentController(Storage.Broadcaster):
             for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
                 image_panel.set_selected(image_panel == self.selected_image_panel)
 
-            # notify listeners that the selected image panel has changed.
-            self.notify_listeners("selected_image_panel_changed", selected_image_panel)
-
-            # notify listeners that the data item has changed. some listeners will be just interested
-            # in the data item itself, not the group/data item combo.
+            # notify listeners that the data item has changed. in this case, a changing data item
+            # means that which selected data item is selected has changed.
             selected_data_item = selected_image_panel.data_item if selected_image_panel else None
-            self.notify_listeners("selected_data_item_changed", selected_data_item, set([DataItem.PANEL]))
+            self.notify_listeners("selected_data_item_changed", selected_data_item)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
     def __get_selected_data_panel_selection(self):
@@ -268,9 +265,9 @@ class DocumentController(Storage.Broadcaster):
     # in __set_selected_image_panel via a call to ImagePanel.addListener.
     # this message can mean that the data itself changed, a property changed, a source
     # changed, or the data item displayed in the image panel changed.
-    def image_panel_data_item_changed(self, image_panel, changes):
+    def image_panel_data_item_content_changed(self, image_panel, changes):
         data_item = image_panel.data_item if image_panel else None
-        self.notify_listeners("selected_data_item_changed", data_item, changes)
+        self.notify_listeners("selected_data_item_content_changed", data_item, changes)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
@@ -503,7 +500,7 @@ class SelectedDataItemBinding(DataItem.DataItemBinding):
         self.document_controller = document_controller
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
-        self.notify_data_item_changed(document_controller.selected_data_item)
+        self.notify_data_item_binding_data_item_changed(document_controller.selected_data_item)
 
     def close(self):
         # disconnect self as listener
@@ -512,5 +509,10 @@ class SelectedDataItemBinding(DataItem.DataItemBinding):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item, changes):
-        self.notify_data_item_changed(data_item)
+    def selected_data_item_changed(self, data_item):
+        self.notify_data_item_binding_data_item_changed(data_item)
+
+    # this message is received from the document controller.
+    # it is established using add_listener
+    def selected_data_item_content_changed(self, data_item, changes):
+        self.notify_data_item_binding_data_item_content_changed(data_item, changes)

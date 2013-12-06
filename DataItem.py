@@ -376,7 +376,7 @@ class DataItemEditor(object):
             self.update()
 
     # this will typically happen on a thread
-    def data_item_changed(self, data_source, changes):
+    def data_item_content_changed(self, data_source, changes):
         if not self.__block:
             # TODO: this is pretty weak!
             if any (k in changes for k in (DISPLAY, )):
@@ -686,12 +686,11 @@ class DataItem(Storage.StorageBase):
             # but only clear the data cache if the data changed
             if not DISPLAY in changes:
                 self.__clear_cached_data()
-            self.notify_listeners("data_item_changed", self, changes)
+            self.notify_listeners("data_item_content_changed", self, changes)
 
-    # call this when the listeners need to be updated
-    # (via data_item_changed). Calling this method will send the data_item_changed
-    # method to each listener.
-    def notify_data_item_changed(self, changes):
+    # call this when the listeners need to be updated (via data_item_content_changed).
+    # Calling this method will send the data_item_content_changed method to each listener.
+    def notify_data_item_content_changed(self, changes):
         with self.data_item_changes():
             with self.__data_item_change_mutex:
                 self.__data_item_changes.update(changes)
@@ -703,7 +702,7 @@ class DataItem(Storage.StorageBase):
             self.__display_limits = display_limits
             self.set_cached_value_dirty("histogram_data")
             self.notify_set_property("display_limits", display_limits)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range_for_data(self, data):
@@ -749,7 +748,7 @@ class DataItem(Storage.StorageBase):
         if self.__datetime_modified != datetime_modified:
             self.__datetime_modified = datetime_modified
             self.notify_set_property("datetime_modified", datetime_modified)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
     datetime_modified = property(__get_datetime_modified, __set_datetime_modified)
 
     def __get_datetime_original(self):
@@ -758,7 +757,7 @@ class DataItem(Storage.StorageBase):
         if self.__datetime_original != datetime_original:
             self.__datetime_original = datetime_original
             self.notify_set_property("datetime_original", datetime_original)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
     datetime_original = property(__get_datetime_original, __set_datetime_original)
 
     def __get_datetime_original_as_string(self):
@@ -783,7 +782,7 @@ class DataItem(Storage.StorageBase):
         return self.__properties
     def __release_properties(self):
         self.notify_set_property("properties", self.__properties)
-        self.notify_data_item_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([DISPLAY]))
 
     def property_changes(self):
         grab_properties = DataItem.__grab_properties
@@ -846,36 +845,36 @@ class DataItem(Storage.StorageBase):
         if key == "operations":
             value.add_listener(self)
             self.sync_operations()
-            self.notify_data_item_changed(set([DATA]))
+            self.notify_data_item_content_changed(set([DATA]))
         elif key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index, False)  # see note about smart groups
             value.data_source = self
-            self.notify_data_item_changed(set([CHILDREN]))
+            self.notify_data_item_content_changed(set([CHILDREN]))
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
         elif key == "calibrations":
             value.add_listener(self)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
             value.add_listener(self)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
 
     def notify_remove_item(self, key, value, index):
         super(DataItem, self).notify_remove_item(key, value, index)
         if key == "operations":
             value.remove_listener(self)
             self.sync_operations()
-            self.notify_data_item_changed(set([DATA]))
+            self.notify_data_item_content_changed(set([DATA]))
         elif key == "data_items":
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
             self.notify_listeners("data_item_removed", self, value, index, False)  # see note about smart groups
             value.data_source = None
-            self.notify_data_item_changed(set([CHILDREN]))
+            self.notify_data_item_content_changed(set([CHILDREN]))
         elif key == "calibrations":
             value.remove_listener(self)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
             value.remove_listener(self)
-            self.notify_data_item_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAY]))
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -909,34 +908,34 @@ class DataItem(Storage.StorageBase):
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
-        self.notify_data_item_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([DISPLAY]))
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
     def graphic_changed(self, graphic):
-        self.notify_data_item_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([DISPLAY]))
 
     # this message comes from the calibration. the connection is established when a calibration
     # is added or removed from this object.
     def calibration_changed(self, calibration):
-        self.notify_data_item_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([DISPLAY]))
 
     # this message comes from the operation. the connection is managed
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         self.__clear_cached_data()
-        self.notify_data_item_changed(set([DATA]))
+        self.notify_data_item_content_changed(set([DATA]))
 
-    # data_item_changed comes from data sources to indicate that data
+    # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
-    def data_item_changed(self, data_source, changes):
+    def data_item_content_changed(self, data_source, changes):
         assert data_source == self.data_source
         # we don't care about display changes to the data source; only data changes.
         if DATA in changes:
             self.__clear_cached_data()
             # propogate to listeners
-            self.notify_data_item_changed(changes)
+            self.notify_data_item_content_changed(changes)
 
     # use a property here to correct add_ref/remove_ref
     # also manage connection to data source.
@@ -955,11 +954,11 @@ class DataItem(Storage.StorageBase):
             with self.__data_mutex:
                 assert isinstance(data_source, DataItem)
                 self.__data_source = data_source
-                # we will receive data_item_changed from data_source
+                # we will receive data_item_content_changed from data_source
                 self.__data_source.add_listener(self)
                 self.__data_source.add_ref()
                 self.sync_operations()
-            self.data_item_changed(self.__data_source, set([SOURCE]))
+            self.data_item_content_changed(self.__data_source, set([SOURCE]))
     data_source = property(__get_data_source, __set_data_source)
 
     def __get_master_data(self):
@@ -981,7 +980,7 @@ class DataItem(Storage.StorageBase):
                 self.sync_calibrations(spatial_ndim)
             data_file_path = DataItem.__get_data_file_path(self.uuid)
             self.notify_set_data("master_data", self.__master_data, data_file_path)
-            self.notify_data_item_changed(set([DATA]))
+            self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()
@@ -1269,7 +1268,7 @@ class DataItem(Storage.StorageBase):
                 self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(ui, data, height, width, data_range, self.display_limits))
             else:
                 self.remove_cached_value("thumbnail_data")
-            self.notify_data_item_changed(set([THUMBNAIL]))
+            self.notify_data_item_content_changed(set([THUMBNAIL]))
         else:
             self.remove_cached_value("thumbnail_data")
 
@@ -1300,7 +1299,7 @@ class DataItem(Storage.StorageBase):
             histogram_max = float(numpy.max(histogram_data))
             histogram_data = histogram_data / histogram_max
             self.set_cached_value("histogram_data", histogram_data)
-            self.notify_data_item_changed(set([HISTOGRAM]))
+            self.notify_data_item_content_changed(set([HISTOGRAM]))
         else:
             self.remove_cached_value("histogram_data")
 
@@ -1377,6 +1376,7 @@ class DataItemSpecifier(object):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
 
+# TODO: subclass Broadcaster
 class DataItemBinding(object):
 
     def __init__(self):
@@ -1415,6 +1415,11 @@ class DataItemBinding(object):
             logging.debug("Notify Error: %s", e)
 
     # this message is received from subclasses (and tests).
-    def notify_data_item_changed(self, data_item):
+    def notify_data_item_binding_data_item_changed(self, data_item):
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        self.notify_listeners("data_item_changed", data_item)
+        self.notify_listeners("data_item_binding_data_item_changed", data_item)
+
+    # this message is received from subclasses (and tests).
+    def notify_data_item_binding_data_item_content_changed(self, data_item, changes):
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+        self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)

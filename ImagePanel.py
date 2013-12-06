@@ -358,7 +358,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, data_item_binding, document_controller, image_panel):
         super(LinePlotCanvasItem, self).__init__()
 
-        # connect self as listener. this will result in calls to data_item_changed
+        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
+        # and data_item_binding_data_item_content_changed
         self.data_item_binding = data_item_binding
         self.data_item_binding.add_listener(self)
 
@@ -399,7 +400,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
         # initial data item changed message
-        self.data_item_changed(self.data_item_binding.data_item)
+        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
         self.__paint_thread.close()
@@ -439,7 +440,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__data_item
     data_item = property(__get_data_item)
 
-    def data_item_changed(self, data_item):
+    def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
         if self.__data_item and self.__paint_thread:
             self.__paint_thread.update_data(data_item)
@@ -447,6 +448,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
             self.repaint_if_needed()
+
+    def data_item_binding_data_item_content_changed(self, data_item, changes):
+        self.data_item_binding_data_item_changed(data_item)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -549,9 +553,12 @@ class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
         super(CanvasItemChildDataItemBinding, self).__init__()
         self.data_item_binding = data_item_binding
         self.uuid = uuid
-        # connect self as listener. this will result in calls to data_item_changed
+        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
+        # and data_item_binding_data_item_content_changed
         self.data_item_binding.add_listener(self)
-        self.data_item_changed(data_item_binding.data_item)
+
+        # initial data item changed message
+        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
         # disconnect self as listener
@@ -559,13 +566,21 @@ class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
         super(CanvasItemChildDataItemBinding, self).close()
 
     # this message is received from the enclosing data item binding.
-    def data_item_changed(self, data_item):
+    def data_item_binding_data_item_changed(self, data_item):
         if data_item:
             for child_data_item in data_item.data_items:
                 if child_data_item.uuid == self.uuid:
-                    self.notify_data_item_changed(child_data_item)
+                    self.notify_data_item_binding_data_item_changed(child_data_item)
                     return
-        self.notify_data_item_changed(None)
+        self.notify_data_item_binding_data_item_changed(None)
+
+    def data_item_binding_data_item_content_changed(self, data_item, changes):
+        if data_item:
+            for child_data_item in data_item.data_items:
+                if child_data_item.uuid == self.uuid:
+                    self.notify_data_item_binding_data_item_content_changed(child_data_item, changes)
+                    return
+        # do not pass on if no content changed
 
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
@@ -573,7 +588,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, data_item_binding, document_controller, image_panel):
         super(ImageCanvasItem, self).__init__()
 
-        # connect self as listener. this will result in calls to data_item_changed
+        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
+        # and data_item_binding_data_item_content_changed
         self.data_item_binding = data_item_binding
         self.data_item_binding.add_listener(self)
 
@@ -613,7 +629,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphics_canvas_item.graphic_selection = self.graphic_selection
 
         # initial data item changed message
-        self.data_item_changed(self.data_item_binding.data_item)
+        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
 
     def close(self):
@@ -832,7 +848,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__data_item
     data_item = property(__get_data_item)
 
-    def data_item_changed(self, data_item):
+    def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
         self.__update_cursor_info()
         if self.__data_item and self.__paint_thread:
@@ -845,6 +861,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.update()
             self.repaint_if_needed()
+
+    def data_item_binding_data_item_content_changed(self, data_item, changes):
+        self.data_item_binding_data_item_changed(data_item)
 
     def selection_changed(self, graphic_selection):
         self.graphics_canvas_item.update()
@@ -955,6 +974,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 
+# TODO: Panel is a broadcaster, remove listener management from this class
 class ImagePanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
@@ -1012,9 +1032,9 @@ class ImagePanel(Panel.Panel):
 
     def close(self):
         self.closed = True
-        self.image_data_item_binding.notify_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
+        self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.image_root_canvas_item.close()
-        self.line_plot_item_binding.notify_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
+        self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.line_plot_root_canvas_item.close()
         self.line_plot_item_binding.close()
         self.image_data_item_binding.close()
@@ -1144,7 +1164,7 @@ class ImagePanel(Panel.Panel):
         if self.__data_panel_selection and self.__data_panel_selection.data_item:
             self.__data_panel_selection.data_item.decrement_accessor_count()
         self.__data_panel_selection = data_panel_selection
-        self.data_item_changed(self.data_item, set([DataItem.SOURCE]))
+        self.data_item_content_changed(self.data_item, set([DataItem.SOURCE]))
         #self.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
@@ -1173,13 +1193,14 @@ class ImagePanel(Panel.Panel):
         if not moving and container == self.data_item_container and data_item == self.data_item:
             self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
 
-    # tell our listeners the we changed.
-    def notify_image_panel_data_item_changed(self, changes):
+    # tell our listeners the we changed. the change can be anything including attributes
+    # or the data itself.
+    def notify_image_panel_data_item_content_changed(self, changes):
         for weak_listener in self.__weak_listeners:
             listener = weak_listener()
-            listener.image_panel_data_item_changed(self, changes)
+            listener.image_panel_data_item_content_changed(self, changes)
 
-    # this will result in data_item_changed being called when the data item changes.
+    # this will result in image_panel_data_item_content_changed being called when the data item changes.
     def add_listener(self, listener):
         self.__weak_listeners.append(weakref.ref(listener))
 
@@ -1188,28 +1209,30 @@ class ImagePanel(Panel.Panel):
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.
-    def data_item_changed(self, data_item, changes):
+    # this will be called when anything in the data item changes, including things
+    # like graphics or the data itself.
+    def data_item_content_changed(self, data_item, changes):
         if data_item == self.data_item:  # we can get messages from our source data items too
-            self.notify_image_panel_data_item_changed(changes)
+            self.notify_image_panel_data_item_content_changed(changes)
             self.image_header_controller.title = str(data_item)
             self.line_plot_header_controller.title = str(data_item)
             selected = self.document_controller.selected_image_panel == self
             if data_item:
                 if data_item.is_data_1d:
                     self.widget.current_index = 1
-                    self.line_plot_item_binding.notify_data_item_changed(data_item)
+                    self.line_plot_item_binding.notify_data_item_binding_data_item_changed(data_item)
                     self.line_plot_canvas_item.selected = selected
-                    self.image_data_item_binding.notify_data_item_changed(None)
+                    self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.image_canvas_item.selected = False
                 elif data_item.is_data_2d:
                     self.widget.current_index = 0
-                    self.image_data_item_binding.notify_data_item_changed(data_item)
+                    self.image_data_item_binding.notify_data_item_binding_data_item_changed(data_item)
                     self.image_canvas_item.selected = selected
-                    self.line_plot_item_binding.notify_data_item_changed(None)
+                    self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.line_plot_canvas_item.selected = False
             else:
-                self.line_plot_item_binding.notify_data_item_changed(None)
-                self.image_data_item_binding.notify_data_item_changed(None)
+                self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
+                self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
                 self.image_canvas_item.selected = False
                 self.line_plot_canvas_item.selected = False
 
@@ -1360,7 +1383,7 @@ class ImagePanelManager(Storage.Broadcaster):
     def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
         return self.notify_listeners("image_panel_key_clicked", image_panel, data_item, image_position, modifiers)
     def data_item_changed(self, image_panel):
-        self.notify_listeners("image_panel_data_item_changed", image_panel)
+        self.notify_listeners("image_panel_manager_data_item_changed", image_panel)
 
 
 class InfoPanel(Panel.Panel):

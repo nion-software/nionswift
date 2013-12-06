@@ -181,7 +181,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__data_item = None
         self.__pressed = False
 
-        # connect self as listener. this will result in calls to data_item_changed
+        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
+        # and data_item_binding_data_item_content_changed
         self.data_item_binding.add_listener(self)
 
         self.__histogram_thread = HistogramThread(self)
@@ -189,13 +190,13 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.preferred_aspect_ratio = 1.618  # golden ratio
 
         # initial data item changed message
-        self.data_item_changed(self.data_item_binding.data_item)
+        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
         self.__histogram_thread.close()
         self.__histogram_thread = None
         # first set the data item to None
-        self.data_item_changed(None)
+        self.data_item_binding_data_item_changed(None)
         # disconnect self as listener
         self.data_item_binding.remove_listener(self)
         super(HistogramCanvasItem, self).close()
@@ -212,8 +213,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__data_item
     def _set_data_item(self, data_item):
         # this will get invoked whenever the data item changes too. it gets invoked
-        # from the histogram thread which gets triggered via the data_item_changed
-        # message from the data item binding.
+        # from the histogram thread which gets triggered via the data_item_binding_data_item_changed
+        # or data_item_binding_data_item_content_changed message from the data item binding.
         self.__data_item = data_item
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
@@ -224,11 +225,16 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.adornments_canvas_item.update()
         self.repaint_if_needed()
 
-    # this message is received from the document controller.
+    # this message is received from the data item binding.
     # it is established using add_listener
-    def data_item_changed(self, data_item):
+    def data_item_binding_data_item_changed(self, data_item):
         if self.__histogram_thread:
             self.__histogram_thread.update_data(data_item)
+
+    # this message is received from the data item binding.
+    # it is established using add_listener
+    def data_item_binding_data_item_content_changed(self, data_item, changes):
+        self.data_item_binding_data_item_changed(data_item)
 
     def __set_display_limits(self, display_limits):
         self.adornments_canvas_item.display_limits = display_limits

@@ -288,7 +288,7 @@ class DataPanel(Panel.Panel):
             before_data_item = container.get_storage_relationship("data_items", before_index)
             before_index_flat = data_items_flat.index(before_data_item)
             level = self.list_model_controller.model[data_items_flat.index(container)]["level"]+1 if container in data_items_flat else 0
-            # add the listener. this will result in calls to data_item_changed
+            # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             # begin observing
             data_item.add_observer(self)
@@ -346,9 +346,9 @@ class DataPanel(Panel.Panel):
                     properties = self.list_model_controller.model[index]
                     self.list_model_controller.data_changed()
 
-        # data_item_changed is received from data items tracked in this model.
+        # data_item_content_changed is received from data items tracked in this model.
         # the connection is established in add_data_item using add_listener.
-        def data_item_changed(self, data_item, changes):
+        def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 

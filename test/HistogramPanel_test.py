@@ -39,7 +39,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             def draw(self):
                 pass
         data_item_binding = DataItem.DataItemBinding()
-        data_item_binding.notify_data_item_changed(self.data_item)
+        data_item_binding.notify_data_item_binding_data_item_changed(self.data_item)
         self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem(data_item_binding)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
