@@ -11,7 +11,7 @@ import time
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
-# time zones are offsets (east of UTC) in the following format "+HH:MM" or "-HH:MM"
+# time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 # datetime_element is a dictionary with entries for the local_datetime, tz (timezone offset), and

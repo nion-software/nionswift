@@ -537,7 +537,7 @@ class DataItemEditor(object):
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
-# time zones are offsets (east of UTC) in the following format "+HH:MM" or "-HH:MM"
+# time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
@@ -1004,13 +1004,16 @@ class DataItem(Storage.StorageBase):
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original)
-            self.notify_set_data("master_data", self.__master_data, data_file_path)
+            data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
+            self.notify_set_data("master_data", self.__master_data, data_file_path, data_file_datetime)
             self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()
     def _get_master_data_data_file_path(self):
         return DataItem._get_data_file_path(self.uuid, self.datetime_original)
+    def _get_master_data_data_file_datetime(self):
+        return Utility.get_datetime_from_datetime_element(self.datetime_original)
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:

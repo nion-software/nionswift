@@ -166,7 +166,7 @@ def update_data_item_from_data_element(data_item, data_element):
             data_item.title = data_element["title"]
         # description
         # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
-        # time zones are offsets (east of UTC) in the following format "+HH:MM" or "-HH:MM"
+        # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
         # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
         # time zone name is for display only and has no specified format
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
@@ -184,8 +184,8 @@ def update_data_item_from_data_element(data_item, data_element):
                     dst_match = re.compile("([-+])(\d{2})").match(data_element[root + "_dst"])
                     if dst_match:
                         datetime_element["dst"] = dst_match.group(0)
-                if "datatime_tzname" in data_element:
-                    datetime_element["tzname"] = data_element["datatime_tzname"]
+                if "datetime_tzname" in data_element:
+                    datetime_element["tzname"] = data_element["datetime_tzname"]
                 return datetime_element
             return default
         current_datetime_element = Utility.get_current_datetime_element()  # get this once to be consistent

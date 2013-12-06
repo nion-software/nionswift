@@ -1,7 +1,9 @@
 # standard libraries
+import calendar
 import collections
 import copy
 import cPickle as pickle
+import datetime
 import functools
 import logging
 import Queue
@@ -372,7 +374,16 @@ class StorageBase(Broadcaster):
             if data_file_path is None:
                 logging.debug("get_storage_data: %s missing %s", self, key + "_data_file_path")
                 raise NotImplementedError()
-        return data[0], data_file_path
+            if hasattr(self, key + "_data_file_datetime"):
+                data_file_datetime = getattr(self, key + "_data_file_datetime")
+            elif hasattr(self, "get_" + key + "_data_file_datetime"):
+                data_file_datetime = getattr(self, "get_" + key + "_data_file_datetime")()
+            elif hasattr(self, "_get_" + key + "_data_file_datetime"):
+                data_file_datetime = getattr(self, "_get_" + key + "_data_file_datetime")()
+            if data_file_datetime is None:
+                logging.debug("get_storage_data: %s missing %s", self, key + "_data_file_datetime")
+                raise NotImplementedError()
+        return data[0], data_file_path, data_file_datetime
 
     def get_storage_relationship_count(self, key):
         if hasattr(self, key):
@@ -439,9 +450,9 @@ class StorageBase(Broadcaster):
                 if observer and getattr(observer, "item_cleared", None):
                     observer.item_cleared(self, key)
 
-    def notify_set_data(self, key, data, data_file_path):
+    def notify_set_data(self, key, data, data_file_path, data_file_datetime):
         if self.datastore and self.__transaction_count == 0:
-            self.datastore.set_data(self, key, data, data_file_path)
+            self.datastore.set_data(self, key, data, data_file_path, data_file_datetime)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
             if observer and getattr(observer, "data_set", None):
@@ -494,9 +505,9 @@ class StorageBase(Broadcaster):
                 item.storage_cache = self.storage_cache
                 self.datastore.set_item(self, item_key, item)
         for data_key in self.storage_data_keys:
-            data, data_file_path = self.get_storage_data(data_key)
+            data, data_file_path, data_file_datetime = self.get_storage_data(data_key)
             if data is not None:
-                self.datastore.set_data(self, data_key, data, data_file_path)
+                self.datastore.set_data(self, data_key, data, data_file_path, data_file_datetime)
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
@@ -511,9 +522,9 @@ class StorageBase(Broadcaster):
     def write_data(self):
         assert self.datastore is not None
         for data_key in self.storage_data_keys:
-            data, data_file_path = self.get_storage_data(data_key)
+            data, data_file_path, data_file_datetime = self.get_storage_data(data_key)
             if data is not None:
-                self.datastore.set_data(self, data_key, data, data_file_path)
+                self.datastore.set_data(self, data_key, data, data_file_path, data_file_datetime)
 
     def rewrite_data(self):
         assert self.datastore is not None
@@ -756,7 +767,7 @@ class DictDatastore(object):
         properties = item_node.setdefault("properties", {})
         properties[key] = value
 
-    def set_data(self, parent, key, data, data_file_path):
+    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
         if self.disconnected:
             return
         # get the parent node
@@ -872,7 +883,7 @@ def db_make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 # utility function for db migration
-def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data_table):
+def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data_file_datetime, data_table):
     assert workspace_dir
     assert data is not None
     data_directory = os.path.join(workspace_dir, "Nion Swift Data")
@@ -880,6 +891,9 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
     logging.debug("WRITE data file %s for %s", absolute_file_path, key)
     db_make_directory_if_needed(os.path.dirname(absolute_file_path))
     pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
+    # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+    timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+    os.utime(absolute_file_path, (time.time(), timestamp))
     args = list()
     args.append(str(parent_uuid))
     args.append(key)
@@ -1151,11 +1165,11 @@ class DbDatastore(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
-    def set_data(self, parent, key, data, data_file_path):
+    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
         if not self.disconnected:
             if self.workspace_dir:  # may be None for testing
                 c = self.conn.cursor()
-                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, "data")
+                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, data_file_datetime, "data")
                 self.conn.commit()
             else:  # testing
                 c = self.conn.cursor()
@@ -1424,9 +1438,9 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.set_property, self.__datastore, item, key, value), event, "set_property"))
         #event.wait()
 
-    def set_data(self, parent, key, data, data_file_path):
+    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_data, self.__datastore, parent, key, data, data_file_path), event, "set_data"))
+        self.__queue.put((functools.partial(DbDatastore.set_data, self.__datastore, parent, key, data, data_file_path, data_file_datetime), event, "set_data"))
         #event.wait()
 
     # these methods read data. they must wait for the queue to finish.

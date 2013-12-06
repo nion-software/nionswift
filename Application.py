@@ -108,8 +108,9 @@ class Application(object):
                         datetime_original = datetime_current
                         datastore.set_property(collections.namedtuple("Migration_0_1_Item", ["uuid"])(data_uuid), "datetime_original", datetime_original)
                     data_file_path = DataItem.DataItem._get_data_file_path(uuid.UUID(data_uuid), datetime_original)
-                    Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, "new_data")
-                    logging.debug("Writing data item %s", data_file_path)
+                    data_file_date = Utility.get_datetime_from_datetime_element(datetime_original)
+                    Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, data_file_date, "new_data")
+                    logging.debug("Writing data item %s %s %s", data_uuid, data_file_path, data_file_date)
                 c.execute("DROP TABLE data")
                 c.execute("ALTER TABLE new_data RENAME TO data")
                 c.execute("INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
