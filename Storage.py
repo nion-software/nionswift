@@ -1248,6 +1248,12 @@ class DbDatastore(object):
 
     def check_integrity(self, raise_exception=False):
         # check for duplicated items in relationships.
+        # if the relationship table gets tainted with duplicate items,
+        # the best thing to do is just read them in, keeping only the one with
+        # the earliest index, and rewrite the indexes. there is no integrity
+        # check based on primary keys to do at the db level since the index/item_uuid
+        # will always be unique even when the same item_uuid exists in multiple
+        # indexes.
         c = self.conn.cursor()
         c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
         for row in c.fetchall():
