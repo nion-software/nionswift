@@ -903,6 +903,25 @@ class DictStorageReader(object):
 
 
 
+def db_make_directory_if_needed(directory_path):
+    if os.path.exists(directory_path):
+        if not os.path.isdir(directory_path):
+            raise OSError("Path is not a directory:", directory_path)
+    else:
+        os.makedirs(directory_path)
+
+# utility function for db migration
+def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data_table):
+    assert workspace_dir
+    data_directory = os.path.join(workspace_dir, "Nion Swift Data")
+    absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
+    logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+    db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+    pickle.dump(data, open(absolute_file_path, "wb"))
+    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, relative_file) VALUES (?, ?, ?)".format(data_table), (str(parent_uuid), key, data_file_path))
+
+
+
 class DbStorageWriter(object):
 
     def __init__(self, workspace_dir, db_filename):
@@ -957,7 +976,7 @@ class DbStorageWriter(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
             if self.workspace_dir:  # may be None for testing
                 self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, relative_file STRING, PRIMARY KEY(uuid, key))")
-            else:  # testing
+            else:  # testing (data stored in memory)
                 self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
@@ -1013,13 +1032,15 @@ class DbStorageWriter(object):
             self.__erase_data(c, uuid_)
             # remove single items
             self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
-            for item_uuid in c.fetchall():
-                self.__remove_node_ref(uuid.UUID(item_uuid[0]))
+            for row in c.fetchall():
+                item_uuid = row[0]
+                self.__remove_node_ref(uuid.UUID(item_uuid))
             self.execute(c, "DELETE FROM items WHERE parent_uuid=?", (str(uuid_), ))
             # remove relationships.
             self.execute(c, "SELECT item_uuid FROM relationships WHERE parent_uuid = ?", (str(uuid_), ))
-            for item_uuid in c.fetchall():
-                self.__remove_node_ref(uuid.UUID(item_uuid[0]))
+            for row in c.fetchall():
+                item_uuid = row[0]
+                self.__remove_node_ref(uuid.UUID(item_uuid))
             self.execute(c, "DELETE FROM relationships WHERE parent_uuid = ?", (str(uuid_), ))
             if not ignore_refcount:
                 self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(uuid_), ))
@@ -1030,11 +1051,13 @@ class DbStorageWriter(object):
     def __erase_data(self, c, uuid_):
         if self.workspace_dir:  # may be None for testing
             self.execute(c, "SELECT relative_file FROM data WHERE uuid=?", (str(uuid_), ))
-            for data_file_path in c.fetchall():
+            for row in c.fetchall():
+                data_file_path = row[0]
                 data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
                 absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
                 logging.debug("DELETE data file %s", absolute_file_path)
-                os.remove(absolute_file_path)
+                if os.path.isfile(absolute_file_path):
+                    os.remove(absolute_file_path)
             self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
         else:  # testing
             self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
@@ -1107,22 +1130,11 @@ class DbStorageWriter(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
-    def __make_directory_if_needed(self, directory_path):
-        if os.path.exists(directory_path):
-            if not os.path.isdir(directory_path):
-                raise OSError("Path is not a directory:", directory_path)
-        else:
-            os.makedirs(directory_path)
-
     def set_data(self, parent, key, data, data_file_path):
         if not self.disconnected:
             if self.workspace_dir:  # may be None for testing
-                data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
-                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-                logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-                self.__make_directory_if_needed(os.path.dirname(absolute_file_path))
-                pickle.dump(data, open(absolute_file_path, "wb"))
-                self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, relative_file) VALUES (?, ?, ?)", (str(parent.uuid), key, data_file_path))
+                c = self.conn.cursor()
+                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, "data")
                 self.conn.commit()
             else:  # testing
                 c = self.conn.cursor()
@@ -1376,18 +1388,19 @@ class DbStorageReader(object):
             return default_value
 
     def get_data(self, parent_node, key, default_value=None):
+        c = self.conn.cursor()
         if self.workspace_dir:  # may be None for testing
-            self.execute(c, "SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_node), key))
+            c.execute("SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_node), key))
             data_row = c.fetchone()
             if data_row:
                 data_file_path = data_row[0]
                 absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
                 logging.debug("READ data file %s for %s", absolute_file_path, key)
-                data = pickle.load(open(absolute_file_path, "rb"))
-                return data if data is not None else default_value
+                if os.path.isfile(absolute_file_path):
+                    data = pickle.load(open(absolute_file_path, "rb"))
+                    return data if data is not None else default_value
             return default_value
         else:  # testing
-            c = self.conn.cursor()
             c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
             if data_row:

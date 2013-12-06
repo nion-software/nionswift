@@ -4,12 +4,14 @@ import gettext
 import importlib
 import logging
 import os
+import cPickle as pickle
 import sys
 
 # third party libraries
 import numpy
 
 # local libraries
+from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import DocumentModel
@@ -88,7 +90,23 @@ class Application(object):
             storage_reader = Storage.DbStorageReader(workspace_dir, db_filename)
             version = storage_reader.get_version()
             if version == 0:
-                logging.debug("version %s", version)
+                logging.debug("Updating database from version 0 to version 1.")
+                c = storage_reader.conn.cursor()
+                c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, relative_file STRING, PRIMARY KEY(uuid, key))")
+                c.execute("SELECT uuid, key, data FROM data")
+                for row in c.fetchall():
+                    data_uuid = row[0]
+                    data_key = row[1]
+                    data = pickle.loads(str(row[2]))
+                    data_file_path = DataItem.DataItem._get_data_file_path(data_uuid)
+                    Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, "new_data")
+                    logging.debug("Writing data item %s", data_file_path)
+                c.execute("DROP TABLE data")
+                c.execute("ALTER TABLE new_data RENAME TO data")
+                c.execute("INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
+                logging.debug("Preparing to commit")
+                storage_reader.conn.commit()
+                logging.debug("Committed")
             storage_reader.check_integrity()
             storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)

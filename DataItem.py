@@ -581,7 +581,7 @@ class DataItem(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def __get_data_file_path(cls, uuid_):
+    def _get_data_file_path(cls, uuid_):
         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -593,7 +593,7 @@ class DataItem(Storage.StorageBase):
                 result += alphabet[digit]
             return result
         # encode(uuid.uuid4(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        return str(uuid_) + ".nsdata"
+        return "master-data-" + str(uuid_) + ".nsdata"
 
     @classmethod
     def build(cls, storage_reader, item_node, uuid_):
@@ -984,14 +984,14 @@ class DataItem(Storage.StorageBase):
                 self.__master_data = data
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
-            data_file_path = DataItem.__get_data_file_path(self.uuid)
+            data_file_path = DataItem._get_data_file_path(self.uuid)
             self.notify_set_data("master_data", self.__master_data, data_file_path)
             self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()
     def _get_master_data_data_file_path(self):
-        return DataItem.__get_data_file_path(self.uuid)
+        return DataItem._get_data_file_path(self.uuid)
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:
