@@ -4,6 +4,7 @@ import copy
 import datetime
 import gettext
 import logging
+import os
 import threading
 import uuid
 import weakref
@@ -585,7 +586,7 @@ class DataItem(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def _get_data_file_path(cls, uuid_):
+    def _get_data_file_path(cls, uuid_, datetime_element, session_id=None):
         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -596,8 +597,15 @@ class DataItem(Storage.StorageBase):
                 uuid_int, digit = divmod(uuid_int, len(alphabet))
                 result += alphabet[digit]
             return result
-        # encode(uuid.uuid4(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        return "master-data-" + str(uuid_) + ".nsdata"
+        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+        datetime_element = datetime_element if datetime_element else Utility.get_current_datetime_element()
+        datetime_ = Utility.get_datetime_from_datetime_element(datetime_element)
+        datetime_ = datetime_ if datetime_ else datetime.datetime.now()
+        path_components = datetime_.strftime("%Y-%m-%d").split('-')
+        session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
+        path_components.append(session_id)
+        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+        return os.path.join(*path_components)
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
@@ -779,13 +787,11 @@ class DataItem(Storage.StorageBase):
     def __get_datetime_original_as_string(self):
         datetime_original = self.datetime_original
         if datetime_original:
-            if len(datetime_original["local_datetime"]) == 26:
-                datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
-            else:
-                datetime_ = datetime.datetime.strptime(datetime_original["local_datetime"], "%Y-%m-%dT%H:%M:%S")
-            return datetime_.strftime("%c")
-        else:
-            return str()
+            datetime_ = Utility.get_datetime_from_datetime_element(datetime_original)
+            if datetime_:
+                return datetime_.strftime("%c")
+        # fall through to here
+        return str()
     datetime_original_as_string = property(__get_datetime_original_as_string)
 
     # access properties
@@ -997,14 +1003,14 @@ class DataItem(Storage.StorageBase):
                 self.__has_master_data = data is not None
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
-            data_file_path = DataItem._get_data_file_path(self.uuid)
+            data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original)
             self.notify_set_data("master_data", self.__master_data, data_file_path)
             self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem. temporary.
     def _get_master_data(self):
         return self.__get_master_data()
     def _get_master_data_data_file_path(self):
-        return DataItem._get_data_file_path(self.uuid)
+        return DataItem._get_data_file_path(self.uuid, self.datetime_original)
 
     def increment_accessor_count(self):
         with self.__data_accessor_count_mutex:

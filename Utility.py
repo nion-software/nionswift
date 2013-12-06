@@ -23,3 +23,12 @@ def get_current_datetime_element():
     datetime_element["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes/60, tz_minutes%60)
     datetime_element["dst"] = "+60" if time.localtime().tm_isdst else "+00"
     return datetime_element
+
+# return python datetime object from a datetime_element. may return None if the datetime element is
+# not properly formatted.
+def get_datetime_from_datetime_element(datetime_element):
+    if len(datetime_element["local_datetime"]) == 26:
+        return datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
+    elif len(datetime_element["local_datetime"]) == 21:
+        return datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S")
+    return None

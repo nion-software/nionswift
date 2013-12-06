@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import gettext
 import importlib
@@ -6,6 +7,7 @@ import logging
 import os
 import cPickle as pickle
 import sys
+import uuid
 
 # third party libraries
 import numpy
@@ -25,6 +27,7 @@ from nion.swift import Session
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Test
+from nion.swift import Utility
 from nion.swift import Workspace
 
 _ = gettext.gettext
@@ -95,11 +98,16 @@ class Application(object):
                 c = datastore.conn.cursor()
                 c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
                 c.execute("SELECT uuid, key, data FROM data")
+                datetime_current = Utility.get_current_datetime_element()
                 for row in c.fetchall():
                     data_uuid = row[0]
                     data_key = row[1]
                     data = pickle.loads(str(row[2]))
-                    data_file_path = DataItem.DataItem._get_data_file_path(data_uuid)
+                    datetime_original = datastore.get_property(data_uuid, "datetime_original")
+                    if not datetime_original:
+                        datetime_original = datetime_current
+                        datastore.set_property(collections.namedtuple("Migration_0_1_Item", ["uuid"])(data_uuid), "datetime_original", datetime_original)
+                    data_file_path = DataItem.DataItem._get_data_file_path(uuid.UUID(data_uuid), datetime_original)
                     Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, "new_data")
                     logging.debug("Writing data item %s", data_file_path)
                 c.execute("DROP TABLE data")
