@@ -920,6 +920,20 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
     pickle.dump(data, open(absolute_file_path, "wb"))
     c.execute("INSERT OR REPLACE INTO {0} (uuid, key, relative_file) VALUES (?, ?, ?)".format(data_table), (str(parent_uuid), key, data_file_path))
 
+# utility function to read data from external file.
+def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
+    assert workspace_dir
+    c.execute("SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_uuid), key))
+    data_row = c.fetchone()
+    if data_row:
+        data_file_path = data_row[0]
+        absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
+        logging.debug("READ data file %s for %s", absolute_file_path, key)
+        if os.path.isfile(absolute_file_path):
+            data = pickle.load(open(absolute_file_path, "rb"))
+            return data if data is not None else default_value
+    return default_value
+
 
 
 class DbStorageWriter(object):
@@ -1139,6 +1153,18 @@ class DbStorageWriter(object):
             else:  # testing
                 c = self.conn.cursor()
                 self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
+
+    def get_data(self, parent_uuid, key, default_value=None):
+        c = self.conn.cursor()
+        if self.workspace_dir:  # may be None for testing
+            return db_get_data(c, workspace_dir, parent_node, key, default_value)
+        else:  # testing
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            data_row = c.fetchone()
+            if data_row:
+                return pickle.loads(str(data_row[0]))
+            else:
+                return default_value
 
 
 class DbStorageWriterProxy(object):
@@ -1390,16 +1416,7 @@ class DbStorageReader(object):
     def get_data(self, parent_node, key, default_value=None):
         c = self.conn.cursor()
         if self.workspace_dir:  # may be None for testing
-            c.execute("SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_node), key))
-            data_row = c.fetchone()
-            if data_row:
-                data_file_path = data_row[0]
-                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-                logging.debug("READ data file %s for %s", absolute_file_path, key)
-                if os.path.isfile(absolute_file_path):
-                    data = pickle.load(open(absolute_file_path, "rb"))
-                    return data if data is not None else default_value
-            return default_value
+            return db_get_data(c, self.workspace_dir, parent_node, key, default_value)
         else:  # testing
             c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
