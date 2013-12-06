@@ -116,6 +116,7 @@ class ImportExportManager(object):
                     io_handler.write(ui, data_item, path, extension)
 
 
+# create a new data item with a data element.
 # data element is a dict which can be processed into a data item
 def create_data_item_from_data_element(data_element):
     data_item = DataItem.DataItem()
@@ -123,6 +124,9 @@ def create_data_item_from_data_element(data_element):
     return data_item
 
 
+# update an existing data item with a data element.
+# data element is a dict which can be processed into a data item
+# the existing data item may have a new size and dtype after returning.
 def update_data_item_from_data_element(data_item, data_element):
     with data_item.data_item_changes():
         # file path
