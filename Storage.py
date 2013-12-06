@@ -415,7 +415,7 @@ class StorageBase(Broadcaster):
         self.__weak_observers.remove(weakref.ref(observer))
 
     def notify_set_property(self, key, value):
-        if self.datastore:
+        if self.datastore and self.__transaction_count == 0:
             self.datastore.set_property(self, key, value)
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
@@ -424,7 +424,7 @@ class StorageBase(Broadcaster):
 
     def notify_set_item(self, key, item):
         assert item is not None
-        if self.datastore:
+        if self.datastore and self.__transaction_count == 0:
             item.datastore = self.datastore
             self.datastore.set_item(self, key, item)
         if self.storage_cache:
@@ -440,6 +440,7 @@ class StorageBase(Broadcaster):
         item = self.get_storage_item(key)
         if item:
             if self.datastore:
+                assert self.__transaction_count == 0
                 self.datastore.clear_item(self, key)
                 item.datastore = None
             if self.storage_cache:
@@ -460,7 +461,7 @@ class StorageBase(Broadcaster):
 
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
-        if self.datastore:
+        if self.datastore and self.__transaction_count == 0:
             value.datastore = self.datastore
             self.datastore.insert_item(self, key, value, before_index)
         if self.storage_cache:
@@ -474,6 +475,7 @@ class StorageBase(Broadcaster):
     def notify_remove_item(self, key, value, index):
         assert value is not None
         if self.datastore:
+            assert self.__transaction_count == 0
             self.datastore.remove_item(self, key, index)
             value.datastore = None
         if self.storage_cache:
