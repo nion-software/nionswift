@@ -31,9 +31,7 @@ class DocumentModel(Storage.StorageBase):
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.session_uuid = uuid.uuid4()
         if self.datastore.initialized:
-            self.datastore.disconnected = True
-            self.read()
-            self.datastore.disconnected = False
+            self.__read()
         else:
             self.datastore.set_root(self)
             self.write()
@@ -44,11 +42,16 @@ class DocumentModel(Storage.StorageBase):
             self.data_groups.remove(data_group)
 
     # TODO: make DocumentModel.read private
-    def read(self):
+    def __read(self):
+        # first read the items
         parent_node, uuid = self.datastore.find_root_node("document")
         self._set_uuid(uuid)
         data_groups = self.datastore.get_items(parent_node, "data_groups")
+        # now update the fields on self, disconnecting the datastore
+        # to prevent writing them back out to the database.
+        self.datastore.disconnected = True
         self.data_groups.extend(data_groups)
+        self.datastore.disconnected = False
 
     def create_default_data_groups(self):
         # ensure there is at least one group

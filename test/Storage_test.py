@@ -173,6 +173,25 @@ class TestStorageClass(unittest.TestCase):
         with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
             self.assertEqual(data_accessor.data[0,0], 2)
 
+    # test to ensure that no duplicate relationships are created
+    def test_db_rewrite(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastoreProxy(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        with document_model.ref():
+            # add the data group first so that if datastore is not disconnected,
+            # writes will happen immediately to the database.
+            data_group = DataGroup.DataGroup()
+            document_model.data_groups.append(data_group)
+            datastore.disconnected = True
+            datastore._throttling = 0.004  # 4ms
+            for i in xrange(10):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                data_group.data_items.append(data_item)
+            datastore.disconnected = False
+            self.assertEqual(len(datastore.get_items(datastore.find_parent_node(data_group), "data_items")), 0)
+
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2

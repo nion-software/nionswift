@@ -9,6 +9,7 @@ import os
 import sqlite3
 import StringIO
 import threading
+import time
 import uuid
 import weakref
 
@@ -937,6 +938,9 @@ class DbDatastore(object):
         return c.fetchone() is not None
     initialized = property(__get_initialized)
 
+    def set_disconnected(self, disconnected):
+        self.disconnected = disconnected
+
     def from_string(self, str):
         self.conn.cursor().executescript(str)
         self.conn.commit()
@@ -1242,12 +1246,14 @@ class DbDatastore(object):
             return item
         return default_value
 
-    def check_integrity(self):
+    def check_integrity(self, raise_exception=False):
         # check for duplicated items in relationships
         c = self.conn.cursor()
         c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
         for row in c.fetchall():
             logging.debug("Duplicate item in relationship from %s to %s (%s[%s]) x%s", row[0], row[3], row[1], row[2], row[4])
+            if raise_exception:
+                raise ValueError()
 
     def get_items(self, parent_node, key):
         c = self.conn.cursor()
@@ -1306,6 +1312,7 @@ class DbDatastoreProxy(object):
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename, create, db_data_str])
         self.__thread.daemon = True
+        self._throttling = 0  # for testing to slow down db operations, in seconds
         self.__thread.start()
         self.__started_event.wait()
 
@@ -1316,6 +1323,14 @@ class DbDatastoreProxy(object):
     def __get_initialized(self):
         return self.__datastore.initialized
     initialized = property(__get_initialized)
+
+    def __get_disconnected(self):
+        return self.__datastore.disconnected
+    def __set_disconnected(self, disconnected):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.set_disconnected, self.__datastore, disconnected), event, "set_disconnected"))
+        event.wait()
+    disconnected = property(__get_disconnected, __set_disconnected)
 
     def __run(self, workspace_dir, db_filename, create, db_data_str):
         self.__datastore = DbDatastore(workspace_dir, db_filename, create=create, db_data_str=db_data_str)
@@ -1329,6 +1344,7 @@ class DbDatastoreProxy(object):
                 try:
                     #logging.debug("EXECUTE %s", action_name)
                     item()
+                    time.sleep(self._throttling)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -1339,12 +1355,6 @@ class DbDatastoreProxy(object):
             self.__queue.task_done()
             if not item:
                 break
-
-    def __get_disconnected(self):
-        return self.__datastore.disconnected
-    def __set_disconnected(self, disconnected):
-        self.__datastore.disconnected = disconnected
-    disconnected = property(__get_disconnected, __set_disconnected)
 
     def to_string(self):
         event = threading.Event()
@@ -1520,7 +1530,6 @@ class DbStorageCache(object):
             action_name = action[3]
             if item:
                 try:
-                    import time
                     #logging.debug("EXECUTE %s", action_name)
                     start = time.time()
                     if result is not None:
