@@ -1245,9 +1245,9 @@ class DbDatastore(object):
     def check_integrity(self):
         # check for duplicated items in relationships
         c = self.conn.cursor()
-        c.execute("SELECT item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
+        c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
         for row in c.fetchall():
-            logging.debug("Duplicate item in relationship %s", row[0])
+            logging.debug("Duplicate item in relationship from %s to %s (%s[%s]) x%s", row[0], row[3], row[1], row[2], row[4])
 
     def get_items(self, parent_node, key):
         c = self.conn.cursor()
