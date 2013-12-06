@@ -87,8 +87,9 @@ class Application(object):
             document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", db_filename)
-            datastore = Storage.DbDatastore(workspace_dir, db_filename)
+            datastore = Storage.DbDatastore(workspace_dir, db_filename, create=False)
             version = datastore.get_version()
+            logging.debug("Database at version %s.", version)
             if version == 0:
                 logging.debug("Updating database from version 0 to version 1.")
                 c = datastore.conn.cursor()
@@ -109,6 +110,9 @@ class Application(object):
                 logging.debug("Committed")
                 c.execute("VACUUM")
                 logging.debug("Vacuumed")
+            elif version > 1:
+                logging.debug("Database too new, version %s", version)
+                sys.exit()
             datastore.check_integrity()
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)

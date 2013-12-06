@@ -917,15 +917,15 @@ def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
 
 class DbDatastore(object):
 
-    def __init__(self, workspace_dir, db_filename, str=None):
+    def __init__(self, workspace_dir, db_filename, create=True, db_data_str=None):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
         self.workspace_dir = workspace_dir  # may be None for testing only
         # item map is used during item construction.
         self.__item_map = {}
         self.disconnected = False
-        if str:
-            self.from_string(str)
-        else:
+        if db_data_str:
+            self.from_string(db_data_str)
+        elif create:
             self.create()
 
     def close(self):

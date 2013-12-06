@@ -121,7 +121,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         datastore.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_str)
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -166,7 +166,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_str)
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -198,7 +198,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_str)
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -318,7 +318,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = datastore.to_string()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_str)
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -355,7 +355,7 @@ class TestStorageClass(unittest.TestCase):
         storage_str = datastore.to_string()
         document_model.remove_ref()
         # make sure it reloads
-        datastore = Storage.DbDatastore(None, db_name, storage_str)
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_model.add_ref()
