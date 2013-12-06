@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import logging
 import math
 import threading
 import unittest
@@ -109,24 +110,29 @@ class TestDataItemClass(unittest.TestCase):
     def test_copy_data_item(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.title = "data_item"
+        with data_item.property_changes() as property_accessor:
+            property_accessor.properties["one"] = 1
+            property_accessor.properties["two"] = 22
         data_item.add_ref()
         with data_item.create_data_accessor() as data_accessor:
             data_accessor.master_data[128, 128] = 1000  # data range (0, 1000)
             data_accessor.master_data_updated()
-            data_item.operations.append(Operation.InvertOperation())
-            data_item.graphics.append(Graphics.RectangleGraphic())
-            data_item2 = DataItem.DataItem()
-            data_item2.title = "data_item2"
-            data_item.data_items.append(data_item2)
-            data_item_copy = copy.deepcopy(data_item)
-            with data_item_copy.create_data_accessor() as data_copy_accessor:
-                # make sure the data is not shared between the original and the copy
-                self.assertEqual(data_accessor.master_data[0,0], 0)
-                self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-                data_accessor.master_data[:] = 1
-                data_accessor.master_data_updated()
-                self.assertEqual(data_accessor.master_data[0,0], 1)
-                self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+        data_item.operations.append(Operation.InvertOperation())
+        data_item.graphics.append(Graphics.RectangleGraphic())
+        data_item2 = DataItem.DataItem()
+        data_item2.title = "data_item2"
+        data_item.data_items.append(data_item2)
+        data_item_copy = copy.deepcopy(data_item)
+        with data_item_copy.create_data_accessor() as data_copy_accessor:
+            # make sure the data is not shared between the original and the copy
+            self.assertEqual(data_accessor.master_data[0,0], 0)
+            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+            data_accessor.master_data[:] = 1
+            data_accessor.master_data_updated()
+            self.assertEqual(data_accessor.master_data[0,0], 1)
+            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+        # make sure properties got copied
+        self.assertEqual(len(data_item_copy.properties), 2)
         # make sure calibrations, operations, nor graphics are not shared
         self.assertNotEqual(data_item.calibrations[0], data_item_copy.calibrations[0])
         self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
@@ -372,4 +378,5 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_ref()
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

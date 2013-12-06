@@ -1316,6 +1316,9 @@ class DataItem(Storage.StorageBase):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
+        with data_item_copy.property_changes() as property_accessor:
+            property_accessor.properties.clear()
+            property_accessor.properties.update(self.properties)
         data_item_copy.display_limits = self.display_limits
         data_item_copy.datetime_modified = self.datetime_modified
         data_item_copy.datetime_original = self.datetime_original
