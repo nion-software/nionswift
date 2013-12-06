@@ -12,6 +12,7 @@ from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import Graphics
 from nion.swift import Image
+from nion.swift import Utility
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -171,13 +172,6 @@ def update_data_item_from_data_element(data_item, data_element):
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-        def get_current_datetime_element():
-            datetime_element = dict()
-            datetime_element["local_datetime"] = datetime.datetime.now().isoformat()
-            tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
-            datetime_element["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes/60, tz_minutes%60)
-            datetime_element["dst"] = "+60" if time.localtime().tm_isdst else "+00"
-            return datetime_element
         def parse_datetime_keys(root, default=None):
             if root in data_element:
                 datetime_element = dict()
@@ -194,7 +188,7 @@ def update_data_item_from_data_element(data_item, data_element):
                     datetime_element["tzname"] = data_element["datatime_tzname"]
                 return datetime_element
             return default
-        current_datetime_element = get_current_datetime_element()  # get this once to be consistent
+        current_datetime_element = Utility.get_current_datetime_element()  # get this once to be consistent
         data_item.datetime_modified = parse_datetime_keys("datetime_modified", current_datetime_element)
         data_item.datetime_original = parse_datetime_keys("datetime_original", data_item.datetime_modified)
         # author

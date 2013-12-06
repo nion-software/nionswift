@@ -18,6 +18,7 @@ from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
 from nion.swift import Inspector
 from nion.swift import Storage
+from nion.swift import Utility
 
 _ = gettext.gettext
 
@@ -534,6 +535,11 @@ class DataItemEditor(object):
                 self.display_limits_range_high.select_all()
 
 
+# dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
+# time zones are offsets (east of UTC) in the following format "+HH:MM" or "-HH:MM"
+# daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
+# time zone name is for display only and has no specified format
+
 class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
@@ -547,8 +553,9 @@ class DataItem(Storage.StorageBase):
         self.__title = None
         self.__param = 0.5
         self.__display_limits = None  # auto
-        self.__datetime_modified = None
-        self.__datetime_original = None
+        # data is immutable but metadata isn't, keep track of original and modified dates
+        self.__datetime_original = Utility.get_current_datetime_element()
+        self.__datetime_modified = self.__datetime_original
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
