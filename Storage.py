@@ -940,6 +940,11 @@ class DbDatastore(object):
         # item map is used during item construction.
         self.__item_map = {}
         self.disconnected = False
+        # turn off full synchronization. see http://www.sqlite.org/faq.html#q19
+        # this drastically improves write performance, at the cost of database
+        # integrity in the case of OS crash or power loss. this has no effect on
+        # application crashes.
+        self.conn.execute("PRAGMA synchronous = OFF")
         if db_data_str:
             self.from_string(db_data_str)
         elif create:
