@@ -600,8 +600,7 @@ class DataItem(Storage.StorageBase):
         graphics = storage_reader.get_items(item_node, "graphics")
         operations = storage_reader.get_items(item_node, "operations")
         data_items = storage_reader.get_items(item_node, "data_items")
-        data_file_path = DataItem.__get_data_file_path(uuid_)
-        master_data = storage_reader.get_data(item_node, data_file_path, "master_data") if storage_reader.has_data(item_node, "master_data") else None
+        master_data = storage_reader.get_data(item_node, "master_data") if storage_reader.has_data(item_node, "master_data") else None
         data_item = cls()
         data_item.title = title
         data_item.param = param

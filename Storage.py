@@ -22,7 +22,6 @@ from nion.swift.Decorators import traceit
 # transaction level indicates whether to use the still experimental strong transaction code.
 # strong transaction code may have threading or other bugs so it is still disabled.
 transaction_level = "weak" if 1 else "strong"
-use_external_data = False
 
 class MutableRelationship(collections.MutableSequence):
 
@@ -893,7 +892,7 @@ class DictStorageReader(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, data_file_path, key, default_value=None):
+    def get_data(self, parent_node, key, default_value=None):
         data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
         if key in data_items:
             data = data_items[key]
@@ -908,7 +907,7 @@ class DbStorageWriter(object):
 
     def __init__(self, workspace_dir, db_filename):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
-        self.workspace_dir = workspace_dir
+        self.workspace_dir = workspace_dir  # may be None for testing only
         self.disconnected = False
         self.create()
         self.migrate()
@@ -956,10 +955,14 @@ class DbStorageWriter(object):
             c = self.conn.cursor()
             self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
-            # TODO: use_external_data
-            self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
+            if self.workspace_dir:  # may be None for testing
+                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, relative_file STRING, PRIMARY KEY(uuid, key))")
+            else:  # testing
+                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
             self.conn.commit()
 
     def migrate(self):
@@ -1007,8 +1010,7 @@ class DbStorageWriter(object):
             # remove properties
             self.execute(c, "DELETE FROM properties WHERE uuid = ?", (str(uuid_), ))
             # remove data
-            # TODO: use_external_data
-            self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
+            self.__erase_data(c, uuid_)
             # remove single items
             self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
             for item_uuid in c.fetchall():
@@ -1025,10 +1027,21 @@ class DbStorageWriter(object):
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
 
+    def __erase_data(self, c, uuid_):
+        if self.workspace_dir:  # may be None for testing
+            self.execute(c, "SELECT relative_file FROM data WHERE uuid=?", (str(uuid_), ))
+            for data_file_path in c.fetchall():
+                data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
+                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+                logging.debug("DELETE data file %s", absolute_file_path)
+                os.remove(absolute_file_path)
+            self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
+        else:  # testing
+            self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
+
     def erase_data(self, object):
         c = self.conn.cursor()
-        # TODO: use_external_data
-        self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(object.uuid), ))
+        self.__erase_data(c, object.uuid)
 
     def set_type(self, item, type):
         if not self.disconnected:
@@ -1103,16 +1116,17 @@ class DbStorageWriter(object):
 
     def set_data(self, parent, key, data, data_file_path):
         if not self.disconnected:
-            #logging.debug("WRITE %s", os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path))
-            if use_external_data and self.workspace_dir:
+            if self.workspace_dir:  # may be None for testing
                 data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
-                self.__make_directory_if_needed(data_directory)
                 absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+                logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+                self.__make_directory_if_needed(os.path.dirname(absolute_file_path))
                 pickle.dump(data, open(absolute_file_path, "wb"))
-            c = self.conn.cursor()
-            # TODO: use_external_data
-            self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
-            self.conn.commit()
+                self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, relative_file) VALUES (?, ?, ?)", (str(parent.uuid), key, data_file_path))
+                self.conn.commit()
+            else:  # testing
+                c = self.conn.cursor()
+                self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
 
 
 class DbStorageWriterProxy(object):
@@ -1226,7 +1240,7 @@ class DbStorageReader(object):
 
     def __init__(self, workspace_dir, db_filename):
         self.conn = sqlite3.connect(db_filename)
-        self.workspace_dir = workspace_dir
+        self.workspace_dir = workspace_dir  # may be None for testing
         self.__item_map = {}
 
     def from_string(self, str):
@@ -1361,19 +1375,25 @@ class DbStorageReader(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, data_file_path, key, default_value=None):
-        #logging.debug("READ %s", os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path))
-        if use_external_data and self.workspace_dir:
-            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            data = pickle.load(open(absolute_file_path, "rb"))
-            return data if data is not None else default_value
-        c = self.conn.cursor()
-        c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
-        data_row = c.fetchone()
-        if data_row:
-            return pickle.loads(str(data_row[0]))
-        else:
+    def get_data(self, parent_node, key, default_value=None):
+        if self.workspace_dir:  # may be None for testing
+            self.execute(c, "SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_node), key))
+            data_row = c.fetchone()
+            if data_row:
+                data_file_path = data_row[0]
+                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+                logging.debug("READ data file %s for %s", absolute_file_path, key)
+                data = pickle.load(open(absolute_file_path, "rb"))
+                return data if data is not None else default_value
             return default_value
+        else:  # testing
+            c = self.conn.cursor()
+            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            data_row = c.fetchone()
+            if data_row:
+                return pickle.loads(str(data_row[0]))
+            else:
+                return default_value
 
 
 class DictStorageCache(object):

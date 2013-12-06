@@ -86,6 +86,9 @@ class Application(object):
         else:
             logging.debug("Using existing document %s", db_filename)
             storage_reader = Storage.DbStorageReader(workspace_dir, db_filename)
+            version = storage_reader.get_version()
+            if version == 0:
+                logging.debug("version %s", version)
             storage_reader.check_integrity()
             storage_writer = Storage.DbStorageWriterProxy(workspace_dir, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
