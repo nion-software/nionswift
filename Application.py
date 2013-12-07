@@ -109,6 +109,9 @@ class Application(object):
                         datastore.set_property(collections.namedtuple("Migration_0_1_Item", ["uuid"])(data_uuid), "datetime_original", datetime_original)
                     data_file_path = DataItem.DataItem._get_data_file_path(uuid.UUID(data_uuid), datetime_original)
                     data_file_date = Utility.get_datetime_from_datetime_element(datetime_original)
+                    if not data_file_date:
+                        logging.debug("datetime_original was %s", datetime_original)
+                        data_file_data = Utility.get_datetime_from_datetime_element(datetime_current)
                     Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, data_file_date, "new_data")
                     logging.debug("Writing data item %s %s %s", data_uuid, data_file_path, data_file_date)
                 c.execute("DROP TABLE data")

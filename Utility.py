@@ -29,6 +29,6 @@ def get_current_datetime_element():
 def get_datetime_from_datetime_element(datetime_element):
     if len(datetime_element["local_datetime"]) == 26:
         return datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f")
-    elif len(datetime_element["local_datetime"]) == 21:
+    elif len(datetime_element["local_datetime"]) == 19:
         return datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S")
     return None
