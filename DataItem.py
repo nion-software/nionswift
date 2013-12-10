@@ -679,6 +679,18 @@ class DataItem(Storage.StorageBase):
         return str()
     live_status_as_string = property(__get_live_status_as_string)
 
+    def __get_session_id(self):
+        # first check to see if we have a session_id set directly
+        session_id = self.__properties.get("session_id", str())
+        # if not, try the datetime
+        if not session_id:
+            datetime_element = self.datetime_original if self.datetime_original else Utility.get_current_datetime_element()
+            datetime_ = Utility.get_datetime_from_datetime_element(datetime_element)
+            datetime_ = datetime_ if datetime_ else datetime.datetime.now()
+            session_id = datetime_.strftime("%Y%m%d-000000")
+        return session_id
+    session_id = property(__get_session_id)
+
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
             def __init__(self, data_item):
@@ -1003,7 +1015,7 @@ class DataItem(Storage.StorageBase):
                 self.__has_master_data = data is not None
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_calibrations(spatial_ndim)
-            data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original)
+            data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
             data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
             self.notify_set_data("master_data", self.__master_data, data_file_path, data_file_datetime)
             self.notify_data_item_content_changed(set([DATA]))
@@ -1011,7 +1023,7 @@ class DataItem(Storage.StorageBase):
     def _get_master_data(self):
         return self.__get_master_data()
     def _get_master_data_data_file_path(self):
-        return DataItem._get_data_file_path(self.uuid, self.datetime_original)
+        return DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
     def _get_master_data_data_file_datetime(self):
         return Utility.get_datetime_from_datetime_element(self.datetime_original)
 

@@ -84,10 +84,12 @@ class Session(object):
                 hardware_source_id = data_item.properties.get("hardware_source_id")
                 if hardware_source_id != hardware_source.hardware_source_id:
                     data_item = None
-            # next verify that that session id matches. disabled for now until re-use of data between sessions is figured out.
-            #session_uuid = data_item.properties.get("session_uuid")
-            #if session_uuid != self.session_uuid:
-            #    data_item = None
+            # next, verify that that session id matches.
+            if data_item and data_item.properties.get("session_id", str()) != self.session_id:
+                data_item = None
+            # finally, verify that this data item is live. never re-use non-live data item.
+            if data_item and not data_item.is_live:
+                data_item = None
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
