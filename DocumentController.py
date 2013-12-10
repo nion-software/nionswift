@@ -187,6 +187,8 @@ class DocumentController(Storage.Broadcaster):
     def periodic(self):
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
+        # for sessions
+        self.document_model.session.periodic()
         # for each of the panels too
         for panel in self.panels:
             if hasattr(panel, "periodic"):

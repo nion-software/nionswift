@@ -79,11 +79,11 @@ class HardwareSourceManager(Storage.Broadcaster):
     # handle acquisition style devices
 
     # not thread safe
-    def start_hardware_source(self, hardware_source, mode=None):
+    def start_hardware_source(self, session, hardware_source, mode=None):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
-        hardware_source.start_playing(mode)
+        hardware_source.start_playing(session, mode)
 
     # not thread safe
     def abort_hardware_source(self, hardware_source):
@@ -207,14 +207,8 @@ class HardwareSource(Storage.Broadcaster):
         self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
-        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_activations = set()
-        self.__channel_activations_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
-        self.__periodic_queue = queue.Queue()
-        # TODO: hack to get data group and session working. not sure how to handle this in the long run.
-        self.data_group = None
-        self.session_uuid = uuid.uuid4()
+        self.__session = None
         self.frame_index = 0
         self.__mode = None
         self.__mode_data = dict()
@@ -229,13 +223,6 @@ class HardwareSource(Storage.Broadcaster):
     def periodic(self):
         if self.__should_abort():
             self.abort_playing()
-        try:
-            task = self.__periodic_queue.get(False)
-        except queue.Empty:
-            had_task = False
-        else:
-            task()
-            self.__periodic_queue.task_done()
 
     def __get_data_buffer(self):
         if not self.__data_buffer:
@@ -367,9 +354,11 @@ class HardwareSource(Storage.Broadcaster):
 
     # call this to start acquisition
     # not thread safe
-    def start_playing(self, mode=None):
+    def start_playing(self, session, mode=None):
         if not self.data_buffer.is_playing:
             self.__abort_signal = False
+            self.__session = session
+            self.__session.will_start_playing(self)
             self.data_buffer.start()
             self.notify_listeners("hardware_source_started", self)
 
@@ -379,8 +368,8 @@ class HardwareSource(Storage.Broadcaster):
         if self.data_buffer.is_playing:
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
-            with self.__channel_activations_mutex:
-                self.__channel_activations.clear()
+            self.__session.did_stop_playing(self)
+            self.__session = None
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -436,9 +425,6 @@ class HardwareSource(Storage.Broadcaster):
     def data_elements_changed(self, hardware_source, data_elements):
         # TODO: deal wth overrun by asking for latest values.
 
-        # TODO: get the data group here. how?
-        data_group = self.data_group
-
         # build useful data structures (channel -> data)
         channel_to_data_element_map = {}
         channels = []
@@ -448,7 +434,7 @@ class HardwareSource(Storage.Broadcaster):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.__sync_channels_to_data_items(channels, data_group, self.display_name)
+        new_channel_to_data_item_dict = self.__session.sync_channels_to_data_items(channels, self)
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
@@ -485,49 +471,6 @@ class HardwareSource(Storage.Broadcaster):
             for channel in self.__channel_states.keys():
                 if not channel in channels:
                     del self.__channel_states[channel]
-
-    def __sync_channels_to_data_items(self, channels, data_group, prefix):
-        data_item_set = {}
-        for channel in channels:
-            data_item_name = "%s.%s" % (prefix, channel)
-            # only use existing data item if it has a data buffer that matches
-            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
-            # to reuse, first verify that the hardware source id, if any, matches
-            if data_item:
-                hardware_source_id = data_item.properties.get("hardware_source_id")
-                if hardware_source_id != self.hardware_source_id:
-                    data_item = None
-            # next verify that that session id matches. disabled for now until re-use of data between sessions is figured out.
-            #session_uuid = data_item.properties.get("session_uuid")
-            #if session_uuid != self.session_uuid:
-            #    data_item = None
-            # if we still don't have a data item, create it.
-            if not data_item:
-                data_item = DataItem.DataItem()
-                data_item.title = data_item_name
-                with data_item.property_changes() as context:
-                    context.properties["hardware_source_id"] = self.hardware_source_id
-                    context.properties["session_uuid"] = self.session_uuid
-                # this function will be run on the main thread.
-                # be careful about binding the parameter. cannot use 'data_item' directly.
-                def append_data_item_to_data_group_task(append_data_item):
-                    data_group.data_items.insert(0, append_data_item)
-                self.__periodic_queue.put(lambda value=data_item: append_data_item_to_data_group_task(value))
-                with self.__channel_activations_mutex:
-                    self.__channel_activations.add(channel)
-            data_item_set[channel] = data_item
-            # check to see if its been activated. if not, activate it.
-            with self.__channel_activations_mutex:
-                if channel not in self.__channel_activations:
-                    # this function will be run on the main thread.
-                    # be careful about binding the parameter. cannot use 'data_item' directly.
-                    def activate_data_item(data_item_to_activate):
-                        # TODO: if the data item is selected in the data panel, then moving it
-                        # will deselect it and never reselect.
-                        data_group.move_data_item(data_item_to_activate, 0)
-                    self.__periodic_queue.put(lambda value=data_item: activate_data_item(value))
-                    self.__channel_activations.add(channel)
-        return data_item_set
 
 
 class HardwareSourceDataBuffer(Storage.Broadcaster):

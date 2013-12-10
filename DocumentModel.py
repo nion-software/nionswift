@@ -14,6 +14,7 @@ import scipy
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import Image
+from nion.swift import Session
 from nion.swift import Storage
 
 _ = gettext.gettext
@@ -29,7 +30,7 @@ class DocumentModel(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.session_uuid = uuid.uuid4()
+        self.session = Session.Session(self)
         if self.datastore.initialized:
             self.__read()
         else:
