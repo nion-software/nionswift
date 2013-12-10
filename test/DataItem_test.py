@@ -109,63 +109,90 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_copy_data_item(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.title = "data_item"
-        with data_item.property_changes() as property_accessor:
-            property_accessor.properties["one"] = 1
-            property_accessor.properties["two"] = 22
-        data_item.add_ref()
-        with data_item.create_data_accessor() as data_accessor:
-            data_accessor.master_data[128, 128] = 1000  # data range (0, 1000)
-            data_accessor.master_data_updated()
-        data_item.operations.append(Operation.InvertOperation())
-        data_item.graphics.append(Graphics.RectangleGraphic())
-        data_item2 = DataItem.DataItem()
-        data_item2.title = "data_item2"
-        data_item.data_items.append(data_item2)
-        data_item_copy = copy.deepcopy(data_item)
-        with data_item_copy.create_data_accessor() as data_copy_accessor:
-            # make sure the data is not shared between the original and the copy
-            self.assertEqual(data_accessor.master_data[0,0], 0)
-            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-            data_accessor.master_data[:] = 1
-            data_accessor.master_data_updated()
-            self.assertEqual(data_accessor.master_data[0,0], 1)
-            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-        # make sure properties got copied
-        self.assertEqual(len(data_item_copy.properties), 2)
-        # make sure calibrations, operations, nor graphics are not shared
-        self.assertNotEqual(data_item.calibrations[0], data_item_copy.calibrations[0])
-        self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
-        self.assertNotEqual(data_item.graphics[0], data_item_copy.graphics[0])
-        # make sure data_items are not shared
-        self.assertNotEqual(data_item.data_items[0], data_item_copy.data_items[0])
-        # make sure data sources get handled
-        self.assertEqual(data_item2.data_source, data_item)
-        self.assertEqual(data_item.data_items[0].data_source, data_item)
-        self.assertEqual(data_item_copy.data_items[0].data_source, data_item_copy)
-        # clean up
-        data_item_copy.add_ref()
-        data_item_copy.remove_ref()
-        data_item.remove_ref()
+        with data_item.ref():
+            data_item.title = "data_item"
+            with data_item.property_changes() as property_accessor:
+                property_accessor.properties["one"] = 1
+                property_accessor.properties["two"] = 22
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data[128, 128] = 1000  # data range (0, 1000)
+                data_accessor.master_data_updated()
+            data_item.display_limits = (100, 900)
+            data_item.operations.append(Operation.InvertOperation())
+            data_item.graphics.append(Graphics.RectangleGraphic())
+            data_item2 = DataItem.DataItem()
+            data_item2.title = "data_item2"
+            data_item.data_items.append(data_item2)
+            data_item_copy = copy.deepcopy(data_item)
+            with data_item_copy.ref():
+                with data_item_copy.create_data_accessor() as data_copy_accessor:
+                    # make sure the data is not shared between the original and the copy
+                    self.assertEqual(data_accessor.master_data[0,0], 0)
+                    self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+                    data_accessor.master_data[:] = 1
+                    data_accessor.master_data_updated()
+                    self.assertEqual(data_accessor.master_data[0,0], 1)
+                    self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+                # make sure properties and other items got copied
+                self.assertEqual(len(data_item_copy.properties), 2)
+                self.assertIsNot(data_item.properties, data_item_copy.properties)
+                # tuples and strings are immutable, so test to make sure old/new are independent
+                self.assertEqual(data_item.title, data_item_copy.title)
+                data_item.title = "data_item1"
+                self.assertNotEqual(data_item.title, data_item_copy.title)
+                self.assertEqual(data_item.display_limits, data_item_copy.display_limits)
+                data_item.display_limits = (150, 200)
+                self.assertNotEqual(data_item.display_limits, data_item_copy.display_limits)
+                # make sure dates are independent
+                self.assertEqual(data_item.datetime_modified, data_item_copy.datetime_modified)
+                data_item.datetime_modified["tzname"] = "tzname"
+                self.assertNotEqual(data_item.datetime_modified, data_item_copy.datetime_modified)
+                # make sure calibrations, operations, nor graphics are not shared
+                self.assertNotEqual(data_item.calibrations[0], data_item_copy.calibrations[0])
+                self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
+                self.assertNotEqual(data_item.graphics[0], data_item_copy.graphics[0])
+                # make sure data_items are not shared
+                self.assertNotEqual(data_item.data_items[0], data_item_copy.data_items[0])
+                self.assertEqual(len(data_item.data_items), len(data_item_copy.data_items))
+                # make sure data sources get handled
+                self.assertEqual(data_item2.data_source, data_item)
+                self.assertEqual(data_item.data_items[0].data_source, data_item)
+                self.assertEqual(data_item_copy.data_items[0].data_source, data_item_copy)
+                # another test to make sure data items aren't shared
+                data_item.data_items.pop()
+                self.assertNotEqual(len(data_item.data_items), len(data_item_copy.data_items))
 
     def test_copy_data_item_with_crop(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
-        crop_graphic = Graphics.RectangleGraphic()
-        crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
-        data_item.graphics.append(crop_graphic)
-        crop_operation = Operation.Crop2dOperation()
-        crop_operation.graphic = crop_graphic
-        data_item.operations.append(crop_operation)
-        data_item_copy = copy.deepcopy(data_item)
-        data_item_copy.add_ref()
-        self.assertEqual(len(data_item_copy.graphics), len(data_item.graphics))
-        self.assertEqual(data_item_copy.graphics[0].bounds, data_item.graphics[0].bounds)
-        self.assertNotEqual(data_item_copy.graphics[0], data_item.graphics[0])
-        self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
-        # clean up
-        data_item_copy.remove_ref()
-        data_item.remove_ref()
+        with data_item.ref():
+            crop_graphic = Graphics.RectangleGraphic()
+            crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            data_item.graphics.append(crop_graphic)
+            crop_operation = Operation.Crop2dOperation()
+            crop_operation.graphic = crop_graphic
+            data_item.operations.append(crop_operation)
+            data_item_copy = copy.deepcopy(data_item)
+            with data_item_copy.ref():
+                self.assertEqual(len(data_item_copy.graphics), len(data_item.graphics))
+                self.assertEqual(data_item_copy.graphics[0].bounds, data_item.graphics[0].bounds)
+                self.assertNotEqual(data_item_copy.graphics[0], data_item.graphics[0])
+                self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
+
+    def test_copy_data_item_with_transaction(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.ref():
+            data_item.begin_transaction()
+            with data_item.create_data_accessor() as data_accessor:
+                data_accessor.master_data[:] = 1
+                data_item_copy = copy.deepcopy(data_item)
+            data_item.end_transaction()
+            with data_item_copy.ref():
+                with data_item.create_data_accessor() as data_accessor:
+                    with data_item_copy.create_data_accessor() as data_copy_accessor:
+                        self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
+                        self.assertTrue(numpy.array_equal(data_accessor.master_data, data_copy_accessor.master_data))
+                        data_accessor.master_data[:] = 2
+                        self.assertFalse(numpy.array_equal(data_accessor.master_data, data_copy_accessor.master_data))
 
     def test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

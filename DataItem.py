@@ -648,10 +648,12 @@ class DataItem(Storage.StorageBase):
 
     # This gets called when reference count goes to 0, but before deletion.
     def about_to_delete(self):
-        self.__thumbnail_thread.close()
-        self.__thumbnail_thread = None
-        self.__histogram_thread.close()
-        self.__histogram_thread = None
+        if self.__thumbnail_thread:
+            self.__thumbnail_thread.close()
+            self.__thumbnail_thread = None
+        if self.__histogram_thread:
+            self.__histogram_thread.close()
+            self.__histogram_thread = None
         self.closed = True
         self.data_source = None
         self.__set_master_data(None)
@@ -1356,8 +1358,8 @@ class DataItem(Storage.StorageBase):
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
         data_item_copy.display_limits = self.display_limits
-        data_item_copy.datetime_modified = self.datetime_modified
-        data_item_copy.datetime_original = self.datetime_original
+        data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
+        data_item_copy.datetime_original = copy.copy(self.datetime_original)
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))
         # graphic must be copied before operation, since operations can

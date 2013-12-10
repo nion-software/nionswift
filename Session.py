@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import datetime
 import gettext
 import logging
@@ -70,6 +71,14 @@ class Session(object):
     # return a dictionary of data items indexed by channel
     # thread safe
     def sync_channels_to_data_items(self, channels, hardware_source):
+        # this function will be run on the main thread.
+        # be careful about binding the parameter. cannot use 'data_item' directly.
+        def insert_data_item_to_data_group(append_data_item):
+            data_group.data_items.insert(0, append_data_item)
+            append_data_item.remove_ref()
+        def append_data_item_to_data_group(append_data_item):
+            data_group.data_items.append(append_data_item)
+            append_data_item.remove_ref()
         data_group = self.__get_data_group()
         data_item_set = {}
         # for each channel, see if a matching data item exists.
@@ -84,23 +93,30 @@ class Session(object):
                 hardware_source_id = data_item.properties.get("hardware_source_id")
                 if hardware_source_id != hardware_source.hardware_source_id:
                     data_item = None
-            # next, verify that that session id matches.
+            # if everything but session or live-ness matches, copy it and re-use.
+            # this keeps the users display preferences intact.
+            do_copy = False
             if data_item and data_item.properties.get("session_id", str()) != self.session_id:
-                data_item = None
-            # finally, verify that this data item is live. never re-use non-live data item.
+                do_copy = True
+            # finally, verify that this data item is live. if it isn't live, copy it and add the
+            # copy to the group, but re-use the original. this helps preserve the users display
+            # choices. for the copy, delete derived data. keep only the master.
             if data_item and not data_item.is_live:
-                data_item = None
+                do_copy = True
+            if do_copy:
+                data_item_copy = copy.deepcopy(data_item)
+                data_item_copy.add_ref()  # this will be balanced in append_data_item_to_data_group
+                for _ in xrange(len(data_item_copy.data_items)):
+                    data_item_copy.data_items.pop()
+                self.__periodic_queue.put(lambda value=data_item_copy: append_data_item_to_data_group(value))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
+                data_item.add_ref()  # this will be balanced in insert_data_item_to_data_group
                 data_item.title = data_item_name
                 with data_item.property_changes() as context:
                     context.properties["hardware_source_id"] = hardware_source.hardware_source_id
-                # this function will be run on the main thread.
-                # be careful about binding the parameter. cannot use 'data_item' directly.
-                def append_data_item_to_data_group_task(append_data_item):
-                    data_group.data_items.insert(0, append_data_item)
-                self.__periodic_queue.put(lambda value=data_item: append_data_item_to_data_group_task(value))
+                self.__periodic_queue.put(lambda value=data_item: insert_data_item_to_data_group(value))
                 with self.__channel_activations_mutex:
                     self.__channel_activations.add(channel)
             with data_item.property_changes() as context:
