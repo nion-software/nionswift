@@ -764,13 +764,14 @@ class DataItem(Storage.StorageBase):
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range_for_data(self, data):
-        if self.is_data_rgb_type:
-            data_range = (0, 255)
-        elif self.is_data_complex_type:
-            scalar_data = Image.scalar_from_array(data)
-            data_range = (scalar_data.min(), scalar_data.max())
-        elif data is not None:
-            data_range = (data.min(), data.max())
+        if data is not None:
+            if self.is_data_rgb_type:
+                data_range = (0, 255)
+            elif self.is_data_complex_type:
+                scalar_data = Image.scalar_from_array(data)
+                data_range = (scalar_data.min(), scalar_data.max())
+            else:
+                data_range = (data.min(), data.max())
         else:
             data_range = None
         if data_range:
