@@ -890,7 +890,7 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
     assert data is not None
     data_directory = os.path.join(workspace_dir, "Nion Swift Data")
     absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
-    logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+    #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
     db_make_directory_if_needed(os.path.dirname(absolute_file_path))
     pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
     # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
@@ -913,7 +913,7 @@ def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
     if data_row:
         data_file_path = data_row[0]
         absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
-        logging.debug("READ data file %s for %s", absolute_file_path, key)
+        #logging.debug("READ data file %s for %s", absolute_file_path, key)
         if os.path.isfile(absolute_file_path):
             data = pickle.load(open(absolute_file_path, "rb"))
             return data if data is not None else default_value
@@ -1097,7 +1097,7 @@ class DbDatastore(object):
                 data_file_path = row[0]
                 data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
                 absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-                logging.debug("DELETE data file %s", absolute_file_path)
+                #logging.debug("DELETE data file %s", absolute_file_path)
                 if os.path.isfile(absolute_file_path):
                     os.remove(absolute_file_path)
             self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
