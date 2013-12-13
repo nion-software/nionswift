@@ -404,6 +404,21 @@ class TestDataItemClass(unittest.TestCase):
         # clean up
         data_item.remove_ref()
 
+    def test_inherited_session_id(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.ref():
+            crop_data_item = DataItem.DataItem()
+            crop_graphic = Graphics.RectangleGraphic()
+            crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            data_item.graphics.append(crop_graphic)
+            crop_operation = Operation.Crop2dOperation()
+            crop_operation.graphic = crop_graphic
+            crop_data_item.operations.append(crop_operation)
+            data_item.data_items.append(crop_data_item)
+            data_item._set_session_id("20131231-235959")
+            self.assertEqual(crop_data_item.session_id, data_item.session_id)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

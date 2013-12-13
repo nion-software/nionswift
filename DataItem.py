@@ -256,8 +256,8 @@ class DataItemEditor(object):
         #self.info_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
         self.info_section_title.add(self.ui.create_label_widget(_("Info"), properties={"stylesheet": "font-weight: bold"}))
         self.info_section_title.add_stretch()
-        # title
         self.info_section.add(self.info_section_title)
+        # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add_spacing(20)
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width":60}))
@@ -265,6 +265,15 @@ class DataItemEditor(object):
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         self.info_section.add(self.info_section_title_row)
+        # session
+        self.info_section.add_spacing(2)
+        self.info_section_session_row = self.ui.create_row_widget()
+        self.info_section_session_row.add_spacing(20)
+        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width":60}))
+        self.info_session_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_session_row.add(self.info_session_label)
+        self.info_section_session_row.add_stretch()
+        self.info_section.add(self.info_section_session_row)
         # date
         self.info_section.add_spacing(2)
         self.info_section_datetime_row = self.ui.create_row_widget()
@@ -388,6 +397,7 @@ class DataItemEditor(object):
     def update(self):
         # info
         self.info_title_label.text = self.data_item.title
+        self.info_session_label.text = self.data_item.session_id
         self.info_datetime_label.text = self.data_item.datetime_original_as_string
         self.info_format_label.text = self.data_item.size_and_data_format_as_string
         # param
@@ -684,6 +694,9 @@ class DataItem(Storage.StorageBase):
     def __get_session_id(self):
         # first check to see if we have a session_id set directly
         session_id = self.__properties.get("session_id", str())
+        # if not, try the data source
+        if not session_id and self.data_source:
+            session_id = self.data_source.session_id
         # if not, try the datetime
         if not session_id:
             datetime_element = self.datetime_original if self.datetime_original else Utility.get_current_datetime_element()
@@ -691,6 +704,13 @@ class DataItem(Storage.StorageBase):
             datetime_ = datetime_ if datetime_ else datetime.datetime.now()
             session_id = datetime_.strftime("%Y%m%d-000000")
         return session_id
+    # used for testing only (for now)
+    def _set_session_id(self, session_id):
+        # verify its in suitable form
+        assert datetime.datetime.strptime(session_id, "%Y%m%d-%H%M%S")
+        # set it into properties
+        with self.property_changes() as property_accessor:
+            property_accessor.properties["session_id"] = session_id
     session_id = property(__get_session_id)
 
     def data_item_changes(self):
