@@ -47,7 +47,7 @@ class Session(object):
 
     def __init__(self, document_model):
         self.document_model = document_model
-        self.document_controller = None
+        self.__weak_document_controller = None
         self.session_id = None
         self.start_new_session()
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
@@ -58,6 +58,12 @@ class Session(object):
 
     def periodic(self):
         self.__periodic_queue.perform_tasks()
+
+    def __get_document_controller(self):
+        return self.__weak_document_controller() if self.__weak_document_controller else None
+    def __set_document_controller(self, document_controller):
+        self.__weak_document_controller = weakref.ref(document_controller) if document_controller else None
+    document_controller = property(__get_document_controller, __set_document_controller)
 
     def document_controller_activation_changed(self, document_controller, activated):
         if activated:
