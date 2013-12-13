@@ -36,6 +36,13 @@ class SessionPanel(Panel.Panel):
         super(SessionPanel, self).close()
 
 
+# session object is contained in the document model. there is only one session
+# object active at once. the document model may eventually keep a set of sessions
+# but only one will be the current one.
+# document controllers can also attach themselves to the session so that
+# they can respond to changes in the session. only one document controller
+# can be attached to the session at once, i.e. the front most document
+# controller.
 class Session(object):
 
     def __init__(self, document_model):
@@ -71,7 +78,8 @@ class Session(object):
     # return a dictionary of data items indexed by channel
     # thread safe
     def sync_channels_to_data_items(self, channels, hardware_source):
-        # this function will be run on the main thread.
+
+        # these functions will be run on the main thread.
         # be careful about binding the parameter. cannot use 'data_item' directly.
         def insert_data_item_to_data_group(append_data_item):
             data_group.data_items.insert(0, append_data_item)
@@ -79,8 +87,14 @@ class Session(object):
         def append_data_item_to_data_group(append_data_item):
             data_group.data_items.append(append_data_item)
             append_data_item.remove_ref()
+        def activate_data_item(data_item_to_activate):
+            # TODO: if the data item is selected in the data panel, then moving it
+            # will deselect it and never reselect.
+            data_group.move_data_item(data_item_to_activate, 0)
+
         data_group = self.__get_data_group()
         data_item_set = {}
+
         # for each channel, see if a matching data item exists.
         # if it does, check to see if it matches this hardware source.
         # if no matching data item exists, create one.
@@ -125,12 +139,7 @@ class Session(object):
             # check to see if its been activated. if not, activate it.
             with self.__channel_activations_mutex:
                 if channel not in self.__channel_activations:
-                    # this function will be run on the main thread.
-                    # be careful about binding the parameter. cannot use 'data_item' directly.
-                    def activate_data_item(data_item_to_activate):
-                        # TODO: if the data item is selected in the data panel, then moving it
-                        # will deselect it and never reselect.
-                        data_group.move_data_item(data_item_to_activate, 0)
                     self.__periodic_queue.put(lambda value=data_item: activate_data_item(value))
                     self.__channel_activations.add(channel)
+
         return data_item_set

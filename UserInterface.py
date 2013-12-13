@@ -1414,6 +1414,10 @@ class QtDocumentWindow(object):
         if self.on_about_to_show:
             self.on_about_to_show()
 
+    def activationChanged(self, activated):
+        if self.on_activation_changed:
+            self.on_activation_changed(activated)
+
     def aboutToClose(self, geometry, state):
         if self.on_about_to_close:
             self.on_about_to_close(geometry, state)

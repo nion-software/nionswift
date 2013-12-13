@@ -134,11 +134,15 @@ class Application(object):
         logging.info("Welcome to Nion Swift.")
         return True
 
-    def create_document_controller(self, document_model, workspace_id):
+    def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id)
         document_controller.add_listener(self)
         self.register_document_controller(document_controller)
         # attempt to set data item / group
+        if data_panel_selection:
+            image_panel = document_controller.selected_image_panel
+            if image_panel:
+                image_panel.data_panel_selection = data_panel_selection
         document_controller.document_window.show()
         return document_controller
 

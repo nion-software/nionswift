@@ -42,6 +42,7 @@ class DocumentController(Storage.Broadcaster):
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
+        self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
@@ -74,6 +75,9 @@ class DocumentController(Storage.Broadcaster):
     def about_to_close(self, geometry, state):
         self.workspace.save_geometry_state(geometry, state)
         self.close()
+
+    def activation_changed(self, activated):
+        logging.debug("activated %s %s", self, activated)
 
     def register_console(self, console):
         self.console = console
