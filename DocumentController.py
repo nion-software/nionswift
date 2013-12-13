@@ -253,8 +253,8 @@ class DocumentController(Storage.Broadcaster):
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
-    def cursor_changed(self, data_item, pos, selected_graphics, image_size):
-        self.notify_listeners("cursor_changed", data_item, pos, selected_graphics, image_size)
+    def cursor_changed(self, source, data_item, pos, selected_graphics, image_size):
+        self.notify_listeners("cursor_changed", source, data_item, pos, selected_graphics, image_size)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
@@ -409,6 +409,7 @@ class DocumentController(Storage.Broadcaster):
             graphic = Graphics.LineGraphic()
             graphic.start = (0.25,0.25)
             graphic.end = (0.75,0.75)
+            graphic.end_arrow_enabled = True
             data_item.graphics.append(graphic)
             operation.graphic = graphic
             return self.add_processing_operation(data_panel_selection, operation, prefix=_("Line Profile of "), select=select)

@@ -440,6 +440,22 @@ class LineGraphCanvasItem(AbstractCanvasItem):
         self.background_color = "#888"
         self.graph_background_color = "#FFF"
 
+    def __get_plot_rect(self):
+        rect = ((0, 0), self.canvas_size)
+        rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
+        plot_rect = ((rect[0][0] + self.top_margin, rect[0][1] + self.left_caption_width), (rect[1][0] - self.bottom_caption_height - self.top_margin, rect[1][1] - self.left_caption_width - self.right_margin))
+        return plot_rect
+    plot_rect = property(__get_plot_rect)
+
+    def map_mouse_to_position(self, mouse, data_size):
+        plot_rect = self.plot_rect
+        mouse_x = mouse[1] - plot_rect[0][1]  # 436
+        mouse_y = mouse[0] - plot_rect[0][0]
+        if mouse_x > 0 and mouse_x < plot_rect[1][1] and mouse_y > 0 and mouse_y < plot_rect[1][0]:
+            return (data_size[0] * mouse_x / plot_rect[1][1], )
+        # not in bounds
+        return None
+
     def _repaint(self, drawing_context):
 
         # draw the data, if any
@@ -473,7 +489,7 @@ class LineGraphCanvasItem(AbstractCanvasItem):
             rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
             intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1]), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
             caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
-            plot_rect = ((rect[0][0] + self.top_margin, rect[0][1] + self.left_caption_width), (rect[1][0] - self.bottom_caption_height - self.top_margin, rect[1][1] - self.left_caption_width - self.right_margin))
+            plot_rect = self.plot_rect
             plot_width = int(plot_rect[1][1])
             plot_height = int(plot_rect[1][0])
             plot_origin_x = int(plot_rect[0][1])

@@ -486,7 +486,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_exited():
             return True
         self.__mouse_in = False
-        self.mouse_position_changed(0, 0, 0)
+        self.__update_cursor_info()
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
@@ -513,10 +513,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_size = self.__get_data_size()
             if self.__mouse_in and self.__last_mouse:
                 if data_size and len(data_size) == 1:
-                    mouse_x = self.__last_mouse[1] - self.line_graph_canvas_item.left_caption_width
-                    line_graph_width = self.canvas_size[1] - self.line_graph_canvas_item.left_caption_width - self.line_graph_canvas_item.right_margin
-                    pos = (data_size[0] * mouse_x / line_graph_width, )
-                self.document_controller.cursor_changed(self.data_item, pos, list(), data_size)
+                    pos = self.line_graph_canvas_item.map_mouse_to_position(self.__last_mouse, data_size)
+                self.document_controller.cursor_changed(self, self.data_item, pos, list(), data_size)
+            else:
+                self.document_controller.cursor_changed(self, None, None, list(), None)
 
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
@@ -733,7 +733,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if super(ImageCanvasItem, self).mouse_exited():
             return True
         self.__mouse_in = False
-        self.mouse_position_changed(0, 0, 0)
+        self.__update_cursor_info()
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
@@ -918,7 +918,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 data_item = self.data_item
                 graphics = data_item.graphics if data_item else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
-                self.document_controller.cursor_changed(self.data_item, pos, selected_graphics, image_size)
+                self.document_controller.cursor_changed(self, self.data_item, pos, selected_graphics, image_size)
+            else:
+                self.document_controller.cursor_changed(self, None, None, list(), None)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -1385,6 +1387,8 @@ class InfoPanel(Panel.Panel):
         self.__pending_info = None
         self.__pending_info_mutex = threading.RLock()
 
+        self.__last_source = None
+
         position_label = ui.create_label_widget(_("Position:"))
         self.position_text = ui.create_label_widget()
         value_label = ui.create_label_widget(_("Value:"))
@@ -1439,7 +1443,7 @@ class InfoPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def cursor_changed(self, data_item, pos, selected_graphics, data_size):
+    def cursor_changed(self, source, data_item, pos, selected_graphics, data_size):
         def get_value_text(value):
             if isinstance(value, numbers.Integral):
                 return '{0:d}'.format(value)
@@ -1457,7 +1461,7 @@ class InfoPanel(Panel.Panel):
             if pos and len(pos) == 2:
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
-                    position_text = u"{0},{1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
+                    position_text = u"{0}, {1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
                                                      calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
                     value_text = get_value_text(data_item.get_data_value(pos))
             if pos and len(pos) == 1:
@@ -1468,5 +1472,7 @@ class InfoPanel(Panel.Panel):
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
                 graphic_text = graphic.calibrated_description(data_size, calibrations)
-        with self.__pending_info_mutex:
-            self.__pending_info = (position_text, value_text, graphic_text)
+            self.__last_source = source
+        if self.__last_source == source:
+            with self.__pending_info_mutex:
+                self.__pending_info = (position_text, value_text, graphic_text)
