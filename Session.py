@@ -42,11 +42,12 @@ class SessionPanel(Panel.Panel):
 # document controllers can also attach themselves to the session so that
 # they can respond to changes in the session. only one document controller
 # can be attached to the session at once, i.e. the front most document
-# controller.
+# controller. this is managed using document_controller_activation_changed.
 class Session(object):
 
     def __init__(self, document_model):
         self.document_model = document_model
+        self.document_controller = None
         self.session_id = None
         self.start_new_session()
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
@@ -57,6 +58,12 @@ class Session(object):
 
     def periodic(self):
         self.__periodic_queue.perform_tasks()
+
+    def document_controller_activation_changed(self, document_controller, activated):
+        if activated:
+            self.document_controller = document_controller
+        elif self.document_controller == document_controller:
+            self.document_controller = None
 
     def __get_data_group(self):
         if self.__data_group is None:
@@ -88,9 +95,9 @@ class Session(object):
             data_group.data_items.append(append_data_item)
             append_data_item.remove_ref()
         def activate_data_item(data_item_to_activate):
-            # TODO: if the data item is selected in the data panel, then moving it
-            # will deselect it and never reselect.
             data_group.move_data_item(data_item_to_activate, 0)
+            if self.document_controller:
+                self.document_controller.set_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item_to_activate))
 
         data_group = self.__get_data_group()
         data_item_set = {}

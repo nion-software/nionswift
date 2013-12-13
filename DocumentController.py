@@ -77,7 +77,7 @@ class DocumentController(Storage.Broadcaster):
         self.close()
 
     def activation_changed(self, activated):
-        logging.debug("activated %s %s", self, activated)
+        self.document_model.session.document_controller_activation_changed(self, activated)
 
     def register_console(self, console):
         self.console = console
@@ -362,6 +362,12 @@ class DocumentController(Storage.Broadcaster):
         if data_item:
             data_item.operations.remove(operation)
 
+    # sets the selected data item in the data panel.
+    # use this sparingly, and only in response to user requests such as
+    # adding an operation or starting an acquisition.
+    def set_data_panel_selection(self, data_panel_selection):
+        self.notify_listeners("update_data_panel_selection", data_panel_selection)
+
     def add_processing_operation(self, data_panel_selection, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
@@ -375,7 +381,7 @@ class DocumentController(Storage.Broadcaster):
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
-                    self.notify_listeners("update_data_panel_selection", DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
+                    self.set_data_panel_selection(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
                 return new_data_item
         return None
 
