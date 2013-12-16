@@ -273,6 +273,71 @@ class Workspace(object):
         # save the layout id
         self.__current_layout_id = layout_id
 
+    # display the primary and secondary data item. if only primary is supplied, this
+    # method will look for the first non-live slot and place the new data item there.
+    # if there is not a non-live slot, it will be placed in the first slot.
+    # if primary and secondary are supplied, this method will choose the first non-live
+    # slot after the primary. if none, then the first before it. if none, then it will
+    # not be displayed.
+    # returns the image panel in which the data is placed.
+    # IN PROGRESS: the image panel no longer needs to take a data panel selection; it should
+    # just take a data item as its selection.
+    # TODO: HANDLE CASE WHERE IT IS ALREADY DISPLAYED
+    # TODO: PREFER TO USE ACQUISITION SLOTS FIRST, THEN PAUSED ONES
+    def display_data_item(self, primary_data_item, source_data_item=None):
+
+        def is_data_item_for_hardware_source(data_item):
+            if data_item.is_live:
+                return True
+            if data_item.properties.get("hardware_source_id") and data_item.session_id == self.document_controller.document_model.session.session_id:
+                return True
+            return False
+
+        if not source_data_item:
+            # first look for exact match
+            for image_panel in self.image_panels:
+                if image_panel.data_item == primary_data_item:
+                    image_panel.set_data_item(primary_data_item)
+                    return image_panel
+            # now search for an open slot
+            for image_panel in self.image_panels:
+                if image_panel.data_item and not is_data_item_for_hardware_source(image_panel.data_item):
+                    image_panel.set_data_item(primary_data_item)
+                    return image_panel
+            image_panel = self.image_panels[0]
+            image_panel.set_data_item(primary_data_item)
+            return image_panel
+        elif primary_data_item:
+            # first look for exact match
+            for image_panel in self.image_panels:
+                if image_panel.data_item == primary_data_item:
+                    image_panel.set_data_item(primary_data_item)
+                    return image_panel
+            first_non_live = None
+            last_non_live_before_primary = None
+            matched = False
+            # first search forward from primary
+            for image_panel in self.image_panels:
+                if image_panel.data_item == source_data_item:
+                    matched = True
+                if image_panel.data_item and not is_data_item_for_hardware_source(image_panel.data_item):
+                    if matched:
+                        image_panel.set_data_item(primary_data_item)
+                        return image_panel
+                    first_non_live = first_non_live if first_non_live else image_panel
+                    last_non_live_before_primary = last_non_live_before_primary if matched else image_panel
+            # use one before if available
+            if last_non_live_before_primary:
+                image_panel = last_non_live_before_primary
+                image_panel.set_data_item(primary_data_item)
+                return image_panel
+            # use first one if available
+            if first_non_live:
+                image_panel = first_non_live
+                image_panel.set_data_item(primary_data_item)
+                return image_panel
+        return None
+
 
 class WorkspaceManager(object):
     __metaclass__ = Decorators.Singleton

@@ -365,8 +365,13 @@ class DocumentController(Storage.Broadcaster):
     # sets the selected data item in the data panel.
     # use this sparingly, and only in response to user requests such as
     # adding an operation or starting an acquisition.
-    def set_data_panel_selection(self, data_panel_selection):
+    def set_data_panel_selection(self, data_panel_selection, source_data_item=None):
         self.notify_listeners("update_data_panel_selection", data_panel_selection)
+        # now attempt to display the data item in an image panel
+        if not source_data_item:
+            self.workspace.display_data_item(data_panel_selection.data_item)
+        else:
+            self.workspace.display_data_item(data_panel_selection.data_item, source_data_item)
 
     def add_processing_operation(self, data_panel_selection, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = data_panel_selection.data_item if data_panel_selection else None
@@ -381,7 +386,7 @@ class DocumentController(Storage.Broadcaster):
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
-                    self.set_data_panel_selection(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item))
+                    self.set_data_panel_selection(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item), source_data_item=data_item)
                 return new_data_item
         return None
 

@@ -1139,6 +1139,11 @@ class ImagePanel(Panel.Panel):
         return self.__data_panel_selection.data_item_container
     data_item_container = property(__get_data_item_container)
 
+    # sets the data item that this panel displays
+    def set_data_item(self, data_item):
+        data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
+        self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+
     def __get_data_panel_selection(self):
         return self.__data_panel_selection
     def __set_data_panel_selection(self, data_panel_selection):

@@ -4,6 +4,7 @@ import datetime
 import gettext
 import logging
 import threading
+import weakref
 
 # third party libraries
 # None
@@ -51,7 +52,7 @@ class Session(object):
         self.session_id = None
         self.start_new_session()
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_activations = set()
+        self.__channel_activations = dict()  # maps hardware_source_id to a set of activated channels
         self.__channel_activations_mutex = threading.RLock()
         self.__periodic_queue = Decorators.TaskQueue()
         self.__data_group = None
@@ -79,7 +80,7 @@ class Session(object):
     # this message is received when a hardware source will start playing in this session.
     def will_start_playing(self, hardware_source):
         with self.__channel_activations_mutex:
-            self.__channel_activations.clear()
+            self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).clear()
 
     # this message is received when a hardware source stopped playing in this session.
     def did_stop_playing(self, hardware_source):
@@ -103,6 +104,7 @@ class Session(object):
         def activate_data_item(data_item_to_activate):
             data_group.move_data_item(data_item_to_activate, 0)
             if self.document_controller:
+                logging.debug("data_item_to_activate %s", data_item_to_activate)
                 self.document_controller.set_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item_to_activate))
 
         data_group = self.__get_data_group()
@@ -145,14 +147,15 @@ class Session(object):
                     context.properties["hardware_source_id"] = hardware_source.hardware_source_id
                 self.__periodic_queue.put(lambda value=data_item: insert_data_item_to_data_group(value))
                 with self.__channel_activations_mutex:
-                    self.__channel_activations.add(channel)
+                    self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
             with data_item.property_changes() as context:
                 context.properties["session_id"] = self.session_id
             data_item_set[channel] = data_item
             # check to see if its been activated. if not, activate it.
             with self.__channel_activations_mutex:
-                if channel not in self.__channel_activations:
+                if channel not in self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()):
+                    logging.debug("queueing %s", data_item)
                     self.__periodic_queue.put(lambda value=data_item: activate_data_item(value))
-                    self.__channel_activations.add(channel)
+                    self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
 
         return data_item_set

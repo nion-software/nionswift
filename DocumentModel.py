@@ -216,6 +216,14 @@ class DocumentModel(Storage.StorageBase):
     def get_data_item_count(self):
         return len(list(self.get_flat_data_item_generator()))
 
+    # temporary method to find the container of a data item. this goes away when
+    # data items get stored in a flat table.
+    def get_data_item_data_group(self, data_item):
+        for data_group in self.get_flat_data_group_generator():
+            if data_item in DataGroup.get_flat_data_item_generator_in_container(data_group):
+                return data_group
+        return None
+
     # access data item by key (title, uuid, index)
     def get_data_item_by_key(self, key):
         if isinstance(key, numbers.Integral):
