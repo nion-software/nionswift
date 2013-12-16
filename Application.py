@@ -77,7 +77,8 @@ class Application(object):
         create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Workspace Location"), documents_dir)
-            if not workspace_dir: return False
+            if not workspace_dir:
+                return False
             db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
             cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
             create_new_document = not os.path.exists(db_filename)
@@ -157,8 +158,10 @@ class Application(object):
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
             menu_handler(document_window)
         return document_window
+
     def unregister_document_controller(self, document_controller):
         self.__document_controllers.remove(document_controller)
+
     def __get_document_controllers(self):
         return copy.copy(self.__document_controllers)
     document_controllers = property(__get_document_controllers)
@@ -171,8 +174,10 @@ class Application(object):
             new_menu_handler(document_controller)
         # return the menu handler so that it can be used to unregister (think: lambda)
         return new_menu_handler
+
     def unregister_menu_handler(self, menu_handler):
         self.__menu_handlers.remove(menu_handler)
+
     def __get_menu_handlers(self):
         return copy.copy(self.__menu_handlers)
     menu_handlers = property(__get_menu_handlers)
