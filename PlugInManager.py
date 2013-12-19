@@ -48,11 +48,16 @@ def loadPlugIns():
         # |       |   init.py
         # |       ...
 
-        plugins_dir = os.path.dirname(os.path.realpath(__file__))
+        root_dir = os.path.dirname(os.path.realpath(__file__))
         path_ascend_count = 2 if sys.platform == "win32" or sys.platform.startswith("linux") else 3
         for i in range(path_ascend_count):
-            plugins_dir = os.path.dirname(plugins_dir)
-        plugins_dir = os.path.abspath(os.path.join(plugins_dir, "PlugIns"))
+            root_dir = os.path.dirname(root_dir)
+        packages_dir = os.path.abspath(os.path.join(root_dir, "Packages"))
+        plugins_dir = os.path.abspath(os.path.join(root_dir, "PlugIns"))
+
+    if os.path.exists(packages_dir):
+        logging.info("Using packages from %s", packages_dir)
+        sys.path.append(packages_dir)
 
     if os.path.exists(plugins_dir):
         logging.info("Loading plug-ins from %s", plugins_dir)
