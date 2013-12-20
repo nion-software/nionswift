@@ -129,8 +129,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
         self.assertIsNotNone(document_controller.document_model.default_data_group.data_items[0])
-        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
-            self.assertIsNotNone(data_accessor.data)
+        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+            self.assertIsNotNone(data_ref.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.default_data_group.data_items[0].uuid)
         self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].calibrations))
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
@@ -161,8 +161,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups.append(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        with data_item.create_data_accessor() as data_accessor:
-            data_accessor.master_data = data2
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data2
         storage_str = datastore.to_string()
         document_controller.close()
         # read it back
@@ -170,8 +170,8 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
-            self.assertEqual(data_accessor.data[0,0], 2)
+        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+            self.assertEqual(data_ref.data[0,0], 2)
 
     # test to ensure that no duplicate relationships are created
     def test_db_rewrite(self):
@@ -195,8 +195,8 @@ class TestStorageClass(unittest.TestCase):
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        with data_item.create_data_accessor() as data_accessor:
-            data_accessor.master_data = data2
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data2
 
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
@@ -221,8 +221,8 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.default_data_group.data_items[0].create_data_accessor() as data_accessor:
-            self.assertEqual(data_accessor.data[0,0], 2)
+        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+            self.assertEqual(data_ref.data[0,0], 2)
 
     def test_db_storage_insert_items(self):
         db_name = ":memory:"
@@ -368,8 +368,8 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.title = 'title'
         with data_item.transaction():
-            with data_item.create_data_accessor() as data_accessor:
-                data_accessor.master_data = numpy.zeros((16, 16), numpy.uint32)
+            with data_item.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             data_group.data_items.append(data_item)
         storage_str = datastore.to_string()
         document_model.remove_ref()

@@ -438,7 +438,7 @@ class HardwareSource(Storage.Broadcaster):
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
-            data_item.increment_accessor_count()
+            data_item.increment_data_ref_count()
             data_item.begin_transaction()
 
         # update the data items with the new data.
@@ -454,7 +454,7 @@ class HardwareSource(Storage.Broadcaster):
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
             data_item.end_transaction()
-            data_item.decrement_accessor_count()
+            data_item.decrement_data_ref_count()
 
         # keep the channel to data item map around so that we know what changed between
         # last iteration and this one. also handle reference counts.

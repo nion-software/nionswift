@@ -59,8 +59,8 @@ class TestOperationClass(unittest.TestCase):
         # first make sure data and calibrations come out OK
         operation = Operation.Resample2dOperation()
         self.data_item.operations.append(operation)
-        with self.data_item.create_data_accessor() as data_accessor:
-            data_accessor.data  # just calculate it
+        with self.data_item.data_ref() as data_ref:
+            data_ref.data  # just calculate it
         self.data_item.calculated_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
@@ -106,11 +106,11 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
-            with data_item.create_data_accessor() as data_accessor:
-                self.assertIsNotNone(data_accessor.data)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_real.remove_ref()
@@ -135,11 +135,11 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
-            with data_item.create_data_accessor() as data_accessor:
-                self.assertIsNotNone(data_accessor.data)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_real.remove_ref()
@@ -162,11 +162,11 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
-            with data_item.create_data_accessor() as data_accessor:
-                self.assertIsNotNone(data_accessor.data)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_rgb.remove_ref()
@@ -189,11 +189,11 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
-            with data_item.create_data_accessor() as data_accessor:
-                self.assertIsNotNone(data_accessor.data)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_rgb.remove_ref()
@@ -209,11 +209,11 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.operations.append(operation)
             source_data_item.data_items.append(data_item)
-            with data_item.create_data_accessor() as data_accessor:
-                self.assertIsNotNone(data_accessor.data)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_accessor.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_accessor.data.dtype)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
         data_item_complex.remove_ref()
@@ -228,7 +228,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.operations.append(operation)
         # make sure we get the right shape
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
-        with data_item_real.create_data_accessor() as data_real_accessor:
+        with data_item_real.data_ref() as data_real_accessor:
             self.assertEqual(data_real_accessor.data.shape, (1000, 500))
         data_item_real.remove_ref()
 
@@ -240,9 +240,9 @@ class TestOperationClass(unittest.TestCase):
         fft_data_item.operations.append(Operation.FFTOperation())
         data_item.data_items.append(fft_data_item)
 
-        with fft_data_item.create_data_accessor() as fft_data_accessor:
-            self.assertEqual(fft_data_accessor.data.shape, (512, 512))
-            self.assertEqual(fft_data_accessor.data.dtype, numpy.complex128)
+        with fft_data_item.data_ref() as fft_data_ref:
+            self.assertEqual(fft_data_ref.data.shape, (512, 512))
+            self.assertEqual(fft_data_ref.data.dtype, numpy.complex128)
 
 
 if __name__ == '__main__':

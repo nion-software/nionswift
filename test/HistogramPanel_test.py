@@ -32,8 +32,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         data[500,500] = 650
         self.data_item = self.document_controller.document_model.set_data_by_key("test", data)
         self.data_item.add_ref()
-        with self.data_item.create_data_accessor() as data_accessor:
-            data_accessor.data  # trigger data loading
+        with self.data_item.data_ref() as data_ref:
+            data_ref.data  # trigger data loading
         # create the histogram canvas object
         class CanvasItemContainer(object):
             def draw(self):

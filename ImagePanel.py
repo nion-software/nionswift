@@ -458,8 +458,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         assert data_item.is_data_1d
 
         # grab the data values
-        with data_item.create_data_accessor() as data_accessor:
-            data = data_accessor.data
+        with data_item.data_ref() as data_ref:
+            data = data_ref.data
         assert data is not None
 
         # make sure complex becomes scalar
@@ -1161,9 +1161,9 @@ class ImagePanel(Panel.Panel):
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
         if data_panel_selection and data_panel_selection.data_item:
-            data_panel_selection.data_item.increment_accessor_count()
+            data_panel_selection.data_item.increment_data_ref_count()
         if self.__data_panel_selection and self.__data_panel_selection.data_item:
-            self.__data_panel_selection.data_item.decrement_accessor_count()
+            self.__data_panel_selection.data_item.decrement_data_ref_count()
         self.__data_panel_selection = data_panel_selection
         self.data_item_content_changed(self.data_item, set([DataItem.SOURCE]))
         #self.update_image_canvas_size()

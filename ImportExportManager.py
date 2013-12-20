@@ -56,8 +56,8 @@ class ImportExportHandler(object):
             self.write_file(data_item, extension, f)
 
     def write_file(self, data_item, extension, file):
-        with data_item.create_data_accessor() as data_accessor:
-            data = data_accessor.data
+        with data_item.data_ref() as data_ref:
+            data = data_ref.data
         if data is not None:
             self.write_data(data, extension, file)
 
@@ -132,19 +132,19 @@ def update_data_item_from_data_element(data_item, data_element):
     with data_item.data_item_changes():
         # file path
         # master data
-        with data_item.create_data_accessor() as data_accessor:
+        with data_item.data_ref() as data_ref:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
-            data_matches = data_accessor.master_data is not None and data.shape == data_accessor.master_data.shape and data.dtype == data_accessor.master_data.dtype
-            if data_matches and data_accessor.master_data is not None and sub_area is not None:
+            data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
+            if data_matches and data_ref.master_data is not None and sub_area is not None:
                 top = sub_area[0][0]
                 bottom = sub_area[0][0] + sub_area[1][0]
                 left = sub_area[0][1]
                 right = sub_area[0][1] + sub_area[1][1]
-                data_accessor.master_data[top:bottom, left:right] = data[top:bottom, left:right]
-                data_accessor.master_data = data_accessor.master_data  # trigger change notifications, for lack of better mechanism
+                data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
             else:
-                data_accessor.master_data = data
+                data_ref.master_data = data
         # spatial calibrations
         if "spatial_calibration" in data_element:
             spatial_calibration = data_element.get("spatial_calibration")
@@ -249,8 +249,8 @@ class CSVImportExportHandler(ImportExportHandler):
         return True
 
     def write(self, ui, data_item, path, extension):
-        with data_item.create_data_accessor() as data_accessor:
-            data = data_accessor.data
+        with data_item.data_ref() as data_ref:
+            data = data_ref.data
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
 

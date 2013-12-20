@@ -581,8 +581,8 @@ class DataItem(Storage.StorageBase):
         self.__master_data_dtype = None
         self.__has_master_data = False
         self.__data_source = None
-        self.__data_accessor_count = 0
-        self.__data_accessor_count_mutex = threading.RLock()
+        self.__data_ref_count = 0
+        self.__data_ref_count_mutex = threading.RLock()
         self.__data_item_change_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_changes = set()
@@ -783,8 +783,8 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             data_range = self.get_cached_value("data_range")
         if not data_range or self.is_cached_value_dirty("data_range"):
-            with self.create_data_accessor() as data_accessor:
-                data = data_accessor.data
+            with self.data_ref() as data_ref:
+                data = data_ref.data
                 self.__get_data_range_for_data(data)
         return data_range
     data_range = property(__get_data_range)
@@ -1050,10 +1050,10 @@ class DataItem(Storage.StorageBase):
     def _get_master_data_data_file_datetime(self):
         return Utility.get_datetime_from_datetime_element(self.datetime_original)
 
-    def increment_accessor_count(self):
-        with self.__data_accessor_count_mutex:
-            initial_count = self.__data_accessor_count
-            self.__data_accessor_count += 1
+    def increment_data_ref_count(self):
+        with self.__data_ref_count_mutex:
+            initial_count = self.__data_ref_count
+            self.__data_ref_count += 1
         if initial_count == 0:
             # load data from datastore if not present
             if self.has_master_data and self.datastore and self.__master_data is None:
@@ -1063,10 +1063,10 @@ class DataItem(Storage.StorageBase):
                 #import traceback
                 #traceback.print_stack()
         return initial_count+1
-    def decrement_accessor_count(self):
-        with self.__data_accessor_count_mutex:
-            self.__data_accessor_count -= 1
-            final_count = self.__data_accessor_count
+    def decrement_data_ref_count(self):
+        with self.__data_ref_count_mutex:
+            self.__data_ref_count -= 1
+            final_count = self.__data_ref_count
         if final_count == 0:
             # unload data if it can be reloaded from datastore
             if self.has_master_data and self.datastore:
@@ -1082,7 +1082,11 @@ class DataItem(Storage.StorageBase):
         return self.__data_source is not None
     has_data_source = property(__get_has_data_source)
 
-    def create_data_accessor(self):
+    # grab a data reference as a context manager. the object
+    # returned defines data and master_data properties. reading data
+    # should use the data property. writing data (if allowed) should
+    # assign to the master_data property.
+    def data_ref(self):
         get_master_data = DataItem.__get_master_data
         set_master_data = DataItem.__set_master_data
         get_data = DataItem.__get_data
@@ -1090,10 +1094,10 @@ class DataItem(Storage.StorageBase):
             def __init__(self, data_item):
                 self.__data_item = data_item
             def __enter__(self):
-                self.__data_item.increment_accessor_count()
+                self.__data_item.increment_data_ref_count()
                 return self
             def __exit__(self, type, value, traceback):
-                self.__data_item.decrement_accessor_count()
+                self.__data_item.decrement_data_ref_count()
             def __get_master_data(self):
                 return get_master_data(self.__data_item)
             def __set_master_data(self, data):
@@ -1111,12 +1115,12 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             data = None
             if self.has_master_data:
-                with self.create_data_accessor() as data_accessor:
-                    data = data_accessor.master_data
+                with self.data_ref() as data_ref:
+                    data = data_ref.master_data
             if data is None:
                 if self.data_source:
-                    with self.data_source.create_data_accessor() as data_accessor:
-                        data = data_accessor.data
+                    with self.data_source.data_ref() as data_ref:
+                        data = data_ref.data
             return data
 
     # get the root data shape and dtype without causing calculation to occur if possible.
@@ -1266,8 +1270,8 @@ class DataItem(Storage.StorageBase):
 
     def __get_preview_2d(self):
         if self.__preview is None:
-            with self.create_data_accessor() as data_accessor:
-                data_2d = data_accessor.data
+            with self.data_ref() as data_ref:
+                data_2d = data_ref.data
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
                 data_range = self.__get_data_range()
@@ -1315,8 +1319,8 @@ class DataItem(Storage.StorageBase):
 
     # this will be invoked on a thread
     def load_thumbnail_on_thread(self, ui):
-        with self.create_data_accessor() as data_accessor:
-            data = data_accessor.data
+        with self.data_ref() as data_ref:
+            data = data_ref.data
         if data is not None:  # for data to load and make sure it has data
             #logging.debug("load_thumbnail_on_thread")
             height, width = self.__thumbnail_size
@@ -1349,8 +1353,8 @@ class DataItem(Storage.StorageBase):
 
     # this will be invoked on a thread
     def load_histogram_on_thread(self):
-        with self.create_data_accessor() as data_accessor:
-            data = data_accessor.data
+        with self.data_ref() as data_ref:
+            data = data_ref.data
         if data is not None:  # for data to load and make sure it has data
             display_range = self.display_range  # may be None
             #logging.debug("Calculating histogram %s", self)
@@ -1392,8 +1396,8 @@ class DataItem(Storage.StorageBase):
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
         if self.has_master_data:
-            with self.create_data_accessor() as data_accessor:
-                data_item_copy.__set_master_data(numpy.copy(data_accessor.master_data))
+            with self.data_ref() as data_ref:
+                data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
         else:
             data_item_copy.__set_master_data(None)
         #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
