@@ -538,16 +538,44 @@ class LineGraphic(Graphic):
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
         if part[0] == "start":
+            dy = p_image[0] - end_image[0]
+            dx = p_image[1] - end_image[1]
             if modifiers.shift:
-                if abs(p_image[0] - end_image[0]) > abs(p_image[1] - end_image[1]):
+                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
+                if angle_degrees > 60:
                     p_image = (p_image[0], end_image[1])
+                elif angle_degrees > 30:
+                    if angle_degrees > 45:
+                        if dx * dy > 0:
+                            p_image = (p_image[0], end_image[1] + dy)
+                        else:
+                            p_image = (p_image[0], end_image[1] - dy)
+                    else:
+                        if dx * dy > 0:
+                            p_image = (end_image[0] + dx, p_image[1])
+                        else:
+                            p_image = (end_image[0] - dx, p_image[1])
                 else:
                     p_image = (end_image[0], p_image[1])
             self.start = mapping.map_point_image_to_image_norm(p_image)
         elif part[0] == "end":
+            dy = p_image[0] - start_image[0]
+            dx = p_image[1] - start_image[1]
             if modifiers.shift:
-                if abs(p_image[0] - start_image[0]) > abs(p_image[1] - start_image[1]):
+                angle_degrees = math.degrees(math.atan2(abs(dy), abs(dx)))
+                if angle_degrees > 60:
                     p_image = (p_image[0], start_image[1])
+                elif angle_degrees > 30:
+                    if angle_degrees > 45:
+                        if dx * dy > 0:
+                            p_image = (p_image[0], start_image[1] + dy)
+                        else:
+                            p_image = (p_image[0], start_image[1] - dy)
+                    else:
+                        if dx * dy > 0:
+                            p_image = (start_image[0] + dx, p_image[1])
+                        else:
+                            p_image = (start_image[0] - dx, p_image[1])
                 else:
                     p_image = (start_image[0], p_image[1])
             self.end = mapping.map_point_image_to_image_norm(p_image)

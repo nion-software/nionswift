@@ -153,9 +153,52 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.data_item.graphics[0].end, (0.8, 0.8))
         # shift drag a part, should not deselect and should align horizontally
-        self.simulate_drag((300,400), (350,400), Test.KeyboardModifiers(shift=True))
+        self.simulate_drag((300,400), (350,700), Test.KeyboardModifiers(shift=True))
         self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
         self.assertClosePoint(self.data_item.graphics[0].start, (0.35, 0.8))
+        # shift drag start to top left quadrant. check both y-maj and x-maj.
+        self.simulate_drag((350,800), (370,340), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.34, 0.34))
+        self.simulate_drag((340,340), (240,270), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.24, 0.24))
+        # shift drag start to bottom left quadrant. check both y-maj and x-maj.
+        self.simulate_drag((240,240), (370,1140), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.37, 1.23))
+        self.simulate_drag((370,1230), (370,1350), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.25, 1.35))
+        # shift drag start to bottom right quadrant. check both y-maj and x-maj.
+        self.simulate_drag((250,1350), (1230,1175), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (1.23, 1.23))
+        self.simulate_drag((1230,1230), (1150,1210), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (1.21, 1.21))
+        # shift drag start to top right quadrant. check both y-maj and x-maj.
+        self.simulate_drag((1210,1210), (1230,310), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (1.29, 0.31))
+        self.simulate_drag((1290,310), (1110,420), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].start, (1.18, 0.42))
+        # now reverse start/end and run the same test
+        self.simulate_drag((800,800), (200,200))
+        self.simulate_drag((1180,420), (800,800))
+        # shift drag start to top left quadrant. check both y-maj and x-maj.
+        self.simulate_drag((200,200), (370,340), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (0.34, 0.34))
+        self.simulate_drag((340,340), (240,270), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (0.24, 0.24))
+        # shift drag start to bottom left quadrant. check both y-maj and x-maj.
+        self.simulate_drag((240,240), (370,1140), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (0.37, 1.23))
+        self.simulate_drag((370,1230), (370,1350), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (0.25, 1.35))
+        # shift drag start to bottom right quadrant. check both y-maj and x-maj.
+        self.simulate_drag((250,1350), (1230,1175), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (1.23, 1.23))
+        self.simulate_drag((1230,1230), (1150,1210), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (1.21, 1.21))
+        # shift drag start to top right quadrant. check both y-maj and x-maj.
+        self.simulate_drag((1210,1210), (1230,310), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (1.29, 0.31))
+        self.simulate_drag((1290,310), (1110,420), Test.KeyboardModifiers(shift=True))
+        self.assertClosePoint(self.data_item.graphics[0].end, (1.18, 0.42))
 
     # this test is DISABLED until the image panel zoom works again
     def test_map_widget_to_image(self):
