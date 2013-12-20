@@ -72,6 +72,23 @@ class QtKey(object):
         return len(self.text) == 1 and (ord(self.text[0]) == 127 or ord(self.text[0]) == 8)
     is_delete = property(__get_is_delete)
 
+    def __get_is_arrow(self):
+        return self.key in (0x1000012, 0x1000013, 0x1000014, 0x1000015)
+    is_arrow = property(__get_is_arrow)
+
+    def __get_is_left_arrow(self):
+        return self.key == 0x1000012
+    is_left_arrow = property(__get_is_left_arrow)
+    def __get_is_up_arrow(self):
+        return self.key == 0x1000013
+    is_up_arrow = property(__get_is_up_arrow)
+    def __get_is_right_arrow(self):
+        return self.key == 0x1000014
+    is_right_arrow = property(__get_is_right_arrow)
+    def __get_is_down_arrow(self):
+        return self.key == 0x1000015
+    is_down_arrow = property(__get_is_down_arrow)
+
 
 class QtMimeData(object):
     def __init__(self, proxy, mime_data=None):
@@ -1575,10 +1592,6 @@ class QtUserInterface(object):
         self.proxy.Settings_remove(key)
 
     # misc
-
-    def create_key_by_id(self, key_id):
-        if key_id == "delete": return QtKey(chr(127), 0, 0)
-        return None
 
     def create_offscreen_drawing_context(self):
         return QtDrawingContext()

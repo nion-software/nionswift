@@ -290,14 +290,31 @@ class ListModelController:
 
 
 class Key(object):
-    def __init__(self, text, key, raw_modifiers):
+    def __init__(self, text, key, modifiers):
         self.text = text
         self.key = key
-        self.modifiers = KeyboardModifiers()
+        self.modifiers = modifiers if modifiers else KeyboardModifiers()
 
     def __get_is_delete(self):
-        return self.text == "delete"
+        return self.key == "delete"
     is_delete = property(__get_is_delete)
+
+    def __get_is_arrow(self):
+        return self.is_left_arrow or self.is_up_arrow or self.is_right_arrow or self.is_down_arrow
+    is_arrow = property(__get_is_arrow)
+
+    def __get_is_left_arrow(self):
+        return self.key == "left"
+    is_left_arrow = property(__get_is_left_arrow)
+    def __get_is_up_arrow(self):
+        return self.key == "up"
+    is_up_arrow = property(__get_is_up_arrow)
+    def __get_is_right_arrow(self):
+        return self.key == "right"
+    is_right_arrow = property(__get_is_right_arrow)
+    def __get_is_down_arrow(self):
+        return self.key == "down"
+    is_down_arrow = property(__get_is_down_arrow)
 
 
 # define a dummy user interface to use during tests
@@ -358,8 +375,26 @@ class UserInterface:
         return str()
     def get_document_location(self):
         return str()
-    def create_key_by_id(self, key_id):
-        return Key(key_id, 0, 0)
+    def create_key_by_id(self, key_id, modifiers=None):
+        return Key(None, key_id, modifiers)
+    def create_modifiers_by_id_list(self, modifiers_id_list):
+        shift = False
+        control = False
+        alt = False
+        meta = False
+        keypad = False
+        for modifiers_id in modifiers_id_list:
+            if modifiers_id == "shift":
+                shift = True
+            elif modifiers_id == "control":
+                control = True
+            elif modifiers_id == "alt":
+                alt = True
+            elif modifiers_id == "meta":
+                meta = True
+            elif modifiers_id == "keypad":
+                keypad = True
+        return KeyboardModifiers(shift, control, alt, meta, keypad)
     def create_offscreen_drawing_context(self):
         return DrawingContext()
     def create_rgba_image(self, drawing_context, width, height):

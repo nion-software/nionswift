@@ -152,6 +152,23 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers):
         new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), old_size)
     return (mapping.map_point_image_to_image_norm(new_bounds[0]), mapping.map_size_image_to_image_norm(new_bounds[1]))
 
+
+class NullModifiers(object):
+    def __init__(self):
+        self.shift = False
+        self.only_shift = False
+        self.control = False
+        self.only_control = False
+        self.alt = False
+        self.only_alt = False
+        self.option = False
+        self.only_option = False
+        self.meta = False
+        self.only_meta = False
+        self.keypad = False
+        self.only_keypad = False
+
+
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Storage.StorageBase):
     def __init__(self):
@@ -230,6 +247,8 @@ class Graphic(Storage.StorageBase):
     def notify_set_property(self, key, value):
         super(Graphic, self).notify_set_property(key, value)
         self.notify_listeners("graphic_changed", self)
+    def nudge(self, mapping, delta):
+        raise NotImplementedError()
 
 
 class RectangleGraphic(Graphic):
@@ -301,6 +320,12 @@ class RectangleGraphic(Graphic):
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
         self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
+    def nudge(self, mapping, delta):
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
+        current = (original[0] + delta[0], original[1] + delta[1])
+        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -413,6 +438,12 @@ class EllipseGraphic(Graphic):
     # ellipse
     def adjust_part(self, mapping, original, current, part, modifiers):
         self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
+    def nudge(self, mapping, delta):
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
+        current = (original[0] + delta[0], original[1] + delta[1])
+        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -584,6 +615,12 @@ class LineGraphic(Graphic):
             p = mapping.map_point_widget_to_image_norm(current)
             self.start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
             self.end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
+    def nudge(self, mapping, delta):
+        end_image = mapping.map_point_image_norm_to_image(self.end)
+        start_image = mapping.map_point_image_norm_to_image(self.start)
+        original = ((end_image[0] + start_image[0]) * 0.5, (end_image[1] + start_image[1]) * 0.5)
+        current = (original[0] + delta[0], original[1] + delta[1])
+        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
     def draw_arrow(self, ctx, p1, p2):
         arrow_size = 8
         angle = math.atan2(p2[0] - p1[0], p2[1] - p1[1])

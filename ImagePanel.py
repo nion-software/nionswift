@@ -761,11 +761,26 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if not self.image_panel:
             return False
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
-        if key.is_delete:
-            all_graphics = self.data_item.graphics if self.data_item else []
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
-            if len(graphics):
+        all_graphics = self.data_item.graphics if self.data_item else []
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
+        if len(graphics):
+            if key.is_delete:
                 self.document_controller.remove_graphic()
+            elif key.is_arrow:
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
+                amount = 10.0 if key.modifiers.shift else 1.0
+                if key.is_left_arrow:
+                    for graphic in graphics:
+                        graphic.nudge(widget_mapping, (0, -amount))
+                elif key.is_up_arrow:
+                    for graphic in graphics:
+                        graphic.nudge(widget_mapping, (-amount, 0))
+                elif key.is_right_arrow:
+                    for graphic in graphics:
+                        graphic.nudge(widget_mapping, (0, amount))
+                elif key.is_down_arrow:
+                    for graphic in graphics:
+                        graphic.nudge(widget_mapping, (amount, 0))
         if key.text == "h":
             histogram_canvas_item = self.accessories.get("histogram")
             if histogram_canvas_item:
@@ -1331,7 +1346,6 @@ class ImagePanel(Panel.Panel):
 
     # ths message comes from the widget
     def key_pressed(self, key):
-        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
         if key.is_delete:
             all_graphics = self.data_item.graphics if self.data_item else []
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]

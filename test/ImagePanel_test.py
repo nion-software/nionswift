@@ -200,7 +200,84 @@ class TestImagePanelClass(unittest.TestCase):
         self.simulate_drag((1290,310), (1110,420), Test.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.data_item.graphics[0].end, (1.18, 0.42))
 
-    # this test is DISABLED until the image panel zoom works again
+    def test_nudge_line(self):
+        # add line (0.2, 0.2), (0.8, 0.8)
+        self.document_controller.add_line_graphic()
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # move it left
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.200, 0.199))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.200, 0.189))
+        # move it up
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.199, 0.189))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.189, 0.189))
+        # move it right
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.189, 0.190))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.189, 0.200))
+        # move it down
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.190, 0.200))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].start, (0.200, 0.200))
+
+    def test_nudge_rect(self):
+        # add rect (0.25, 0.25), (0.5, 0.5)
+        self.document_controller.add_rectangle_graphic()
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # move it left
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.249))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.239))
+        # move it up
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.249, 0.239))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.239))
+        # move it right
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.240))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.250))
+        # move it down
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.240, 0.250))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.250))
+
+    def test_nudge_ellipse(self):
+        # add rect (0.25, 0.25), (0.5, 0.5)
+        self.document_controller.add_ellipse_graphic()
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        # move it left
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.249))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.239))
+        # move it up
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.249, 0.239))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.239))
+        # move it right
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.240))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.239, 0.250))
+        # move it down
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.240, 0.250))
+        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.250))
+
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480
         self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
