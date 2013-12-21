@@ -50,7 +50,7 @@ def loadPlugIns():
         # |       ...
 
         root_dir = os.path.dirname(os.path.realpath(__file__))
-        path_ascend_count = 2 if sys.platform == "win32" or sys.platform.startswith("linux") else 3
+        path_ascend_count = 2
         for i in range(path_ascend_count):
             root_dir = os.path.dirname(root_dir)
         packages_dir = os.path.abspath(os.path.join(root_dir, "Packages"))
