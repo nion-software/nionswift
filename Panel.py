@@ -192,9 +192,9 @@ class HeaderWidgetController(object):
         ctx.line_to(canvas.width, canvas.height)
         ctx.line_to(canvas.width, 0)
         ctx.close_path()
-        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height);
-        gradient.add_color_stop(0, '#ededed');
-        gradient.add_color_stop(1, '#cacaca');
+        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height)
+        gradient.add_color_stop(0, '#ededed')
+        gradient.add_color_stop(1, '#cacaca')
         ctx.fill_style = gradient
         ctx.fill()
         ctx.restore()
