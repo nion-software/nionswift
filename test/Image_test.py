@@ -17,7 +17,7 @@ class TestImageClass(unittest.TestCase):
         pass
 
     def test_create_rgba_image_from_array(self):
-        image_1d_16 = numpy.zeros((16), dtype=numpy.double)
+        image_1d_16 = numpy.zeros((16, ), dtype=numpy.double)
         image_1d_16x1 = numpy.zeros((16, 1), dtype=numpy.double)
         self.assertIsNotNone(Image.create_rgba_image_from_array(image_1d_16))
         self.assertIsNotNone(Image.create_rgba_image_from_array(image_1d_16x1))
