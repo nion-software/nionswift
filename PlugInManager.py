@@ -14,6 +14,7 @@ def loadPlugIns():
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
     # we'll let command line arguments overwrite the plugin folder location
     plugins_dir = None
+    packages_dir = ""
 
     for flag, arg in zip(sys.argv, sys.argv[1:]):
         if flag.lower() == "-pluginpath":
