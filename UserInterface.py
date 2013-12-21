@@ -937,7 +937,7 @@ class QtLineEditWidget(QtWidget):
     def __get_editable(self):
         return self.proxy.LineEdit_getEditable(self.widget)
     def __set_editable(self, editable):
-        return self.proxy.LineEdit_setEditable(self.widget, editable)
+        self.proxy.LineEdit_setEditable(self.widget, editable)
     editable = property(__get_editable, __set_editable)
 
     def __get_formatter(self):
