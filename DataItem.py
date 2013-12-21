@@ -463,7 +463,7 @@ class DataItemEditor(object):
             self.calibrations_column.remove(len(calibrations) - 1)
         for calibration_index, calibration in enumerate(calibrations):
             calibration_row = self.calibrations_column.children[calibration_index]
-            calibration_row.children[0].text = "{0:.2f}".format(calibration_index)
+            calibration_row.children[0].text = "{0:d}".format(calibration_index)
             calibration_row.children[1].text = "{0:.2f}".format(calibration.origin)
             calibration_row.children[2].text = "{0:.2f}".format(calibration.scale)
             calibration_row.children[3].text = calibration.units
