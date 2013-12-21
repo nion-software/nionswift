@@ -243,13 +243,8 @@ SOURCE = 7
 
 
 class DataItemEditor(object):
-    def __init__(self, ui, data_item):
-        self.ui = ui
-        self.data_item = data_item
-        self.widget = self.ui.create_column_widget()
 
-        self.widget.add_spacing(6)
-
+    def __init_info_editor(self):
         # info editor
         self.info_section = self.ui.create_column_widget()
         self.info_section_title = self.ui.create_row_widget()
@@ -260,8 +255,8 @@ class DataItemEditor(object):
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add_spacing(20)
-        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width":60}))
-        self.info_title_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
+        self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         self.info_section.add(self.info_section_title_row)
@@ -269,8 +264,8 @@ class DataItemEditor(object):
         self.info_section.add_spacing(2)
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add_spacing(20)
-        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width":60}))
-        self.info_session_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
+        self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
         self.info_section_session_row.add(self.info_session_label)
         self.info_section_session_row.add_stretch()
         self.info_section.add(self.info_section_session_row)
@@ -278,8 +273,8 @@ class DataItemEditor(object):
         self.info_section.add_spacing(2)
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add_spacing(20)
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width":60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
+        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         self.info_section.add(self.info_section_datetime_row)
@@ -287,8 +282,8 @@ class DataItemEditor(object):
         self.info_section.add_spacing(2)
         self.info_section_format_row = self.ui.create_row_widget()
         self.info_section_format_row.add_spacing(20)
-        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width":60}))
-        self.info_format_label = self.ui.create_label_widget(properties={"width":240})
+        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
+        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
         self.info_section_format_row.add(self.info_format_label)
         self.info_section_format_row.add_stretch()
         self.info_section.add(self.info_section_format_row)
@@ -297,6 +292,7 @@ class DataItemEditor(object):
         # add to enclosing widget
         self.widget.add(self.info_section)
 
+    def __init_param_editor(self):
         # param editor
         self.param_row = self.ui.create_row_widget()
         param_label = self.ui.create_label_widget(_("Parameter"))
@@ -315,6 +311,7 @@ class DataItemEditor(object):
         self.param_row.visible = False
         self.widget.add(self.param_row)
 
+    def __init_calibration_editor(self):
         # calibrations editor
         self.calibrations_section = self.ui.create_column_widget()
         self.calibrations_section_title = self.ui.create_row_widget()
@@ -333,6 +330,7 @@ class DataItemEditor(object):
         self.calibrations_section.add(self.calibrations_table)
         self.widget.add(self.calibrations_section)
 
+    def __init_display_limit_editor(self):
         # display limit editor
         self.display_limits_section = self.ui.create_column_widget()
         self.display_limits_section_title = self.ui.create_row_widget()
@@ -345,19 +343,19 @@ class DataItemEditor(object):
         self.display_limits_section_table.add_spacing(20)
         self.display_limits_section_table.add(self.display_limits_section_rows)
         self.display_limits_range_row = self.ui.create_row_widget()
-        self.display_limits_range_low = self.ui.create_label_widget(properties={"width":60})
-        self.display_limits_range_high = self.ui.create_label_widget(properties={"width":60})
-        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width":120}))
+        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 60})
+        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 60})
+        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
         self.display_limits_range_row.add(self.display_limits_range_high)
         self.display_limits_range_row.add_stretch()
         self.display_limits_limit_row = self.ui.create_row_widget()
-        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width":60})
-        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width":60})
+        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 60})
+        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 60})
         self.display_limits_limit_low.on_editing_finished = lambda text: self.display_limit_low_editing_finished(text)
         self.display_limits_limit_high.on_editing_finished = lambda text: self.display_limit_high_editing_finished(text)
-        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width":120}))
+        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
         self.display_limits_limit_row.add(self.display_limits_limit_high)
@@ -368,6 +366,21 @@ class DataItemEditor(object):
         self.display_limits_section_rows.add(self.display_limits_limit_row)
         self.display_limits_section.add(self.display_limits_section_table)
         self.widget.add(self.display_limits_section)
+
+    def __init__(self, ui, data_item):
+        self.ui = ui
+        self.data_item = data_item
+        self.widget = self.ui.create_column_widget()
+
+        self.widget.add_spacing(6)
+
+        self.__init_info_editor()
+
+        self.__init_param_editor()
+
+        self.__init_calibration_editor()
+
+        self.__init_display_limit_editor()
 
         # first update to get the values right
         self.__block = False
@@ -393,17 +406,20 @@ class DataItemEditor(object):
             if any (k in changes for k in (DISPLAY, )):
                 self.needs_update = True
 
-    # update will NEVER be called on a thread
-    def update(self):
+    def __update_info_editor(self):
         # info
         self.info_title_label.text = self.data_item.title
         self.info_session_label.text = self.data_item.session_id
         self.info_datetime_label.text = self.data_item.datetime_original_as_string
         self.info_format_label.text = self.data_item.size_and_data_format_as_string
+
+    def __update_param_editor(self):
         # param
         value = self.data_item.param
         self.param_field_formatter.value = float(value)
         self.param_slider.value = int(value * 100)
+
+    def __update_calibrations_editor(self):
         # calibrations
         # first match the number of rows to the number of calibrations
         # then populate
@@ -412,10 +428,10 @@ class DataItemEditor(object):
             while self.calibrations_labels.count() > 0:
                 self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
             calibration_row = self.ui.create_row_widget()
-            row_label = self.ui.create_label_widget("Axis", properties={"width":60})
-            origin_field = self.ui.create_label_widget("Origin", properties={"width":60})
-            scale_field = self.ui.create_label_widget("Scale", properties={"width":60})
-            units_field = self.ui.create_label_widget("Units", properties={"width":60})
+            row_label = self.ui.create_label_widget("Axis", properties={"width": 60})
+            origin_field = self.ui.create_label_widget("Origin", properties={"width": 60})
+            scale_field = self.ui.create_label_widget("Scale", properties={"width": 60})
+            units_field = self.ui.create_label_widget("Units", properties={"width": 60})
             calibration_row.add_spacing(20)
             calibration_row.add(row_label)
             calibration_row.add_spacing(12)
@@ -442,10 +458,10 @@ class DataItemEditor(object):
         while self.calibrations_column.count() < len(calibrations):
             calibration_index = self.calibrations_column.count()
             calibration_row = self.ui.create_row_widget()
-            row_label = self.ui.create_label_widget(properties={"width":60})
-            origin_field = self.ui.create_line_edit_widget(properties={"width":60})
-            scale_field = self.ui.create_line_edit_widget(properties={"width":60})
-            units_field = self.ui.create_line_edit_widget(properties={"width":60})
+            row_label = self.ui.create_label_widget(properties={"width": 60})
+            origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            units_field = self.ui.create_line_edit_widget(properties={"width": 60})
             # notice the binding of calibration_index below.
             origin_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_origin_editing_finished(i, text)
             scale_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_scale_editing_finished(i, text)
@@ -467,6 +483,8 @@ class DataItemEditor(object):
             calibration_row.children[1].text = "{0:.2f}".format(calibration.origin)
             calibration_row.children[2].text = "{0:.2f}".format(calibration.scale)
             calibration_row.children[3].text = calibration.units
+
+    def __update_display_limits_editor(self):
         # display limits
         data_range = self.data_item.data_range
         if data_range:
@@ -482,6 +500,13 @@ class DataItemEditor(object):
         else:
             self.display_limits_limit_low.text = _("N/A")
             self.display_limits_limit_high.text = _("N/A")
+
+    # update will NEVER be called on a thread
+    def update(self):
+        self.__update_info_editor()
+        self.__update_param_editor()
+        self.__update_calibrations_editor()
+        self.__update_display_limits_editor()
         self.needs_update = False
 
     # handle param editing
