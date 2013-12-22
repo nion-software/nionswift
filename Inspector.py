@@ -9,7 +9,10 @@ import weakref
 # None
 
 # local libraries
+from nion.swift import DataItem
+from nion.swift import DataItemEditor
 from nion.swift import Panel
+from nion.swift import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -17,36 +20,6 @@ _ = gettext.gettext
 # Connect a user interface to an observable object, based on the description of the object.
 # Changes to the object's properties will result in changes to the UI.
 # Changes to the UI will result in changes to the object's properties.
-
-
-class IntegerFormatter(object):
-
-    def __init__(self, line_edit):
-        self.line_edit = line_edit
-
-    def format(self, text):
-        self.value = int(text)
-
-    def __get_value(self):
-        return int(self.line_edit.text)
-    def __set_value(self, value):
-        self.line_edit.text = str(value)
-    value = property(__get_value, __set_value)
-
-
-class FloatFormatter(object):
-
-    def __init__(self, line_edit):
-        self.line_edit = line_edit
-
-    def format(self, text):
-        self.value = float(text)
-
-    def __get_value(self):
-        return float(self.line_edit.text)
-    def __set_value(self, value):
-        self.line_edit.text = "%g" % float(value)
-    value = property(__get_value, __set_value)
 
 
 class PropertyBinding(object):
@@ -83,7 +56,7 @@ class ScalarController(object):
         self.slider.on_value_changed = lambda value: self.slider_value_changed(value)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
-        self.field_formatter = FloatFormatter(self.field)
+        self.field_formatter = UserInterfaceUtility.FloatFormatter(self.field)
         self.widget.add(label)
         self.widget.add(self.slider)
         self.widget.add(self.field)
@@ -111,7 +84,7 @@ class IntegerFieldController(object):
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
-        self.field_formatter = IntegerFormatter(self.field)
+        self.field_formatter = UserInterfaceUtility.IntegerFormatter(self.field)
         self.widget.add(label)
         self.widget.add(self.field)
         self.widget.add_stretch()
@@ -132,7 +105,7 @@ class FloatFieldController(object):
         label = self.ui.create_label_widget(name)
         self.field = self.ui.create_line_edit_widget()
         self.field.on_editing_finished = lambda text: self.editing_finished(text)
-        self.field_formatter = FloatFormatter(self.field)
+        self.field_formatter = UserInterfaceUtility.FloatFormatter(self.field)
         self.widget.add(label)
         self.widget.add(self.field)
         self.widget.add_stretch()
@@ -268,7 +241,9 @@ class PropertyEditorController(object):
         self.widget = self.ui.create_column_widget()
         # add self as observer. this will result in property_changed messages.
         self.object.add_observer(self)
-        self.__editor = object.create_editor(self.ui)
+        self.__editor = None
+        if isinstance(object, DataItem.DataItem):
+            self.__editor = DataItemEditor.DataItemEditor(self.ui, object)
         if self.__editor:
             self.widget.add(self.__editor.widget)
         for description in object.description:
