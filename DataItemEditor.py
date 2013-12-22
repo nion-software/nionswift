@@ -399,43 +399,28 @@ class DataItemEditor(object):
 
     def __init__(self, ui, data_item):
         self.ui = ui
-        self.data_item = data_item
+        self.__data_item_content_binding = DataItemContentBinding(data_item)
+        self.__inspectors = list()
+        # ui
         self.widget = self.ui.create_column_widget()
-
         self.widget.add_spacing(6)
 
-        self.__data_item_content_binding = DataItemContentBinding(self.data_item)
+        self.__inspectors.append(InfoInspector(self.ui, self.__data_item_content_binding))
+        #self.__inspectors.append(ParamInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
 
-        self.__info_inspector = InfoInspector(self.ui, self.__data_item_content_binding)
-
-        self.widget.add(self.__info_inspector.widget)
-
-        self.__param_inspector = ParamInspector(self.ui, self.__data_item_content_binding)
-
-        self.__param_inspector.widget.visible = False
-
-        self.widget.add(self.__param_inspector.widget)
-
-        self.__calibrations_inspector = CalibrationsInspector(self.ui, self.__data_item_content_binding)
-
-        self.widget.add(self.__calibrations_inspector.widget)
-
-        self.__display_limits_inspector = DisplayLimitsInspector(self.ui, self.__data_item_content_binding)
-
-        self.widget.add(self.__display_limits_inspector.widget)
+        for inspector in self.__inspectors:
+            self.widget.add(inspector.widget)
 
     def close(self):
-        # close individual inspectors
-        self.__info_inspector.close()
-        self.__param_inspector.close()
-        self.__calibrations_inspector.close()
-        self.__display_limits_inspector.close()
+        # close inspectors
+        for inspector in self.__inspectors:
+            inspector.close()
         # close the data item content binding
         self.__data_item_content_binding.close()
 
     # update the values if needed
     def periodic(self):
-        self.__info_inspector.periodic()
-        self.__param_inspector.periodic()
-        self.__calibrations_inspector.periodic()
-        self.__display_limits_inspector.periodic()
+        for inspector in self.__inspectors:
+            inspector.periodic()
