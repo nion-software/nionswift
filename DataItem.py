@@ -1131,12 +1131,10 @@ class DataItemSpecifier(object):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
 
-# TODO: subclass Broadcaster
-class DataItemBinding(object):
+class DataItemBinding(Storage.Broadcaster):
 
     def __init__(self):
-        self.__listeners = []
-        self.__listeners_mutex = threading.RLock()
+        super(DataItemBinding, self).__init__()
         self.__weak_data_item = None
 
     def close(self):
@@ -1145,29 +1143,6 @@ class DataItemBinding(object):
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
     data_item = property(__get_data_item)
-
-    # Add a listener
-    def add_listener(self, listener):
-        with self.__listeners_mutex:
-            assert listener is not None
-            self.__listeners.append(listener)
-    # Remove a listener.
-    def remove_listener(self, listener):
-        with self.__listeners_mutex:
-            assert listener is not None
-            self.__listeners.remove(listener)
-    # Send a message to the listeners
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            with self.__listeners_mutex:
-                listeners = copy.copy(self.__listeners)
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
 
     # this message is received from subclasses (and tests).
     def notify_data_item_binding_data_item_changed(self, data_item):
