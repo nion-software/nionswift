@@ -14,33 +14,113 @@ from nion.swift import UserInterfaceUtility
 _ = gettext.gettext
 
 
-
-class DisplayLimitsInspector(object):
+class InspectorSection(object):
 
     """
-        Display limits binding is composed of a few fields:
-            display limits (read write): user specified display limits
-            data range (read only): the range of data, when converted to real numbers
-            display range (read only): display limits if present, otherwise data range
+        Represent a section in the inspector. The section is composed of a
+        title in bold and then content. Subclasses should use add_widget_to_content
+        to add item to the content portion of the section.
     """
 
-    def __init__(self, ui, display_limits_binding):
+    def __init__(self, ui, section_title):
         self.ui = ui
-        self.display_limits_binding = display_limits_binding
-        self.display_limits_binding.add_listener(self)
         self.__task_set = Decorators.TaskSet()
-        self.__block = False
-        # display limit editor
-        self.display_limits_section = self.ui.create_column_widget()
-        self.display_limits_section_title = self.ui.create_row_widget()
-        #self.display_limits_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
-        self.display_limits_section_title.add(self.ui.create_label_widget(_("Display Limits"), properties={"stylesheet": "font-weight: bold"}))
-        self.display_limits_section_title.add_stretch()
-        self.display_limits_section.add(self.display_limits_section_title)
-        self.display_limits_section_table = self.ui.create_row_widget()
-        self.display_limits_section_rows = self.ui.create_column_widget()
-        self.display_limits_section_table.add_spacing(20)
-        self.display_limits_section_table.add(self.display_limits_section_rows)
+        self.__section_widget = self.ui.create_column_widget()
+        section_title_row = self.ui.create_row_widget()
+        #section_title_row.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
+        section_title_row.add(self.ui.create_label_widget(section_title, properties={"stylesheet": "font-weight: bold"}))
+        section_title_row.add_stretch()
+        self.__section_widget.add(section_title_row)
+        section_content_row = self.ui.create_row_widget()
+        self.__section_content_column = self.ui.create_column_widget()
+        section_content_row.add_spacing(20)
+        section_content_row.add(self.__section_content_column)
+        self.__section_widget.add(section_content_row)
+        self.__section_widget.add_spacing(4)
+        self.widget = self.__section_widget
+
+    def periodic(self):
+        self.__task_set.perform_tasks()
+
+    def add_task(self, key, task):
+        self.__task_set.add_task(key, task)
+
+    def add_widget_to_content(self, widget):
+        self.__section_content_column.add_spacing(4)
+        self.__section_content_column.add(widget)
+
+
+class InfoInspector(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement info inspector.
+    """
+
+    def __init__(self, ui, data_item_content_binding):
+        super(InfoInspector, self).__init__(ui, _("Info"))
+        # initialize the binding. this will result in calls to data_item_info_changed.
+        self.data_item_content_binding = data_item_content_binding
+        self.data_item_content_binding.add_listener(self)
+        # title
+        self.info_section_title_row = self.ui.create_row_widget()
+        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
+        self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_section_title_row.add(self.info_title_label)
+        self.info_section_title_row.add_stretch()
+        # session
+        self.info_section_session_row = self.ui.create_row_widget()
+        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
+        self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_section_session_row.add(self.info_session_label)
+        self.info_section_session_row.add_stretch()
+        # date
+        self.info_section_datetime_row = self.ui.create_row_widget()
+        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
+        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_section_datetime_row.add(self.info_datetime_label)
+        self.info_section_datetime_row.add_stretch()
+        # format (size, datatype)
+        self.info_section_format_row = self.ui.create_row_widget()
+        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
+        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_section_format_row.add(self.info_format_label)
+        self.info_section_format_row.add_stretch()
+        # add all of the rows to the section content
+        self.add_widget_to_content(self.info_section_title_row)
+        self.add_widget_to_content(self.info_section_session_row)
+        self.add_widget_to_content(self.info_section_datetime_row)
+        self.add_widget_to_content(self.info_section_format_row)
+        # initial update
+        self.update()
+
+    def close(self):
+        self.data_item_content_binding.remove_listener(self)
+
+    # this gets called from the data_item_content_binding.
+    # thread safe
+    def data_item_display_content_changed(self):
+        self.add_task("update", lambda: self.update())
+
+    # not thread safe
+    def update(self):
+        self.info_title_label.text = self.data_item_content_binding.title
+        self.info_session_label.text = self.data_item_content_binding.session_id
+        self.info_datetime_label.text = self.data_item_content_binding.datetime_original_as_string
+        self.info_format_label.text = self.data_item_content_binding.size_and_data_format_as_string
+
+
+class DisplayLimitsInspector(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement display limits inspector.
+    """
+
+    def __init__(self, ui, data_item_content_binding):
+        super(DisplayLimitsInspector, self).__init__(ui, _("Display Limits"))
+        # initialize the binding. this will result in calls to display_limits_changed.
+        self.data_item_content_binding = data_item_content_binding
+        self.data_item_content_binding.add_listener(self)
+        # configure the display limit editor
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 60})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 60})
@@ -59,34 +139,30 @@ class DisplayLimitsInspector(object):
         self.display_limits_limit_row.add_spacing(8)
         self.display_limits_limit_row.add(self.display_limits_limit_high)
         self.display_limits_limit_row.add_stretch()
-        self.display_limits_section_rows.add_spacing(4)
-        self.display_limits_section_rows.add(self.display_limits_range_row)
-        self.display_limits_section_rows.add_spacing(4)
-        self.display_limits_section_rows.add(self.display_limits_limit_row)
-        self.display_limits_section.add(self.display_limits_section_table)
-        self.widget = self.display_limits_section
+        self.add_widget_to_content(self.display_limits_range_row)
+        self.add_widget_to_content(self.display_limits_limit_row)
+        # initial update
+        self.update()
 
     def close(self):
-        self.display_limits_binding.remove_listener(self)
+        self.data_item_content_binding.remove_listener(self)
 
-    def periodic(self):
-        self.__task_set.perform_tasks()
+    # this gets called from the data_item_content_binding
+    # thread safe
+    def data_item_display_content_changed(self):
+        self.add_task("update", lambda: self.update())
 
-    # this gets called from the display_limits_binding
-    def display_limits_changed(self):
-        if not self.__block:
-            self.__task_set.add_task("update", lambda: self.update())
-
+    # not thread safe
     def update(self):
         # display limits
-        data_range = self.display_limits_binding.data_range
+        data_range = self.data_item_content_binding.data_range
         if data_range:
             self.display_limits_range_low.text = "{0:.2f}".format(data_range[0])
             self.display_limits_range_high.text = "{0:.2f}".format(data_range[1])
         else:
             self.display_limits_range_low.text = _("N/A")
             self.display_limits_range_high.text = _("N/A")
-        display_range = self.display_limits_binding.display_range
+        display_range = self.data_item_content_binding.display_range
         if display_range:
             self.display_limits_limit_low.text = "{0:.2f}".format(display_range[0])
             self.display_limits_limit_high.text = "{0:.2f}".format(display_range[1])
@@ -102,27 +178,31 @@ class DisplayLimitsInspector(object):
     def display_limit_low_editing_finished(self, text):
         if self.display_limits_range_low.text != text:
             display_limit_low = float(text)
-            block = self.__block
-            self.__block = True
-            self.display_limits_binding.display_limits = (display_limit_low, self.display_limits_binding.display_range[1])
-            self.__block = block
+            self.data_item_content_binding.display_limits = (display_limit_low, self.data_item_content_binding.display_range[1])
             self.update()  # clean up displayed values
 
     def display_limit_high_editing_finished(self, text):
         if self.display_limits_range_high.text != text:
             display_limit_high = float(text)
-            block = self.__block
-            self.__block = True
-            self.display_limits_binding.display_limits = (self.display_limits_binding.display_range[0], display_limit_high)
-            self.__block = block
+            self.data_item_content_binding.display_limits = (self.data_item_content_binding.display_range[0], display_limit_high)
             self.update()  # clean up displayed values
 
 
-class DisplayLimitsBinding(Storage.Broadcaster):
+class DataItemContentBinding(Storage.Broadcaster):
+
+    """
+        Data item properties binding is used to act as a buffer between
+        a data item and a user interface element. The user interface element
+        can listen to this binding and receive notification when a content
+        item changes with the DataItem.DISPLAY item included in changes.
+        The user interface element can also get/set properties on this binding
+        as if it were the data item itself.
+    """
 
     def __init__(self, data_item):
-        super(DisplayLimitsBinding, self).__init__()
+        super(DataItemContentBinding, self).__init__()
         self.__data_item = data_item
+        self.__initialized = True
         # make sure we're listening to changes of the data item
         self.__data_item.add_listener(self)
 
@@ -133,72 +213,20 @@ class DisplayLimitsBinding(Storage.Broadcaster):
     # this will typically happen on a thread
     def data_item_content_changed(self, data_item, changes):
         if any (k in changes for k in (DataItem.DISPLAY, )):
-            self.notify_listeners("display_limits_changed")
+            self.notify_listeners("data_item_display_content_changed")
 
-    def __get_data_range(self):
-        return self.__data_item.data_range
-    data_range = property(__get_data_range)
+    def __getattr__(self, name):
+        return getattr(self.__data_item, name)
 
-    def __get_display_range(self):
-        return self.__data_item.display_range
-    display_range = property(__get_display_range)
-
-    def __get_display_limits(self):
-        return self.__data_item.display_limits
-    def __set_display_limits(self, display_limits):
-        self.__data_item.display_limits = display_limits
-    display_limits = property(__get_display_limits, __set_display_limits)
+    def __setattr__(self, name, value):
+        # this test allows attributes to be set in the __init__ method
+        if self.__dict__.has_key(name) or not self.__dict__.has_key('_DataItemContentBinding__initialized'):
+            super(DataItemContentBinding, self).__setattr__(name, value)
+        else:
+            setattr(self.__data_item, name, value)
 
 
 class DataItemEditor(object):
-
-    def __init_info_editor(self):
-        # info editor
-        self.info_section = self.ui.create_column_widget()
-        self.info_section_title = self.ui.create_row_widget()
-        #self.info_section_title.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
-        self.info_section_title.add(self.ui.create_label_widget(_("Info"), properties={"stylesheet": "font-weight: bold"}))
-        self.info_section_title.add_stretch()
-        self.info_section.add(self.info_section_title)
-        # title
-        self.info_section_title_row = self.ui.create_row_widget()
-        self.info_section_title_row.add_spacing(20)
-        self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
-        self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_section_title_row.add(self.info_title_label)
-        self.info_section_title_row.add_stretch()
-        self.info_section.add(self.info_section_title_row)
-        # session
-        self.info_section.add_spacing(2)
-        self.info_section_session_row = self.ui.create_row_widget()
-        self.info_section_session_row.add_spacing(20)
-        self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
-        self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_section_session_row.add(self.info_session_label)
-        self.info_section_session_row.add_stretch()
-        self.info_section.add(self.info_section_session_row)
-        # date
-        self.info_section.add_spacing(2)
-        self.info_section_datetime_row = self.ui.create_row_widget()
-        self.info_section_datetime_row.add_spacing(20)
-        self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
-        self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_section_datetime_row.add(self.info_datetime_label)
-        self.info_section_datetime_row.add_stretch()
-        self.info_section.add(self.info_section_datetime_row)
-        # format (size, datatype)
-        self.info_section.add_spacing(2)
-        self.info_section_format_row = self.ui.create_row_widget()
-        self.info_section_format_row.add_spacing(20)
-        self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
-        self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_section_format_row.add(self.info_format_label)
-        self.info_section_format_row.add_stretch()
-        self.info_section.add(self.info_section_format_row)
-        # extra space
-        self.info_section.add_spacing(8)
-        # add to enclosing widget
-        self.widget.add(self.info_section)
 
     def __init_param_editor(self):
         # param editor
@@ -245,14 +273,17 @@ class DataItemEditor(object):
 
         self.widget.add_spacing(6)
 
-        self.__init_info_editor()
+        self.__data_item_content_binding = DataItemContentBinding(self.data_item)
+
+        self.__info_inspector = InfoInspector(self.ui, self.__data_item_content_binding)
+
+        self.widget.add(self.__info_inspector.widget)
 
         self.__init_param_editor()
 
         self.__init_calibration_editor()
 
-        self.__display_limits_binding = DisplayLimitsBinding(self.data_item)
-        self.__display_limits_inspector = DisplayLimitsInspector(self.ui, self.__display_limits_binding)
+        self.__display_limits_inspector = DisplayLimitsInspector(self.ui, self.__data_item_content_binding)
 
         self.widget.add(self.__display_limits_inspector.widget)
 
@@ -268,14 +299,16 @@ class DataItemEditor(object):
         # unlisten to the data item
         self.data_item.remove_listener(self)
         # close individual inspectors
+        self.__info_inspector.close()
         self.__display_limits_inspector.close()
-        # close the bindings
-        self.__display_limits_binding.close()
+        # close the data item content binding
+        self.__data_item_content_binding.close()
 
     # update the values if needed
     def periodic(self):
         if self.needs_update:
             self.update()
+        self.__info_inspector.periodic()
         self.__display_limits_inspector.periodic()
 
     # this will typically happen on a thread
@@ -284,13 +317,6 @@ class DataItemEditor(object):
             # TODO: this is pretty weak!
             if any (k in changes for k in (DataItem.DISPLAY, )):
                 self.needs_update = True
-
-    def __update_info_editor(self):
-        # info
-        self.info_title_label.text = self.data_item.title
-        self.info_session_label.text = self.data_item.session_id
-        self.info_datetime_label.text = self.data_item.datetime_original_as_string
-        self.info_format_label.text = self.data_item.size_and_data_format_as_string
 
     def __update_param_editor(self):
         # param
@@ -365,10 +391,8 @@ class DataItemEditor(object):
 
     # update will NEVER be called on a thread
     def update(self):
-        self.__update_info_editor()
         self.__update_param_editor()
         self.__update_calibrations_editor()
-        self.__display_limits_inspector.update()
         self.needs_update = False
 
     # handle param editing
