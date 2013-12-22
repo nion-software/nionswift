@@ -395,7 +395,7 @@ class DataItemContentBinding(Storage.Broadcaster):
             setattr(self.__data_item, name, value)
 
 
-class DataItemEditor(object):
+class DataItemInspector(object):
 
     def __init__(self, ui, data_item):
         self.ui = ui

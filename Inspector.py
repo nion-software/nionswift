@@ -10,7 +10,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataItem
-from nion.swift import DataItemEditor
+from nion.swift import DataItemInspector
 from nion.swift import Panel
 from nion.swift import UserInterfaceUtility
 
@@ -243,7 +243,7 @@ class PropertyEditorController(object):
         self.object.add_observer(self)
         self.__editor = None
         if isinstance(object, DataItem.DataItem):
-            self.__editor = DataItemEditor.DataItemEditor(self.ui, object)
+            self.__editor = DataItemInspector.DataItemInspector(self.ui, object)
         if self.__editor:
             self.widget.add(self.__editor.widget)
         for description in object.description:
