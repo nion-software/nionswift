@@ -984,6 +984,17 @@ class QtLineEditWidget(QtWidget):
         self.__on_text_edited = None
         self.__formatter = None
         self.proxy.LineEdit_connect(self.widget, self)
+        self.__binding = None
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+        super(QtLineEditWidget, self).close()
+
+    def periodic(self):
+        super(QtLineEditWidget, self).periodic()
+        if self.__binding:
+            self.__binding.periodic()
 
     def __get_text(self):
         return self.proxy.LineEdit_getText(self.widget)
@@ -1029,6 +1040,15 @@ class QtLineEditWidget(QtWidget):
     def text_edited(self, text):
         if self.__on_text_edited:
             self.__on_text_edited(text)
+
+    def bind_text(self, binding_source, property_name, converter=None):
+        def update_field(text):
+            self.text = text
+            if self.focused:
+                self.select_all()
+        self.__binding = UserInterfaceUtility.PropertyTwoWayBinding(binding_source, property_name, update_field, converter=converter)
+        self.on_editing_finished = lambda text: self.__binding.update_source(text)
+        self.text = self.__binding.get_target_value()
 
 
 class QtCanvasWidget(QtWidget):

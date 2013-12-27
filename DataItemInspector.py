@@ -123,17 +123,6 @@ class ParamInspector(InspectorSection):
 
     def __init__(self, ui, data_item_binding_source):
         super(ParamInspector, self).__init__(ui, _("Param"))
-        # initialize the binding. this will result in calls to data_item_info_changed.
-        self.data_item_binding_source = data_item_binding_source
-        # binding
-        def update_param_field(text):
-            self.param_field.text = text
-            if self.param_field.focused:
-                self.param_field.select_all()
-        def update_data_item(data_item):
-            self.data_item_binding_source.data_item = data_item
-        self.param_field_binding = UserInterfaceUtility.PropertyTwoWayBinding(data_item_binding_source, "param", update_param_field, converter=UserInterfaceUtility.FloatToStringConverter())
-        self.data_item_binding = UserInterfaceUtility.PropertyTwoWayBinding(data_item_binding_source, "data_item", update_data_item)
         # ui
         self.param_row = self.ui.create_row_widget()
         param_label = self.ui.create_label_widget(_("Parameter"))
@@ -141,8 +130,7 @@ class ParamInspector(InspectorSection):
         self.param_slider.maximum = 100
         self.param_slider.bind_value(data_item_binding_source, "param")
         self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.on_editing_finished = lambda text: self.param_field_binding.update_source(text)
-        self.param_field.text = self.param_field_binding.get_target_value()
+        self.param_field.bind_text(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToStringConverter())
         self.param_row.add(param_label)
         self.param_row.add_spacing(8)
         self.param_row.add(self.param_slider)
@@ -152,15 +140,9 @@ class ParamInspector(InspectorSection):
         # add all of the rows to the section content
         self.add_widget_to_content(self.param_row)
 
-    def close(self):
-        self.param_field_binding.close()
-        self.data_item_binding.close()
-        super(ParamInspector, self).close()
-
     def periodic(self):
         super(ParamInspector, self).periodic()
-        self.param_field_binding.periodic()
-        self.data_item_binding.periodic()
+        self.param_field.periodic()  # widget
         self.param_slider.periodic()  # widget
 
 
@@ -553,11 +535,18 @@ class DataItemInspector(object):
 
     def __init__(self, ui, data_item):
         self.ui = ui
+
+        # bindings
+
         self.__data_item_content_binding = DataItemContentBinding(data_item)
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
+        def update_data_item(data_item):
+            self.__data_item_binding_source.data_item = data_item
+        self.__data_item_binding = UserInterfaceUtility.PropertyTwoWayBinding(self.__data_item_binding_source, "data_item", update_data_item)
+
+        # ui
 
         self.__inspectors = list()
-        # ui
         self.widget = self.ui.create_column_widget()
         self.widget.add_spacing(6)
 
@@ -576,9 +565,11 @@ class DataItemInspector(object):
             inspector.close()
         # close the data item content binding
         self.__data_item_content_binding.close()
+        self.__data_item_binding.close()
         self.__data_item_binding_source.close()
 
     # update the values if needed
     def periodic(self):
         for inspector in self.__inspectors:
             inspector.periodic()
+        self.__data_item_binding.periodic()
