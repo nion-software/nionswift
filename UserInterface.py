@@ -822,6 +822,38 @@ class QtPushButtonWidget(QtWidget):
             self.__on_clicked()
 
 
+class QtCheckBoxButtonWidget(QtWidget):
+
+    def __init__(self, proxy, text, properties):
+        super(QtCheckBoxButtonWidget, self).__init__(proxy, "checkbox", properties)
+        self.on_state_changed = None
+        self.text = text
+        self.proxy.CheckBox_connect(self.widget, self)
+
+    def __get_text(self):
+        return self.__text
+    def __set_text(self, text):
+        self.__text = text
+        self.proxy.CheckBox_setText(self.widget, unicode(text))
+    text = property(__get_text, __set_text)
+
+    def __get_tristate(self):
+        return self.proxy.CheckBox_getTristate(self.widget)
+    def __set_tristate(self, tristate):
+        self.proxy.CheckBox_setTristate(self.widget, bool(tristate))
+    tristate = property(__get_tristate, __set_tristate)
+
+    def __get_check_state(self):
+        return self.proxy.CheckBox_getCheckState(self.widget)
+    def __set_check_state(self, check_state):
+        self.proxy.CheckBox_setCheckState(self.widget, str(check_state))
+    check_state = property(__get_check_state, __set_check_state)
+
+    def stateChanged(self, check_state):
+        if self.on_state_changed:
+            self.on_state_changed(check_state)
+
+
 class QtLabelWidget(QtWidget):
 
     def __init__(self, proxy, text, properties):
@@ -1529,6 +1561,9 @@ class QtUserInterface(object):
 
     def create_push_button_widget(self, text=None, properties=None):
         return QtPushButtonWidget(self.proxy, text, properties)
+
+    def create_check_box_button_widget(self, text=None, properties=None):
+        return QtCheckBoxButtonWidget(self.proxy, text, properties)
 
     def create_label_widget(self, text=None, properties=None):
         return QtLabelWidget(self.proxy, text, properties)
