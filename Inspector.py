@@ -22,7 +22,7 @@ _ = gettext.gettext
 # Changes to the UI will result in changes to the object's properties.
 
 
-class PropertyBinding(object):
+class PropertyValue(object):
     def __init__(self, object, property):
         self.object = object
         self.property = property
@@ -33,7 +33,7 @@ class PropertyBinding(object):
     value = property(__get_value, __set_value)
 
 
-class ArrayBinding(object):
+class ArrayValue(object):
     def __init__(self, object, property, index):
         self.object = object
         self.property = property
@@ -178,7 +178,7 @@ class FloatArrayController(object):
             for index, item in enumerate(array):
                 column_widget = self.ui.create_column_widget()
                 name = str(index)
-                binding = ArrayBinding(object, property, index)
+                binding = ArrayValue(object, property, index)
                 controller = FloatFieldController(self.ui, name, binding)
                 column_widget.add(controller.widget)
                 self.__columns.append(controller)
@@ -213,13 +213,13 @@ class ItemController(object):
 def construct_controller(ui, object, type, name, property):
     controller = None
     if type == "scalar":
-        controller = ScalarController(ui, name, PropertyBinding(object, property))
+        controller = ScalarController(ui, name, PropertyValue(object, property))
     elif type == "integer-field":
-        controller = IntegerFieldController(ui, name, PropertyBinding(object, property))
+        controller = IntegerFieldController(ui, name, PropertyValue(object, property))
     elif type == "float-field":
-        controller = FloatFieldController(ui, name, PropertyBinding(object, property))
+        controller = FloatFieldController(ui, name, PropertyValue(object, property))
     elif type == "string-field":
-        controller = StringFieldController(ui, name, PropertyBinding(object, property))
+        controller = StringFieldController(ui, name, PropertyValue(object, property))
     elif type == "fixed-array":
         controller = FixedArrayController(ui, object, name, property)
     elif type == "float-array":

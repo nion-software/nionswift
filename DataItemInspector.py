@@ -128,9 +128,9 @@ class ParamInspector(InspectorSection):
         param_label = self.ui.create_label_widget(_("Parameter"))
         self.param_slider = self.ui.create_slider_widget()
         self.param_slider.maximum = 100
-        self.param_slider.bind_value(data_item_binding_source, "param")
+        self.param_slider.bind_value(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatTo100Converter()))
         self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.bind_text(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToPercentStringConverter())
+        self.param_field.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToPercentStringConverter()))
         self.param_row.add(param_label)
         self.param_row.add_spacing(8)
         self.param_row.add(self.param_slider)
@@ -542,7 +542,8 @@ class DataItemInspector(object):
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
         def update_data_item(data_item):
             self.__data_item_binding_source.data_item = data_item
-        self.__data_item_binding = UserInterfaceUtility.PropertyTwoWayBinding(self.__data_item_binding_source, "data_item", update_data_item)
+        self.__data_item_binding = UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "data_item")
+        self.__data_item_binding.target_updater = update_data_item
 
         # ui
 
@@ -551,7 +552,7 @@ class DataItemInspector(object):
         self.widget.add_spacing(6)
 
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_content_binding))
-        # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
+        self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))

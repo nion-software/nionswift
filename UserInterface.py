@@ -965,13 +965,9 @@ class QtSliderWidget(QtWidget):
         if self.__on_slider_moved:
             self.__on_slider_moved(value)
 
-    def bind_value(self, binding_source, property_name):
-        class FloatTo100Converter(object):
-            def convert(self, value):
-                return int(value * 100)
-            def convert_back(self, value100):
-                return value100 / 100.0
-        self.__binding = UserInterfaceUtility.PropertyTwoWayBinding(binding_source, property_name, lambda value: self.__set_value(value), converter=FloatTo100Converter())
+    def bind_value(self, binding):
+        self.__binding = binding
+        self.__binding.target_updater = lambda value: self.__set_value(value)
         self.on_value_changed = lambda value: self.__binding.update_source(value)
         self.value = self.__binding.get_target_value()
 
@@ -1041,12 +1037,13 @@ class QtLineEditWidget(QtWidget):
         if self.__on_text_edited:
             self.__on_text_edited(text)
 
-    def bind_text(self, binding_source, property_name, converter=None):
+    def bind_text(self, binding):
         def update_field(text):
             self.text = text
             if self.focused:
                 self.select_all()
-        self.__binding = UserInterfaceUtility.PropertyTwoWayBinding(binding_source, property_name, update_field, converter=converter)
+        self.__binding = binding
+        self.__binding.target_updater = update_field
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
         self.text = self.__binding.get_target_value()
 

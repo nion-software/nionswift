@@ -51,6 +51,16 @@ class FloatToStringConverter(object):
         return float(str)
 
 
+class FloatTo100Converter(object):
+    """
+        Convert from float value to int (float * 100) and back.
+    """
+    def convert(self, value):
+        return int(value * 100)
+    def convert_back(self, value100):
+        return value100 / 100.0
+
+
 class FloatToPercentStringConverter(object):
     """
         Convert from float value to string and back.
@@ -61,23 +71,28 @@ class FloatToPercentStringConverter(object):
         return float(str.strip('%'))/100.0
 
 
-class PropertyTwoWayBinding(Storage.Observable):
+class PropertyBinding(Storage.Observable):
 
     """
-        Binds to a property of a source object. Changes to the source are
-        propogated to the target and changes to the target are propogated to the
-        source.
+        Binds to a property of a source object.
+
+        Changes to the target are propogated to the source via setattr using the update_source method.
+
+        If target_updater is set, changes to the source are propogated to the target via target_updater
+        using the update_target method.
+
+        The owner should call periodic and close on this object.
     """
 
-    def __init__(self, source, property_name, target_updater, converter=None):
-        super(PropertyTwoWayBinding, self).__init__()
+    def __init__(self, source, property_name, converter=None):
+        super(PropertyBinding, self).__init__()
         self.__task_set = Decorators.TaskSet()
         self.__source = source
         self.__property_name = property_name
         self.__source.add_observer(self)
         self.__converter = converter
         self.__source.add_observer(self)
-        self.__target_updater = target_updater
+        self.target_updater = None
 
     # not thread safe
     def close(self):
@@ -120,8 +135,9 @@ class PropertyTwoWayBinding(Storage.Observable):
 
     # not thread safe
     def update_target(self, source_value):
-        converted_value = self.__converted_value(source_value)
-        self.__target_updater(converted_value)
+        if self.target_updater:
+            converted_value = self.__converted_value(source_value)
+            self.target_updater(converted_value)
 
     # thread safe
     def get_target_value(self):
