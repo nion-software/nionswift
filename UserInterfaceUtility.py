@@ -43,12 +43,22 @@ class FloatFormatter(object):
 
 class FloatToStringConverter(object):
     """
-        Converter object to convert from float value to string and back.
-        """
+        Convert from float value to string and back.
+    """
     def convert(self, value):
         return "%g" % float(value)
     def convert_back(self, str):
         return float(str)
+
+
+class FloatToPercentStringConverter(object):
+    """
+        Convert from float value to string and back.
+    """
+    def convert(self, value):
+        return str(int(value * 100)) + "%"
+    def convert_back(self, str):
+        return float(str.strip('%'))/100.0
 
 
 class PropertyTwoWayBinding(Storage.Observable):

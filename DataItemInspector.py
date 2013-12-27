@@ -130,7 +130,7 @@ class ParamInspector(InspectorSection):
         self.param_slider.maximum = 100
         self.param_slider.bind_value(data_item_binding_source, "param")
         self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.bind_text(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToStringConverter())
+        self.param_field.bind_text(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToPercentStringConverter())
         self.param_row.add(param_label)
         self.param_row.add_spacing(8)
         self.param_row.add(self.param_slider)
@@ -551,7 +551,7 @@ class DataItemInspector(object):
         self.widget.add_spacing(6)
 
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_content_binding))
-        self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
+        # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))
