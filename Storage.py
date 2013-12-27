@@ -139,6 +139,7 @@ class MutableMapping(collections.MutableMapping):
 class Broadcaster(object):
 
     def __init__(self):
+        super(Broadcaster, self).__init__()
         self.__weak_listeners = []
         self.__weak_listeners_mutex = threading.RLock()
 
@@ -172,7 +173,62 @@ class Broadcaster(object):
             logging.debug("Notify Error: %s", e)
 
 
-class StorageBase(Broadcaster):
+class Observable(object):
+
+    """
+        Provide basic observable object. Subclassers should implement properties,
+        items, and collections and call appropriate notifications when necessary.
+    """
+
+    def __init__(self):
+        super(Observable, self).__init__()
+        self.__weak_observers = []
+
+    def __del__(self):
+        assert len(self.__weak_observers) == 0, 'Binding source still has observers'
+
+    def add_observer(self, observer):
+        self.__weak_observers.append(weakref.ref(observer))
+
+    def remove_observer(self, observer):
+        self.__weak_observers.remove(weakref.ref(observer))
+
+    def __get_observers(self):
+        return [weak_observer() for weak_observer in self.__weak_observers]
+    observers = property(__get_observers)
+
+    def notify_set_property(self, key, value):
+        for weak_observer in self.__weak_observers:
+            observer = weak_observer()
+            if observer and getattr(observer, "property_changed", None):
+                observer.property_changed(self, key, value)
+
+    def notify_set_item(self, key, item):
+        for weak_observer in self.__weak_observers:
+            observer = weak_observer()
+            if observer and getattr(observer, "item_set", None):
+                observer.item_set(self, key, value)
+
+    def notify_clear_item(self, key):
+        for weak_observer in self.__weak_observers:
+            observer = weak_observer()
+            if observer and getattr(observer, "item_cleared", None):
+                observer.item_cleared(self, key)
+
+    def notify_insert_item(self, key, value, before_index):
+        for weak_observer in self.__weak_observers:
+            observer = weak_observer()
+            if observer and getattr(observer, "item_inserted", None):
+                observer.item_inserted(self, key, value, before_index)
+
+    def notify_remove_item(self, key, value, index):
+        for weak_observer in self.__weak_observers:
+            observer = weak_observer()
+            if observer and getattr(observer, "item_removed", None):
+                observer.item_removed(self, key, value, index)
+
+
+class StorageBase(Observable, Broadcaster):
 
     def __init__(self):
         super(StorageBase, self).__init__()
@@ -186,7 +242,6 @@ class StorageBase(Broadcaster):
         self.__cache = dict()
         self.__cache_dirty = dict()
         self.__cache_mutex = threading.RLock()
-        self.__weak_observers = []
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
@@ -196,7 +251,6 @@ class StorageBase(Broadcaster):
 
     def __del__(self):
         # There should not be listeners or references at this point.
-        assert len(self.__weak_observers) == 0, 'Observable still has observers'
         assert len(self.__weak_parents) == 0, 'Observable still has parents'
         assert self.__ref_count == 0, 'Observable still has references'
 
@@ -408,19 +462,10 @@ class StorageBase(Broadcaster):
 
     # implement observer/notification mechanism
 
-    def add_observer(self, observer):
-        self.__weak_observers.append(weakref.ref(observer))
-
-    def remove_observer(self, observer):
-        self.__weak_observers.remove(weakref.ref(observer))
-
     def notify_set_property(self, key, value):
         if self.datastore and self.__transaction_count == 0:
             self.datastore.set_property(self, key, value)
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "property_changed", None):
-                observer.property_changed(self, key, value)
+        super(StorageBase, self).notify_set_property(key, value)
 
     def notify_set_item(self, key, item):
         assert item is not None
@@ -431,10 +476,7 @@ class StorageBase(Broadcaster):
             item.storage_cache = self.storage_cache
         if item:
             item.add_parent(self)
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_set", None):
-                observer.item_set(self, key, value)
+        super(StorageBase, self).notify_set_item(key, item)
 
     def notify_clear_item(self, key):
         item = self.get_storage_item(key)
@@ -446,16 +488,12 @@ class StorageBase(Broadcaster):
             if self.storage_cache:
                 item.storage_cache = None
             item.remove_parent(self)
-            for weak_observer in self.__weak_observers:
-                observer = weak_observer()
-                if observer and getattr(observer, "item_cleared", None):
-                    observer.item_cleared(self, key)
+            super(StorageBase, self).notify_clear_item(key)
 
     def notify_set_data(self, key, data, data_file_path, data_file_datetime):
         if self.datastore and self.__transaction_count == 0:
             self.datastore.set_data(self, key, data, data_file_path, data_file_datetime)
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
+        for observer in self.observers:
             if observer and getattr(observer, "data_set", None):
                 observer.data_set(self, key, data)
 
@@ -467,10 +505,7 @@ class StorageBase(Broadcaster):
         if self.storage_cache:
             value.storage_cache = self.storage_cache
         value.add_parent(self)
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_inserted", None):
-                observer.item_inserted(self, key, value, before_index)
+        super(StorageBase, self).notify_insert_item(key, value, before_index)
 
     def notify_remove_item(self, key, value, index):
         assert value is not None
@@ -481,10 +516,7 @@ class StorageBase(Broadcaster):
         if self.storage_cache:
             value.storage_cache = None
         value.remove_parent(self)
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_removed", None):
-                observer.item_removed(self, key, value, index)
+        super(StorageBase, self).notify_remove_item(key, value, index)
 
     def rewrite(self):
         assert self.datastore is not None
