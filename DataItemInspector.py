@@ -394,32 +394,55 @@ class GraphicsInspector(InspectorSection):
     def data_item_display_content_changed(self):
         self.add_task("update", lambda: self.update())
 
+    # not thread safe
     def __create_graphic_widget(self, graphic_section_index, graphic, image_size, calibrations):
         graphic_widget = self.ui.create_column_widget()
         graphic_title_row = self.ui.create_row_widget()
-        graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 40})
+        graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 20})
         graphic_title_type_label = self.ui.create_label_widget()
         graphic_title_row.add(graphic_title_index_label)
         graphic_title_row.add(graphic_title_type_label)
         graphic_title_row.add_stretch()
         graphic_widget.add(graphic_title_row)
         if isinstance(graphic, Graphics.LineGraphic):
-            # calculate values from line graphic
-            start_image = (image_size[0] * graphic.start[0], image_size[1] * graphic.start[1])
-            end_image = (image_size[0] * graphic.end[0], image_size[1] * graphic.end[1])
-            start_x_str = calibrations[1].convert_to_calibrated_value_str(start_image[1])
-            start_y_str = calibrations[0].convert_to_calibrated_value_str(start_image[0])
-            end_x_str = calibrations[1].convert_to_calibrated_value_str(end_image[1])
-            end_y_str = calibrations[0].convert_to_calibrated_value_str(end_image[0])
+            # configure the bindings
+            x_converter = DataItem.CalibratedFloatToStringConverter(calibrations[1], image_size[1])
+            y_converter = DataItem.CalibratedFloatToStringConverter(calibrations[0], image_size[0])
+            start_x_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "start", 1)
+            start_y_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "start", 0)
+            start_x_binding.converter = x_converter
+            start_y_binding.converter = y_converter
+            end_x_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "end", 1)
+            end_y_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "end", 0)
+            end_x_binding.converter = x_converter
+            end_y_binding.converter = y_converter
             # create the ui
             graphic_title_type_label.text = _("Line")
             graphic_start_row = self.ui.create_row_widget()
-            graphic_start_row.add_spacing(40)
-            graphic_start_row.add(self.ui.create_label_widget("{0}, {1}".format(start_x_str, start_y_str)))
+            graphic_start_row.add_spacing(20)
+            graphic_start_row.add(self.ui.create_label_widget(_("Start"), properties={"width": 40}))
+            graphic_start_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
+            graphic_start_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
+            graphic_start_x_line_edit.on_editing_finished = lambda text: start_x_binding.update_source(text)
+            graphic_start_y_line_edit.on_editing_finished = lambda text: start_y_binding.update_source(text)
+            graphic_start_x_line_edit.text = start_x_binding.get_target_value()
+            graphic_start_y_line_edit.text = start_y_binding.get_target_value()
+            graphic_start_row.add(graphic_start_x_line_edit)
+            graphic_start_row.add_spacing(8)
+            graphic_start_row.add(graphic_start_y_line_edit)
             graphic_start_row.add_stretch()
             graphic_end_row = self.ui.create_row_widget()
-            graphic_end_row.add_spacing(40)
-            graphic_end_row.add(self.ui.create_label_widget("{0}, {1}".format(end_x_str, end_y_str)))
+            graphic_end_row.add_spacing(20)
+            graphic_end_row.add(self.ui.create_label_widget(_("End"), properties={"width": 40}))
+            graphic_end_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
+            graphic_end_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
+            graphic_end_x_line_edit.on_editing_finished = lambda text: end_x_binding.update_source(text)
+            graphic_end_y_line_edit.on_editing_finished = lambda text: end_y_binding.update_source(text)
+            graphic_end_x_line_edit.text = end_x_binding.get_target_value()
+            graphic_end_y_line_edit.text = end_y_binding.get_target_value()
+            graphic_end_row.add(graphic_end_x_line_edit)
+            graphic_end_row.add_spacing(8)
+            graphic_end_row.add(graphic_end_y_line_edit)
             graphic_end_row.add_stretch()
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_start_row)
