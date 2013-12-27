@@ -10,7 +10,7 @@ import weakref
 # none
 
 # local libraries
-# none
+from nion.swift import UserInterfaceUtility
 
 
 class QtKeyboardModifiers(object):
@@ -515,6 +515,7 @@ class QtDrawingContext(object):
         self.commands.extend(gradient.commands)
         return gradient
 
+
 class QtWidget(object):
     def __init__(self, proxy, widget_type, properties):
         self.proxy = proxy
@@ -528,6 +529,9 @@ class QtWidget(object):
     # subclsases should NOT call Qt code to delete anything here... that is done by the Qt code
     def close(self):
         self.widget = None
+
+    def periodic(self):
+        pass
 
     def update_properties(self):
         if self.widget:
@@ -883,6 +887,17 @@ class QtSliderWidget(QtWidget):
         self.proxy.Slider_connect(self.widget, self)
         self.minimum = self.__min
         self.maximum = self.__max
+        self.__binding = None
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+        super(QtSliderWidget, self).close()
+
+    def periodic(self):
+        super(QtSliderWidget, self).periodic()
+        if self.__binding:
+            self.__binding.periodic()
 
     def __get_value(self):
         return self.proxy.Slider_getValue(self.widget)
@@ -949,6 +964,16 @@ class QtSliderWidget(QtWidget):
     def slider_moved(self, value):
         if self.__on_slider_moved:
             self.__on_slider_moved(value)
+
+    def bind_value(self, binding_source, property_name):
+        class FloatTo100Converter(object):
+            def convert(self, value):
+                return int(value * 100)
+            def convert_back(self, value100):
+                return value100 / 100.0
+        self.__binding = UserInterfaceUtility.PropertyTwoWayBinding(binding_source, property_name, lambda value: self.__set_value(value), converter=FloatTo100Converter())
+        self.on_value_changed = lambda value: self.__binding.update_source(value)
+        self.value = self.__binding.get_target_value()
 
 
 class QtLineEditWidget(QtWidget):

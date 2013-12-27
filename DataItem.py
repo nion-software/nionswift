@@ -1203,14 +1203,15 @@ class DataItemBindingSource(Storage.Observable):
         Also allow access to the properties of the data item
         and allow them to be observed.
     """
-    def __init__(self):
-        super(DataItemBindingSource, self).__init__(data_item=None)
+    def __init__(self, data_item=None):
+        super(DataItemBindingSource, self).__init__()
         self.__data_item = None
         self.__initialized = True
         self.data_item = data_item
 
     def close(self):
         self.data_item = None
+        self.__initialized = False
 
     def __get_data_item(self):
         return self.__data_item
@@ -1231,7 +1232,7 @@ class DataItemBindingSource(Storage.Observable):
         if self.__dict__.has_key(name) or not self.__dict__.has_key('_DataItemBindingSource__initialized'):
             super(DataItemBindingSource, self).__setattr__(name, value)
         elif name == "data_item":
-            self.__set_data_item(value)
+            super(DataItemBindingSource, self).__setattr__(name, value)
         else:
             setattr(self.__data_item, name, value)
 
