@@ -60,33 +60,34 @@ class InfoInspector(InspectorSection):
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, ui, data_item_content_binding):
+    def __init__(self, ui, data_item_binding_source):
         super(InfoInspector, self).__init__(ui, _("Info"))
-        # initialize the binding. this will result in calls to data_item_info_changed.
-        self.data_item_content_binding = data_item_content_binding
-        self.data_item_content_binding.add_listener(self)
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_title_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
         self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_session_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "session_id"))
         self.info_section_session_row.add(self.info_session_label)
         self.info_section_session_row.add_stretch()
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
         self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_datetime_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "datetime_original_as_string"))
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         # format (size, datatype)
         self.info_section_format_row = self.ui.create_row_widget()
         self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
         self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_format_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "size_and_data_format_as_string"))
         self.info_section_format_row.add(self.info_format_label)
         self.info_section_format_row.add_stretch()
         # add all of the rows to the section content
@@ -94,24 +95,13 @@ class InfoInspector(InspectorSection):
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
-        # initial update
-        self.update()
 
-    def close(self):
-        self.data_item_content_binding.remove_listener(self)
-        super(InfoInspector, self).close()
-
-    # this gets called from the data_item_content_binding.
-    # thread safe
-    def data_item_display_content_changed(self):
-        self.add_task("update", lambda: self.update())
-
-    # not thread safe
-    def update(self):
-        self.info_title_label.text = self.data_item_content_binding.title
-        self.info_session_label.text = self.data_item_content_binding.session_id
-        self.info_datetime_label.text = self.data_item_content_binding.datetime_original_as_string
-        self.info_format_label.text = self.data_item_content_binding.size_and_data_format_as_string
+    def periodic(self):
+        super(InfoInspector, self).periodic()
+        self.info_title_label.periodic()  # widget
+        self.info_session_label.periodic()  # widget
+        self.info_datetime_label.periodic()  # widget
+        self.info_format_label.periodic()  # widget
 
 
 class ParamInspector(InspectorSection):
@@ -551,8 +541,8 @@ class DataItemInspector(object):
         self.widget = self.ui.create_column_widget()
         self.widget.add_spacing(6)
 
-        self.__inspectors.append(InfoInspector(self.ui, self.__data_item_content_binding))
-        self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
+        self.__inspectors.append(InfoInspector(self.ui, self.__data_item_binding_source))
+        # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))

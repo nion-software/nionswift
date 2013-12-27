@@ -864,6 +864,17 @@ class QtLabelWidget(QtWidget):
         super(QtLabelWidget, self).__init__(proxy, "label", properties)
         self.__text = None
         self.text = text
+        self.__binding = None
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+        super(QtLabelWidget, self).close()
+
+    def periodic(self):
+        super(QtLabelWidget, self).periodic()
+        if self.__binding:
+            self.__binding.periodic()
 
     def __get_text(self):
         return self.__text
@@ -871,6 +882,12 @@ class QtLabelWidget(QtWidget):
         self.__text = text if text else ""
         self.proxy.Label_setText(self.widget, unicode(self.__text))
     text = property(__get_text, __set_text)
+
+    # bind to text. takes ownership of binding.
+    def bind_text(self, binding):
+        self.__binding = binding
+        self.__binding.target_updater = lambda text: self.__set_text(text)
+        self.text = self.__binding.get_target_value()
 
 
 class QtSliderWidget(QtWidget):
@@ -965,6 +982,7 @@ class QtSliderWidget(QtWidget):
         if self.__on_slider_moved:
             self.__on_slider_moved(value)
 
+    # bind to value. takes ownership of binding.
     def bind_value(self, binding):
         self.__binding = binding
         self.__binding.target_updater = lambda value: self.__set_value(value)
@@ -1037,6 +1055,7 @@ class QtLineEditWidget(QtWidget):
         if self.__on_text_edited:
             self.__on_text_edited(text)
 
+    # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         def update_field(text):
             self.text = text
