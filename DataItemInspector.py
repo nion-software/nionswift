@@ -8,6 +8,7 @@ import logging
 # local libraries
 from nion.swift import DataItem
 from nion.swift import Decorators
+from nion.swift import Graphics
 from nion.swift import Storage
 from nion.swift import UserInterfaceUtility
 
@@ -368,6 +369,129 @@ class DisplayLimitsInspector(InspectorSection):
             self.update()  # clean up displayed values
 
 
+class GraphicsInspector(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement graphics inspector.
+        """
+
+    def __init__(self, ui, data_item_content_binding):
+        super(GraphicsInspector, self).__init__(ui, _("Graphics"))
+        # initialize the binding. this will result in calls to display_limits_changed.
+        self.data_item_content_binding = data_item_content_binding
+        self.data_item_content_binding.add_listener(self)
+        # ui
+        self.graphic_sections = self.ui.create_column_widget()
+        self.add_widget_to_content(self.graphic_sections)
+        # initial update
+        self.update()
+
+    def close(self):
+        self.data_item_content_binding.remove_listener(self)
+
+    # this gets called from the data_item_content_binding
+    # thread safe
+    def data_item_display_content_changed(self):
+        self.add_task("update", lambda: self.update())
+
+    def __create_graphic_widget(self, graphic_section_index, graphic, image_size, calibrations):
+        graphic_widget = self.ui.create_column_widget()
+        graphic_title_row = self.ui.create_row_widget()
+        graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 40})
+        graphic_title_type_label = self.ui.create_label_widget()
+        graphic_title_row.add(graphic_title_index_label)
+        graphic_title_row.add(graphic_title_type_label)
+        graphic_title_row.add_stretch()
+        graphic_widget.add(graphic_title_row)
+        if isinstance(graphic, Graphics.LineGraphic):
+            # calculate values from line graphic
+            start_image = (image_size[0] * graphic.start[0], image_size[1] * graphic.start[1])
+            end_image = (image_size[0] * graphic.end[0], image_size[1] * graphic.end[1])
+            start_x_str = calibrations[1].convert_to_calibrated_value_str(start_image[1])
+            start_y_str = calibrations[0].convert_to_calibrated_value_str(start_image[0])
+            end_x_str = calibrations[1].convert_to_calibrated_value_str(end_image[1])
+            end_y_str = calibrations[0].convert_to_calibrated_value_str(end_image[0])
+            # create the ui
+            graphic_title_type_label.text = _("Line")
+            graphic_start_row = self.ui.create_row_widget()
+            graphic_start_row.add_spacing(40)
+            graphic_start_row.add(self.ui.create_label_widget("{0}, {1}".format(start_x_str, start_y_str)))
+            graphic_start_row.add_stretch()
+            graphic_end_row = self.ui.create_row_widget()
+            graphic_end_row.add_spacing(40)
+            graphic_end_row.add(self.ui.create_label_widget("{0}, {1}".format(end_x_str, end_y_str)))
+            graphic_end_row.add_stretch()
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_start_row)
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_end_row)
+            graphic_widget.add_spacing(4)
+        if isinstance(graphic, Graphics.RectangleGraphic):
+            # calculate values from rectangle graphic
+            size_image = (image_size[0] * graphic.bounds[1][0], image_size[1] * graphic.bounds[1][1])
+            origin_image = (size_image[0] * 0.5 + image_size[0] * graphic.bounds[0][0] - 0.5 * image_size[0],
+            size_image[1] * 0.5 + image_size[1] * graphic.bounds[0][1] - 0.5 * image_size[1])
+            origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
+            origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
+            size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
+            size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
+            # create the ui
+            graphic_title_type_label.text = _("Rectangle")
+            graphic_center_row = self.ui.create_row_widget()
+            graphic_center_row.add_spacing(40)
+            graphic_center_row.add(self.ui.create_label_widget("{0}, {1}".format(origin_x_str, origin_y_str)))
+            graphic_center_row.add_stretch()
+            graphic_size_row = self.ui.create_row_widget()
+            graphic_size_row.add_spacing(40)
+            graphic_size_row.add(self.ui.create_label_widget("{0} x {1}".format(size_x_str, size_y_str)))
+            graphic_size_row.add_stretch()
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_center_row)
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_size_row)
+            graphic_widget.add_spacing(4)
+        if isinstance(graphic, Graphics.EllipseGraphic):
+            # calculate values from ellipse graphic
+            size_image = (image_size[0] * graphic.bounds[1][0], image_size[1] * graphic.bounds[1][1])
+            origin_image = (size_image[0] * 0.5 + image_size[0] * graphic.bounds[0][0] - 0.5 * image_size[0],
+            size_image[1] * 0.5 + image_size[1] * graphic.bounds[0][1] - 0.5 * image_size[1])
+            origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
+            origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
+            size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
+            size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
+            # create the ui
+            graphic_title_type_label.text = _("Ellipse")
+            graphic_center_row = self.ui.create_row_widget()
+            graphic_center_row.add_spacing(40)
+            graphic_center_row.add(self.ui.create_label_widget("{0}, {1}".format(origin_x_str, origin_y_str)))
+            graphic_center_row.add_stretch()
+            graphic_size_row = self.ui.create_row_widget()
+            graphic_size_row.add_spacing(40)
+            graphic_size_row.add(self.ui.create_label_widget("{0} x {1}".format(size_x_str, size_y_str)))
+            graphic_size_row.add_stretch()
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_center_row)
+            graphic_widget.add_spacing(4)
+            graphic_widget.add(graphic_size_row)
+            graphic_widget.add_spacing(4)
+        return graphic_widget
+
+    # not thread safe
+    def update(self):
+        image_size = self.data_item_content_binding.spatial_shape
+        calibrations = self.data_item_content_binding.calculated_calibrations
+        graphics = self.data_item_content_binding.graphics
+        if len(graphics) > 0:
+            while self.graphic_sections.count() > 0:
+                self.graphic_sections.remove(self.graphic_sections.count() - 1)
+            while self.graphic_sections.count() < len(graphics):
+                graphic_section_index = self.graphic_sections.count()
+                self.graphic_sections.add(self.__create_graphic_widget(graphic_section_index, graphics[graphic_section_index], image_size, calibrations))
+        else:
+            while self.graphic_sections.count() > 0:
+                self.graphic_sections.remove(self.graphic_sections.count() - 1)
+
+
 class DataItemContentBinding(Storage.Broadcaster):
 
     """
@@ -420,6 +544,7 @@ class DataItemInspector(object):
         #self.__inspectors.append(ParamInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))
 
         for inspector in self.__inspectors:
             self.widget.add(inspector.widget)
