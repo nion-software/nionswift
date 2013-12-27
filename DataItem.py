@@ -195,6 +195,7 @@ class HistogramThread(ProcessingThread):
 # graphic items: roi's
 
 # calibrations: calibration for each dimension
+# display_calibrated_values: whether calibrated units are displayed
 
 # data: data with all operations applied
 
@@ -248,7 +249,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "properties"]
+        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties"]
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -261,6 +262,7 @@ class DataItem(Storage.StorageBase):
         self.__datetime_original = Utility.get_current_datetime_element()
         self.__datetime_modified = self.__datetime_original
         self.calibrations = Storage.MutableRelationship(self, "calibrations")
+        self.__display_calibrated_values = True
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
@@ -317,6 +319,7 @@ class DataItem(Storage.StorageBase):
         properties = datastore.get_property(item_node, "properties")
         display_limits = datastore.get_property(item_node, "display_limits")
         calibrations = datastore.get_items(item_node, "calibrations")
+        display_calibrated_values = datastore.get_property(item_node, "display_calibrated_values")
         datetime_modified = datastore.get_property(item_node, "datetime_modified")
         datetime_original = datastore.get_property(item_node, "datetime_original")
         graphics = datastore.get_items(item_node, "graphics")
@@ -340,6 +343,8 @@ class DataItem(Storage.StorageBase):
         while len(data_item.calibrations):
             data_item.calibrations.pop()
         data_item.calibrations.extend(calibrations)
+        if display_calibrated_values is not None:
+            data_item.display_calibrated_values = display_calibrated_values
         if display_limits:
             data_item.display_limits = display_limits
         if datetime_modified:
@@ -489,6 +494,14 @@ class DataItem(Storage.StorageBase):
         return len(self.calibrations) == len(self.spatial_shape)
     is_calibrated = property(__is_calibrated)
 
+    def __get_display_calibrated_values(self):
+        return self.__display_calibrated_values
+    def __set_display_calibrated_values(self, display_calibrated_values):
+        self.__display_calibrated_values = display_calibrated_values
+        self.notify_set_property("display_calibrated_values", display_calibrated_values)
+        self.notify_data_item_content_changed(set([DISPLAY]))
+    display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
+
     # date times
 
     def __get_datetime_modified(self):
@@ -559,8 +572,17 @@ class DataItem(Storage.StorageBase):
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
+        calibrations = None
         # if calibrations are set on this item, use it, giving it precedence
-        calibrations = self.calibrations
+        if self.calibrations:
+            if self.display_calibrated_values:
+                # use actual calibrations
+                calibrations = self.calibrations
+            else:
+                # construct empty calibrations to display pixels
+                calibrations = list()
+                for _ in xrange(0, len(self.spatial_shape)):
+                    calibrations.append(Calibration(0.0, 1.0, None))
         # if calibrations are not set, then try to get them from the data source
         if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
@@ -1076,6 +1098,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy.datetime_original = copy.copy(self.datetime_original)
         for calibration in self.calibrations:
             data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))
+        data_item_copy.display_calibrated_values = self.display_calibrated_values
         # graphic must be copied before operation, since operations can
         # depend on graphics.
         for graphic in self.graphics:

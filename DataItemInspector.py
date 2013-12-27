@@ -186,6 +186,12 @@ class CalibrationsInspector(InspectorSection):
         self.calibrations_table.add(self.calibrations_labels)
         self.calibrations_table.add(self.calibrations_column_row)
         self.add_widget_to_content(self.calibrations_table)
+        self.display_calibrations_row = self.ui.create_row_widget()
+        self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
+        self.display_calibrations_checkbox.on_state_changed = lambda state: self.display_calibrations_changed(state)
+        self.display_calibrations_row.add(self.display_calibrations_checkbox)
+        self.display_calibrations_row.add_stretch()
+        self.add_widget_to_content(self.display_calibrations_row)
         # initial update
         self.update()
 
@@ -199,6 +205,7 @@ class CalibrationsInspector(InspectorSection):
 
     # not thread safe
     def update(self):
+        self.display_calibrations_checkbox.check_state = "checked" if self.data_item_content_binding.display_calibrated_values else "unchecked"
         # calibrations
         # first match the number of rows to the number of calibrations
         # then populate
@@ -275,6 +282,10 @@ class CalibrationsInspector(InspectorSection):
 
     def calibration_units_editing_finished(self, calibration_index, text):
         self.data_item_content_binding.calibrations[calibration_index].units = text
+        self.update()  # clean up displayed values
+
+    def display_calibrations_changed(self, state):
+        self.data_item_content_binding.display_calibrated_values = state == "checked"
         self.update()  # clean up displayed values
 
 

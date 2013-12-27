@@ -311,6 +311,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.begin_path()
 
             if self.data_item.is_calibrated:  # display scale marker?
+                calibrations = self.data_item.calculated_calibrations
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
@@ -318,9 +319,9 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = Graphics.make_pretty(scale_marker_image_width * self.data_item.calibrations[0].scale)
+                    calibrated_scale_marker_width = Graphics.make_pretty(scale_marker_image_width * calibrations[0].scale)
                     # update the scale marker width
-                    scale_marker_image_width = calibrated_scale_marker_width / self.data_item.calibrations[0].scale
+                    scale_marker_image_width = calibrated_scale_marker_width / calibrations[0].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
                     drawing_context.begin_path()
                     drawing_context.move_to(origin[1], origin[0])
@@ -335,7 +336,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.font = "normal 14px serif"
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
-                    drawing_context.fill_text(self.data_item.calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                    drawing_context.fill_text(calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                     data_item_properties = self.data_item.properties
                     info_items = list()
                     voltage = data_item_properties.get("extra_high_tension", 0)
