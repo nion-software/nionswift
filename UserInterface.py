@@ -806,14 +806,22 @@ class QtPushButtonWidget(QtWidget):
         super(QtPushButtonWidget, self).__init__(proxy, "pushbutton", properties)
         self.__on_clicked = None
         self.text = text
+        self.icon = None
         self.proxy.PushButton_connect(self.widget, self)
 
     def __get_text(self):
         return self.__text
     def __set_text(self, text):
         self.__text = text
-        self.proxy.PushButton_setText(self.widget, unicode(text))
+        self.proxy.PushButton_setText(self.widget, unicode(text) if text else unicode())
     text = property(__get_text, __set_text)
+
+    def __get_icon(self):
+        return self.__icon
+    def __set_icon(self, rgba_image):
+        self.__icon = rgba_image
+        self.proxy.PushButton_setIcon(self.widget, rgba_image)
+    icon = property(__get_icon, __set_icon)
 
     def __get_on_clicked(self):
         return self.__on_clicked
