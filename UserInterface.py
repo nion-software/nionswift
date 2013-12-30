@@ -886,7 +886,7 @@ class QtLabelWidget(QtWidget):
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         self.__binding = binding
-        self.__binding.target_updater = lambda text: self.__set_text(text)
+        self.__binding.target_setter = lambda text: self.__set_text(text)
         self.text = self.__binding.get_target_value()
 
 
@@ -985,7 +985,7 @@ class QtSliderWidget(QtWidget):
     # bind to value. takes ownership of binding.
     def bind_value(self, binding):
         self.__binding = binding
-        self.__binding.target_updater = lambda value: self.__set_value(value)
+        self.__binding.target_setter = lambda value: self.__set_value(value)
         self.on_value_changed = lambda value: self.__binding.update_source(value)
         self.value = self.__binding.get_target_value()
 
@@ -1062,7 +1062,7 @@ class QtLineEditWidget(QtWidget):
             if self.focused:
                 self.select_all()
         self.__binding = binding
-        self.__binding.target_updater = update_field
+        self.__binding.target_setter = update_field
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
         self.text = self.__binding.get_target_value()
 

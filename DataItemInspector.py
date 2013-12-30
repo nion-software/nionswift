@@ -236,7 +236,7 @@ class CalibrationsInspector(InspectorSection):
             scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
             units_field = self.ui.create_line_edit_widget(properties={"width": 60})
             # binding
-            row_label.bind_text(UserInterfaceUtility.Binding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
+            row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
             origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
             scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
             units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
@@ -542,7 +542,7 @@ class DataItemInspector(object):
         def update_data_item(data_item):
             self.__data_item_binding_source.data_item = data_item
         self.__data_item_binding = UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "data_item")
-        self.__data_item_binding.target_updater = update_data_item
+        self.__data_item_binding.target_setter = update_data_item
 
         # ui
 
