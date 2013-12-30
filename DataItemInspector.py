@@ -148,20 +148,19 @@ class CalibrationsInspector(InspectorSection):
         self.data_item_content_binding = data_item_content_binding
         self.data_item_content_binding.add_listener(self)
         # ui
-        self.calibrations_table = self.ui.create_column_widget()
-        self.calibrations_labels = self.ui.create_column_widget()
-        self.calibrations_column = self.ui.create_column_widget(properties={"spacing": 4, "margin-top": 4})
-        self.calibrations_column_row = self.ui.create_row_widget()
-        self.calibrations_column_row.add(self.calibrations_column)
-        self.calibrations_table.add(self.calibrations_labels)
-        self.calibrations_table.add(self.calibrations_column_row)
-        self.add_widget_to_content(self.calibrations_table)
+        self.header_and_content_section = self.ui.create_column_widget()
+        self.header_section = self.ui.create_column_widget()
+        self.content_section = self.ui.create_column_widget(properties={"spacing": 4, "margin-top": 4})
+        self.header_and_content_section.add(self.header_section)
+        self.header_and_content_section.add(self.content_section)
+        self.add_widget_to_content(self.header_and_content_section)
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
         self.display_calibrations_checkbox.on_state_changed = lambda state: self.display_calibrations_changed(state)
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
+        self.widget_rows = list()
         # initial update
         self.update()
 
@@ -182,8 +181,10 @@ class CalibrationsInspector(InspectorSection):
         # then populate
         calibrations = self.data_item_content_binding.calibrations
         if len(calibrations) > 0:
-            while self.calibrations_labels.count() > 0:
-                self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
+            # remove all rows in the header section
+            while self.header_section.count() > 0:
+                self.header_section.remove(self.header_section.count() - 1)
+            # create the header row
             calibration_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget("Axis", properties={"width": 60})
             origin_field = self.ui.create_label_widget("Origin", properties={"width": 60})
@@ -200,27 +201,47 @@ class CalibrationsInspector(InspectorSection):
             calibration_header_column = self.ui.create_column_widget()
             calibration_header_column.add(calibration_row)
             calibration_header_column.add_spacing(2)
-            self.calibrations_labels.add(calibration_header_column)
+            self.header_section.add(calibration_header_column)
         else:
-            while self.calibrations_labels.count() > 0:
-                self.calibrations_labels.remove(self.calibrations_labels.count() - 1)
+            # remove all rows in the header section
+            while self.header_section.count() > 0:
+                self.header_section.remove(self.header_section.count() - 1)
+            # create a 'None' display
             self.calibrations_none_column = self.ui.create_column_widget()
             self.calibrations_none_column.add_spacing(2)
             self.calibrations_none_row = self.ui.create_row_widget()
             self.calibrations_none_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
             self.calibrations_none_column.add(self.calibrations_none_row)
-            self.calibrations_labels.add(self.calibrations_none_column)
-        while self.calibrations_column.count() < len(calibrations):
-            calibration_index = self.calibrations_column.count()
+            self.header_section.add(self.calibrations_none_column)
+        # convert list item to index string
+        class CalibrationToIndexStringConverter(object):
+            """
+                Convert from calibration to index within calibration list.
+                Back conversion is not implemented.
+                """
+            def __init__(self, calibrations):
+                self.__calibrations = calibrations
+            def convert(self, value):
+                return str(calibrations.index(value))
+            def convert_back(self, str):
+                raise NotImplementedError()
+        row_index_converter = CalibrationToIndexStringConverter(calibrations)
+        # create a row for each calibration
+        while self.content_section.count() < len(calibrations):
+            calibration_index = self.content_section.count()
+            calibration = calibrations[calibration_index]
             calibration_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(properties={"width": 60})
             origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
             scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
             units_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            # binding
+            row_label.bind_text(UserInterfaceUtility.Binding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
+            origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
+            scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
+            units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
+            self.widget_rows.append((row_label, origin_field, scale_field, units_field))
             # notice the binding of calibration_index below.
-            origin_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_origin_editing_finished(i, text)
-            scale_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_scale_editing_finished(i, text)
-            units_field.on_editing_finished = lambda text, i=calibration_index: self.calibration_units_editing_finished(i, text)
             calibration_row.add(row_label)
             calibration_row.add_spacing(12)
             calibration_row.add(origin_field)
@@ -229,35 +250,23 @@ class CalibrationsInspector(InspectorSection):
             calibration_row.add_spacing(12)
             calibration_row.add(units_field)
             calibration_row.add_stretch()
-            self.calibrations_column.add(calibration_row)
-        while self.calibrations_column.count() > len(calibrations):
-            self.calibrations_column.remove(len(calibrations) - 1)
-        for calibration_index, calibration in enumerate(calibrations):
-            calibration_row = self.calibrations_column.children[calibration_index]
-            calibration_row.children[0].text = "{0:d}".format(calibration_index)
-            calibration_row.children[1].text = "{0:.2f}".format(calibration.origin)
-            calibration_row.children[2].text = "{0:.2f}".format(calibration.scale)
-            calibration_row.children[3].text = calibration.units
-            for child_index in xrange(1, 4):
-                if calibration_row.children[child_index].focused:
-                    calibration_row.children[child_index].select_all()
-
-    # handle calibration editing
-    def calibration_origin_editing_finished(self, calibration_index, text):
-        self.data_item_content_binding.calibrations[calibration_index].origin = float(text)
-        self.update()  # clean up displayed values
-
-    def calibration_scale_editing_finished(self, calibration_index, text):
-        self.data_item_content_binding.calibrations[calibration_index].scale = float(text)
-        self.update()  # clean up displayed values
-
-    def calibration_units_editing_finished(self, calibration_index, text):
-        self.data_item_content_binding.calibrations[calibration_index].units = text
-        self.update()  # clean up displayed values
+            self.content_section.add(calibration_row)
+        # remove extra rows in the content section
+        while self.content_section.count() > len(calibrations):
+            self.content_section.remove(len(calibrations) - 1)
+            del self.widget_rows[-1]
 
     def display_calibrations_changed(self, state):
         self.data_item_content_binding.display_calibrated_values = state == "checked"
         self.update()  # clean up displayed values
+
+    def periodic(self):
+        super(CalibrationsInspector, self).periodic()
+        for row_label, origin_field, scale_field, units_field in self.widget_rows:
+            row_label.periodic()
+            origin_field.periodic()
+            scale_field.periodic()
+            units_field.periodic()
 
 
 class DisplayLimitsInspector(InspectorSection):

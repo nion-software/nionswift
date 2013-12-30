@@ -45,8 +45,10 @@ class FloatToStringConverter(object):
     """
         Convert from float value to string and back.
     """
+    def __init__(self, format=None):
+        self.__format = format if format else "{:g}"
     def convert(self, value):
-        return "%g" % float(value)
+        return self.__format.format(value)
     def convert_back(self, str):
         return float(str)
 
@@ -71,6 +73,69 @@ class FloatToPercentStringConverter(object):
         return float(str.strip('%'))/100.0
 
 
+class Binding(Storage.Observable):
+
+    """
+        Binds to a source object.
+    """
+
+    def __init__(self, source, converter=None):
+        super(Binding, self).__init__()
+        self.__task_set = Decorators.TaskSet()
+        self.__source = None
+        self.__converter = converter
+        self.target_updater = None
+        self.source = source
+
+    # not thread safe
+    def close(self):
+        self.source = None
+
+    # not thread safe
+    def periodic(self):
+        self.__task_set.perform_tasks()
+
+    # thread safe
+    def add_task(self, key, task):
+        self.__task_set.add_task(key, task)
+
+    # thread safe
+    def __get_source(self):
+        return self.__source
+    def __set_source(self, source):
+        if self.__source:
+            self.__source.remove_observer(self)
+        self.__source = source
+        if self.__source:
+            self.__source.add_observer(self)
+        self.notify_set_property("source", source)
+    source = property(__get_source, __set_source)
+
+    # thread safe
+    def __back_converted_value(self, target_value):
+        return self.__converter.convert_back(target_value) if self.__converter else target_value
+
+    # thread safe
+    def __converted_value(self, source_value):
+        return self.__converter.convert(source_value) if self.__converter else source_value
+
+    # thread safe
+    def update_source(self, target_value):
+        raise NotImplementedError()
+
+    # not thread safe
+    def update_target(self, source_value):
+        if self.target_updater:
+            converted_value = self.__converted_value(source_value)
+            self.target_updater(converted_value)
+
+    # thread safe
+    def get_target_value(self):
+        if self.__source:
+            return self.__converted_value(self.__source)
+        return None
+
+
 class PropertyBinding(Storage.Observable):
 
     """
@@ -87,16 +152,15 @@ class PropertyBinding(Storage.Observable):
     def __init__(self, source, property_name, converter=None):
         super(PropertyBinding, self).__init__()
         self.__task_set = Decorators.TaskSet()
-        self.__source = source
+        self.__source = None
         self.__property_name = property_name
-        self.__source.add_observer(self)
         self.__converter = converter
-        self.__source.add_observer(self)
         self.target_updater = None
+        self.source = source
 
     # not thread safe
     def close(self):
-        self.__source.remove_observer(self)
+        self.source = None
 
     # not thread safe
     def periodic(self):
@@ -110,7 +174,11 @@ class PropertyBinding(Storage.Observable):
     def __get_source(self):
         return self.__source
     def __set_source(self, source):
+        if self.__source:
+            self.__source.remove_observer(self)
         self.__source = source
+        if self.__source:
+            self.__source.add_observer(self)
         self.notify_set_property("source", source)
     source = property(__get_source, __set_source)
 
@@ -130,8 +198,9 @@ class PropertyBinding(Storage.Observable):
 
     # thread safe
     def update_source(self, target_value):
-        converted_value = self.__back_converted_value(target_value)
-        setattr(self.__source, self.__property_name, converted_value)
+        if self.__source:
+            converted_value = self.__back_converted_value(target_value)
+            setattr(self.__source, self.__property_name, converted_value)
 
     # not thread safe
     def update_target(self, source_value):
@@ -141,7 +210,9 @@ class PropertyBinding(Storage.Observable):
 
     # thread safe
     def get_target_value(self):
-        return self.__converted_value(getattr(self.__source, self.__property_name))
+        if self.__source:
+            return self.__converted_value(getattr(self.__source, self.__property_name))
+        return None
 
 
 class TupleOneWayToSourceBinding(object):
