@@ -524,6 +524,7 @@ class QtWidget(object):
         self.update_properties()
         self.__visible = True
         self.__enabled = True
+        self.__tool_tip = None
 
     # subclasses should override to clear their variable.
     # subclsases should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -569,6 +570,14 @@ class QtWidget(object):
     def __set_size(self, size):
         self.proxy.Widget_setWidgetSize(self.widget, int(size[1]), int(size[0]))
     size = property(__get_size, __set_size)
+
+    def __get_tool_tip(self):
+        return self.__tool_tip
+    def __set_tool_tip(self, tool_tip):
+        if tool_tip != self.__tool_tip:
+            self.proxy.Widget_setToolTip(self.widget, unicode(tool_tip) if tool_tip else unicode())
+            self.__tool_tip = tool_tip
+    tool_tip = property(__get_tool_tip, __set_tool_tip)
 
     def add_overlay(self, overlay):
         self.proxy.Widget_addOverlay(self.widget, overlay.widget)
