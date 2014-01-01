@@ -1432,6 +1432,53 @@ class QtListWidget(QtWidget):
             self.on_focus_changed(False)
 
 
+class QtNewListWidget(QtColumnWidget):
+
+    def __init__(self, proxy, ui, create_list_item_widget, header_widget, header_for_empty_list_widget, properties):
+        super(QtNewListWidget, self).__init__(proxy, properties)
+        self.ui = ui
+        self.__binding = None
+        self.header_stack = self.ui.create_stack_widget()
+        self.content_section = self.ui.create_column_widget(properties={"spacing": 4, "margin-top": 4})
+        self.add(self.header_stack)
+        self.add(self.content_section)
+        self.create_list_item_widget = create_list_item_widget
+        # add headers to the header stack
+        self.header_stack.add(header_widget)
+        self.header_stack.add(header_for_empty_list_widget)
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+        super(QtNewListWidget, self).close()
+
+    def periodic(self):
+        super(QtNewListWidget, self).periodic()
+        if self.__binding:
+            self.__binding.periodic()
+
+    def __insert_item(self, item, before_index):
+        item_row = self.create_list_item_widget(item)
+        self.content_section.insert(item_row, before_index)
+        self.__sync_header()
+
+    def __remove_item(self, index):
+        self.content_section.remove(index)
+        self.__sync_header()
+
+    def __sync_header(self):
+        # select the right header item
+        self.header_stack.current_index = 0 if self.content_section.count() > 0 else 1
+
+    def bind_items(self, binding):
+        self.__binding = binding
+        self.__binding.inserter = lambda item, before_index: self.__insert_item(item, before_index)
+        self.__binding.remover = lambda index: self.__remove_item(index)
+        for index, item in enumerate(binding.items):
+            self.__insert_item(item, index)
+        self.__sync_header()
+
+
 class QtOutputWidget(QtWidget):
 
     def __init__(self, proxy, properties):
@@ -1685,6 +1732,9 @@ class QtUserInterface(object):
 
     def create_list_widget(self, properties=None):
         return QtListWidget(self.proxy, properties)
+
+    def create_new_list_widget(self, create_list_item_widget, header_widget, header_for_empty_list_widget, properties=None):
+        return QtNewListWidget(self.proxy, self, create_list_item_widget, header_widget, header_for_empty_list_widget, properties)
 
     def create_output_widget(self, properties=None):
         return QtOutputWidget(self.proxy, properties)

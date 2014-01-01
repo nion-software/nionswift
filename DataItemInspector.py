@@ -130,25 +130,23 @@ class CalibrationsInspector(InspectorSection):
         Subclass InspectorSection to implement calibrations inspector.
     """
 
-    def __init__(self, ui, data_item_content_binding):
+    def __init__(self, ui, data_item_binding_source, data_item_content_binding):
         super(CalibrationsInspector, self).__init__(ui, _("Calibrations"))
         # initialize the binding. this will result in calls to display_limits_changed.
         self.data_item_content_binding = data_item_content_binding
         self.data_item_content_binding.add_listener(self)
         # ui
-        self.header_and_content_section = self.ui.create_column_widget()
-        self.header_section = self.ui.create_column_widget()
-        self.content_section = self.ui.create_column_widget(properties={"spacing": 4, "margin-top": 4})
-        self.header_and_content_section.add(self.header_section)
-        self.header_and_content_section.add(self.content_section)
-        self.add_widget_to_content(self.header_and_content_section)
+        header_widget = self.__create_header_widget()
+        header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
+        self.list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        self.list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "calibrations"))
+        self.add_widget_to_content(self.list_widget)
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
         self.display_calibrations_checkbox.on_state_changed = lambda state: self.display_calibrations_changed(state)
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
-        self.periodic_widgets = list()
         # initial update
         self.update()
 
@@ -156,13 +154,8 @@ class CalibrationsInspector(InspectorSection):
         self.data_item_content_binding.remove_listener(self)
         super(CalibrationsInspector, self).close()
 
-    # this gets called from the data_item_content_binding
-    # thread safe
-    def data_item_display_content_changed(self):
-        self.add_task("update", lambda: self.update())
-
     # not thead safe
-    def create_header(self):
+    def __create_header_widget(self):
         header_row = self.ui.create_row_widget()
         axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
         origin_header_label = self.ui.create_label_widget("Origin", properties={"width": 60})
@@ -179,14 +172,13 @@ class CalibrationsInspector(InspectorSection):
         return header_row
 
     # not thread safe
-    def create_header_for_empty_list(self):
+    def __create_header_for_empty_list_widget(self):
         header_for_empty_list_row = self.ui.create_row_widget()
         header_for_empty_list_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
         return header_for_empty_list_row
 
-    # not thread safe
-    def create_content_for_list_item(self, calibrations, calibration_index):
-        calibration = calibrations[calibration_index]
+    # not thread safe.
+    def __create_list_item_widget(self, calibration):
         calibration_row = self.ui.create_row_widget()
         row_label = self.ui.create_label_widget(properties={"width": 60})
         origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
@@ -201,11 +193,11 @@ class CalibrationsInspector(InspectorSection):
             def __init__(self, calibrations):
                 self.__calibrations = calibrations
             def convert(self, value):
-                return str(calibrations.index(value))
+                return str(self.__calibrations.index(value))
             def convert_back(self, str):
                 raise NotImplementedError()
         # binding
-        row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
+        row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.data_item_content_binding.calibrations)))
         origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
         scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
         units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
@@ -218,47 +210,16 @@ class CalibrationsInspector(InspectorSection):
         calibration_row.add_spacing(12)
         calibration_row.add(units_field)
         calibration_row.add_stretch()
-        return calibration_row, (row_label, origin_field, scale_field, units_field)
+        return calibration_row
+
+    # this gets called from the data_item_content_binding
+    # thread safe
+    def data_item_display_content_changed(self):
+        self.add_task("update", lambda: self.update())
 
     # not thread safe
     def update(self):
         self.display_calibrations_checkbox.check_state = "checked" if self.data_item_content_binding.display_calibrated_values else "unchecked"
-        # calibrations
-        # first match the number of rows to the number of calibrations
-        # then populate
-        calibrations = self.data_item_content_binding.calibrations
-        if len(calibrations) > 0:
-            # remove all rows in the header section
-            while self.header_section.count() > 0:
-                self.header_section.remove(self.header_section.count() - 1)
-            # create the header row
-            header_row = self.create_header()
-            # create header subsection, so it can be deleted easily
-            header_subsection = self.ui.create_column_widget()
-            header_subsection.add(header_row)
-            header_subsection.add_spacing(2)
-            # add subsection to section
-            self.header_section.add(header_subsection)
-        else:
-            # remove all rows in the header section
-            while self.header_section.count() > 0:
-                self.header_section.remove(self.header_section.count() - 1)
-            # create header subsection, so it can be deleted easily
-            header_subsection = self.ui.create_column_widget()
-            header_subsection.add_spacing(2)
-            header_for_empty_list_row = self.create_header_for_empty_list()
-            header_subsection.add(header_for_empty_list_row)
-            self.header_section.add(header_subsection)
-        # create a row for each calibration
-        while self.content_section.count() < len(calibrations):
-            calibration_index = self.content_section.count()
-            calibration_row, periodic_items = self.create_content_for_list_item(calibrations, calibration_index)
-            self.periodic_widgets.append(periodic_items)
-            self.content_section.add(calibration_row)
-        # remove extra rows in the content section
-        while self.content_section.count() > len(calibrations):
-            self.content_section.remove(len(calibrations) - 1)
-            del self.periodic_widgets[-1]
 
     def display_calibrations_changed(self, state):
         self.data_item_content_binding.display_calibrated_values = state == "checked"
@@ -548,7 +509,7 @@ class DataItemInspector(object):
 
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_binding_source))
         # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_binding_source, self.__data_item_content_binding))
         self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))
 

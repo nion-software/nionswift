@@ -158,6 +158,48 @@ class ObjectBinding(Binding):
         self.source_getter = lambda: self.source
 
 
+class ListBinding(Binding):
+
+    """
+        Binds to a source object which is a list. One way from source to target.
+
+        The owner should call periodic and close on this object.
+    """
+
+    def __init__(self, source, key_name):
+        super(ListBinding, self).__init__(source)
+        self.__key_name = key_name
+        self.inserter = None
+        self.remover = None
+
+    # not thread safe
+    def insert_item(item, before_index):
+        if self.inserter:
+            self.inserter(item, before_index)
+
+    # not thread safe
+    def remove_item(index):
+        if self.remover:
+            self.remover(index)
+
+    # thread safe
+    def item_inserted(self, sender, key, object, before_index):
+        if sender == self.source and key == self.__key_name:
+            # perform on the main thread
+            self.add_task("insert_item", lambda: self.insert_item(item, before_index))
+
+    # thread safe
+    def item_removed(self, sender, key, object, index):
+        if sender == self.source and key == self.__key_name:
+            # perform on the main thread
+            self.add_task("remove_item", lambda: self.remove_item(index))
+
+    # thread safe
+    def __get_items(self):
+        return getattr(self.source, self.__key_name)
+    items = property(__get_items)
+
+
 class PropertyBinding(Binding):
 
     """

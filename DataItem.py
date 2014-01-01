@@ -1238,3 +1238,9 @@ class DataItemBindingSource(Storage.Observable):
 
     def property_changed(self, sender, property, value):
         self.notify_set_property(property, value)
+
+    def item_inserted(self, sender, key, object, before_index):
+        self.notify_insert_item(key, object, before_index)
+
+    def item_removed(self, container, key, object, index):
+        self.notify_remove_item(key, object, index)
