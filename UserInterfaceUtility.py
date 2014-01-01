@@ -73,6 +73,16 @@ class FloatToPercentStringConverter(object):
         return float(str.strip('%'))/100.0
 
 
+class CheckedToCheckStateConverter(object):
+    """
+        Convert from bool value to check state and back.
+    """
+    def convert(self, value):
+        return "checked" if value else "unchecked"
+    def convert_back(self, value):
+        return value == "checked"
+
+
 class Binding(Storage.Observable):
 
     """

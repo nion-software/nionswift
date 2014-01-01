@@ -866,9 +866,20 @@ class QtCheckBoxButtonWidget(QtWidget):
 
     def __init__(self, proxy, text, properties):
         super(QtCheckBoxButtonWidget, self).__init__(proxy, "checkbox", properties)
-        self.on_state_changed = None
+        self.on_check_state_changed = None
         self.text = text
         self.proxy.CheckBox_connect(self.widget, self)
+        self.__binding = None
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+        super(QtCheckBoxButtonWidget, self).close()
+
+    def periodic(self):
+        super(QtCheckBoxButtonWidget, self).periodic()
+        if self.__binding:
+            self.__binding.periodic()
 
     def __get_text(self):
         return self.__text
@@ -890,8 +901,15 @@ class QtCheckBoxButtonWidget(QtWidget):
     check_state = property(__get_check_state, __set_check_state)
 
     def stateChanged(self, check_state):
-        if self.on_state_changed:
-            self.on_state_changed(check_state)
+        if self.on_check_state_changed:
+            self.on_check_state_changed(check_state)
+
+    # bind to state. takes ownership of binding.
+    def bind_check_state(self, binding):
+        self.__binding = binding
+        self.__binding.target_setter = lambda check_state: self.__set_check_state(check_state)
+        self.on_check_state_changed = lambda check_state: self.__binding.update_source(check_state)
+        self.check_state = self.__binding.get_target_value()
 
 
 class QtLabelWidget(QtWidget):
