@@ -190,8 +190,9 @@ class CalibrationsInspector(InspectorSection):
                 raise NotImplementedError()
         # binding
         row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
-        origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
-        scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
+        float_point_2_converter = converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
+        origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=float_point_2_converter))
+        scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", float_point_2_converter))
         units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
         # notice the binding of calibration_index below.
         calibration_row.add(row_label)
@@ -211,15 +212,15 @@ class DisplayLimitsInspector(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, ui, data_item_content_binding):
+    def __init__(self, ui, data_item_binding_source, data_item_content_binding):
         super(DisplayLimitsInspector, self).__init__(ui, _("Display Limits"))
-        # initialize the binding. this will result in calls to display_limits_changed.
-        self.data_item_content_binding = data_item_content_binding
-        self.data_item_content_binding.add_listener(self)
         # configure the display limit editor
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 60})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 60})
+        float_point_2_converter = converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
+        self.display_limits_range_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -228,8 +229,8 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_limit_row = self.ui.create_row_widget()
         self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 60})
         self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 60})
-        self.display_limits_limit_low.on_editing_finished = lambda text: self.display_limit_low_editing_finished(text)
-        self.display_limits_limit_high.on_editing_finished = lambda text: self.display_limit_high_editing_finished(text)
+        self.display_limits_limit_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
@@ -237,52 +238,6 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_limit_row.add_stretch()
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
-        # initial update
-        self.update()
-
-    def close(self):
-        self.data_item_content_binding.remove_listener(self)
-        super(DisplayLimitsInspector, self).close()
-
-    # this gets called from the data_item_content_binding
-    # thread safe
-    def data_item_display_content_changed(self):
-        self.add_task("update", lambda: self.update())
-
-    # not thread safe
-    def update(self):
-        # display limits
-        data_range = self.data_item_content_binding.data_range
-        if data_range:
-            self.display_limits_range_low.text = "{0:.2f}".format(data_range[0])
-            self.display_limits_range_high.text = "{0:.2f}".format(data_range[1])
-        else:
-            self.display_limits_range_low.text = _("N/A")
-            self.display_limits_range_high.text = _("N/A")
-        display_range = self.data_item_content_binding.display_range
-        if display_range:
-            self.display_limits_limit_low.text = "{0:.2f}".format(display_range[0])
-            self.display_limits_limit_high.text = "{0:.2f}".format(display_range[1])
-        else:
-            self.display_limits_limit_low.text = _("N/A")
-            self.display_limits_limit_high.text = _("N/A")
-        if self.display_limits_limit_low.focused:
-            self.display_limits_limit_low.select_all()
-        if self.display_limits_limit_high.focused:
-            self.display_limits_limit_high.select_all()
-
-    # handle display limit editing
-    def display_limit_low_editing_finished(self, text):
-        if self.display_limits_range_low.text != text:
-            display_limit_low = float(text)
-            self.data_item_content_binding.display_limits = (display_limit_low, self.data_item_content_binding.display_range[1])
-            self.update()  # clean up displayed values
-
-    def display_limit_high_editing_finished(self, text):
-        if self.display_limits_range_high.text != text:
-            display_limit_high = float(text)
-            self.data_item_content_binding.display_limits = (self.data_item_content_binding.display_range[0], display_limit_high)
-            self.update()  # clean up displayed values
 
 
 class GraphicsInspector(InspectorSection):
@@ -489,7 +444,7 @@ class DataItemInspector(object):
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_binding_source))
         # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_binding_source, self.__data_item_content_binding))
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))
 
         for inspector in self.__inspectors:
