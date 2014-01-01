@@ -266,6 +266,9 @@ class DataItem(Storage.StorageBase):
         self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
+        self.register_dependent_key("master_data", "data_range")
+        self.register_dependent_key("data_range", "display_range")
+        self.register_dependent_key("display_limits", "display_range")
         self.description = []
         self.closed = False
         self.__title = None

@@ -182,7 +182,8 @@ class Observable(object):
 
     def __init__(self):
         super(Observable, self).__init__()
-        self.__weak_observers = []
+        self.__weak_observers = list()
+        self.__property_dependent_keys = dict()
 
     def __del__(self):
         assert len(self.__weak_observers) == 0, 'Binding source still has observers'
@@ -197,11 +198,21 @@ class Observable(object):
         return [weak_observer() for weak_observer in self.__weak_observers]
     observers = property(__get_observers)
 
+    def register_dependent_key(self, key, dependent_key):
+        dependent_keys = self.__property_dependent_keys.setdefault(key, list())
+        dependent_keys.append(dependent_key)
+
+    def __get_property_dependent_keys(self):
+        return self.__property_dependent_keys
+    property_dependent_keys = property(__get_property_dependent_keys)
+
     def notify_set_property(self, key, value):
         for weak_observer in self.__weak_observers:
             observer = weak_observer()
             if observer and getattr(observer, "property_changed", None):
                 observer.property_changed(self, key, value)
+        for dependent_key in self.__property_dependent_keys.get(key, list()):
+            self.notify_set_property(dependent_key, getattr(self, dependent_key))
 
     def notify_set_item(self, key, item):
         for weak_observer in self.__weak_observers:
@@ -496,6 +507,8 @@ class StorageBase(Observable, Broadcaster):
         for observer in self.observers:
             if observer and getattr(observer, "data_set", None):
                 observer.data_set(self, key, data)
+        for dependent_key in self.property_dependent_keys.get(key, list()):
+            self.notify_set_property(dependent_key, getattr(self, dependent_key))
 
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
