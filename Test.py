@@ -133,6 +133,8 @@ class Widget:
         self.focused = False
     def close(self):
         pass
+    def periodic(self):
+        pass
     def count(self):
         return len(self.children)
     def add(self, widget, fill=False, alignment=None):

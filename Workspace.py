@@ -4,6 +4,7 @@ import cPickle as pickle
 import gettext
 import logging
 import sys
+import time
 import weakref
 
 # third party libraries
@@ -75,6 +76,16 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = []
+
+    def periodic(self):
+        # for each of the panels too
+        for dock_widget in self.dock_widgets:
+            start = time.time()
+            dock_widget.panel.periodic()
+            dock_widget.periodic()
+            elapsed = time.time() - start
+            if elapsed > 0.05:
+                logging.debug("panel %s %s", dock_widget.panel, elapsed)
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)

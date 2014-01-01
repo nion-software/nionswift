@@ -6,14 +6,12 @@ import Queue
 import os
 import random
 import threading
-import time
 import weakref
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.swift.Decorators import timeit
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import Decorators
@@ -180,6 +178,7 @@ class DocumentController(Storage.Broadcaster):
 
     def __get_panels(self):
         if self.workspace:
+            # TODO: accessing the panel via the dock widget is deprecated
             return [dock_widget.panel for dock_widget in self.workspace.dock_widgets]
         return []
     panels = property(__get_panels)
@@ -187,21 +186,14 @@ class DocumentController(Storage.Broadcaster):
     def queue_main_thread_task(self, task):
         self.__periodic_queue.put(task)
 
-    #@timeit
     def periodic(self):
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
         # for sessions
         self.document_model.session.periodic()
-        # for each of the panels too
-        for panel in self.panels:
-            if hasattr(panel, "periodic"):
-                start = time.time()
-                panel.periodic()
-                elapsed = time.time() - start
-                if elapsed > 0.05:
-                    logging.debug("panel %s %s", panel, elapsed)
-                    pass
+        # workspace
+        if self.workspace:
+            self.workspace.periodic()
 
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)

@@ -96,13 +96,6 @@ class InfoInspector(InspectorSection):
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
 
-    def periodic(self):
-        super(InfoInspector, self).periodic()
-        self.info_title_label.periodic()  # widget
-        self.info_session_label.periodic()  # widget
-        self.info_datetime_label.periodic()  # widget
-        self.info_format_label.periodic()  # widget
-
 
 class ParamInspector(InspectorSection):
 
@@ -129,11 +122,6 @@ class ParamInspector(InspectorSection):
         self.param_row.add_stretch()
         # add all of the rows to the section content
         self.add_widget_to_content(self.param_row)
-
-    def periodic(self):
-        super(ParamInspector, self).periodic()
-        self.param_field.periodic()  # widget
-        self.param_slider.periodic()  # widget
 
 
 class CalibrationsInspector(InspectorSection):
@@ -275,14 +263,6 @@ class CalibrationsInspector(InspectorSection):
     def display_calibrations_changed(self, state):
         self.data_item_content_binding.display_calibrated_values = state == "checked"
         self.update()  # clean up displayed values
-
-    def periodic(self):
-        super(CalibrationsInspector, self).periodic()
-        for row_label, origin_field, scale_field, units_field in self.periodic_widgets:
-            row_label.periodic()
-            origin_field.periodic()
-            scale_field.periodic()
-            units_field.periodic()
 
 
 class DisplayLimitsInspector(InspectorSection):

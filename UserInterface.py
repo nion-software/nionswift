@@ -594,6 +594,10 @@ class QtBoxWidget(QtWidget):
         for child in self.children:
             child.close()
 
+    def periodic(self):
+        for child in self.children:
+            child.periodic()
+
     def count(self):
         return len(self.children)
 
@@ -656,6 +660,10 @@ class QtSplitterWidget(QtWidget):
         for child in self.children:
             child.close()
 
+    def periodic(self):
+        for child in self.children:
+            child.periodic()
+
     def __get_orientation(self):
         return self.__orientation
     def __set_orientation(self, orientation):
@@ -685,6 +693,10 @@ class QtTabWidget(QtWidget):
         for child in self.children:
             child.close()
 
+    def periodic(self):
+        for child in self.children:
+            child.periodic()
+
     def add(self, child, label):
         self.proxy.TabWidget_addTab(self.widget, child.widget, unicode(label))
         self.children.append(child)
@@ -706,6 +718,10 @@ class QtStackWidget(QtWidget):
     def close(self):
         for child in self.children:
             child.close()
+
+    def periodic(self):
+        for child in self.children:
+            child.periodic()
 
     def add(self, child):
         self.proxy.StackWidget_addWidget(self.widget, child.widget)
@@ -739,6 +755,9 @@ class QtScrollAreaWidget(QtWidget):
 
     def close(self):
         self.__content.close()
+
+    def periodic(self):
+        self.__content.periodic()
 
     def __get_content(self):
         return self.__content
@@ -1438,6 +1457,7 @@ class QtConsoleWidget(QtWidget):
     def insert_lines(self, lines):
         self.proxy.Console_insertFromStringList(self.widget, lines)
 
+
 class QtAction(object):
 
     def __init__(self, proxy, native_action=None):
@@ -1452,6 +1472,7 @@ class QtAction(object):
     def triggered(self):
         if self.on_triggered:
             self.on_triggered()
+
 
 class QtMenu(object):
 
@@ -1534,6 +1555,7 @@ class QtDocumentWindow(object):
         self.proxy.DocumentWindow_show(self.native_document_window)
 
     def periodic(self):
+        self.root_widget.periodic()
         if self.on_periodic:
             self.on_periodic()
 
@@ -1578,6 +1600,9 @@ class QtDockWidget(object):
     def close(self):
         self.proxy.Widget_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
         self.widget.close()
+
+    def periodic(self):
+        self.widget.periodic()
 
     def __get_toggle_action(self):
         return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))

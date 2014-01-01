@@ -21,18 +21,17 @@ _ = gettext.gettext
 
 class Panel(object):
     """
-        The Panel represents a panel within the document window.
-
-        The Panel includes the ability to load a Qt widget. The Qt widget will be
-        deleted when the Panel is deleted.
-        """
+        Represents content within a dock widget. The dock widget owns
+        the panel and will invoke close and periodic on it. The dock
+        widget expects the widget property to contain the ui content.
+    """
 
     def __init__(self, document_controller, panel_id, display_name):
         self.__document_controller_weakref = weakref.ref(document_controller)
         self.ui = document_controller.ui
         self.panel_id = panel_id
-        self.dock_widget = None
         self.display_name = display_name
+        self.widget = None
         # useful for many panels.
         self.__periodic_task_queue = Decorators.TaskQueue()
         self.__periodic_task_set = Decorators.TaskSet()
