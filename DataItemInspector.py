@@ -160,7 +160,7 @@ class CalibrationsInspector(InspectorSection):
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
-        self.widget_rows = list()
+        self.periodic_widgets = list()
         # initial update
         self.update()
 
@@ -172,6 +172,65 @@ class CalibrationsInspector(InspectorSection):
     # thread safe
     def data_item_display_content_changed(self):
         self.add_task("update", lambda: self.update())
+
+    # not thead safe
+    def create_header(self):
+        header_row = self.ui.create_row_widget()
+        axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
+        origin_header_label = self.ui.create_label_widget("Origin", properties={"width": 60})
+        scale_header_label = self.ui.create_label_widget("Scale", properties={"width": 60})
+        units_header_label = self.ui.create_label_widget("Units", properties={"width": 60})
+        header_row.add(axis_header_label)
+        header_row.add_spacing(12)
+        header_row.add(origin_header_label)
+        header_row.add_spacing(12)
+        header_row.add(scale_header_label)
+        header_row.add_spacing(12)
+        header_row.add(units_header_label)
+        header_row.add_stretch()
+        return header_row
+
+    # not thread safe
+    def create_header_for_empty_list(self):
+        header_for_empty_list_row = self.ui.create_row_widget()
+        header_for_empty_list_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
+        return header_for_empty_list_row
+
+    # not thread safe
+    def create_content_for_list_item(self, calibrations, calibration_index):
+        calibration = calibrations[calibration_index]
+        calibration_row = self.ui.create_row_widget()
+        row_label = self.ui.create_label_widget(properties={"width": 60})
+        origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
+        scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
+        units_field = self.ui.create_line_edit_widget(properties={"width": 60})
+        # convert list item to index string
+        class CalibrationToIndexStringConverter(object):
+            """
+                Convert from calibration to index within calibration list.
+                Back conversion is not implemented.
+                """
+            def __init__(self, calibrations):
+                self.__calibrations = calibrations
+            def convert(self, value):
+                return str(calibrations.index(value))
+            def convert_back(self, str):
+                raise NotImplementedError()
+        # binding
+        row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
+        origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
+        scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
+        units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
+        # notice the binding of calibration_index below.
+        calibration_row.add(row_label)
+        calibration_row.add_spacing(12)
+        calibration_row.add(origin_field)
+        calibration_row.add_spacing(12)
+        calibration_row.add(scale_field)
+        calibration_row.add_spacing(12)
+        calibration_row.add(units_field)
+        calibration_row.add_stretch()
+        return calibration_row, (row_label, origin_field, scale_field, units_field)
 
     # not thread safe
     def update(self):
@@ -185,76 +244,33 @@ class CalibrationsInspector(InspectorSection):
             while self.header_section.count() > 0:
                 self.header_section.remove(self.header_section.count() - 1)
             # create the header row
-            calibration_row = self.ui.create_row_widget()
-            row_label = self.ui.create_label_widget("Axis", properties={"width": 60})
-            origin_field = self.ui.create_label_widget("Origin", properties={"width": 60})
-            scale_field = self.ui.create_label_widget("Scale", properties={"width": 60})
-            units_field = self.ui.create_label_widget("Units", properties={"width": 60})
-            calibration_row.add(row_label)
-            calibration_row.add_spacing(12)
-            calibration_row.add(origin_field)
-            calibration_row.add_spacing(12)
-            calibration_row.add(scale_field)
-            calibration_row.add_spacing(12)
-            calibration_row.add(units_field)
-            calibration_row.add_stretch()
-            calibration_header_column = self.ui.create_column_widget()
-            calibration_header_column.add(calibration_row)
-            calibration_header_column.add_spacing(2)
-            self.header_section.add(calibration_header_column)
+            header_row = self.create_header()
+            # create header subsection, so it can be deleted easily
+            header_subsection = self.ui.create_column_widget()
+            header_subsection.add(header_row)
+            header_subsection.add_spacing(2)
+            # add subsection to section
+            self.header_section.add(header_subsection)
         else:
             # remove all rows in the header section
             while self.header_section.count() > 0:
                 self.header_section.remove(self.header_section.count() - 1)
-            # create a 'None' display
-            self.calibrations_none_column = self.ui.create_column_widget()
-            self.calibrations_none_column.add_spacing(2)
-            self.calibrations_none_row = self.ui.create_row_widget()
-            self.calibrations_none_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
-            self.calibrations_none_column.add(self.calibrations_none_row)
-            self.header_section.add(self.calibrations_none_column)
-        # convert list item to index string
-        class CalibrationToIndexStringConverter(object):
-            """
-                Convert from calibration to index within calibration list.
-                Back conversion is not implemented.
-                """
-            def __init__(self, calibrations):
-                self.__calibrations = calibrations
-            def convert(self, value):
-                return str(calibrations.index(value))
-            def convert_back(self, str):
-                raise NotImplementedError()
-        row_index_converter = CalibrationToIndexStringConverter(calibrations)
+            # create header subsection, so it can be deleted easily
+            header_subsection = self.ui.create_column_widget()
+            header_subsection.add_spacing(2)
+            header_for_empty_list_row = self.create_header_for_empty_list()
+            header_subsection.add(header_for_empty_list_row)
+            self.header_section.add(header_subsection)
         # create a row for each calibration
         while self.content_section.count() < len(calibrations):
             calibration_index = self.content_section.count()
-            calibration = calibrations[calibration_index]
-            calibration_row = self.ui.create_row_widget()
-            row_label = self.ui.create_label_widget(properties={"width": 60})
-            origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
-            scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
-            units_field = self.ui.create_line_edit_widget(properties={"width": 60})
-            # binding
-            row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(calibrations)))
-            origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
-            scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")))
-            units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
-            self.widget_rows.append((row_label, origin_field, scale_field, units_field))
-            # notice the binding of calibration_index below.
-            calibration_row.add(row_label)
-            calibration_row.add_spacing(12)
-            calibration_row.add(origin_field)
-            calibration_row.add_spacing(12)
-            calibration_row.add(scale_field)
-            calibration_row.add_spacing(12)
-            calibration_row.add(units_field)
-            calibration_row.add_stretch()
+            calibration_row, periodic_items = self.create_content_for_list_item(calibrations, calibration_index)
+            self.periodic_widgets.append(periodic_items)
             self.content_section.add(calibration_row)
         # remove extra rows in the content section
         while self.content_section.count() > len(calibrations):
             self.content_section.remove(len(calibrations) - 1)
-            del self.widget_rows[-1]
+            del self.periodic_widgets[-1]
 
     def display_calibrations_changed(self, state):
         self.data_item_content_binding.display_calibrated_values = state == "checked"
@@ -262,7 +278,7 @@ class CalibrationsInspector(InspectorSection):
 
     def periodic(self):
         super(CalibrationsInspector, self).periodic()
-        for row_label, origin_field, scale_field, units_field in self.widget_rows:
+        for row_label, origin_field, scale_field, units_field in self.periodic_widgets:
             row_label.periodic()
             origin_field.periodic()
             scale_field.periodic()
