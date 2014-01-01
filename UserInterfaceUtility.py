@@ -236,42 +236,34 @@ class PropertyBinding(Binding):
             self.add_task("update_target", lambda: self.update_target(value))
 
 
-class TupleOneWayToSourceBinding(object):
+class TuplePropertyBinding(Binding):
 
     """
-        Binds one way to an item within a tuple specified by the tuple
-        index. Changes to the tuple are not propogated to the target since this is
-        a one way binding.
+        Binds to a tuple property of a source object.
+
+        Changes to the target are propogated to the source via setattr using the update_source method.
+
+        If target_setter is set, changes to the source are propogated to the target via target_setter
+        using the update_target method.
+
+        The owner should call periodic and close on this object.
     """
 
     def __init__(self, source, property_name, tuple_index, converter=None):
-        self.__source = source
+        super(TuplePropertyBinding, self).__init__(source,  converter)
         self.__property_name = property_name
         self.__tuple_index = tuple_index
-        self.__converter = converter
-
-    # not thread safe
-    def close(self):
-        pass
-
-    # not thread safe
-    def periodic(self):
-        pass
-
-    # thread safe
-    def __back_converted_value(self, target_value):
-        return self.__converter.convert_back(target_value) if self.__converter else target_value
+        def source_setter(value):
+            tuple_as_list = list(getattr(self.source, self.__property_name))
+            tuple_as_list[self.__tuple_index] = value
+            setattr(self.source, self.__property_name, tuple(tuple_as_list))
+        def source_getter():
+            return getattr(self.source, self.__property_name)[self.__tuple_index]
+        self.source_setter = source_setter
+        self.source_getter = source_getter
 
     # thread safe
-    def __converted_value(self, source_value):
-        return self.__converter.convert(source_value) if self.__converter else source_value
-
-    # thread safe
-    def update_source(self, target_value):
-        tuple_as_list = list(getattr(self.__source, self.__property_name))
-        tuple_as_list[self.__tuple_index] = self.__back_converted_value(target_value)
-        setattr(self.__source, self.__property_name, tuple(tuple_as_list))
-
-    # thread safe
-    def get_target_value(self):
-        return self.__converted_value(getattr(self.__source, self.__property_name)[self.__tuple_index])
+    def property_changed(self, sender, property, value):
+        if sender == self.source and property == self.__property_name:
+            # perform on the main thread
+            self.add_task("update_target", lambda: self.update_target(value[self.__tuple_index]))

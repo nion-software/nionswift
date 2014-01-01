@@ -325,10 +325,10 @@ class GraphicsInspector(InspectorSection):
             # configure the bindings
             x_converter = DataItem.CalibratedFloatToStringConverter(calibrations[1], image_size[1])
             y_converter = DataItem.CalibratedFloatToStringConverter(calibrations[0], image_size[0])
-            start_x_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "start", 1, converter=x_converter)
-            start_y_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "start", 0, converter=y_converter)
-            end_x_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "end", 1, converter=x_converter)
-            end_y_binding = UserInterfaceUtility.TupleOneWayToSourceBinding(graphic, "end", 0, converter=y_converter)
+            start_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1, converter=x_converter)
+            start_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0, converter=y_converter)
+            end_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1, converter=x_converter)
+            end_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 0, converter=y_converter)
             # create the ui
             graphic_title_type_label.text = _("Line")
             graphic_start_row = self.ui.create_row_widget()
