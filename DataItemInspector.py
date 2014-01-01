@@ -251,6 +251,7 @@ class GraphicsInspector(InspectorSection):
         self.__image_size = data_item_binding_source.spatial_shape
         self.__calibrations = data_item_binding_source.calculated_calibrations
         self.__graphics = data_item_binding_source.graphics
+        self.__data_item_binding_source = data_item_binding_source
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -277,14 +278,44 @@ class GraphicsInspector(InspectorSection):
         graphic_title_row.add(graphic_title_type_label)
         graphic_title_row.add_stretch()
         graphic_widget.add(graphic_title_row)
+        class CalibratedValueBinding(UserInterfaceUtility.Binding):
+            def __init__(self, value_binding, display_calibrated_values_binding, converter):
+                super(CalibratedValueBinding, self).__init__(None, converter)
+                self.__value_binding = value_binding
+                self.__display_calibrated_values_binding = display_calibrated_values_binding
+                def update_target(value):
+                    self.update_target_direct(self.get_target_value())
+                self.__value_binding.target_setter = update_target
+                self.__display_calibrated_values_binding.target_setter = update_target
+            def close(self):
+                self.__value_binding.close()
+                self.__display_calibrated_values_binding.close()
+                super(CalibratedValueBinding, self).close()
+            def periodic(self):
+                super(CalibratedValueBinding, self).periodic()
+                self.__value_binding.periodic()
+                self.__display_calibrated_values_binding.periodic()
+            def update_source(self, target_value):
+                display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
+                if display_calibrated_values:
+                    converted_value = self.converter.convert_back(target_value)
+                else:
+                    converted_value = float(target_value)
+                self.__value_binding.update_source(converted_value)
+            def get_target_value(self):
+                display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
+                value = self.__value_binding.get_target_value()
+                return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
+        def new_display_calibrated_values_binding():
+            return UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
         if isinstance(graphic, Graphics.LineGraphic):
             # configure the bindings
             x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
             y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
-            start_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1, converter=x_converter)
-            start_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0, converter=y_converter)
-            end_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1, converter=x_converter)
-            end_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 0, converter=y_converter)
+            start_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
+            start_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
+            end_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
+            end_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
             # create the ui
             graphic_title_type_label.text = _("Line")
             graphic_start_row = self.ui.create_row_widget()
@@ -320,10 +351,10 @@ class GraphicsInspector(InspectorSection):
             y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
             width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
             height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
-            origin_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1, converter=x_converter)
-            origin_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0, converter=y_converter)
-            size_width_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1, converter=width_converter)
-            size_height_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0, converter=height_converter)
+            origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
+            origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
+            size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
+            size_height_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
             # create the ui
             graphic_title_type_label.text = _("Rectangle")
             graphic_origin_row = self.ui.create_row_widget()
@@ -359,10 +390,10 @@ class GraphicsInspector(InspectorSection):
             y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
             width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
             height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
-            origin_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1, converter=x_converter)
-            origin_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0, converter=y_converter)
-            size_width_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1, converter=width_converter)
-            size_height_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0, converter=height_converter)
+            origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
+            origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
+            size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
+            size_height_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
             # create the ui
             graphic_title_type_label.text = _("Ellipse")
             graphic_origin_row = self.ui.create_row_widget()

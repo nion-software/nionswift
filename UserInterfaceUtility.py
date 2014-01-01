@@ -90,6 +90,11 @@ class Binding(Storage.Observable):
         and target_setter to configure this class.
 
         The owner should call periodic and close on this object.
+
+        Bindings are not sharable. They are meant to be used to bind
+        one ui element to one value.
+        However, conversions and binding sources can be shared between
+        bindings in most cases.
     """
 
     def __init__(self, source, converter=None, fallback=None):
@@ -126,6 +131,11 @@ class Binding(Storage.Observable):
             self.__source.add_observer(self)
         self.notify_set_property("source", source)
     source = property(__get_source, __set_source)
+
+    # thread safe
+    def __get_converter(self):
+        return self.__converter
+    converter = property(__get_converter)
 
     # thread safe
     def __back_converted_value(self, target_value):
