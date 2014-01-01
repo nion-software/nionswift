@@ -92,11 +92,12 @@ class Binding(Storage.Observable):
         The owner should call periodic and close on this object.
     """
 
-    def __init__(self, source, converter=None):
+    def __init__(self, source, converter=None, fallback=None):
         super(Binding, self).__init__()
         self.__task_set = Decorators.TaskSet()
         self.__source = None
         self.__converter = converter
+        self.fallback = fallback
         self.source_getter = None
         self.source_setter = None
         self.target_setter = None
@@ -142,8 +143,11 @@ class Binding(Storage.Observable):
 
     # not thread safe
     def update_target(self, source_value):
+        self.update_target_direct(self.__converted_value(source_value))
+
+    # not thread safe
+    def update_target_direct(self, converted_value):
         if self.target_setter:
-            converted_value = self.__converted_value(source_value)
             self.target_setter(converted_value)
 
     # thread safe
@@ -152,7 +156,7 @@ class Binding(Storage.Observable):
             source = self.source_getter()
             if source is not None:
                 return self.__converted_value(source)
-        return None
+        return self.fallback
 
 
 class ObjectBinding(Binding):
@@ -249,8 +253,8 @@ class TuplePropertyBinding(Binding):
         The owner should call periodic and close on this object.
     """
 
-    def __init__(self, source, property_name, tuple_index, converter=None):
-        super(TuplePropertyBinding, self).__init__(source,  converter)
+    def __init__(self, source, property_name, tuple_index, converter=None, fallback=None):
+        super(TuplePropertyBinding, self).__init__(source,  converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__tuple_index = tuple_index
         def source_setter(value):
@@ -258,7 +262,8 @@ class TuplePropertyBinding(Binding):
             tuple_as_list[self.__tuple_index] = value
             setattr(self.source, self.__property_name, tuple(tuple_as_list))
         def source_getter():
-            return getattr(self.source, self.__property_name)[self.__tuple_index]
+            tuple_value = getattr(self.source, self.__property_name)
+            return tuple_value[self.__tuple_index] if tuple_value else None
         self.source_setter = source_setter
         self.source_getter = source_getter
 
@@ -266,4 +271,7 @@ class TuplePropertyBinding(Binding):
     def property_changed(self, sender, property, value):
         if sender == self.source and property == self.__property_name:
             # perform on the main thread
-            self.add_task("update_target", lambda: self.update_target(value[self.__tuple_index]))
+            if value is not None:
+                self.add_task("update_target", lambda: self.update_target(value[self.__tuple_index]))
+            else:
+                self.add_task("update_target", lambda: self.update_target_direct(self.fallback))
