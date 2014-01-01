@@ -101,7 +101,7 @@ class Calibration(Storage.StorageBase):
         self.notify_listeners("calibration_changed", self)
 
 
-class CalibratedFloatToStringConverter(object):
+class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
     """
@@ -110,6 +110,19 @@ class CalibratedFloatToStringConverter(object):
         self.__data_size = data_size
     def convert(self, value):
         return self.__calibration.convert_to_calibrated_value_str(self.__data_size * value)
+    def convert_back(self, str):
+        return self.__calibration.convert_from_calibrated(float(str)) / self.__data_size
+
+
+class CalibratedSizeFloatToStringConverter(object):
+    """
+        Converter object to convert from calibrated size to string and back.
+        """
+    def __init__(self, calibration, data_size):
+        self.__calibration = calibration
+        self.__data_size = data_size
+    def convert(self, size):
+        return self.__calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
         return self.__calibration.convert_from_calibrated(float(str)) / self.__data_size
 

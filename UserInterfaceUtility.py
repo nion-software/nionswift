@@ -187,23 +187,23 @@ class ListBinding(Binding):
         self.remover = None
 
     # not thread safe
-    def insert_item(item, before_index):
+    def insert_item(self, item, before_index):
         if self.inserter:
             self.inserter(item, before_index)
 
     # not thread safe
-    def remove_item(index):
+    def remove_item(self, index):
         if self.remover:
             self.remover(index)
 
     # thread safe
-    def item_inserted(self, sender, key, object, before_index):
+    def item_inserted(self, sender, key, item, before_index):
         if sender == self.source and key == self.__key_name:
             # perform on the main thread
             self.add_task("insert_item", lambda: self.insert_item(item, before_index))
 
     # thread safe
-    def item_removed(self, sender, key, object, index):
+    def item_removed(self, sender, key, item, index):
         if sender == self.source and key == self.__key_name:
             # perform on the main thread
             self.add_task("remove_item", lambda: self.remove_item(index))

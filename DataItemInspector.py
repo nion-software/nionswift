@@ -136,9 +136,9 @@ class CalibrationsInspector(InspectorSection):
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
-        self.list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        self.list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "calibrations"))
-        self.add_widget_to_content(self.list_widget)
+        list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "calibrations"))
+        self.add_widget_to_content(list_widget)
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
         self.display_calibrations_checkbox.bind_check_state(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=UserInterfaceUtility.CheckedToCheckStateConverter()))
@@ -212,12 +212,12 @@ class DisplayLimitsInspector(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, ui, data_item_binding_source, data_item_content_binding):
+    def __init__(self, ui, data_item_binding_source):
         super(DisplayLimitsInspector, self).__init__(ui, _("Display Limits"))
         # configure the display limit editor
         self.display_limits_range_row = self.ui.create_row_widget()
-        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 60})
-        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 60})
+        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
+        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
         self.display_limits_range_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
@@ -227,8 +227,8 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_range_row.add(self.display_limits_range_high)
         self.display_limits_range_row.add_stretch()
         self.display_limits_limit_row = self.ui.create_row_widget()
-        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 60})
-        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 60})
+        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
         self.display_limits_limit_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
@@ -246,28 +246,29 @@ class GraphicsInspector(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, data_item_content_binding):
+    def __init__(self, ui, data_item_binding_source):
         super(GraphicsInspector, self).__init__(ui, _("Graphics"))
-        # initialize the binding. this will result in calls to display_limits_changed.
-        self.data_item_content_binding = data_item_content_binding
-        self.data_item_content_binding.add_listener(self)
+        self.__image_size = data_item_binding_source.spatial_shape
+        self.__calibrations = data_item_binding_source.calculated_calibrations
+        self.__graphics = data_item_binding_source.graphics
         # ui
-        self.graphic_sections = self.ui.create_column_widget()
-        self.add_widget_to_content(self.graphic_sections)
-        # initial update
-        self.update()
+        header_widget = self.__create_header_widget()
+        header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
+        list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "graphics"))
+        self.add_widget_to_content(list_widget)
 
-    def close(self):
-        self.data_item_content_binding.remove_listener(self)
-        super(GraphicsInspector, self).close()
+    def __create_header_widget(self):
+        return self.ui.create_row_widget()
 
-    # this gets called from the data_item_content_binding
-    # thread safe
-    def data_item_display_content_changed(self):
-        self.add_task("update", lambda: self.update())
+    def __create_header_for_empty_list_widget(self):
+        return self.ui.create_row_widget()
 
     # not thread safe
-    def __create_graphic_widget(self, graphic_section_index, graphic, image_size, calibrations):
+    def __create_list_item_widget(self, graphic):
+        graphic_section_index = self.__graphics.index(graphic)
+        image_size = self.__image_size
+        calibrations = self.__calibrations
         graphic_widget = self.ui.create_column_widget()
         graphic_title_row = self.ui.create_row_widget()
         graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 20})
@@ -278,8 +279,8 @@ class GraphicsInspector(InspectorSection):
         graphic_widget.add(graphic_title_row)
         if isinstance(graphic, Graphics.LineGraphic):
             # configure the bindings
-            x_converter = DataItem.CalibratedFloatToStringConverter(calibrations[1], image_size[1])
-            y_converter = DataItem.CalibratedFloatToStringConverter(calibrations[0], image_size[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
             start_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1, converter=x_converter)
             start_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0, converter=y_converter)
             end_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1, converter=x_converter)
@@ -289,12 +290,10 @@ class GraphicsInspector(InspectorSection):
             graphic_start_row = self.ui.create_row_widget()
             graphic_start_row.add_spacing(20)
             graphic_start_row.add(self.ui.create_label_widget(_("Start"), properties={"width": 40}))
-            graphic_start_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
-            graphic_start_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
-            graphic_start_x_line_edit.on_editing_finished = lambda text: start_x_binding.update_source(text)
-            graphic_start_y_line_edit.on_editing_finished = lambda text: start_y_binding.update_source(text)
-            graphic_start_x_line_edit.text = start_x_binding.get_target_value()
-            graphic_start_y_line_edit.text = start_y_binding.get_target_value()
+            graphic_start_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_start_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_start_x_line_edit.bind_text(start_x_binding)
+            graphic_start_y_line_edit.bind_text(start_y_binding)
             graphic_start_row.add(graphic_start_x_line_edit)
             graphic_start_row.add_spacing(8)
             graphic_start_row.add(graphic_start_y_line_edit)
@@ -302,12 +301,10 @@ class GraphicsInspector(InspectorSection):
             graphic_end_row = self.ui.create_row_widget()
             graphic_end_row.add_spacing(20)
             graphic_end_row.add(self.ui.create_label_widget(_("End"), properties={"width": 40}))
-            graphic_end_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
-            graphic_end_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 60})
-            graphic_end_x_line_edit.on_editing_finished = lambda text: end_x_binding.update_source(text)
-            graphic_end_y_line_edit.on_editing_finished = lambda text: end_y_binding.update_source(text)
-            graphic_end_x_line_edit.text = end_x_binding.get_target_value()
-            graphic_end_y_line_edit.text = end_y_binding.get_target_value()
+            graphic_end_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_end_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_end_x_line_edit.bind_text(end_x_binding)
+            graphic_end_y_line_edit.bind_text(end_y_binding)
             graphic_end_row.add(graphic_end_x_line_edit)
             graphic_end_row.add_spacing(8)
             graphic_end_row.add(graphic_end_y_line_edit)
@@ -319,68 +316,83 @@ class GraphicsInspector(InspectorSection):
             graphic_widget.add_spacing(4)
         if isinstance(graphic, Graphics.RectangleGraphic):
             # calculate values from rectangle graphic
-            size_image = (image_size[0] * graphic.bounds[1][0], image_size[1] * graphic.bounds[1][1])
-            origin_image = (size_image[0] * 0.5 + image_size[0] * graphic.bounds[0][0] - 0.5 * image_size[0],
-            size_image[1] * 0.5 + image_size[1] * graphic.bounds[0][1] - 0.5 * image_size[1])
-            origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
-            origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
-            size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
-            size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
+            width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
+            height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
+            origin_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1, converter=x_converter)
+            origin_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0, converter=y_converter)
+            size_width_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1, converter=width_converter)
+            size_height_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0, converter=height_converter)
             # create the ui
             graphic_title_type_label.text = _("Rectangle")
-            graphic_center_row = self.ui.create_row_widget()
-            graphic_center_row.add_spacing(40)
-            graphic_center_row.add(self.ui.create_label_widget("{0}, {1}".format(origin_x_str, origin_y_str)))
-            graphic_center_row.add_stretch()
+            graphic_origin_row = self.ui.create_row_widget()
+            graphic_origin_row.add_spacing(20)
+            graphic_origin_row.add(self.ui.create_label_widget(_("Origin"), properties={"width": 40}))
+            graphic_origin_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_origin_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_origin_x_line_edit.bind_text(origin_x_binding)
+            graphic_origin_y_line_edit.bind_text(origin_y_binding)
+            graphic_origin_row.add(graphic_origin_x_line_edit)
+            graphic_origin_row.add_spacing(8)
+            graphic_origin_row.add(graphic_origin_y_line_edit)
+            graphic_origin_row.add_stretch()
             graphic_size_row = self.ui.create_row_widget()
-            graphic_size_row.add_spacing(40)
-            graphic_size_row.add(self.ui.create_label_widget("{0} x {1}".format(size_x_str, size_y_str)))
+            graphic_size_row.add_spacing(20)
+            graphic_size_row.add(self.ui.create_label_widget(_("Size"), properties={"width": 40}))
+            graphic_size_width_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_size_height_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_size_width_line_edit.bind_text(size_width_binding)
+            graphic_size_height_line_edit.bind_text(size_height_binding)
+            graphic_size_row.add(graphic_size_width_line_edit)
+            graphic_size_row.add_spacing(8)
+            graphic_size_row.add(graphic_size_height_line_edit)
             graphic_size_row.add_stretch()
             graphic_widget.add_spacing(4)
-            graphic_widget.add(graphic_center_row)
+            graphic_widget.add(graphic_origin_row)
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_size_row)
             graphic_widget.add_spacing(4)
         if isinstance(graphic, Graphics.EllipseGraphic):
             # calculate values from ellipse graphic
-            size_image = (image_size[0] * graphic.bounds[1][0], image_size[1] * graphic.bounds[1][1])
-            origin_image = (size_image[0] * 0.5 + image_size[0] * graphic.bounds[0][0] - 0.5 * image_size[0],
-            size_image[1] * 0.5 + image_size[1] * graphic.bounds[0][1] - 0.5 * image_size[1])
-            origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
-            origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
-            size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
-            size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
+            width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
+            height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
+            origin_x_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1, converter=x_converter)
+            origin_y_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0, converter=y_converter)
+            size_width_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1, converter=width_converter)
+            size_height_binding = UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0, converter=height_converter)
             # create the ui
             graphic_title_type_label.text = _("Ellipse")
-            graphic_center_row = self.ui.create_row_widget()
-            graphic_center_row.add_spacing(40)
-            graphic_center_row.add(self.ui.create_label_widget("{0}, {1}".format(origin_x_str, origin_y_str)))
-            graphic_center_row.add_stretch()
+            graphic_origin_row = self.ui.create_row_widget()
+            graphic_origin_row.add_spacing(20)
+            graphic_origin_row.add(self.ui.create_label_widget(_("Origin"), properties={"width": 40}))
+            graphic_origin_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_origin_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_origin_x_line_edit.bind_text(origin_x_binding)
+            graphic_origin_y_line_edit.bind_text(origin_y_binding)
+            graphic_origin_row.add(graphic_origin_x_line_edit)
+            graphic_origin_row.add_spacing(8)
+            graphic_origin_row.add(graphic_origin_y_line_edit)
+            graphic_origin_row.add_stretch()
             graphic_size_row = self.ui.create_row_widget()
-            graphic_size_row.add_spacing(40)
-            graphic_size_row.add(self.ui.create_label_widget("{0} x {1}".format(size_x_str, size_y_str)))
+            graphic_size_row.add_spacing(20)
+            graphic_size_row.add(self.ui.create_label_widget(_("Size"), properties={"width": 40}))
+            graphic_size_width_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_size_height_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_size_width_line_edit.bind_text(size_width_binding)
+            graphic_size_height_line_edit.bind_text(size_height_binding)
+            graphic_size_row.add(graphic_size_width_line_edit)
+            graphic_size_row.add_spacing(8)
+            graphic_size_row.add(graphic_size_height_line_edit)
             graphic_size_row.add_stretch()
             graphic_widget.add_spacing(4)
-            graphic_widget.add(graphic_center_row)
+            graphic_widget.add(graphic_origin_row)
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_size_row)
             graphic_widget.add_spacing(4)
         return graphic_widget
-
-    # not thread safe
-    def update(self):
-        image_size = self.data_item_content_binding.spatial_shape
-        calibrations = self.data_item_content_binding.calculated_calibrations
-        graphics = self.data_item_content_binding.graphics
-        if len(graphics) > 0:
-            while self.graphic_sections.count() > 0:
-                self.graphic_sections.remove(self.graphic_sections.count() - 1)
-            while self.graphic_sections.count() < len(graphics):
-                graphic_section_index = self.graphic_sections.count()
-                self.graphic_sections.add(self.__create_graphic_widget(graphic_section_index, graphics[graphic_section_index], image_size, calibrations))
-        else:
-            while self.graphic_sections.count() > 0:
-                self.graphic_sections.remove(self.graphic_sections.count() - 1)
 
 
 class DataItemContentBinding(Storage.Broadcaster):
@@ -428,7 +440,6 @@ class DataItemInspector(object):
 
         # bindings
 
-        self.__data_item_content_binding = DataItemContentBinding(data_item)
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
         def update_data_item(data_item):
             self.__data_item_binding_source.data_item = data_item
@@ -444,8 +455,8 @@ class DataItemInspector(object):
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_binding_source))
         # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
         self.__inspectors.append(CalibrationsInspector(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_binding_source, self.__data_item_content_binding))
-        self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_content_binding))
+        self.__inspectors.append(DisplayLimitsInspector(self.ui, self.__data_item_binding_source))
+        self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_binding_source))
 
         for inspector in self.__inspectors:
             self.widget.add(inspector.widget)
@@ -455,7 +466,6 @@ class DataItemInspector(object):
         for inspector in self.__inspectors:
             inspector.close()
         # close the data item content binding
-        self.__data_item_content_binding.close()
         self.__data_item_binding.close()
         self.__data_item_binding_source.close()
 

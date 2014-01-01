@@ -256,6 +256,8 @@ class RectangleGraphic(Graphic):
         super(RectangleGraphic, self).__init__()
         self.storage_properties += ["bounds"]
         self.storage_type = "rect-graphic"
+        self.register_dependent_key("bounds", "origin")
+        self.register_dependent_key("bounds", "size")
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
     def deepcopy_from(self, graphic, memo):
@@ -281,6 +283,18 @@ class RectangleGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
+    # dependent property origin
+    def __get_origin(self):
+        return self.bounds[0]
+    def __set_origin(self, origin):
+        self.bounds = (origin, self.size)
+    origin = property(__get_origin, __set_origin)
+    # dependent property size
+    def __get_size(self):
+        return self.bounds[1]
+    def __set_size(self, size):
+        self.bounds = (self.origin, size)
+    size = property(__get_size, __set_size)
     # test point hit
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -375,6 +389,8 @@ class EllipseGraphic(Graphic):
         super(EllipseGraphic, self).__init__()
         self.storage_properties += ["bounds"]
         self.storage_type = "ellipse-graphic"
+        self.register_dependent_key("bounds", "origin")
+        self.register_dependent_key("bounds", "size")
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
     def deepcopy_from(self, graphic, memo):
@@ -400,6 +416,18 @@ class EllipseGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
+    # dependent property origin
+    def __get_origin(self):
+        return self.bounds[0]
+    def __set_origin(self, origin):
+        self.bounds = (origin, self.size)
+    origin = property(__get_origin, __set_origin)
+    # dependent property size
+    def __get_size(self):
+        return self.bounds[1]
+    def __set_size(self, size):
+        self.bounds = (self.origin, size)
+    size = property(__get_size, __set_size)
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
