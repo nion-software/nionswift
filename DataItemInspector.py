@@ -395,44 +395,6 @@ class GraphicsInspector(InspectorSection):
         return graphic_widget
 
 
-class DataItemContentBinding(Storage.Broadcaster):
-
-    """
-        Data item properties binding is used to act as a buffer between
-        a data item and a user interface element. The user interface element
-        can listen to this binding and receive notification when a content
-        item changes with the DataItem.DISPLAY item included in changes.
-        The user interface element can also get/set properties on this binding
-        as if it were the data item itself.
-    """
-
-    def __init__(self, data_item):
-        super(DataItemContentBinding, self).__init__()
-        self.__data_item = data_item
-        self.__initialized = True
-        # make sure we're listening to changes of the data item
-        self.__data_item.add_listener(self)
-
-    def close(self):
-        # unlisten to data item
-        self.__data_item.remove_listener(self)
-
-    # this will typically happen on a thread
-    def data_item_content_changed(self, data_item, changes):
-        if any (k in changes for k in (DataItem.DISPLAY, )):
-            self.notify_listeners("data_item_display_content_changed")
-
-    def __getattr__(self, name):
-        return getattr(self.__data_item, name)
-
-    def __setattr__(self, name, value):
-        # this test allows attributes to be set in the __init__ method
-        if self.__dict__.has_key(name) or not self.__dict__.has_key('_DataItemContentBinding__initialized'):
-            super(DataItemContentBinding, self).__setattr__(name, value)
-        else:
-            setattr(self.__data_item, name, value)
-
-
 class DataItemInspector(object):
 
     def __init__(self, ui, data_item):

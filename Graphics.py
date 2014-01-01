@@ -285,9 +285,9 @@ class RectangleGraphic(Graphic):
     bounds = property(__get_bounds, __set_bounds)
     # dependent property origin
     def __get_origin(self):
-        return self.bounds[0]
+        return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
     def __set_origin(self, origin):
-        self.bounds = (origin, self.size)
+        self.bounds = ((origin[0] - self.size[0] * 0.5, origin[1] - self.size[1] * 0.5), self.size)
     origin = property(__get_origin, __set_origin)
     # dependent property size
     def __get_size(self):
@@ -418,9 +418,9 @@ class EllipseGraphic(Graphic):
     bounds = property(__get_bounds, __set_bounds)
     # dependent property origin
     def __get_origin(self):
-        return self.bounds[0]
+        return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
     def __set_origin(self, origin):
-        self.bounds = (origin, self.size)
+        self.bounds = ((origin[0] - self.size[0] * 0.5, origin[1] - self.size[1] * 0.5), self.size)
     origin = property(__get_origin, __set_origin)
     # dependent property size
     def __get_size(self):
