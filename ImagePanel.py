@@ -94,7 +94,7 @@ _ = gettext.gettext
 
 class WidgetMapping(object):
 
-    def __init__(self, data_shape, canvas_size):
+    def __init__(self, data_shape, canvas_origin, canvas_size):
         self.data_shape = data_shape
         # double check dimensions are not zero
         if self.data_shape:
@@ -102,14 +102,14 @@ class WidgetMapping(object):
                 if not d > 0:
                     self.data_shape = None
         # calculate transformed image rect
-        self.data_rect = None
+        self.canvas_rect = None
         if self.data_shape:
-            rect = ((0, 0), canvas_size)
-            self.data_rect = Graphics.fit_to_size(rect, self.data_shape)
+            rect = (canvas_origin, canvas_size)
+            self.canvas_rect = Graphics.fit_to_size(rect, self.data_shape)
 
     def map_point_image_norm_to_widget(self, p):
         if self.data_shape:
-            return (float(p[0])*self.data_rect[1][0] + self.data_rect[0][0], float(p[1])*self.data_rect[1][1] + self.data_rect[0][1])
+            return (float(p[0])*self.canvas_rect[1][0] + self.canvas_rect[0][0], float(p[1])*self.canvas_rect[1][1] + self.canvas_rect[0][1])
         return None
 
     def map_size_image_norm_to_widget(self, s):
@@ -122,6 +122,11 @@ class WidgetMapping(object):
         ms0 = self.map_point_image_to_image_norm((0,0))
         return (ms[0] - ms0[0], ms[1] - ms0[1])
 
+    def map_size_widget_to_image_norm(self, s):
+        ms = self.map_point_widget_to_image_norm(s)
+        ms0 = self.map_point_widget_to_image_norm((0,0))
+        return (ms[0] - ms0[0], ms[1] - ms0[1])
+
     def map_point_widget_to_image_norm(self, p):
         if self.data_shape:
             p_image = self.map_point_widget_to_image(p)
@@ -129,13 +134,13 @@ class WidgetMapping(object):
         return None
 
     def map_point_widget_to_image(self, p):
-        if self.data_rect and self.data_shape:
-            if self.data_rect[1][0] != 0.0:
-                image_y = self.data_shape[0] * (float(p[0]) - self.data_rect[0][0])/self.data_rect[1][0]
+        if self.canvas_rect and self.data_shape:
+            if self.canvas_rect[1][0] != 0.0:
+                image_y = self.data_shape[0] * (float(p[0]) - self.canvas_rect[0][0])/self.canvas_rect[1][0]
             else:
                 image_y = 0
-            if self.data_rect[1][1] != 0.0:
-                image_x = self.data_shape[1] * (float(p[1]) - self.data_rect[0][1])/self.data_rect[1][1]
+            if self.canvas_rect[1][1] != 0.0:
+                image_x = self.data_shape[1] * (float(p[1]) - self.canvas_rect[0][1])/self.canvas_rect[1][1]
             else:
                 image_x = 0
             return (image_y, image_x) # c-indexing
@@ -281,11 +286,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         if self.data_item:
 
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            widget_mapping = WidgetMapping(self.data_item.spatial_shape, (canvas_height, canvas_width))
+            widget_mapping = WidgetMapping(self.data_item.spatial_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
             for graphic_index, graphic in enumerate(self.data_item.graphics):
@@ -298,6 +299,24 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
         self.data_item = None
+        self.__image_canvas_size = None  # this will be updated by the container
+        self.__image_canvas_origin = None  # this will be updated by the container
+
+    def __get_image_canvas_size(self):
+        return self.__image_canvas_size
+    def __set_image_canvas_size(self, image_canvas_size):
+        self.__image_canvas_size = image_canvas_size
+        self.update()
+        self.repaint_if_needed()
+    image_canvas_size = property(__get_image_canvas_size, __set_image_canvas_size)
+
+    def __get_image_canvas_origin(self):
+        return self.__image_canvas_origin
+    def __set_image_canvas_origin(self, image_canvas_origin):
+        self.__image_canvas_origin = image_canvas_origin
+        self.update()
+        self.repaint_if_needed()
+    image_canvas_origin = property(__get_image_canvas_origin, __set_image_canvas_origin)
 
     def _repaint(self, drawing_context):
 
@@ -310,12 +329,14 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.save()
             drawing_context.begin_path()
 
-            if self.data_item.is_calibrated:  # display scale marker?
+            image_canvas_size = self.image_canvas_size
+            image_canvas_origin = self.image_canvas_origin
+            if self.data_item.is_calibrated and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
                 calibrations = self.data_item.calculated_calibrations
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, (canvas_height, canvas_width))
+                widget_mapping = WidgetMapping(self.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
@@ -597,17 +618,33 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.accessories = dict()
 
+        self.__last_image_zoom = 1.0
+        self.__last_image_norm_center = (0.5, 0.5)
+        self.image_canvas_mode = "fit"
+
         # create the child canvas items
+        # the background
+        self.background_canvas_item = CanvasItem.BackgroundCanvasItem()
+        # next the zoomable items
         self.bitmap_canvas_item = CanvasItem.BitmapCanvasItem()
         self.graphics_canvas_item = GraphicsCanvasItem()
+        # put the zoomable items into a composition
+        self.composite_canvas_item = CanvasItem.CanvasItemComposition()
+        self.composite_canvas_item.add_canvas_item(self.bitmap_canvas_item)
+        self.composite_canvas_item.add_canvas_item(self.graphics_canvas_item)
+        # and put the composition into a scroll area
+        self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.composite_canvas_item)
+        self.scroll_area_canvas_item.updated_layout = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_updated_layout(canvas_size)
+        # next the accessory canvas
         self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
         self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(origin=(16, 20), spacing=12, fraction=0.25, min_width=200, max_width=320)
+        # info overlay (scale marker, etc.)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
+        # and focus ring
         self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
-
         # canvas items get added back to front
-        self.add_canvas_item(self.bitmap_canvas_item)
-        self.add_canvas_item(self.graphics_canvas_item)
+        self.add_canvas_item(self.background_canvas_item)
+        self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.accessory_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
@@ -629,7 +666,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # initial data item changed message
         self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
-
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
@@ -648,11 +684,94 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
 
+    def update_image_canvas_zoom(self, new_image_zoom):
+        if self.data_item:
+            self.__last_image_zoom = new_image_zoom
+
+    # update the image canvas position by the widget delta amount
+    def update_image_canvas_position(self, widget_delta):
+        if self.data_item:
+            # create a widget mapping to get from image norm to widget coordinates and back
+            widget_mapping = WidgetMapping(self.data_item.spatial_shape, (0, 0), self.composite_canvas_item.canvas_size)
+            # figure out what composite canvas point lies at the center of the scroll area.
+            last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
+            # determine what new point will lie at the center of the scroll area by adding delta
+            new_widget_center = (last_widget_center[0] + widget_delta[0], last_widget_center[1] + widget_delta[1])
+            # map back to image norm coordinates
+            new_image_norm_center = widget_mapping.map_point_widget_to_image_norm(new_widget_center)
+            # ensure that at least half of the image is always visible
+            new_image_norm_center_0 = max(min(new_image_norm_center[0], 1.0), 0.0)
+            new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
+            # save the new image norm center
+            self.__last_image_norm_center = (new_image_norm_center_0, new_image_norm_center_1)
+            # and update the image canvas accordingly
+            self.update_image_canvas_size()
+
+    # update the image canvas origin and size
+    def scroll_area_canvas_item_updated_layout(self, scroll_area_canvas_size):
+        if not self.data_item:
+            self.__last_image_norm_center = (0.5, 0.5)
+            self.__last_image_zoom = 1.0
+            self.info_overlay_canvas_item.image_canvas_origin = None
+            self.info_overlay_canvas_item.image_canvas_size = None
+            return
+        if self.image_canvas_mode == "fill":
+            spatial_shape = self.data_item.spatial_shape
+            scale_h = float(spatial_shape[1]) / scroll_area_canvas_size[1]
+            scale_v = float(spatial_shape[0]) / scroll_area_canvas_size[0]
+            if scale_v < scale_h:
+                image_canvas_size = (scroll_area_canvas_size[0], scroll_area_canvas_size[0] * spatial_shape[1] / spatial_shape[0])
+            else:
+                image_canvas_size = (scroll_area_canvas_size[1] * spatial_shape[0] / spatial_shape[1], scroll_area_canvas_size[1])
+            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+            self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
+        elif self.image_canvas_mode == "fit":
+            image_canvas_size = scroll_area_canvas_size
+            image_canvas_origin = (0, 0)
+            self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
+        elif self.image_canvas_mode == "1:1":
+            image_canvas_size = self.data_item.spatial_shape
+            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+            self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
+        else:
+            c = self.__last_image_norm_center
+            spatial_shape = self.data_item.spatial_shape
+            image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
+            canvas_rect = Graphics.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
+            # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
+            image_canvas_origin_y = (scroll_area_canvas_size[0] * 0.5) - c[0] * canvas_rect[1][0] - canvas_rect[0][0]
+            image_canvas_origin_x = (scroll_area_canvas_size[1] * 0.5) - c[1] * canvas_rect[1][1] - canvas_rect[0][1]
+            image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
+            self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
+        # the image will be drawn centered within the canvas size
+        spatial_shape = self.data_item.spatial_shape
+        #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
+        #logging.debug("image_canvas_origin %s", image_canvas_origin)
+        #logging.debug("image_canvas_size %s", image_canvas_size)
+        #logging.debug("spatial_shape %s", spatial_shape)
+        #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / spatial_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / spatial_shape[1])
+        widget_mapping = WidgetMapping(self.data_item.spatial_shape, (0, 0), image_canvas_size)
+        #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
+        self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
+        canvas_rect = Graphics.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
+        scroll_rect = Graphics.fit_to_size(((0, 0), scroll_area_canvas_size), spatial_shape)
+        self.__last_image_zoom = float(canvas_rect[1][0]) / scroll_rect[1][0]
+        #logging.debug("z %s (%s)", self.__last_image_zoom, float(canvas_rect[1][1]) / scroll_rect[1][1])
+        self.info_overlay_canvas_item.image_canvas_origin = image_canvas_origin
+        self.info_overlay_canvas_item.image_canvas_size = image_canvas_size
+
+    def update_image_canvas_size(self):
+        scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
+        if scroll_area_canvas_size is not None:
+            self.scroll_area_canvas_item_updated_layout(scroll_area_canvas_size)
+            self.composite_canvas_item.update()
+            self.scroll_area_canvas_item.repaint_if_needed()
+
     def mouse_clicked(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
         # now let the image panel handle mouse clicking if desired
-        image_position = WidgetMapping(self.data_item.spatial_shape, self.canvas_size).map_point_widget_to_image((y, x))
+        image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
         ImagePanelManager().mouse_clicked(self.image_panel, self.data_item, image_position, modifiers)
         return True
 
@@ -671,7 +790,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 already_selected = self.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(self.graphic_selection.indexes) > 1
                 move_only = not already_selected or multiple_items_selected
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
+                widget_mapping = self.__get_mouse_mapping()
                 part = graphic.test(widget_mapping, start_drag_pos, move_only)
                 if part:
                     # select item and prepare for drag
@@ -747,7 +866,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             for graphic in self.graphic_drag_items:
                 index = self.data_item.graphics.index(graphic)
                 part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
+                widget_mapping = self.__get_mouse_mapping()
                 graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
                 self.graphic_drag_changed = True
                 self.graphics_canvas_item.update()
@@ -768,7 +887,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if key.is_delete:
                 self.document_controller.remove_graphic()
             elif key.is_arrow:
-                widget_mapping = WidgetMapping(self.data_item.spatial_shape, self.canvas_size)
+                widget_mapping = self.__get_mouse_mapping()
                 amount = 10.0 if key.modifiers.shift else 1.0
                 if key.is_left_arrow:
                     for graphic in graphics:
@@ -833,7 +952,25 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
                 self.accessories["line_profile"] = line_profile_canvas_item
                 self.repaint_if_needed()
-        return ImagePanelManager().key_pressed(self.image_panel, key)
+        if key.text == "-":
+            self.zoom_out()
+        if key.text == "+":
+            self.zoom_in()
+        if key.text == "j":
+            self.move_left()
+        if key.text == "k":
+            self.move_right()
+        if key.text == "i":
+            self.move_up()
+        if key.text == "m":
+            self.move_down()
+        if key.text == "1":
+            self.set_one_to_one_mode()
+        if key.text == "0":
+            self.set_fit_mode()
+        if key.text == ")":
+            self.set_fill_mode()
+        return self.image_panel.key_pressed(key)
 
     def __get_focused(self):
         return self.focus_ring_canvas_item.focused
@@ -908,10 +1045,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 return None
         return data_shape
 
-    # map from widget coordinates to image coordinates
-    def __map_widget_to_image(self, p):
+    def __get_mouse_mapping(self):
         image_size = self.__get_image_size()
-        transformed_image_rect = WidgetMapping(image_size, self.canvas_size).data_rect
+        return WidgetMapping(image_size, self.composite_canvas_item.canvas_origin, self.composite_canvas_item.canvas_size)
+
+    # map from widget coordinates to image coordinates
+    def map_widget_to_image(self, p):
+        image_size = self.__get_image_size()
+        transformed_image_rect = self.__get_mouse_mapping().canvas_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
                 image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
@@ -924,13 +1065,20 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             return (image_y, image_x) # c-indexing
         return None
 
+    # map from image normalized coordinates to image coordinates
+    def map_image_norm_to_image(self, p):
+        image_size = self.__get_image_size()
+        if image_size:
+            return (p[0] * image_size[0], p[1] * image_size[1])
+        return None
+
     def __update_cursor_info(self):
         if self.document_controller:
             pos = None
             image_size = self.__get_image_size()
             if self.__mouse_in and self.__last_mouse:
                 if image_size and len(image_size) > 1:
-                    pos = self.__map_widget_to_image(self.__last_mouse)
+                    pos = self.map_widget_to_image(self.__last_mouse)
                 data_item = self.data_item
                 graphics = data_item.graphics if data_item else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
@@ -983,31 +1131,64 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             return "copy"
         return "ignore"
 
+    def set_fit_mode(self):
+        #logging.debug("---------> fit")
+        self.image_canvas_mode = "fit"
+        self.__last_image_zoom = 1.0
+        self.__last_image_norm_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def set_fill_mode(self):
+        #logging.debug("---------> fill")
+        self.image_canvas_mode = "fill"
+        self.__last_image_zoom = 1.0
+        self.__last_image_norm_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def set_one_to_one_mode(self):
+        #logging.debug("---------> 1:1")
+        self.image_canvas_mode = "1:1"
+        self.__last_image_zoom = 1.0
+        self.__last_image_norm_center = (0.5, 0.5)
+        self.update_image_canvas_size()
+
+    def zoom_in(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_zoom(self.__last_image_zoom * 1.05)
+        self.update_image_canvas_size()
+
+    def zoom_out(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_zoom(self.__last_image_zoom / 1.05)
+        self.update_image_canvas_size()
+
+    def move_left(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_position((0.0, 10.0))
+        self.update_image_canvas_size()
+
+    def move_right(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_position((0.0, -10.0))
+        self.update_image_canvas_size()
+
+    def move_up(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_position((10.0, 0.0))
+        self.update_image_canvas_size()
+
+    def move_down(self):
+        self.image_canvas_mode = "custom"
+        self.update_image_canvas_position((-10.0, 0.0))
+        self.update_image_canvas_size()
 
 
-# TODO: Panel is a broadcaster, remove listener management from this class
 class ImagePanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
         self.__data_panel_selection = DataItem.DataItemSpecifier()
-
-        self.__block_scrollers = False
-
-        self.image_canvas_zoom = 1.0
-        self.image_canvas_center = (0.5, 0.5)
-        self.image_canvas_mode = "fit"
-        self.image_canvas_preserve_pos = True
-        # the first time that this object receives the viewport_changed message,
-        # the canvas will be exactly the same size as the viewport. this variable
-        # helps to avoid setting the scrollbar positions until after the canvas
-        # size is set.
-        self.image_canvas_first = True
-
-        #self.image_canvas_scroll = self.ui.create_scroll_area_widget(properties={"stylesheet": "background: '#888'"})
-        #self.image_canvas_scroll.content = self.image_canvas
-        #self.image_canvas_scroll.on_viewport_changed = lambda rect: self.update_image_canvas_size()
 
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
@@ -1071,69 +1252,6 @@ class ImagePanel(Panel.Panel):
                 if data_item:
                     self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
 
-    def update_image_canvas_size(self):
-        if self.closed: return  # argh
-        if self.__block_scrollers: return  # argh2
-        viewport_size = self.image_canvas_scroll.viewport[1]
-        if viewport_size[0] == 0 or viewport_size[1] == 0: return
-        if self.data_item:
-            if self.data_item.is_data_2d:
-                if self.image_canvas_mode == "fill":
-                    spatial_size = self.data_item.spatial_shape
-                    scale_h = float(spatial_size[1]) / viewport_size[1]
-                    scale_v = float(spatial_size[0]) / viewport_size[0]
-                    if scale_v < scale_h:
-                        canvas_size = (viewport_size[0] * self.image_canvas_zoom, viewport_size[0] * spatial_size[1] / spatial_size[0] * self.image_canvas_zoom)
-                    else:
-                        canvas_size = (viewport_size[1] * spatial_size[0] / spatial_size[1] * self.image_canvas_zoom, viewport_size[1] * self.image_canvas_zoom)
-                elif self.image_canvas_mode == "1:1":
-                    canvas_size = self.data_item.spatial_shape
-                    canvas_size = (canvas_size[0] * self.image_canvas_zoom, canvas_size[1] * self.image_canvas_zoom)
-                else:  # fit
-                    canvas_size = (viewport_size[0] * self.image_canvas_zoom, viewport_size[1] * self.image_canvas_zoom)
-                old_block_scrollers = self.__block_scrollers
-                self.__block_scrollers = True
-                #logging.debug("before")
-                #self.image_canvas_scroll.info()
-                self.image_canvas.size = canvas_size
-                #logging.debug("after")
-                #self.image_canvas_scroll.info()
-                if not self.image_canvas_first and self.image_canvas_preserve_pos:
-# scroll bar has a range of 0 to canvas_size - viewport_size
-# when scroll bar is minimum, viewport ranges from 0 to viewport_size/canvas_zoom
-# when scroll bar is maximum, viewport ranges from (canvas_size - viewportsize)/canvas_zoom to canvas_size/canvas_zoom
-# when scroll bar has value, viewport ranges from value/canvas_zoom to (value + viewport_size)/canvas_zoom
-# and viewport center is (value + value + viewport_size)/2 / canvas_zoom = (value + viewport_size / 2) / canvas_zoom
-# which means value = canvas_center * canvas_zoom - viewport_size / 2
-# center = viewport_center / (canvas_size * canvas_zoom)
-                    viewport_center = self.map_image_norm_to_widget(self.image_canvas_center)
-                    h_range = canvas_size[1] - viewport_size[1]
-                    v_range = canvas_size[0] - viewport_size[0]
-                    h_offset = (viewport_center[1] - viewport_size[1]*0.5) / h_range if h_range else 0.0
-                    v_offset = (viewport_center[0] - viewport_size[0]*0.5) / v_range if v_range else 0.0
-                    h_offset = min(max(h_offset, 0.0), 1.0)
-                    v_offset = min(max(v_offset, 0.0), 1.0)
-                    #logging.debug("self.image_canvas_center %s", self.image_canvas_center)
-                    #logging.debug("viewport_center %s", viewport_center)
-                    #logging.debug("canvas_size %s  self.image_canvas_zoom %s", canvas_size, self.image_canvas_zoom)
-                    #logging.debug("h_offset %s  v_offset %s", h_offset, v_offset)
-                    self.image_canvas_scroll.scroll_to(h_offset, v_offset)
-                    self.image_canvas_preserve_pos = False
-                elif not self.image_canvas_first:
-                    viewport = self.image_canvas_scroll.viewport
-                    viewport_center = (viewport[0][0] + viewport[1][0]*0.5, viewport[0][1] + viewport[1][1]*0.5)
-                    self.image_canvas_center = self.map_widget_to_image_norm(viewport_center)
-                    #logging.debug("viewport %s", viewport)
-                    #logging.debug("viewport_center %s", viewport_center)
-                    #logging.debug("SET self.image_canvas_center %s", self.image_canvas_center)
-                self.image_canvas_first = False
-                self.__block_scrollers = old_block_scrollers
-            else:
-                self.image_canvas.size = viewport_size
-        else:
-            self.image_canvas.size = viewport_size
-        self.display_changed()
-
     def set_selected(self, selected):
         if self.closed: return  # argh
         self.image_canvas_item.selected = selected
@@ -1182,7 +1300,8 @@ class ImagePanel(Panel.Panel):
             self.__data_panel_selection.data_item.decrement_data_ref_count()
         self.__data_panel_selection = data_panel_selection
         self.data_item_content_changed(self.data_item, set([DataItem.SOURCE]))
-        #self.update_image_canvas_size()
+        self.image_canvas_item.image_canvas_mode = "fit"
+        self.image_canvas_item.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         data_item = self.data_item
@@ -1253,93 +1372,6 @@ class ImagePanel(Panel.Panel):
         return data_shape
     image_size = property(__get_image_size)
 
-    # map from image coordinates to widget coordinates
-    def map_image_to_widget(self, p):
-        image_size = self.image_size
-        if image_size:
-            return self.map_image_norm_to_widget((float(p[0])/image_size[0], float(p[1])/image_size[1]))
-        return None
-
-    # map from image normalized coordinates to widget coordinates
-    def map_image_norm_to_widget(self, p):
-        image_size = self.image_size
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
-        if transformed_image_rect:
-            return (p[0]*transformed_image_rect[1][0] + transformed_image_rect[0][0], p[1]*transformed_image_rect[1][1] + transformed_image_rect[0][1])
-        return None
-
-    # map from widget coordinates to image coordinates
-    def map_widget_to_image(self, p):
-        image_size = self.image_size
-        transformed_image_rect = WidgetMapping(image_size, self.image_canvas_item.canvas_size).data_rect
-        if transformed_image_rect and image_size:
-            if transformed_image_rect[1][0] != 0.0:
-                image_y = image_size[0] * (p[0] - transformed_image_rect[0][0])/transformed_image_rect[1][0]
-            else:
-                image_y = 0
-            if transformed_image_rect[1][1] != 0.0:
-                image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
-            else:
-                image_x = 0
-            return (image_y, image_x) # c-indexing
-        return None
-
-    # map from widget coordinates to image normalized coordinates
-    def map_widget_to_image_norm(self, p):
-        image_size = self.image_size
-        if image_size:
-            p_image = self.map_widget_to_image(p)
-            return (float(p_image[0]) / image_size[0], float(p_image[1]) / image_size[1])
-        return None
-
-    # map from image normalized coordinates to image coordinates
-    def map_image_norm_to_image(self, p):
-        image_size = self.image_size
-        if image_size:
-            return (p[0] * image_size[0], p[1] * image_size[1])
-        return None
-
-    # map from image normalized coordinates to image coordinates
-    def map_image_to_image_norm(self, p):
-        image_size = self.image_size
-        if image_size:
-            return (p[0] / image_size[0], p[1] / image_size[1])
-        return None
-
-    def __set_fit_mode(self):
-        #logging.debug("---------> fit")
-        self.image_canvas_mode = "fit"
-        self.image_canvas_preserve_pos = True
-        self.image_canvas_zoom = 1.0
-        self.image_canvas_center = (0.5, 0.5)
-        #self.update_image_canvas_size()
-
-    def __set_fill_mode(self):
-        #logging.debug("---------> fill")
-        self.image_canvas_mode = "fill"
-        self.image_canvas_preserve_pos = True
-        self.image_canvas_zoom = 1.0
-        self.image_canvas_center = (0.5, 0.5)
-        #self.update_image_canvas_size()
-
-    def __set_one_to_one_mode(self):
-        #logging.debug("---------> 1:1")
-        self.image_canvas_mode = "1:1"
-        self.image_canvas_preserve_pos = True
-        self.image_canvas_zoom = 1.0
-        self.image_canvas_center = (0.5, 0.5)
-        #self.update_image_canvas_size()
-
-    def __zoom_in(self):
-        self.image_canvas_zoom = self.image_canvas_zoom * 1.05
-        self.image_canvas_preserve_pos = True
-        #self.update_image_canvas_size()
-
-    def __zoom_out(self):
-        self.image_canvas_zoom = self.image_canvas_zoom / 1.05
-        self.image_canvas_preserve_pos = True
-        #self.update_image_canvas_size()
-
     def __show_data_source(self):
         data_source = self.data_item.data_source
         if data_source:
@@ -1347,21 +1379,8 @@ class ImagePanel(Panel.Panel):
 
     # ths message comes from the widget
     def key_pressed(self, key):
-        if key.is_delete:
-            all_graphics = self.data_item.graphics if self.data_item else []
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
-            if len(graphics):
-                self.document_controller.remove_graphic()
-        if key.text == "-":
-            self.__zoom_out()
-        if key.text == "+":
-            self.__zoom_in()
-        if key.text == "1":
-            self.__set_one_to_one_mode()
-        if key.text == "0":
-            self.__set_fit_mode()
-        if key.text == ")":
-            self.__set_fill_mode()
+        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+
         if key.text == "o":
             self.__show_data_source()
 

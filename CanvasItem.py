@@ -59,6 +59,7 @@ class AbstractCanvasItem(object):
                 self.__layer = self._canvas.create_layer()
             drawing_context = self._create_drawing_context()
             drawing_context.save()
+            self._begin_repaint(drawing_context)
             drawing_context.translate(self.canvas_origin[1], self.canvas_origin[0])
             self._repaint(drawing_context)
             drawing_context.restore()
@@ -67,9 +68,17 @@ class AbstractCanvasItem(object):
             self.__needs_update = False
             self.draw()
 
-    # create an extra drawing context
+    # create a drawing context.
     def _create_drawing_context(self):
         return self._canvas.create_drawing_context()
+
+    # subclasses can modify drawing context before repainting by overriding this method.
+    # default behaviors is to pass to container. subclasses should call super.
+    def _begin_repaint(self, drawing_context):
+        with self.__container_mutex:
+            container = self.__container
+        assert container
+        container._begin_repaint(drawing_context)
 
     # repaint should typically be called on a thread
     # layout (canvas_size) will always be valid if this is invoked
@@ -348,7 +357,100 @@ class CanvasItemComposition(AbstractCanvasItem):
         return "ignore"
 
 
+class ScrollAreaCanvasItem(AbstractCanvasItem):
+
+    def __init__(self, content=None):
+        super(ScrollAreaCanvasItem, self).__init__()
+        self.__content = None
+        self.updated_layout = None
+        if content:
+            self.__set_content(content)
+
+    def __get_content(self):
+        return self.__content
+    def __set_content(self, content):
+        # remove the old content
+        if self.__content:
+            self.__content.container = None
+        # add the new content
+        self.__content = content
+        content.container = self
+        content._set_canvas(self._canvas)
+        # update the layout if origin and size already known
+        if self.canvas_origin and self.canvas_size:
+            self.update_layout(self.canvas_origin, self.canvas_size)
+            self.update()
+    content = property(__get_content, __set_content)
+
+    def _set_canvas(self, canvas):
+        super(ScrollAreaCanvasItem, self)._set_canvas(canvas)
+        self.__content._set_canvas(canvas)
+
+    def update_layout(self, canvas_origin, canvas_size):
+        super(ScrollAreaCanvasItem, self).update_layout(canvas_origin, canvas_size)
+        self.__content.update_layout(canvas_origin, canvas_size)
+        if self.updated_layout:
+            self.updated_layout(canvas_origin, canvas_size)
+
+    def update(self):
+        super(ScrollAreaCanvasItem, self).update()
+        self.__content.update()
+
+    def repaint_if_needed(self):
+        super(ScrollAreaCanvasItem, self).repaint_if_needed()
+        self.__content.repaint_if_needed()
+
+    # override. add clip to the bounds of this scroll area.
+    def _begin_repaint(self, drawing_context):
+        super(ScrollAreaCanvasItem, self)._begin_repaint(drawing_context)
+        drawing_context.clip_rect(self.canvas_origin[1], self.canvas_origin[0], self.canvas_size[1], self.canvas_size[0])
+        return drawing_context
+
+    def mouse_clicked(self, x, y, modifiers):
+        return self.__content.mouse_clicked(x, y, modifiers)
+
+    def mouse_double_clicked(self, x, y, modifiers):
+        return self.__content.mouse_double_clicked(x, y, modifiers)
+
+    def mouse_entered(self):
+        return self.__content.mouse_entered()
+
+    def mouse_exited(self):
+        return self.__content.mouse_exited()
+
+    def mouse_pressed(self, x, y, modifiers):
+        return self.__content.mouse_pressed(x, y, modifiers)
+
+    def mouse_released(self, x, y, modifiers):
+        return self.__content.mouse_released(x, y, modifiers)
+
+    def mouse_position_changed(self, x, y, modifiers):
+        return self.__content.mouse_position_changed(x, y, modifiers)
+
+    def key_pressed(self, key):
+        return self.__content.key_pressed(key)
+
+    def drag_enter(self, mime_data):
+        return self.__content.drag_enter(mime_data)
+
+    def drag_leave(self):
+        return self.__content.drag_leave()
+
+    def drag_move(self, mime_data, x, y):
+        return self.__content.drag_move(mime_data, x, y)
+
+    def drop(self, mime_data, x, y):
+        return self.__content.drop(mime_data, x, y)
+
+
 class RootCanvasItem(CanvasItemComposition):
+
+    """
+        The root canvas item acts as a bridge between the higher level ui widget
+        and a canvas hierarchy. It connects size notifications, mouse activity,
+        keyboard activity, focus activity, and drag and drop actions to the
+        canvas item.
+    """
 
     def __init__(self, ui, properties=None):
         super(RootCanvasItem, self).__init__()
@@ -379,6 +481,10 @@ class RootCanvasItem(CanvasItemComposition):
         self.canvas.focusable = focusable
     focusable = property(__get_focusable, __set_focusable)
 
+    # override since no modifications are necessary
+    def _begin_repaint(self, drawing_context):
+        pass
+
     def draw(self):
         self._canvas.draw()
 
@@ -391,6 +497,24 @@ class RootCanvasItem(CanvasItemComposition):
     def __focus_changed(self, focused):
         if self.on_focus_changed:
             self.on_focus_changed(focused)
+
+
+class BackgroundCanvasItem(AbstractCanvasItem):
+
+    def __init__(self):
+        super(BackgroundCanvasItem, self).__init__()
+        self.background_color = "#888"
+
+    def _repaint(self, drawing_context):
+        # canvas size
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
+        drawing_context.save()
+        drawing_context.begin_path()
+        drawing_context.rect(0, 0, canvas_width, canvas_height)
+        drawing_context.fill_style = self.background_color
+        drawing_context.fill()
+        drawing_context.restore()
 
 
 class FocusRingCanvasItem(AbstractCanvasItem):

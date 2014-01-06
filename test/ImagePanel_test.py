@@ -82,6 +82,26 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertIsNone(self.image_panel.data_panel_selection.data_item_container)
         self.assertIsNone(self.image_panel.data_panel_selection.data_item)
 
+    def test_select_line(self):
+        # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
+        self.document_controller.add_line_graphic()
+        # click outside so nothing is selected
+        self.simulate_click((0, 0))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 0)
+        # select the line
+        self.simulate_click((200, 200))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        # now shift the view and try again
+        self.simulate_click((0, 0))
+        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
+        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
+        self.simulate_click((200, 200))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 0)
+        self.simulate_click((220, 200))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+
     def test_select_multiple(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
         self.document_controller.add_line_graphic()
@@ -278,13 +298,25 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.250, 0.250))
 
+    # this helps test out cursor positioning
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480
         self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
-        self.assertIsNotNone(self.image_panel.map_widget_to_image((240, 320)))
-        self.assertClosePoint(self.image_panel.map_widget_to_image((240, 320)), (500.0, 500.0))
-        self.assertClosePoint(self.image_panel.map_widget_to_image((0, 80)), (0.0, 0.0))
-        self.assertClosePoint(self.image_panel.map_widget_to_image((480, 560)), (1000.0, 1000.0))
+        self.assertIsNotNone(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((0, 80)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((480, 560)), (1000.0, 1000.0))
+
+    # this helps test out cursor positioning
+    def test_map_widget_to_offset_image(self):
+        # assumes the test widget is 640x480
+        self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
+        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
+        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
+        self.assertIsNotNone(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((240, 300)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((0, 60)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((480, 540)), (1000.0, 1000.0))
 
     def test_resize_rectangle(self):
         # add rect (0.25, 0.25), (0.5, 0.5)
@@ -311,18 +343,18 @@ class TestImagePanelClass(unittest.TestCase):
         # make sure items it is in the right place
         self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
         # select it
         self.image_panel.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (700, 500))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (700, 500))
         # drag with shift key
         self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (1000, 250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (500, 500))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (1000, 250))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (500, 500))
 
     def test_resize_nonsquare_ellipse(self):
         self.image_panel.image_canvas_item.update_layout((0, 0), (2000, 1000))
@@ -332,18 +364,18 @@ class TestImagePanelClass(unittest.TestCase):
         # make sure items it is in the right place
         self.assertClosePoint(self.data_item.graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.data_item.graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (1000, 500))
         # select it
         self.image_panel.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (400, 500))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (400, 500))
         # drag with shift key
         self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (900, 400))
-        self.assertClosePoint(self.image_panel.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (200, 200))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[0]), (900, 400))
+        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.graphics[0].bounds[1]), (200, 200))
 
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.image_panel.graphic_selection.indexes)

@@ -405,6 +405,11 @@ class QtDrawingContext(object):
     def close_path(self):
         self.js += "ctx.closePath();"
         self.commands.append(("closePath", ))
+    def clip_rect(self, a, b, c, d):
+        self.js += "ctx.beginPath();"
+        self.js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
+        self.js += "ctx.clip();"
+        self.commands.append(("clip", float(a), float(b), float(c), float(d)))
     def translate(self, x, y):
         self.js += "ctx.translate({0}, {1});".format(x, y)
         self.commands.append(("translate", float(x), float(y)))

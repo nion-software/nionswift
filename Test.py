@@ -84,6 +84,8 @@ class DrawingContext(object):
         pass
     def close_path(self):
         pass
+    def clip_rect(self, a, b, c, d):
+        pass
     def translate(self, x, y):
         pass
     def scale(self, x, y):
