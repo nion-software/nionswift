@@ -660,6 +660,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_selection = GraphicSelection()
         self.graphic_selection.add_listener(self)
         self.__last_mouse = None
+        self.__is_dragging = False
         self.__mouse_in = False
         self.graphics_canvas_item.graphic_selection = self.graphic_selection
 
@@ -686,7 +687,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def update_image_canvas_zoom(self, new_image_zoom):
         if self.data_item:
+            self.image_canvas_mode = "custom"
             self.__last_image_zoom = new_image_zoom
+            self.update_image_canvas_size()
 
     # update the image canvas position by the widget delta amount
     def update_image_canvas_position(self, widget_delta):
@@ -705,6 +708,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             # save the new image norm center
             self.__last_image_norm_center = (new_image_norm_center_0, new_image_norm_center_1)
             # and update the image canvas accordingly
+            self.image_canvas_mode = "custom"
             self.update_image_canvas_size()
 
     # update the image canvas origin and size
@@ -775,6 +779,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         ImagePanelManager().mouse_clicked(self.image_panel, self.data_item, image_position, modifiers)
         return True
 
+    def mouse_double_clicked(self, x, y, modifiers):
+        self.set_fit_mode()
+        return True
+
     def mouse_pressed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
@@ -815,6 +823,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     break
         if not self.graphic_drag_items and not modifiers.shift:
             self.graphic_selection.clear()
+            self.__start_drag_pos = (y, x)
+            self.__last_drag_pos = (y, x)
+            self.__is_dragging = True
         return True
 
     def mouse_released(self, x, y, modifiers):
@@ -841,6 +852,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_drag_item = None
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
+        self.__start_drag_pos = None
+        self.__last_drag_pos = None
+        self.__is_dragging = False
         return True
 
     def mouse_entered(self):
@@ -870,6 +884,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
                 self.graphic_drag_changed = True
                 self.graphics_canvas_item.update()
+        elif self.__is_dragging:
+            delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
+            self.update_image_canvas_position((-delta[0], -delta[1]))
+            self.__last_drag_pos = (y, x)
         self.graphics_canvas_item.repaint_if_needed()
         return True
 
@@ -1186,34 +1204,22 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.update_image_canvas_size()
 
     def zoom_in(self):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_zoom(self.__last_image_zoom * 1.05)
-        self.update_image_canvas_size()
 
     def zoom_out(self):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_zoom(self.__last_image_zoom / 1.05)
-        self.update_image_canvas_size()
 
     def move_left(self, amount=10.0):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_position((0.0, amount))
-        self.update_image_canvas_size()
 
     def move_right(self, amount=10.0):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_position((0.0, -amount))
-        self.update_image_canvas_size()
 
     def move_up(self, amount=10.0):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_position((amount, 0.0))
-        self.update_image_canvas_size()
 
     def move_down(self, amount=10.0):
-        self.image_canvas_mode = "custom"
         self.update_image_canvas_position((-amount, 0.0))
-        self.update_image_canvas_size()
 
 
 class ImagePanel(Panel.Panel):
