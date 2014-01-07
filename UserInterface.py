@@ -1138,6 +1138,7 @@ class QtCanvasWidget(QtWidget):
         self.__on_mouse_pressed = None
         self.__on_mouse_released = None
         self.__on_mouse_position_changed = None
+        self.on_wheel_changed = None
         self.__on_key_pressed = None
         self.__on_size_changed = None
         self.__on_focus_changed = None
@@ -1280,6 +1281,10 @@ class QtCanvasWidget(QtWidget):
         if self.__on_mouse_position_changed:
             self.__on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
+    def wheelChanged(self, dx, dy, is_horizontal):
+        if self.on_wheel_changed:
+            self.on_wheel_changed(dx, dy, is_horizontal)
+
     def sizeChanged(self, width, height):
         self.width = width
         self.height = height
@@ -1318,6 +1323,17 @@ class QtCanvasWidget(QtWidget):
         if self.on_drop:
             return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
         return "ignore"
+
+    def grab_gesture(self, gesture_type):
+        logging.debug("grab")
+        self.proxy.Widget_grabGesture(self.widget, gesture_type)
+
+    def release_gesture(self, gesture_type):
+        self.proxy.Widget_ungrabGesture(self.widget, gesture_type)
+
+    def panGesture(self, delta_x, delta_y):
+        if self.on_pan_gesture:
+            self.on_pan_gesture(delta_x, delta_y)
 
 
 # pobj

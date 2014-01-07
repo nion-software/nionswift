@@ -120,6 +120,9 @@ class AbstractCanvasItem(object):
     def mouse_position_changed(self, x, y, modifiers):
         return False
 
+    def wheel_changed(self, dx, dy, is_horizontal):
+        return False
+
     def key_pressed(self, key):
         return False
 
@@ -134,6 +137,9 @@ class AbstractCanvasItem(object):
 
     def drop(self, mime_data, x, y):
         return "ignore"
+
+    def pan_gesture(self, dx, dy):
+        return False
 
 
 class CanvasItemLayout(object):
@@ -307,7 +313,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return False
 
     def mouse_position_changed(self, x, y, modifiers):
-        # always cgive the mouse canvas item priority (for tracking outside bounds)
+        # always give the mouse canvas item priority (for tracking outside bounds)
         if self.__mouse_canvas_item:
             x -= self.__mouse_canvas_item.canvas_origin[1]
             y -= self.__mouse_canvas_item.canvas_origin[0]
@@ -321,6 +327,15 @@ class CanvasItemComposition(AbstractCanvasItem):
                 if canvas_item.mouse_position_changed(x, y, modifiers):
                     return True
         return False
+
+    def wheel_changed(self, dx, dy, is_horizontal):
+        # always give the mouse canvas item priority (for tracking outside bounds)
+        if False and self.__mouse_canvas_item:
+            self.__mouse_canvas_item.wheel_changed(dx, dy, is_horizontal)
+        # now give other canvas items a chance
+        else:
+            for canvas_item in reversed(self.__canvas_items):
+                canvas_item.wheel_changed(dx, dy, is_horizontal)
 
     def key_pressed(self, key):
         for canvas_item in reversed(self.__canvas_items):
@@ -355,6 +370,12 @@ class CanvasItemComposition(AbstractCanvasItem):
             if action != "ignore":
                 return action
         return "ignore"
+
+    def pan_gesture(self, dx, dy):
+        for canvas_item in reversed(self.__canvas_items):
+            if canvas_item.pan_gesture(dx, dy):
+                return True
+        return False
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):
@@ -427,6 +448,9 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         return self.__content.mouse_position_changed(x, y, modifiers)
 
+    def wheel_changed(self, dx, dy, is_horizontal):
+        return self.__content.wheel_changed(dx, dy, is_horizontal)
+
     def key_pressed(self, key):
         return self.__content.key_pressed(key)
 
@@ -441,6 +465,9 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
 
     def drop(self, mime_data, x, y):
         return self.__content.drop(mime_data, x, y)
+
+    def pan_gesture(self, dx, dy):
+        return self.__content.pan_gesture(dx, dy)
 
 
 class RootCanvasItem(CanvasItemComposition):
@@ -463,12 +490,14 @@ class RootCanvasItem(CanvasItemComposition):
         self._canvas.on_mouse_pressed = lambda x, y, modifiers: self.mouse_pressed(x, y, modifiers)
         self._canvas.on_mouse_released = lambda x, y, modifiers: self.mouse_released(x, y, modifiers)
         self._canvas.on_mouse_position_changed = lambda x, y, modifiers: self.mouse_position_changed(x, y, modifiers)
+        self._canvas.on_wheel_changed = lambda dx, dy, is_horizontal: self.wheel_changed(dx, dy, is_horizontal)
         self._canvas.on_key_pressed = lambda key: self.key_pressed(key)
         self._canvas.on_focus_changed = lambda focused: self.__focus_changed(focused)
         self._canvas.on_drag_enter = lambda mime_data: self.drag_enter(mime_data)
         self._canvas.on_drag_leave = lambda: self.drag_leave()
         self._canvas.on_drag_move = lambda mime_data, x, y: self.drag_move(mime_data, x, y)
         self._canvas.on_drop = lambda mime_data, x, y: self.drop(mime_data, x, y)
+        self._canvas.on_pan_gesture = lambda dx, dy: self.pan_gesture(dx, dy)
         self.on_focus_changed = None
 
     def __get_canvas(self):
@@ -497,6 +526,12 @@ class RootCanvasItem(CanvasItemComposition):
     def __focus_changed(self, focused):
         if self.on_focus_changed:
             self.on_focus_changed(focused)
+
+    def grab_gesture(self, gesture_type):
+        self._canvas.grab_gesture(gesture_type)
+
+    def ungrab_gesture(self, gesture_type):
+        self._canvas.ungrab_gesture(gesture_type)
 
 
 class BackgroundCanvasItem(AbstractCanvasItem):
