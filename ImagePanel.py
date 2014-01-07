@@ -910,7 +910,19 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 elif key.is_down_arrow:
                     for graphic in graphics:
                         graphic.nudge(widget_mapping, (amount, 0))
-        if key.text == "h":
+                return True
+        if key.is_arrow:
+            amount = 100.0 if key.modifiers.shift else 10.0
+            if key.is_left_arrow:
+                self.move_left(amount)
+            elif key.is_up_arrow:
+                self.move_up(amount)
+            elif key.is_right_arrow:
+                self.move_right(amount)
+            elif key.is_down_arrow:
+                self.move_down(amount)
+            return True
+        if key.text == "H":
             histogram_canvas_item = self.accessories.get("histogram")
             if histogram_canvas_item:
                 self.accessory_canvas_item.remove_canvas_item(histogram_canvas_item)
@@ -923,7 +935,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.add_canvas_item(histogram_canvas_item)
                 self.accessories["histogram"] = histogram_canvas_item
                 self.repaint_if_needed()
-        if key.text == "f":
+            return True
+        if key.text == "F":
             fft_canvas_item = self.accessories.get("fft")
             if fft_canvas_item:
                 self.accessory_canvas_item.remove_canvas_item(fft_canvas_item)
@@ -942,7 +955,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
                 self.accessories["fft"] = fft_canvas_item
                 self.repaint_if_needed()
-        if key.text == "p":
+            return True
+        if key.text == "P":
             line_profile_canvas_item = self.accessories.get("line_profile")
             if line_profile_canvas_item:
                 self.accessory_canvas_item.remove_canvas_item(line_profile_canvas_item)
@@ -961,24 +975,34 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
                 self.accessories["line_profile"] = line_profile_canvas_item
                 self.repaint_if_needed()
+            return True
         if key.text == "-":
             self.zoom_out()
+            return True
         if key.text == "+":
             self.zoom_in()
+            return True
         if key.text == "j":
             self.move_left()
+            return True
         if key.text == "k":
             self.move_right()
+            return True
         if key.text == "i":
             self.move_up()
+            return True
         if key.text == "m":
             self.move_down()
+            return True
         if key.text == "1":
             self.set_one_to_one_mode()
+            return True
         if key.text == "0":
             self.set_fit_mode()
+            return True
         if key.text == ")":
             self.set_fill_mode()
+            return True
         return self.image_panel.key_pressed(key)
 
     def __get_focused(self):
@@ -1171,24 +1195,24 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.update_image_canvas_zoom(self.__last_image_zoom / 1.05)
         self.update_image_canvas_size()
 
-    def move_left(self):
+    def move_left(self, amount=10.0):
         self.image_canvas_mode = "custom"
-        self.update_image_canvas_position((0.0, 10.0))
+        self.update_image_canvas_position((0.0, amount))
         self.update_image_canvas_size()
 
-    def move_right(self):
+    def move_right(self, amount=10.0):
         self.image_canvas_mode = "custom"
-        self.update_image_canvas_position((0.0, -10.0))
+        self.update_image_canvas_position((0.0, -amount))
         self.update_image_canvas_size()
 
-    def move_up(self):
+    def move_up(self, amount=10.0):
         self.image_canvas_mode = "custom"
-        self.update_image_canvas_position((10.0, 0.0))
+        self.update_image_canvas_position((amount, 0.0))
         self.update_image_canvas_size()
 
-    def move_down(self):
+    def move_down(self, amount=10.0):
         self.image_canvas_mode = "custom"
-        self.update_image_canvas_position((-10.0, 0.0))
+        self.update_image_canvas_position((-amount, 0.0))
         self.update_image_canvas_size()
 
 
