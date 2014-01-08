@@ -95,6 +95,8 @@ class Operation(Storage.StorageBase):
     # calibrations
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         return source_calibrations
+    def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
+        return intensity_calibration
     # subclasses that change the type or shape of the data must override
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape, data_dtype

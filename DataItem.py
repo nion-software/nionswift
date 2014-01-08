@@ -276,6 +276,7 @@ class DataItem(Storage.StorageBase):
     def __init__(self, data=None):
         super(DataItem, self).__init__()
         self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties"]
+        self.storage_items += ["intrinsic_intensity_calibration"]
         self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
@@ -293,6 +294,7 @@ class DataItem(Storage.StorageBase):
         self.__datetime_modified = self.__datetime_original
         self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
         self.__display_calibrated_values = True
+        self.__intrinsic_intensity_calibration = None
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
@@ -349,6 +351,7 @@ class DataItem(Storage.StorageBase):
         properties = datastore.get_property(item_node, "properties")
         display_limits = datastore.get_property(item_node, "display_limits")
         intrinsic_calibrations = datastore.get_items(item_node, "calibrations")  # uses old key until migrated
+        intrinsic_intensity_calibration = datastore.get_item(item_node, "intrinsic_intensity_calibration")
         display_calibrated_values = datastore.get_property(item_node, "display_calibrated_values")
         datetime_modified = datastore.get_property(item_node, "datetime_modified")
         datetime_original = datastore.get_property(item_node, "datetime_original")
@@ -373,6 +376,7 @@ class DataItem(Storage.StorageBase):
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()
         data_item.intrinsic_calibrations.extend(intrinsic_calibrations)
+        data_item.intrinsic_intensity_calibration = intrinsic_intensity_calibration
         if display_calibrated_values is not None:
             data_item.display_calibrated_values = display_calibrated_values
         if display_limits:
@@ -520,6 +524,8 @@ class DataItem(Storage.StorageBase):
     # TODO: this is only valid after data has been called (!)
     display_range = property(__get_display_range)
 
+    # calibration stuff
+
     def __is_calibrated(self):
         return len(self.intrinsic_calibrations) == len(self.spatial_shape)
     is_calibrated = property(__is_calibrated)
@@ -536,6 +542,77 @@ class DataItem(Storage.StorageBase):
         self.intrinsic_calibrations[dimension].origin = calibration.origin
         self.intrinsic_calibrations[dimension].scale = calibration.scale
         self.intrinsic_calibrations[dimension].units = calibration.units
+
+    def __get_intrinsic_intensity_calibration(self):
+        return self.__intrinsic_intensity_calibration
+    def __set_intrinsic_intensity_calibration(self, intrinsic_intensity_calibration):
+        if self.__intrinsic_intensity_calibration:
+            self.__intrinsic_intensity_calibration.remove_listener(self)
+        self.__intrinsic_intensity_calibration = intrinsic_intensity_calibration
+        if self.__intrinsic_intensity_calibration:
+            self.notify_set_item("intrinsic_intensity_calibration", intrinsic_intensity_calibration)
+        else:
+            self.notify_clear_item("intrinsic_intensity_calibration")
+        if self.__intrinsic_intensity_calibration:
+            self.__intrinsic_intensity_calibration.add_listener(self)
+    intrinsic_intensity_calibration = property(__get_intrinsic_intensity_calibration, __set_intrinsic_intensity_calibration)
+
+    def __get_calculated_intensity_calibration(self):
+        calibration = None
+        # if intrinsic_calibrations are set on this item, use it, giving it precedence
+        if self.intrinsic_intensity_calibration:
+            if self.display_calibrated_values:
+                # use actual intrinsic_calibrations
+                intensity_calibration = self.intrinsic_intensity_calibration
+            else:
+                # construct empty calibration to display unitless
+                intensity_calibration = Calibration()
+        # if intrinsic_calibrations are not set, then try to get calibrations from the data source
+        if intensity_calibration is None and self.data_source:
+            intensity_calibration = self.data_source.calculated_intensity_calibration
+        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
+        if data_shape is not None and data_dtype is not None:
+            for operation in self.operations:
+                if operation.enabled:
+                    intensity_calibration = operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
+                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        return intensity_calibration
+    calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
+
+    # call this when data changes. this makes sure that the right number
+    # of intrinsic_calibrations exist in this object.
+    def sync_intrinsic_calibrations(self, ndim):
+        while len(self.intrinsic_calibrations) < ndim:
+            self.intrinsic_calibrations.append(Calibration())
+        while len(self.intrinsic_calibrations) > ndim:
+            self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
+
+    # calculate the calibrations by starting with the source calibration
+    # and then applying calibration transformations for each enabled
+    # operation.
+    def __get_calculated_calibrations(self):
+        calibrations = None
+        # if intrinsic_calibrations are set on this item, use it, giving it precedence
+        if self.intrinsic_calibrations:
+            if self.display_calibrated_values:
+                # use actual intrinsic_calibrations
+                calibrations = self.intrinsic_calibrations
+            else:
+                # construct empty calibrations to display pixels
+                calibrations = list()
+                for _ in xrange(0, len(self.spatial_shape)):
+                    calibrations.append(Calibration())
+        # if intrinsic_calibrations are not set, then try to get calibrations from the data source
+        if calibrations is None and self.data_source:
+            calibrations = self.data_source.calculated_calibrations
+        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
+        if data_shape is not None and data_dtype is not None:
+            for operation in self.operations:
+                if operation.enabled:
+                    calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
+                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        return calibrations
+    calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
 
@@ -593,41 +670,6 @@ class DataItem(Storage.StorageBase):
                 return grab_properties(self.__data_item)
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
-
-    # call this when data changes. this makes sure that the right number
-    # of intrinsic_calibrations exist in this object.
-    def sync_intrinsic_calibrations(self, ndim):
-        while len(self.intrinsic_calibrations) < ndim:
-            self.intrinsic_calibrations.append(Calibration(0.0, 1.0, None))
-        while len(self.intrinsic_calibrations) > ndim:
-            self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
-
-    # calculate the calibrations by starting with the source calibration
-    # and then applying calibration transformations for each enabled
-    # operation.
-    def __get_calculated_calibrations(self):
-        calibrations = None
-        # if intrinsic_calibrations are set on this item, use it, giving it precedence
-        if self.intrinsic_calibrations:
-            if self.display_calibrated_values:
-                # use actual intrinsic_calibrations
-                calibrations = self.intrinsic_calibrations
-            else:
-                # construct empty calibrations to display pixels
-                calibrations = list()
-                for _ in xrange(0, len(self.spatial_shape)):
-                    calibrations.append(Calibration(0.0, 1.0, None))
-        # if intrinsic_calibrations are not set, then try to get calibrations from the data source
-        if not calibrations and self.data_source:
-            calibrations = self.data_source.calculated_calibrations
-        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
-        if data_shape is not None and data_dtype is not None:
-            for operation in self.operations:
-                if operation.enabled:
-                    calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
-                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return calibrations
-    calculated_calibrations = property(__get_calculated_calibrations)
 
     # call this when operations change or data souce changes
     # this allows operations to update their default values
@@ -1132,6 +1174,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy.datetime_original = copy.copy(self.datetime_original)
         for calibration in self.intrinsic_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
+        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
         data_item_copy.display_calibrated_values = self.display_calibrated_values
         # graphic must be copied before operation, since operations can
         # depend on graphics.

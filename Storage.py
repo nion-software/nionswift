@@ -891,7 +891,7 @@ class DictDatastore(object):
         return "relationships" in parent_node and key in parent_node["relationships"]
 
     def get_item(self, parent_node, key, default_value=None):
-        items = parent_node["items"]
+        items = parent_node["items"] if "items" in parent_node else dict()
         if key in items:
             return self.build_item(items[key])
         else:
