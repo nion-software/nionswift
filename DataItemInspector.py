@@ -146,7 +146,7 @@ class CalibrationsInspector(InspectorSection):
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
 
-    # not thead safe
+    # not thread safe
     def __create_header_widget(self):
         header_row = self.ui.create_row_widget()
         axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
@@ -278,6 +278,8 @@ class GraphicsInspector(InspectorSection):
         graphic_title_row.add(graphic_title_type_label)
         graphic_title_row.add_stretch()
         graphic_widget.add(graphic_title_row)
+        # combine the display calibrated values binding with the calibration values themselves.
+        # this allows the text to reflect calibrated or uncalibrated data.
         class CalibratedValueBinding(UserInterfaceUtility.Binding):
             def __init__(self, value_binding, display_calibrated_values_binding, converter):
                 super(CalibratedValueBinding, self).__init__(None, converter)
@@ -295,6 +297,7 @@ class GraphicsInspector(InspectorSection):
                 super(CalibratedValueBinding, self).periodic()
                 self.__value_binding.periodic()
                 self.__display_calibrated_values_binding.periodic()
+            # set the model value from the target ui element text.
             def update_source(self, target_value):
                 display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
                 if display_calibrated_values:
@@ -302,6 +305,7 @@ class GraphicsInspector(InspectorSection):
                 else:
                     converted_value = float(target_value)
                 self.__value_binding.update_source(converted_value)
+            # update the target ui element from the model.
             def get_target_value(self):
                 display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
                 value = self.__value_binding.get_target_value()
@@ -442,8 +446,8 @@ class DataItemInspector(object):
         # ui
 
         self.__inspectors = list()
-        self.widget = self.ui.create_column_widget()
-        self.widget.add_spacing(6)
+        content_widget = self.ui.create_column_widget()
+        content_widget.add_spacing(6)
 
         self.__inspectors.append(InfoInspector(self.ui, self.__data_item_binding_source))
         # self.__inspectors.append(ParamInspector(self.ui, self.__data_item_binding_source))
@@ -452,7 +456,9 @@ class DataItemInspector(object):
         self.__inspectors.append(GraphicsInspector(self.ui, self.__data_item_binding_source))
 
         for inspector in self.__inspectors:
-            self.widget.add(inspector.widget)
+            content_widget.add(inspector.widget)
+
+        self.widget = content_widget
 
     def close(self):
         # close inspectors

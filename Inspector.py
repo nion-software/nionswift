@@ -420,7 +420,9 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
-        self.column = self.ui.create_column_widget(properties)
+        scroll_area = self.ui.create_scroll_area_widget(properties)
+        scroll_area.set_scrollbar_policies("off", "needed")
+        self.column = self.ui.create_column_widget()
 
         self.__data_item = None
         self.__pec = None
@@ -436,7 +438,9 @@ class InspectorPanel(Panel.Panel):
         # and data_item_binding_data_item_content_changed
         self.data_item_binding.add_listener(self)
 
-        self.widget = self.column
+        scroll_area.content = self.column
+
+        self.widget = scroll_area
 
     def close(self):
         # first set the data item to None
