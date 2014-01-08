@@ -250,6 +250,7 @@ class StorageBase(Observable, Broadcaster):
         self.storage_items = []
         self.storage_data_keys = []
         self.storage_type = None
+        self.__reverse_aliases = dict()
         self.__cache = dict()
         self.__cache_dirty = dict()
         self.__cache_mutex = threading.RLock()
@@ -326,6 +327,10 @@ class StorageBase(Observable, Broadcaster):
     def __get_parents(self):
         return [weak_parent() for weak_parent in self.__weak_parents]
     parents = property(__get_parents)
+
+    # map a property to a storage key
+    def register_key_alias(self, key, alias):
+        self.__reverse_aliases[key] = alias
 
     # Send a message to the parents
     def notify_parents(self, fn, *args, **keywords):
@@ -543,6 +548,7 @@ class StorageBase(Observable, Broadcaster):
         for property_key in self.storage_properties:
             value = self.get_storage_property(property_key)
             if value:
+                resolved_property_key = self.__reverse_aliases.get(property_key, property_key)
                 self.datastore.set_property(self, property_key, value)
         for item_key in self.storage_items:
             item = self.get_storage_item(item_key)
@@ -550,11 +556,13 @@ class StorageBase(Observable, Broadcaster):
                 # TODO: are these redundant?
                 item.datastore = self.datastore
                 item.storage_cache = self.storage_cache
-                self.datastore.set_item(self, item_key, item)
+                resolved_item_key = self.__reverse_aliases.get(item_key, item_key)
+                self.datastore.set_item(self, resolved_item_key, item)
         for data_key in self.storage_data_keys:
             data, data_file_path, data_file_datetime = self.get_storage_data(data_key)
             if data is not None:
-                self.datastore.set_data(self, data_key, data, data_file_path, data_file_datetime)
+                resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
+                self.datastore.set_data(self, resolved_data_key, data, data_file_path, data_file_datetime)
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
@@ -562,7 +570,8 @@ class StorageBase(Observable, Broadcaster):
                 # TODO: are these redundant?
                 item.datastore = self.datastore
                 item.storage_cache = self.storage_cache
-                self.datastore.insert_item(self, relationship_key, item, index)
+                resolved_relationship_key = self.__reverse_aliases.get(relationship_key, relationship_key)
+                self.datastore.insert_item(self, resolved_relationship_key, item, index)
         if self.datastore:
             self.datastore.set_type(self, self.storage_type)
 

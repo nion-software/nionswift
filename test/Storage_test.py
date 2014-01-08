@@ -113,7 +113,7 @@ class TestStorageClass(unittest.TestCase):
         document_model_uuid = document_controller.document_model.uuid
         data_items_count = len(document_controller.document_model.default_data_group.data_items)
         data_items_type = type(document_controller.document_model.default_data_group.data_items)
-        data_item0_calibration_len = len(document_controller.document_model.default_data_group.data_items[0].calibrations)
+        data_item0_calibration_len = len(document_controller.document_model.default_data_group.data_items[0].intrinsic_calibrations)
         data_item0_uuid = document_controller.document_model.default_data_group.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.default_data_group.data_items[1].data_items)
         if include_rewrite:
@@ -132,7 +132,7 @@ class TestStorageClass(unittest.TestCase):
         with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
             self.assertIsNotNone(data_ref.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.default_data_group.data_items[0].uuid)
-        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].calibrations))
+        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].intrinsic_calibrations))
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
         # check over the data item
         data_item = document_controller.document_model.default_data_group.data_items[0]

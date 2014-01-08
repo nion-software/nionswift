@@ -220,7 +220,7 @@ class HistogramThread(ProcessingThread):
 
 # graphic items: roi's
 
-# calibrations: calibration for each dimension
+# intrinsic_calibrations: calibration for each dimension
 # display_calibrated_values: whether calibrated units are displayed
 
 # data: data with all operations applied
@@ -276,12 +276,13 @@ class DataItem(Storage.StorageBase):
     def __init__(self, data=None):
         super(DataItem, self).__init__()
         self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties"]
-        self.storage_relationships += ["calibrations", "graphics", "operations", "data_items"]
+        self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
         self.register_dependent_key("data_range", "display_range")
         self.register_dependent_key("display_limits", "display_range")
+        self.register_key_alias("intrinsic_calibrations", "calibrations")
         self.description = []
         self.closed = False
         self.__title = None
@@ -290,7 +291,7 @@ class DataItem(Storage.StorageBase):
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__datetime_original = Utility.get_current_datetime_element()
         self.__datetime_modified = self.__datetime_original
-        self.calibrations = Storage.MutableRelationship(self, "calibrations")
+        self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
         self.__display_calibrated_values = True
         self.graphics = Storage.MutableRelationship(self, "graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
@@ -347,7 +348,7 @@ class DataItem(Storage.StorageBase):
         param = datastore.get_property(item_node, "param")
         properties = datastore.get_property(item_node, "properties")
         display_limits = datastore.get_property(item_node, "display_limits")
-        calibrations = datastore.get_items(item_node, "calibrations")
+        intrinsic_calibrations = datastore.get_items(item_node, "calibrations")  # uses old key until migrated
         display_calibrated_values = datastore.get_property(item_node, "display_calibrated_values")
         datetime_modified = datastore.get_property(item_node, "datetime_modified")
         datetime_original = datastore.get_property(item_node, "datetime_original")
@@ -368,10 +369,10 @@ class DataItem(Storage.StorageBase):
         data_item.__has_master_data = has_master_data
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
-        # setting master data may add calibrations automatically. remove them here to start from clean slate.
-        while len(data_item.calibrations):
-            data_item.calibrations.pop()
-        data_item.calibrations.extend(calibrations)
+        # setting master data may add intrinsic_calibrations automatically. remove them here to start from clean slate.
+        while len(data_item.intrinsic_calibrations):
+            data_item.intrinsic_calibrations.pop()
+        data_item.intrinsic_calibrations.extend(intrinsic_calibrations)
         if display_calibrated_values is not None:
             data_item.display_calibrated_values = display_calibrated_values
         if display_limits:
@@ -396,8 +397,8 @@ class DataItem(Storage.StorageBase):
         self.__set_master_data(None)
         for data_item in copy.copy(self.data_items):
             self.data_items.remove(data_item)
-        for calibration in copy.copy(self.calibrations):
-            self.calibrations.remove(calibration)
+        for calibration in copy.copy(self.intrinsic_calibrations):
+            self.intrinsic_calibrations.remove(calibration)
         for graphic in copy.copy(self.graphics):
             self.graphics.remove(graphic)
         for operation in copy.copy(self.operations):
@@ -520,7 +521,7 @@ class DataItem(Storage.StorageBase):
     display_range = property(__get_display_range)
 
     def __is_calibrated(self):
-        return len(self.calibrations) == len(self.spatial_shape)
+        return len(self.intrinsic_calibrations) == len(self.spatial_shape)
     is_calibrated = property(__is_calibrated)
 
     def __get_display_calibrated_values(self):
@@ -530,6 +531,11 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("display_calibrated_values", display_calibrated_values)
         self.notify_data_item_content_changed(set([DISPLAY]))
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
+
+    def set_calibration(dimension, calibration):
+        self.intrinsic_calibrations[dimension].origin = calibration.origin
+        self.intrinsic_calibrations[dimension].scale = calibration.scale
+        self.intrinsic_calibrations[dimension].units = calibration.units
 
     # date times
 
@@ -589,30 +595,29 @@ class DataItem(Storage.StorageBase):
         return PropertyChangeContextManager(self)
 
     # call this when data changes. this makes sure that the right number
-    # of calibrations exist in this object. it also propogates the calibrations
-    # to the dependent items.
-    def sync_calibrations(self, ndim):
-        while len(self.calibrations) < ndim:
-            self.calibrations.append(Calibration(0.0, 1.0, None))
-        while len(self.calibrations) > ndim:
-            self.calibrations.remove(self.calibrations[ndim])
+    # of intrinsic_calibrations exist in this object.
+    def sync_intrinsic_calibrations(self, ndim):
+        while len(self.intrinsic_calibrations) < ndim:
+            self.intrinsic_calibrations.append(Calibration(0.0, 1.0, None))
+        while len(self.intrinsic_calibrations) > ndim:
+            self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
 
     # calculate the calibrations by starting with the source calibration
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
         calibrations = None
-        # if calibrations are set on this item, use it, giving it precedence
-        if self.calibrations:
+        # if intrinsic_calibrations are set on this item, use it, giving it precedence
+        if self.intrinsic_calibrations:
             if self.display_calibrated_values:
-                # use actual calibrations
-                calibrations = self.calibrations
+                # use actual intrinsic_calibrations
+                calibrations = self.intrinsic_calibrations
             else:
                 # construct empty calibrations to display pixels
                 calibrations = list()
                 for _ in xrange(0, len(self.spatial_shape)):
                     calibrations.append(Calibration(0.0, 1.0, None))
-        # if calibrations are not set, then try to get them from the data source
+        # if intrinsic_calibrations are not set, then try to get calibrations from the data source
         if not calibrations and self.data_source:
             calibrations = self.data_source.calculated_calibrations
         data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
@@ -649,7 +654,7 @@ class DataItem(Storage.StorageBase):
             value.data_source = self
             self.notify_data_item_content_changed(set([CHILDREN]))
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
-        elif key == "calibrations":
+        elif key == "intrinsic_calibrations":
             value.add_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
@@ -667,7 +672,7 @@ class DataItem(Storage.StorageBase):
             self.notify_listeners("data_item_removed", self, value, index, False)  # see note about smart groups
             value.data_source = None
             self.notify_data_item_content_changed(set([CHILDREN]))
-        elif key == "calibrations":
+        elif key == "intrinsic_calibrations":
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
@@ -778,7 +783,7 @@ class DataItem(Storage.StorageBase):
                 self.__master_data_dtype = data.dtype if data is not None else None
                 self.__has_master_data = data is not None
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
-                self.sync_calibrations(spatial_ndim)
+                self.sync_intrinsic_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
             data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
             self.notify_set_data("master_data", self.__master_data, data_file_path, data_file_datetime)
@@ -1125,8 +1130,8 @@ class DataItem(Storage.StorageBase):
         data_item_copy.display_limits = self.display_limits
         data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
         data_item_copy.datetime_original = copy.copy(self.datetime_original)
-        for calibration in self.calibrations:
-            data_item_copy.calibrations.append(copy.deepcopy(calibration, memo))
+        for calibration in self.intrinsic_calibrations:
+            data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
         data_item_copy.display_calibrated_values = self.display_calibrated_values
         # graphic must be copied before operation, since operations can
         # depend on graphics.

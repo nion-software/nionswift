@@ -29,22 +29,22 @@ class TestCalibrationClass(unittest.TestCase):
     def test_calibration_relationship(self):
         data_item = DataItem.DataItem()
         data_item.add_ref()
-        self.assertEqual(len(data_item.calibrations), 0)
-        data_item.calibrations.append(DataItem.Calibration(3.0, 2.0, "x"))
-        self.assertEqual(len(data_item.calibrations), 1)
-        self.assertIsNotNone(data_item.calibrations[0])
+        self.assertEqual(len(data_item.intrinsic_calibrations), 0)
+        data_item.intrinsic_calibrations.append(DataItem.Calibration(3.0, 2.0, "x"))
+        self.assertEqual(len(data_item.intrinsic_calibrations), 1)
+        self.assertIsNotNone(data_item.intrinsic_calibrations[0])
         data_item.remove_ref()
 
     def test_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.calibrations[0].origin = 3.0
-        data_item.calibrations[0].scale = 2.0
-        data_item.calibrations[0].units = "x"
-        data_item.calibrations[1].origin = 3.0
-        data_item.calibrations[1].scale = 2.0
-        data_item.calibrations[1].units = "x"
-        self.assertEqual(len(data_item.calibrations), 2)
+        data_item.intrinsic_calibrations[0].origin = 3.0
+        data_item.intrinsic_calibrations[0].scale = 2.0
+        data_item.intrinsic_calibrations[0].units = "x"
+        data_item.intrinsic_calibrations[1].origin = 3.0
+        data_item.intrinsic_calibrations[1].scale = 2.0
+        data_item.intrinsic_calibrations[1].units = "x"
+        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
         data_item_copy.operations.append(Operation.InvertOperation())
         data_item.data_items.append(data_item_copy)
@@ -87,7 +87,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.add_ref()
         self.assertTrue(Image.is_shape_and_dtype_2d(*data_item.data_shape_and_dtype))
         self.assertTrue(Image.is_shape_and_dtype_rgba(*data_item.data_shape_and_dtype))
-        self.assertEqual(len(data_item.calibrations), 2)
+        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item.remove_ref()
 
 
@@ -148,7 +148,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_item.datetime_modified["tzname"] = "tzname"
                 self.assertNotEqual(data_item.datetime_modified, data_item_copy.datetime_modified)
                 # make sure calibrations, operations, nor graphics are not shared
-                self.assertNotEqual(data_item.calibrations[0], data_item_copy.calibrations[0])
+                self.assertNotEqual(data_item.intrinsic_calibrations[0], data_item_copy.intrinsic_calibrations[0])
                 self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
                 self.assertNotEqual(data_item.graphics[0], data_item_copy.graphics[0])
                 # make sure data_items are not shared
@@ -328,7 +328,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
-        data_item.calibrations[0].origin = 1.0
+        data_item.intrinsic_calibrations[0].origin = 1.0
         self.assertTrue(not listener.data_changed and listener.display_changed)
         self.assertTrue(not listener2.data_changed and not listener2.display_changed)
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)

@@ -132,12 +132,12 @@ class CalibrationsInspector(InspectorSection):
 
     def __init__(self, ui, data_item_binding_source):
         super(CalibrationsInspector, self).__init__(ui, _("Calibrations"))
-        self.__calibrations = data_item_binding_source.calibrations
+        self.__calibrations = data_item_binding_source.intrinsic_calibrations
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "calibrations"))
+        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "intrinsic_calibrations"))
         self.add_widget_to_content(list_widget)
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
