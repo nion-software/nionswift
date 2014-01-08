@@ -293,7 +293,7 @@ class RectangleGraphic(Graphic):
     def __get_size(self):
         return self.bounds[1]
     def __set_size(self, size):
-        self.bounds = (self.origin, size)
+        self.bounds = (self.bounds[0], size)
     size = property(__get_size, __set_size)
     # test point hit
     def test(self, mapping, test_point, move_only):
@@ -426,7 +426,7 @@ class EllipseGraphic(Graphic):
     def __get_size(self):
         return self.bounds[1]
     def __set_size(self, size):
-        self.bounds = (self.origin, size)
+        self.bounds = (self.bounds[0], size)
     size = property(__get_size, __set_size)
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
