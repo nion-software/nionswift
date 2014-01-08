@@ -154,6 +154,8 @@ class countedref(object):
         return self.__object
     def __eq__(self, other):
         return self.__object == other()
+    def __ne__(self, other):
+        return self.__object != other()
 
 
 # calculates the histogram data and the associated javascript to display
