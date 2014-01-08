@@ -16,6 +16,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
         self.data = None
+        self.spatial_calibration = None
+        self.intensity_calibration = None
         self.draw_grid = True
         self.draw_captions = True
         self.draw_frame = True
@@ -79,6 +81,13 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             data_min = numpy.amin(self.data)
             data_max = numpy.amax(self.data)
+            if self.intensity_calibration is not None:
+                data_min = self.intensity_calibration.convert_to_calibrated_value(data_min)
+                data_max = self.intensity_calibration.convert_to_calibrated_value(data_max)
+                if data_min > data_max:
+                    temp = data_min
+                    data_min = data_max
+                    data_max = temp
             data_len = self.data.shape[0]
             # draw the background
             drawing_context.begin_path()
@@ -115,8 +124,10 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.stroke_style = '#888'
                 drawing_context.stroke()
                 if self.draw_captions:
+                    value = data_min + data_range * float(i) / vertical_tick_count
+                    value_str = self.intensity_calibration.convert_to_calibrated_value_str(value) if self.intensity_calibration is not None else "{0:g}".format(value)
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text("{0:g}".format(data_min + data_range * float(i) / vertical_tick_count), 8, y)
+                    drawing_context.fill_text(value_str, 8, y)
                 #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
             if self.draw_captions:
                 drawing_context.text_baseline = "alphabetic"

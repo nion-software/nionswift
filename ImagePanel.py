@@ -495,6 +495,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # update the line graph
         self.line_graph_canvas_item.data = data
+        self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
         self.line_graph_canvas_item.update()
 
         self.repaint_if_needed()
