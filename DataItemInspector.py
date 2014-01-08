@@ -133,12 +133,34 @@ class CalibrationsInspector(InspectorSection):
     def __init__(self, ui, data_item_binding_source):
         super(CalibrationsInspector, self).__init__(ui, _("Calibrations"))
         self.__calibrations = data_item_binding_source.intrinsic_calibrations
-        # ui
+        # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "intrinsic_calibrations"))
         self.add_widget_to_content(list_widget)
+        # create the intensity row
+        intensity_calibration = data_item_binding_source.intrinsic_intensity_calibration
+        if intensity_calibration is not None:
+            intensity_row = self.ui.create_row_widget()
+            row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
+            origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            units_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
+            origin_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "origin", converter=float_point_2_converter))
+            scale_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "scale", float_point_2_converter))
+            units_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "units"))
+            intensity_row.add(row_label)
+            intensity_row.add_spacing(12)
+            intensity_row.add(origin_field)
+            intensity_row.add_spacing(12)
+            intensity_row.add(scale_field)
+            intensity_row.add_spacing(12)
+            intensity_row.add(units_field)
+            intensity_row.add_stretch()
+            self.add_widget_to_content(intensity_row)
+        # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
         self.display_calibrations_checkbox.bind_check_state(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=UserInterfaceUtility.CheckedToCheckStateConverter()))
@@ -190,7 +212,7 @@ class CalibrationsInspector(InspectorSection):
                 raise NotImplementedError()
         # binding
         row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
-        float_point_2_converter = converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
+        float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
         origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=float_point_2_converter))
         scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", float_point_2_converter))
         units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
@@ -218,7 +240,7 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = converter=UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
+        float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
         self.display_limits_range_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))

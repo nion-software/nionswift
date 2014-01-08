@@ -94,9 +94,9 @@ class Application(object):
             datastore = Storage.DbDatastoreProxy(workspace_dir, db_filename, create=False)
             version = datastore.get_version()
             logging.debug("Database at version %s.", version)
+            c = datastore.conn.cursor()
             if version == 0:
                 logging.debug("Updating database from version 0 to version 1.")
-                c = datastore.conn.cursor()
                 c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
                 c.execute("SELECT uuid, key, data FROM data")
                 datetime_current = Utility.get_current_datetime_element()
@@ -123,9 +123,30 @@ class Application(object):
                 logging.debug("Committed")
                 c.execute("VACUUM")
                 logging.debug("Vacuumed")
+            elif version == 1:
+                # apply a backwards compatible change
+                c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
+                data_item_uuids = []
+                for row in c.fetchall():
+                    data_item_uuids.append(row[0])
+                data_item_uuids_to_update = []
+                for data_item_uuid in data_item_uuids:
+                    c.execute("SELECT COUNT(*) FROM items WHERE parent_uuid=? AND key='intrinsic_intensity_calibration'", (data_item_uuid, ))
+                    if c.fetchone()[0] == 0:
+                        c.execute("SELECT COUNT(*) FROM data WHERE uuid=? AND key='master_data'", (data_item_uuid, ))
+                        if c.fetchone()[0] > 0:
+                            data_item_uuids_to_update.append(data_item_uuid)
+                if len(data_item_uuids_to_update) > 0:
+                    logging.debug("Update data version 1 (%s/%s intensity_calibration)", len(data_item_uuids_to_update), len(data_item_uuids))
+                for data_item_uuid in data_item_uuids_to_update:
+                    # create an empty 'intrinsic_intensity_calibration' for each data item
+                    calibration_uuid = str(uuid.uuid4())
+                    c.execute("INSERT INTO items (parent_uuid, key, item_uuid) VALUES (?, 'intrinsic_intensity_calibration', ?)", (str(data_item_uuid), calibration_uuid))
+                    c.execute("INSERT INTO nodes (uuid, type, refcount) VALUES (?, 'calibration', 1)", (str(calibration_uuid), ))
             elif version > 1:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
+            datastore.conn.commit()
             datastore.check_integrity()
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)

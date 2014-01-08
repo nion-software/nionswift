@@ -65,22 +65,25 @@ class Calibration(Storage.StorageBase):
     def __get_origin(self):
         return self.__origin if self.__origin else 0.0
     def __set_origin(self, value):
-        self.__origin = value
-        self.notify_set_property("origin", value)
+        if self.__origin != value:
+            self.__origin = value
+            self.notify_set_property("origin", value)
     origin = property(__get_origin, __set_origin)
 
     def __get_scale(self):
         return self.__scale if self.__scale else 1.0
     def __set_scale(self, value):
-        self.__scale = value
-        self.notify_set_property("scale", value)
+        if self.__scale != value:
+            self.__scale = value
+            self.notify_set_property("scale", value)
     scale = property(__get_scale, __set_scale)
 
     def __get_units(self):
         return self.__units if self.__units else unicode()
     def __set_units(self, value):
-        self.__units = value
-        self.notify_set_property("units", value)
+        if self.units != value:
+            self.__units = value
+            self.notify_set_property("units", value)
     units = property(__get_units, __set_units)
 
     def convert_to_calibrated_value(self, value):
@@ -376,14 +379,17 @@ class DataItem(Storage.StorageBase):
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()
         data_item.intrinsic_calibrations.extend(intrinsic_calibrations)
+        # if we have master data, we should have intensity calibration
+        if has_master_data and intrinsic_intensity_calibration is None:
+            intrinsic_intensity_calibration = Calibration()
         data_item.intrinsic_intensity_calibration = intrinsic_intensity_calibration
         if display_calibrated_values is not None:
             data_item.display_calibrated_values = display_calibrated_values
-        if display_limits:
+        if display_limits is not None:
             data_item.display_limits = display_limits
-        if datetime_modified:
+        if datetime_modified is not None:
             data_item.datetime_modified = datetime_modified
-        if datetime_original:
+        if datetime_original is not None:
             data_item.datetime_original = datetime_original
         data_item.graphics.extend(graphics)
         return data_item
@@ -403,6 +409,7 @@ class DataItem(Storage.StorageBase):
             self.data_items.remove(data_item)
         for calibration in copy.copy(self.intrinsic_calibrations):
             self.intrinsic_calibrations.remove(calibration)
+        self.intrinsic_intensity_calibration = None
         for graphic in copy.copy(self.graphics):
             self.graphics.remove(graphic)
         for operation in copy.copy(self.operations):
@@ -533,9 +540,10 @@ class DataItem(Storage.StorageBase):
     def __get_display_calibrated_values(self):
         return self.__display_calibrated_values
     def __set_display_calibrated_values(self, display_calibrated_values):
-        self.__display_calibrated_values = display_calibrated_values
-        self.notify_set_property("display_calibrated_values", display_calibrated_values)
-        self.notify_data_item_content_changed(set([DISPLAY]))
+        if self.__display_calibrated_values != display_calibrated_values:
+            self.__display_calibrated_values = display_calibrated_values
+            self.notify_set_property("display_calibrated_values", display_calibrated_values)
+            self.notify_data_item_content_changed(set([DISPLAY]))
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
     def set_calibration(dimension, calibration):
@@ -547,14 +555,15 @@ class DataItem(Storage.StorageBase):
         return self.__intrinsic_intensity_calibration
     def __set_intrinsic_intensity_calibration(self, intrinsic_intensity_calibration):
         if self.__intrinsic_intensity_calibration:
+            self.notify_clear_item("intrinsic_intensity_calibration")
             self.__intrinsic_intensity_calibration.remove_listener(self)
+            self.__intrinsic_intensity_calibration.remove_ref()
         self.__intrinsic_intensity_calibration = intrinsic_intensity_calibration
         if self.__intrinsic_intensity_calibration:
-            self.notify_set_item("intrinsic_intensity_calibration", intrinsic_intensity_calibration)
-        else:
-            self.notify_clear_item("intrinsic_intensity_calibration")
-        if self.__intrinsic_intensity_calibration:
+            # watch for calibration_changed messages
             self.__intrinsic_intensity_calibration.add_listener(self)
+            self.__intrinsic_intensity_calibration.add_ref()
+            self.notify_set_item("intrinsic_intensity_calibration", intrinsic_intensity_calibration)
     intrinsic_intensity_calibration = property(__get_intrinsic_intensity_calibration, __set_intrinsic_intensity_calibration)
 
     def __get_calculated_intensity_calibration(self):
@@ -586,6 +595,10 @@ class DataItem(Storage.StorageBase):
             self.intrinsic_calibrations.append(Calibration())
         while len(self.intrinsic_calibrations) > ndim:
             self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
+        if self.has_master_data and self.intrinsic_intensity_calibration is None:
+            self.intrinsic_intensity_calibration = Calibration()
+        if not self.has_master_data and self.intrinsic_intensity_calibration is not None:
+            self.intrinsic_intensity_calibration = None
 
     # calculate the calibrations by starting with the source calibration
     # and then applying calibration transformations for each enabled
