@@ -22,6 +22,7 @@ from nion.swift import Graphics
 from nion.swift import HistogramPanel
 from nion.swift import Image
 from nion.swift import Inspector
+from nion.swift import LineGraphCanvasItem
 from nion.swift import Operation
 from nion.swift import Panel
 from nion.swift import Storage
@@ -394,7 +395,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         #self.horizontal_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         #self.vertical_canvas_item = CanvasItem.CanvasItemComposition()
         #self.vertical_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.line_graph_canvas_item = CanvasItem.LineGraphCanvasItem()
+        self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
         self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
 
         # canvas items get added back to front

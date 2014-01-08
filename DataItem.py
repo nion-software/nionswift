@@ -15,6 +15,7 @@ import numpy
 from nion.swift import CanvasItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
+from nion.swift import LineGraphCanvasItem
 from nion.swift import Storage
 from nion.swift import Utility
 
@@ -1083,7 +1084,7 @@ class DataItem(Storage.StorageBase):
         assert data is not None
         assert Image.is_data_1d(data)
         data = Image.convert_to_grayscale(data)
-        line_graph_canvas_item = CanvasItem.LineGraphCanvasItem()
+        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
         line_graph_canvas_item.update_layout((0, 0), (height, width))
         line_graph_canvas_item.draw_captions = False
         line_graph_canvas_item.draw_grid = False
