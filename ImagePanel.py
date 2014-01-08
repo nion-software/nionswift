@@ -1522,11 +1522,9 @@ class InfoPanel(Panel.Panel):
     # this message is received from the document controller.
     # it is established using add_listener
     def cursor_changed(self, source, data_item, pos, selected_graphics, data_size):
-        def get_value_text(value):
-            if isinstance(value, numbers.Integral):
-                return '{0:d}'.format(value)
-            elif isinstance(value, numbers.Real) or isinstance(value, numbers.Complex):
-                return '{0:f}'.format(value)
+        def get_value_text(value, intensity_calibration):
+            if value is not None:
+                return unicode(intensity_calibration.convert_to_calibrated_value_str(value))
             elif value is None:
                 return _("N/A")
             else:
@@ -1536,17 +1534,20 @@ class InfoPanel(Panel.Panel):
         graphic_text = ""
         if data_item and data_size:
             calibrations = data_item.calculated_calibrations
+            intensity_calibration = data_item.calculated_intensity_calibration
             if pos and len(pos) == 2:
+                # 2d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
                     position_text = u"{0}, {1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
                                                      calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
-                    value_text = get_value_text(data_item.get_data_value(pos))
+                    value_text = get_value_text(data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 1:
+                # 1d plot
                 # make sure the position is within the bounds of the line plot
                 if pos[0] >= 0 and pos[0] < data_size[0]:
                     position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
-                    value_text = get_value_text(data_item.get_data_value(pos))
+                    value_text = get_value_text(data_item.get_data_value(pos), intensity_calibration)
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
                 graphic_text = graphic.calibrated_description(data_size, calibrations)

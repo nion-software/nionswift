@@ -567,7 +567,7 @@ class DataItem(Storage.StorageBase):
     intrinsic_intensity_calibration = property(__get_intrinsic_intensity_calibration, __set_intrinsic_intensity_calibration)
 
     def __get_calculated_intensity_calibration(self):
-        calibration = None
+        intensity_calibration = None
         # if intrinsic_calibrations are set on this item, use it, giving it precedence
         if self.intrinsic_intensity_calibration:
             if self.display_calibrated_values:
