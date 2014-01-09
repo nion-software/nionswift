@@ -1173,7 +1173,7 @@ class DbDatastore(object):
             c = self.conn.cursor()
             node = self.__make_node(item.uuid)
             item.write()
-            self.execute(c, "INSERT INTO items (parent_uuid, key, item_uuid) VALUES (?, ?, ?)", (str(parent.uuid), key, str(item.uuid), ))
+            self.execute(c, "INSERT OR REPLACE INTO items (parent_uuid, key, item_uuid) VALUES (?, ?, ?)", (str(parent.uuid), key, str(item.uuid), ))
             self.__add_node_ref(item.uuid)
             self.conn.commit()
 
