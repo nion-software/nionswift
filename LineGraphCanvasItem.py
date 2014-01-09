@@ -31,6 +31,23 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         return plot_rect
     plot_rect = property(__get_plot_rect)
 
+    def update_layout(self, canvas_origin, canvas_size):
+        super(LineGraphCanvasItem, self).update_layout(canvas_origin, canvas_size)
+        # update internal size variables
+        canvas_width = canvas_size[1]
+        canvas_height = canvas_size[0]
+        if self.draw_captions:
+            self.font_size = max(9, min(13, int(canvas_height/25.0)))
+            self.left_caption_width = max(36, min(60, int(canvas_width/8.0)))
+            self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
+            self.bottom_caption_height = self.top_margin
+            self.right_margin = 6
+        else:
+            self.left_caption_width = 0
+            self.top_margin = 0
+            self.bottom_caption_height = 0
+            self.right_margin = 1
+
     def map_mouse_to_position(self, mouse, data_size):
         plot_rect = self.plot_rect
         mouse_x = mouse[1] - plot_rect[0][1]  # 436
@@ -48,18 +65,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # canvas size
             canvas_width = self.canvas_size[1]
             canvas_height = self.canvas_size[0]
-
-            if self.draw_captions:
-                self.font_size = max(9, min(13, int(canvas_height/25.0)))
-                self.left_caption_width = max(36, min(60, int(canvas_width/8.0)))
-                self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
-                self.bottom_caption_height = self.top_margin
-                self.right_margin = 6
-            else:
-                self.left_caption_width = 0
-                self.top_margin = 0
-                self.bottom_caption_height = 0
-                self.right_margin = 1
 
             rect = ((0, 0), (canvas_height, canvas_width))
 
