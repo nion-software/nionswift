@@ -381,6 +381,9 @@ class LineProfileOperation(Operation):
         else:
             return (length, ), numpy.dtype(numpy.double)
 
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
+        return [DataItem.Calibration(0.0, source_calibrations[0].scale, source_calibrations[0].units)]
+
     def process_data_in_place(self, data):
         if self.graphic:
             assert isinstance(self.graphic, Graphics.LineGraphic)

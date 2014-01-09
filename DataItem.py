@@ -100,7 +100,7 @@ class Calibration(Storage.StorageBase):
         return self.origin + value * self.scale
     def convert_to_calibrated_size(self, size):
         return size * self.scale
-    def convert_from_calibrated(self, value):
+    def convert_from_calibrated_value(self, value):
         return (value - self.origin) / self.scale
     def convert_to_calibrated_value_str(self, value, include_units=True):
         units_str = (" " + self.units) if include_units and self.__units else ""
@@ -129,7 +129,7 @@ class CalibratedValueFloatToStringConverter(object):
         return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
         calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_from_calibrated(float(str)) / self.__data_size
+        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
 class CalibratedSizeFloatToStringConverter(object):
@@ -145,7 +145,7 @@ class CalibratedSizeFloatToStringConverter(object):
         return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
         calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_from_calibrated(float(str)) / self.__data_size
+        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
 class ThumbnailThread(ProcessingThread):

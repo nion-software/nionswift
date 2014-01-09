@@ -31,7 +31,11 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def __get_plot_rect(self):
         rect = ((0, 0), self.canvas_size)
         rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
-        plot_rect = ((rect[0][0] + self.top_margin, rect[0][1] + self.left_caption_width), (rect[1][0] - self.bottom_caption_height - self.top_margin, rect[1][1] - self.left_caption_width - self.right_margin))
+        plot_origin_y = rect[0][0] + self.top_margin
+        plot_origin_x = rect[0][1] + self.left_margin
+        plot_height = rect[1][0] - self.bottom_caption_height - self.top_margin
+        plot_width = rect[1][1] - self.left_margin - self.right_margin
+        plot_rect = ((plot_origin_y, plot_origin_x), (plot_height, plot_width))
         return plot_rect
     plot_rect = property(__get_plot_rect)
 
@@ -42,12 +46,12 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_height = canvas_size[0]
         if self.draw_captions:
             self.font_size = max(9, min(13, int(canvas_height/25.0)))
-            self.left_caption_width = max(36, min(60, int(canvas_width/8.0))) + (self.font_size + 4)
+            self.left_margin = max(36, min(60, int(canvas_width/8.0))) + (self.font_size + 4)
             self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
-            self.bottom_caption_height = self.top_margin
-            self.right_margin = 6
+            self.bottom_caption_height = self.top_margin + int(self.font_size + 4) * 2
+            self.right_margin = 12
         else:
-            self.left_caption_width = 0
+            self.left_margin = 0
             self.top_margin = 0
             self.bottom_caption_height = 0
             self.right_margin = 1
@@ -80,9 +84,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
 
             rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
-            unit_offset = self.font_size + 4 if self.draw_captions else 0.0
-            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1] + unit_offset), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
-            caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
+            unit_offset = int(self.font_size + 4) if self.draw_captions else 0
+            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1] + unit_offset), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_margin - unit_offset))
             plot_rect = self.plot_rect
             plot_width = int(plot_rect[1][1])
             plot_height = int(plot_rect[1][0])
@@ -111,6 +114,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             data_min = data_min if data_min < 0 else 0.0
             data_range = data_max - data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
+            drawing_context.save()
             if self.draw_captions:
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.font_size)
@@ -125,8 +129,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     y = plot_origin_y  # match it with the plot_rect
                     w = 6
                 if self.draw_grid:
-                    drawing_context.move_to(plot_rect[0][1], y)
-                    drawing_context.line_to(plot_rect[0][1] + plot_rect[1][1], y)
+                    drawing_context.move_to(plot_origin_x, y)
+                    drawing_context.line_to(plot_origin_x + plot_width, y)
                 if self.draw_captions:
                     drawing_context.move_to(intensity_rect[0][1] + intensity_rect[1][1], y)
                     drawing_context.line_to(intensity_rect[0][1] + intensity_rect[1][1] - w, y)
@@ -148,15 +152,60 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.translate(x, y)
                 drawing_context.rotate(-math.pi*0.5)
                 drawing_context.translate(-x, -y)
-                drawing_context.fill_text(u"{0} ({1})".format(_("Data Intensity"), self.intensity_calibration.units), x, y)
+                drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), self.intensity_calibration.units), x, y)
                 drawing_context.translate(x, y)
                 drawing_context.rotate(+math.pi*0.5)
                 drawing_context.translate(-x, -y)
-            if self.draw_captions:
-                drawing_context.text_baseline = "alphabetic"
-            drawing_context.line_width = 1
+            drawing_context.restore()
             # draw the horizontal axis
+            drawing_context.save()
+            if self.draw_captions:
+                # approximate tick count
+                horizontal_tick_count = min(max(2, int(plot_width / 100)), 10)
+                # calculate the horizontal tick spacing in spatial units
+                horizontal_tick_spacing = float(plot_width) / horizontal_tick_count
+                horizontal_tick_spacing = data_len * horizontal_tick_spacing / plot_width
+                if self.spatial_calibration:
+                    horizontal_tick_spacing = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_spacing)
+                horizontal_tick_spacing = Graphics.make_pretty(horizontal_tick_spacing)
+                if self.spatial_calibration:
+                    horizontal_tick_spacing = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_spacing)
+                # calculate the horizontal minimum value in spatial units
+                horizontal_tick_min = 0.0
+                if self.spatial_calibration:
+                    horizontal_tick_min = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_min)
+                horizontal_tick_min = Graphics.make_pretty(horizontal_tick_min)
+                if self.spatial_calibration:
+                    horizontal_tick_min = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_min)
+                # draw the tick marks
+                x = horizontal_tick_min + plot_origin_x
+                while x < plot_origin_y + plot_width:
+                    # y 0 is at top
+                    drawing_context.begin_path()
+                    if self.draw_grid:
+                        drawing_context.move_to(x, plot_origin_y)
+                        drawing_context.line_to(x, plot_origin_y + plot_height)
+                    if self.draw_captions:
+                        drawing_context.move_to(x, plot_origin_y + plot_height)
+                        drawing_context.line_to(x, plot_origin_y + plot_height + 4)
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = '#888'
+                    drawing_context.stroke()
+                    if self.draw_captions:
+                        value = data_len * float(x - plot_origin_x) / plot_width
+                        value_str = self.spatial_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.spatial_calibration else "{0:g}".format(value)
+                        drawing_context.text_align = "center"
+                        drawing_context.fill_style = "#000"
+                        drawing_context.fill_text(value_str, x, plot_origin_y + plot_height + unit_offset)
+                    x += plot_width * horizontal_tick_spacing / data_len
+                if self.draw_captions and self.spatial_calibration and self.spatial_calibration.units:
+                    drawing_context.text_align = "center"
+                    drawing_context.fill_style = "#000"
+                    value_str = u"({0})".format(self.spatial_calibration.units)
+                    drawing_context.fill_text(value_str, plot_origin_x + plot_width / 2, plot_origin_y + plot_height + unit_offset * 2)
+            drawing_context.restore()
             # draw the line plot itself
+            drawing_context.save()
             drawing_context.begin_path()
             if data_range != 0.0:
                 baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / data_range)
@@ -173,6 +222,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             else:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
                 drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
+            drawing_context.restore()
             # close it up and draw
             drawing_context.close_path()
             drawing_context.fill_style = '#AFA'

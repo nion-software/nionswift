@@ -496,6 +496,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # update the line graph
         self.line_graph_canvas_item.data = data
         self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
+        self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if data_item.display_calibrated_values else None
         self.line_graph_canvas_item.update()
 
         self.repaint_if_needed()
@@ -1548,7 +1549,7 @@ class InfoPanel(Panel.Panel):
                 # 1d plot
                 # make sure the position is within the bounds of the line plot
                 if pos[0] >= 0 and pos[0] < data_size[0]:
-                    position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(data_item.get_data_value(pos), intensity_calibration)
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
