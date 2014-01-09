@@ -302,6 +302,7 @@ class GraphicsInspector(InspectorSection):
         graphic_widget.add(graphic_title_row)
         # combine the display calibrated values binding with the calibration values themselves.
         # this allows the text to reflect calibrated or uncalibrated data.
+        # display_calibrated_values_binding should have a target value type of boolean.
         class CalibratedValueBinding(UserInterfaceUtility.Binding):
             def __init__(self, value_binding, display_calibrated_values_binding, converter):
                 super(CalibratedValueBinding, self).__init__(None, converter)
@@ -317,8 +318,8 @@ class GraphicsInspector(InspectorSection):
                 super(CalibratedValueBinding, self).close()
             def periodic(self):
                 super(CalibratedValueBinding, self).periodic()
-                self.__value_binding.periodic()
                 self.__display_calibrated_values_binding.periodic()
+                self.__value_binding.periodic()
             # set the model value from the target ui element text.
             def update_source(self, target_value):
                 display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
@@ -327,7 +328,8 @@ class GraphicsInspector(InspectorSection):
                 else:
                     converted_value = float(target_value)
                 self.__value_binding.update_source(converted_value)
-            # update the target ui element from the model.
+            # get the value from the model and return it as a string suitable for the target ui element.
+            # in this binding, it combines the two source bindings into one.
             def get_target_value(self):
                 display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
                 value = self.__value_binding.get_target_value()
@@ -336,8 +338,8 @@ class GraphicsInspector(InspectorSection):
             return UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
         if isinstance(graphic, Graphics.LineGraphic):
             # configure the bindings
-            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
-            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
             start_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
             start_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
             end_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
@@ -373,10 +375,10 @@ class GraphicsInspector(InspectorSection):
             graphic_widget.add_spacing(4)
         if isinstance(graphic, Graphics.RectangleGraphic):
             # calculate values from rectangle graphic
-            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
-            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
-            width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
-            height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
+            width_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
+            height_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
             origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
             origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
             size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
@@ -412,10 +414,10 @@ class GraphicsInspector(InspectorSection):
             graphic_widget.add_spacing(4)
         if isinstance(graphic, Graphics.EllipseGraphic):
             # calculate values from ellipse graphic
-            x_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[1], image_size[1])
-            y_converter = DataItem.CalibratedValueFloatToStringConverter(calibrations[0], image_size[0])
-            width_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[1], image_size[1])
-            height_converter = DataItem.CalibratedSizeFloatToStringConverter(calibrations[0], image_size[0])
+            x_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
+            y_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
+            width_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
+            height_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
             origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
             origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
             size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)

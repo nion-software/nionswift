@@ -27,6 +27,9 @@ _ = gettext.gettext
 #   The user expects operations to handle calibrations and perhaps other metadata
 #   The user expects that calibrating a processed item adjust source calibration
 
+# origin: the calibrated value at the origin
+# scale: the calibrated value at location 1.0
+# units: the units of the calibrated value
 class Calibration(Storage.StorageBase):
     def __init__(self, origin=None, scale=None, units=None):
         super(Calibration, self).__init__()
@@ -38,9 +41,9 @@ class Calibration(Storage.StorageBase):
             {"name": _("Scale"), "property": "scale", "type": "float-field"},
             {"name": _("Units"), "property": "units", "type": "string-field"}
         ]
-        self.__origin = origin  # the calibrated value at the origin
-        self.__scale = scale  # the calibrated value at location 1.0
-        self.__units = units  # the units of the calibrated value
+        self.__origin = float(origin) if origin else None
+        self.__scale = float(scale) if scale else None
+        self.__units = unicode(units) if units else None
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
@@ -48,6 +51,9 @@ class Calibration(Storage.StorageBase):
         scale = datastore.get_property(item_node, "scale", None)
         units = datastore.get_property(item_node, "units", None)
         return cls(origin, scale, units)
+
+    def __str__(self):
+        return "{0:s} origin:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.origin, self.scale, self.units)
 
     def __deepcopy__(self, memo):
         calibration = Calibration(origin=self.__origin, scale=self.__scale, units=self.__units)
@@ -66,6 +72,7 @@ class Calibration(Storage.StorageBase):
     def __get_origin(self):
         return self.__origin if self.__origin else 0.0
     def __set_origin(self, value):
+        value = float(value) if value else None
         if self.__origin != value:
             self.__origin = value
             self.notify_set_property("origin", value)
@@ -74,6 +81,7 @@ class Calibration(Storage.StorageBase):
     def __get_scale(self):
         return self.__scale if self.__scale else 1.0
     def __set_scale(self, value):
+        value = float(value) if value else None
         if self.__scale != value:
             self.__scale = value
             self.notify_set_property("scale", value)
@@ -82,6 +90,7 @@ class Calibration(Storage.StorageBase):
     def __get_units(self):
         return self.__units if self.__units else unicode()
     def __set_units(self, value):
+        value = unicode(value) if value else None
         if self.units != value:
             self.__units = value
             self.notify_set_property("units", value)
@@ -109,26 +118,32 @@ class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, calibration, data_size):
-        self.__calibration = calibration
+    def __init__(self, data_item, index, data_size):
+        self.__data_item = data_item
+        self.__index = index
         self.__data_size = data_size
     def convert(self, value):
-        return self.__calibration.convert_to_calibrated_value_str(self.__data_size * value)
+        calibration = self.__data_item.calculated_calibrations[self.__index]
+        return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
-        return self.__calibration.convert_from_calibrated(float(str)) / self.__data_size
+        calibration = self.__data_item.calculated_calibrations[self.__index]
+        return calibration.convert_from_calibrated(float(str)) / self.__data_size
 
 
 class CalibratedSizeFloatToStringConverter(object):
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, calibration, data_size):
-        self.__calibration = calibration
+    def __init__(self, data_item, index, data_size):
+        self.__data_item = data_item
+        self.__index = index
         self.__data_size = data_size
     def convert(self, size):
-        return self.__calibration.convert_to_calibrated_size_str(self.__data_size * size)
+        calibration = self.__data_item.calculated_calibrations[self.__index]
+        return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
-        return self.__calibration.convert_from_calibrated(float(str)) / self.__data_size
+        calibration = self.__data_item.calculated_calibrations[self.__index]
+        return calibration.convert_from_calibrated(float(str)) / self.__data_size
 
 
 class ThumbnailThread(ProcessingThread):
@@ -424,7 +439,7 @@ class DataItem(Storage.StorageBase):
 
     def __get_live_status_as_string(self):
         if self.is_live:
-            return _("{0:s} {1:s}".format(_("Live"), str(self.__properties.get("frame_index", str()))))
+            return "{0:s} {1:s}".format(_("Live"), str(self.__properties.get("frame_index", str())))
         return str()
     live_status_as_string = property(__get_live_status_as_string)
 
