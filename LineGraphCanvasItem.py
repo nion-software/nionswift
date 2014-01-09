@@ -1,5 +1,7 @@
 # standard libraries
 import logging
+import math
+import gettext
 
 # third party libraries
 import numpy
@@ -7,6 +9,8 @@ import numpy
 # local libraries
 from nion.swift import CanvasItem
 from nion.swift import Graphics
+
+_ = gettext.gettext
 
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -38,7 +42,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_height = canvas_size[0]
         if self.draw_captions:
             self.font_size = max(9, min(13, int(canvas_height/25.0)))
-            self.left_caption_width = max(36, min(60, int(canvas_width/8.0)))
+            self.left_caption_width = max(36, min(60, int(canvas_width/8.0))) + (self.font_size + 4)
             self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
             self.bottom_caption_height = self.top_margin
             self.right_margin = 6
@@ -76,7 +80,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
 
             rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
-            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1]), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
+            unit_offset = self.font_size + 4 if self.draw_captions else 0.0
+            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1] + unit_offset), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_caption_width))
             caption_rect = ((rect[0][0] + rect[1][0] - self.bottom_caption_height, rect[0][1] + self.left_caption_width), (self.bottom_caption_height, rect[1][1] - self.left_caption_width - self.right_margin))
             plot_rect = self.plot_rect
             plot_width = int(plot_rect[1][1])
@@ -130,10 +135,23 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.stroke()
                 if self.draw_captions:
                     value = data_min + data_range * float(i) / vertical_tick_count
-                    value_str = self.intensity_calibration.convert_to_calibrated_value_str(value) if self.intensity_calibration is not None else "{0:g}".format(value)
+                    value_str = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(value_str, 8, y)
+                    drawing_context.fill_text(value_str, intensity_rect[0][1] + 8, y)
                 #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
+            if self.draw_captions and self.intensity_calibration and self.intensity_calibration.units:
+                drawing_context.text_align = "center"
+                drawing_context.text_baseline = "bottom"
+                drawing_context.fill_style = "#000"
+                x = intensity_rect[0][1]
+                y = int(intensity_rect[0][0] + intensity_rect[1][0] * 0.5)
+                drawing_context.translate(x, y)
+                drawing_context.rotate(-math.pi*0.5)
+                drawing_context.translate(-x, -y)
+                drawing_context.fill_text(u"{0} ({1})".format(_("Data Intensity"), self.intensity_calibration.units), x, y)
+                drawing_context.translate(x, y)
+                drawing_context.rotate(+math.pi*0.5)
+                drawing_context.translate(-x, -y)
             if self.draw_captions:
                 drawing_context.text_baseline = "alphabetic"
             drawing_context.line_width = 1

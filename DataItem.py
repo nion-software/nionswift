@@ -102,11 +102,13 @@ class Calibration(Storage.StorageBase):
         return size * self.scale
     def convert_from_calibrated(self, value):
         return (value - self.origin) / self.scale
-    def convert_to_calibrated_value_str(self, value):
-        result = u"{0:.1f}".format(self.convert_to_calibrated_value(value)) + ((" " + self.units) if self.__units else "")
+    def convert_to_calibrated_value_str(self, value, include_units=True):
+        units_str = (" " + self.units) if include_units and self.__units else ""
+        result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
         return result
-    def convert_to_calibrated_size_str(self, size):
-        result = u"{0:.1f}".format(self.convert_to_calibrated_size(size)) + ((" " + self.units) if self.__units else "")
+    def convert_to_calibrated_size_str(self, size, include_units=True):
+        units_str = (" " + self.units) if include_units and self.__units else ""
+        result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
         return result
 
     def notify_set_property(self, key, value):
@@ -1100,13 +1102,13 @@ class DataItem(Storage.StorageBase):
         assert Image.is_data_1d(data)
         data = Image.convert_to_grayscale(data)
         line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        line_graph_canvas_item.update_layout((0, 0), (height, width))
         line_graph_canvas_item.draw_captions = False
         line_graph_canvas_item.draw_grid = False
         line_graph_canvas_item.draw_frame = False
         line_graph_canvas_item.background_color = "#EEEEEE"
         line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
         line_graph_canvas_item.data = data
+        line_graph_canvas_item.update_layout((0, 0), (height, width))
         drawing_context = ui.create_offscreen_drawing_context()
         line_graph_canvas_item._repaint(drawing_context)
         return ui.create_rgba_image(drawing_context, width, height)
