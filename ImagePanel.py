@@ -13,19 +13,19 @@ import weakref
 import numpy
 
 # local libraries
-from nion.swift import CanvasItem
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Decorators
-from nion.swift import Graphics
 from nion.swift import HistogramPanel
 from nion.swift import Image
 from nion.swift import Inspector
 from nion.swift import LineGraphCanvasItem
 from nion.swift import Operation
 from nion.swift import Panel
-from nion.swift import Storage
+from nion.ui import CanvasItem
+from nion.ui import Geometry
+from nion.ui import Observable
 
 _ = gettext.gettext
 
@@ -106,7 +106,7 @@ class WidgetMapping(object):
         self.canvas_rect = None
         if self.data_shape:
             rect = (canvas_origin, canvas_size)
-            self.canvas_rect = Graphics.fit_to_size(rect, self.data_shape)
+            self.canvas_rect = Geometry.fit_to_size(rect, self.data_shape)
 
     def map_point_image_norm_to_widget(self, p):
         if self.data_shape:
@@ -158,7 +158,7 @@ class WidgetMapping(object):
         return None
 
 
-class GraphicSelection(Storage.Broadcaster):
+class GraphicSelection(Observable.Broadcaster):
     def __init__(self):
         super(GraphicSelection, self).__init__()
         self.__indexes = set()
@@ -341,7 +341,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = Graphics.make_pretty(scale_marker_image_width * calibrations[0].scale)
+                    calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[0].scale)
                     # update the scale marker width
                     scale_marker_image_width = calibrated_scale_marker_width / calibrations[0].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
@@ -744,7 +744,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             c = self.__last_image_norm_center
             spatial_shape = self.data_item.spatial_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
-            canvas_rect = Graphics.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
+            canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
             image_canvas_origin_y = (scroll_area_canvas_size[0] * 0.5) - c[0] * canvas_rect[1][0] - canvas_rect[0][0]
             image_canvas_origin_x = (scroll_area_canvas_size[1] * 0.5) - c[1] * canvas_rect[1][1] - canvas_rect[0][1]
@@ -760,8 +760,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         widget_mapping = WidgetMapping(self.data_item.spatial_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
-        canvas_rect = Graphics.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
-        scroll_rect = Graphics.fit_to_size(((0, 0), scroll_area_canvas_size), spatial_shape)
+        canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
+        scroll_rect = Geometry.fit_to_size(((0, 0), scroll_area_canvas_size), spatial_shape)
         self.__last_image_zoom = float(canvas_rect[1][0]) / scroll_rect[1][0]
         #logging.debug("z %s (%s)", self.__last_image_zoom, float(canvas_rect[1][1]) / scroll_rect[1][1])
         self.info_overlay_canvas_item.image_canvas_origin = image_canvas_origin
@@ -1434,7 +1434,7 @@ class ImagePanel(Panel.Panel):
 # and receive messages regarding image panels. for instance, when the user
 # presses a key on an image panel that isn't handled directly by the image
 # panel, listeners can be advised of this event.
-class ImagePanelManager(Storage.Broadcaster):
+class ImagePanelManager(Observable.Broadcaster):
     __metaclass__ = Decorators.Singleton
     def __init__(self):
         super(ImagePanelManager, self).__init__()

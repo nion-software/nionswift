@@ -13,7 +13,7 @@ from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import Operation
 from nion.swift import Storage
-from nion.swift import Test
+from nion.ui import Test
 
 
 class TestOperationClass(unittest.TestCase):

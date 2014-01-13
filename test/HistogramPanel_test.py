@@ -12,7 +12,7 @@ from nion.swift import DocumentModel
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
 from nion.swift import Storage
-from nion.swift import Test
+from nion.ui import Test
 
 
 class TestHistogramPanelClass(unittest.TestCase):

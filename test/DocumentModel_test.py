@@ -6,6 +6,7 @@ import unittest
 
 # local libraries
 from nion.swift import DocumentModel
+from nion.ui import Test
 
 
 class TestDocumentModelClass(unittest.TestCase):

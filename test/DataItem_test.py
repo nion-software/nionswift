@@ -15,7 +15,7 @@ from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Image
 from nion.swift import Operation
-from nion.swift import Test
+from nion.ui import Test
 
 
 class TestCalibrationClass(unittest.TestCase):

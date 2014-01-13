@@ -7,10 +7,10 @@ import unittest
 
 # local libraries
 from nion.swift import Application
-from nion.swift import UserInterface
 from nion.swift import Workspace
-from nion.swift import Test
 from nion.swift.test import DocumentController_test
+from nion.ui import UserInterface
+from nion.ui import Test
 
 
 class TestWorkspaceClass(unittest.TestCase):

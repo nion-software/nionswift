@@ -12,8 +12,8 @@ import weakref
 # local libraries
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import Decorators
 from nion.swift import Panel
+from nion.ui import Process
 
 _ = gettext.gettext
 
@@ -54,7 +54,7 @@ class Session(object):
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
         self.__channel_activations = dict()  # maps hardware_source_id to a set of activated channels
         self.__channel_activations_mutex = threading.RLock()
-        self.__periodic_queue = Decorators.TaskQueue()
+        self.__periodic_queue = Process.TaskQueue()
         self.__data_group = None
 
     def periodic(self):

@@ -12,7 +12,7 @@ import weakref
 from nion.swift import DataItem
 from nion.swift import DataItemInspector
 from nion.swift import Panel
-from nion.swift import UserInterfaceUtility
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 

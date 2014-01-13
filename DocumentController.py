@@ -14,7 +14,6 @@ import numpy
 # local libraries
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import Decorators
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import Image
@@ -23,11 +22,13 @@ from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Workspace
+from nion.ui import Process
+from nion.ui import Observable
 
 _ = gettext.gettext
 
 
-class DocumentController(Storage.Broadcaster):
+class DocumentController(Observable.Broadcaster):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
@@ -46,7 +47,7 @@ class DocumentController(Storage.Broadcaster):
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
         self.__cursor_weak_listeners = []
-        self.__periodic_queue = Decorators.TaskQueue()
+        self.__periodic_queue = Process.TaskQueue()
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting

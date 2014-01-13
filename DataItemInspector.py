@@ -7,10 +7,10 @@ import logging
 
 # local libraries
 from nion.swift import DataItem
-from nion.swift import Decorators
 from nion.swift import Graphics
 from nion.swift import Storage
-from nion.swift import UserInterfaceUtility
+from nion.ui import Process
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -25,7 +25,7 @@ class InspectorSection(object):
 
     def __init__(self, ui, section_title):
         self.ui = ui
-        self.__task_set = Decorators.TaskSet()
+        self.__task_set = Process.TaskSet()
         self.__section_widget = self.ui.create_column_widget()
         section_title_row = self.ui.create_row_widget()
         #section_title_row.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))

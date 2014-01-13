@@ -12,8 +12,8 @@ import weakref
 # local libraries
 from nion.swift import DataItem
 from nion.swift import DataGroup
-from nion.swift import Graphics
 from nion.swift import Panel
+from nion.ui import Geometry
 
 _ = gettext.gettext
 
@@ -450,7 +450,7 @@ class DataPanel(Panel.Panel):
             ctx.save()
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
-                draw_rect = Graphics.fit_to_size(draw_rect, thumbnail_data.shape)
+                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             ctx.fill_style = "#000"
             ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12)

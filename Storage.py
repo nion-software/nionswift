@@ -20,6 +20,7 @@ import weakref
 
 # local libraries
 from nion.swift.Decorators import traceit
+from nion.ui import Observable
 
 
 class MutableRelationship(collections.MutableSequence):
@@ -136,110 +137,8 @@ class MutableMapping(collections.MutableMapping):
     if it is not referenced by anything else.
 """
 
-class Broadcaster(object):
 
-    def __init__(self):
-        super(Broadcaster, self).__init__()
-        self.__weak_listeners = []
-        self.__weak_listeners_mutex = threading.RLock()
-
-    def __del__(self):
-        # There should not be listeners or references at this point.
-        assert len(self.__weak_listeners) == 0, 'Observable still has listeners'
-
-    # Add a listener.
-    def add_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.append(weakref.ref(listener))
-
-    # Remove a listener.
-    def remove_listener(self, listener):
-        with self.__weak_listeners_mutex:
-            assert listener is not None
-            self.__weak_listeners.remove(weakref.ref(listener))
-
-    # Send a message to the listeners
-    def notify_listeners(self, fn, *args, **keywords):
-        try:
-            with self.__weak_listeners_mutex:
-                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                if hasattr(listener, fn):
-                    getattr(listener, fn)(*args, **keywords)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logging.debug("Notify Error: %s", e)
-
-
-class Observable(object):
-
-    """
-        Provide basic observable object. Subclassers should implement properties,
-        items, and collections and call appropriate notifications when necessary.
-    """
-
-    def __init__(self):
-        super(Observable, self).__init__()
-        self.__weak_observers = list()
-        self.__property_dependent_keys = dict()
-
-    def __del__(self):
-        assert len(self.__weak_observers) == 0, 'Binding source still has observers'
-
-    def add_observer(self, observer):
-        self.__weak_observers.append(weakref.ref(observer))
-
-    def remove_observer(self, observer):
-        self.__weak_observers.remove(weakref.ref(observer))
-
-    def __get_observers(self):
-        return [weak_observer() for weak_observer in self.__weak_observers]
-    observers = property(__get_observers)
-
-    def register_dependent_key(self, key, dependent_key):
-        dependent_keys = self.__property_dependent_keys.setdefault(key, list())
-        dependent_keys.append(dependent_key)
-
-    def __get_property_dependent_keys(self):
-        return self.__property_dependent_keys
-    property_dependent_keys = property(__get_property_dependent_keys)
-
-    def notify_set_property(self, key, value):
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "property_changed", None):
-                observer.property_changed(self, key, value)
-        for dependent_key in self.__property_dependent_keys.get(key, list()):
-            self.notify_set_property(dependent_key, getattr(self, dependent_key))
-
-    def notify_set_item(self, key, item):
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_set", None):
-                observer.item_set(self, key, value)
-
-    def notify_clear_item(self, key):
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_cleared", None):
-                observer.item_cleared(self, key)
-
-    def notify_insert_item(self, key, value, before_index):
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_inserted", None):
-                observer.item_inserted(self, key, value, before_index)
-
-    def notify_remove_item(self, key, value, index):
-        for weak_observer in self.__weak_observers:
-            observer = weak_observer()
-            if observer and getattr(observer, "item_removed", None):
-                observer.item_removed(self, key, value, index)
-
-
-class StorageBase(Observable, Broadcaster):
+class StorageBase(Observable.Observable, Observable.Broadcaster):
 
     def __init__(self):
         super(StorageBase, self).__init__()
@@ -263,8 +162,8 @@ class StorageBase(Observable, Broadcaster):
 
     def __del__(self):
         # There should not be listeners or references at this point.
-        assert len(self.__weak_parents) == 0, 'Observable still has parents'
-        assert self.__ref_count == 0, 'Observable still has references'
+        assert len(self.__weak_parents) == 0, 'StorageBase still has parents'
+        assert self.__ref_count == 0, 'StorageBase still has references'
 
     # Give subclasses a chance to clean up. This gets called when reference
     # count goes to 0, but before deletion.

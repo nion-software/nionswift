@@ -27,14 +27,14 @@ from nion.swift import Decorators
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import ImportExportManager
-from nion.swift import Storage
+from nion.ui import Observable
 
 _ = gettext.gettext
 
 
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
-class HardwareSourceManager(Storage.Broadcaster):
+class HardwareSourceManager(Observable.Broadcaster):
     __metaclass__ = Decorators.Singleton
 
     def __init__(self):
@@ -188,7 +188,7 @@ class HardwareSourcePort(object):
         self.hardware_source.remove_port(self)
 
 
-class HardwareSource(Storage.Broadcaster):
+class HardwareSource(Observable.Broadcaster):
     """
     A hardware source provides ports, which in turn provide data_elements.
 
@@ -473,7 +473,7 @@ class HardwareSource(Storage.Broadcaster):
                     del self.__channel_states[channel]
 
 
-class HardwareSourceDataBuffer(Storage.Broadcaster):
+class HardwareSourceDataBuffer(Observable.Broadcaster):
     """
     For the given HWSource (which can either be an object with a create_port function, or a name. If
     a name, ports are created using the HardwareSourceManager.create_port_for_hardware_source_id function,

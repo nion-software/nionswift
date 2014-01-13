@@ -11,62 +11,6 @@ import uuid
 from nion.swift import Storage
 
 
-# make val into a pretty number
-def make_pretty(val, round_up=False):
-    positive = val > 0
-    if not positive and not val < 0:
-        return 0.0
-    factor10 = math.pow(10, int(math.log10(abs(val))))
-    val_norm = abs(val)/factor10
-    if val_norm < 1.0:
-        val_norm = val_norm * 10
-        factor10 = factor10 / 10
-    if round_up:
-        #print "val_norm " + str(val_norm)
-        if val_norm < 1.5:
-            val_norm = math.ceil(val_norm * 5) / 5  # move up to next 0.2
-        elif val_norm < 3.0:
-            val_norm = math.ceil(val_norm * 2) / 2  # move up to next 0.5
-        else:
-            val_norm = math.ceil(val_norm)  # movie up to next 1.0
-        #print "val_norm+ " + str(val_norm)
-        return math.copysign(val_norm * factor10, val)
-    else:
-        # val_norm is now between 1 and 10
-        if val_norm < 5.0:
-            return math.copysign(0.5 * round(val_norm/0.5) * factor10, val)
-        else:
-            return math.copysign(round(val_norm) * factor10, val)
-
-
-def fit_to_aspect_ratio(rect, aspect_ratio):
-    if rect[1][1] > aspect_ratio * rect[1][0]:
-        # height will fill entire frame
-        new_size = (rect[1][0], rect[1][0] * aspect_ratio)
-        new_origin = (rect[0][0], rect[0][1] + 0.5 * (rect[1][1] - new_size[1]))
-        return (new_origin, new_size)
-    else:
-        new_size = (rect[1][1] / float(aspect_ratio), rect[1][1])
-        new_origin = (rect[0][0] + 0.5*(rect[1][0] - new_size[0]), rect[0][1])
-        return (new_origin, new_size)
-
-
-def fit_to_size(rect, fit_size):
-    return fit_to_aspect_ratio(rect, float(fit_size[1])/float(fit_size[0]))
-
-
-def inset_rect(rect, amount):
-    return ((rect[0][0] + amount, rect[0][1] + amount), (rect[1][0] - 2*amount, rect[1][1] - 2*amount))
-
-
-def distance(p1, p2):
-    return math.sqrt(pow(p2[0] - p1[0], 2) + pow(p2[1] - p1[1], 2))
-
-
-def midpoint(p1, p2):
-    return (0.5 * (p1[0] + p2[0]), 0.5 * (p1[1] + p2[1]))
-
-
 def adjust_rectangle_like(mapping, original, current, part, modifiers):
     # NOTE: all sizes/points are assumed to be in image coordinates
     o = mapping.map_point_widget_to_image(original)

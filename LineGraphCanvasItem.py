@@ -7,8 +7,8 @@ import gettext
 import numpy
 
 # local libraries
-from nion.swift import CanvasItem
-from nion.swift import Graphics
+from nion.ui import CanvasItem
+from nion.ui import Geometry
 
 _ = gettext.gettext
 
@@ -30,7 +30,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __get_plot_rect(self):
         rect = ((0, 0), self.canvas_size)
-        rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
+        rect = Geometry.fit_to_aspect_ratio(rect, self.golden_ratio)
         plot_origin_y = rect[0][0] + self.top_margin
         plot_origin_x = rect[0][1] + self.left_margin
         plot_height = rect[1][0] - self.bottom_caption_height - self.top_margin
@@ -83,7 +83,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill_style = self.background_color
             drawing_context.fill()
 
-            rect = Graphics.fit_to_aspect_ratio(rect, self.golden_ratio)
+            rect = Geometry.fit_to_aspect_ratio(rect, self.golden_ratio)
             unit_offset = int(self.font_size + 4) if self.draw_captions else 0
             intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1] + unit_offset), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_margin - unit_offset))
             plot_rect = self.plot_rect
@@ -109,8 +109,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
             # draw the intensity scale
             vertical_tick_count = 4
-            data_max = Graphics.make_pretty(data_max, round_up=True)
-            data_min = Graphics.make_pretty(data_min, round_up=True)
+            data_max = Geometry.make_pretty(data_max, round_up=True)
+            data_min = Geometry.make_pretty(data_min, round_up=True)
             data_min = data_min if data_min < 0 else 0.0
             data_range = data_max - data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
@@ -167,14 +167,14 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 horizontal_tick_spacing = data_len * horizontal_tick_spacing / plot_width
                 if self.spatial_calibration:
                     horizontal_tick_spacing = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_spacing)
-                horizontal_tick_spacing = Graphics.make_pretty(horizontal_tick_spacing)
+                horizontal_tick_spacing = Geometry.make_pretty(horizontal_tick_spacing)
                 if self.spatial_calibration:
                     horizontal_tick_spacing = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_spacing)
                 # calculate the horizontal minimum value in spatial units
                 horizontal_tick_min = 0.0
                 if self.spatial_calibration:
                     horizontal_tick_min = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_min)
-                horizontal_tick_min = Graphics.make_pretty(horizontal_tick_min)
+                horizontal_tick_min = Geometry.make_pretty(horizontal_tick_min)
                 if self.spatial_calibration:
                     horizontal_tick_min = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_min)
                 # draw the tick marks

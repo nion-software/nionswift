@@ -12,12 +12,13 @@ import weakref
 import numpy
 
 # local libraries
-from nion.swift import CanvasItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Image
 from nion.swift import LineGraphCanvasItem
 from nion.swift import Storage
 from nion.swift import Utility
+from nion.ui import CanvasItem
+from nion.ui import Observable
 
 _ = gettext.gettext
 
@@ -1263,7 +1264,7 @@ class DataItemSpecifier(object):
 
 
 # TODO: Migrate to use DataItemBindingSource instead.
-class DataItemBinding(Storage.Broadcaster):
+class DataItemBinding(Observable.Broadcaster):
 
     """
         Hold a data item and notify listeners when the data item
@@ -1292,7 +1293,7 @@ class DataItemBinding(Storage.Broadcaster):
         self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)
 
 
-class DataItemBindingSource(Storage.Observable):
+class DataItemBindingSource(Observable.Observable):
     """
         Hold a data item and notify observers when changed.
         Also allow access to the properties of the data item

@@ -8,10 +8,10 @@ import threading
 
 # local libraries
 from nion.swift.Decorators import ProcessingThread
-from nion.swift import CanvasItem
 from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import Panel
+from nion.ui import CanvasItem
 
 _ = gettext.gettext
 

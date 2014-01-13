@@ -13,7 +13,8 @@ from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImagePanel
 from nion.swift import Storage
-from nion.swift import Test
+from nion.ui import Geometry
+from nion.ui import Test
 
 
 class TestGraphicSelectionClass(unittest.TestCase):
@@ -60,7 +61,7 @@ class TestImagePanelClass(unittest.TestCase):
         modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
         self.image_panel.image_canvas_item.mouse_pressed(p1[1], p1[0], modifiers)
         self.image_panel.image_canvas_item.mouse_position_changed(p1[1], p1[0], modifiers)
-        midp = Graphics.midpoint(p1, p2)
+        midp = Geometry.midpoint(p1, p2)
         self.image_panel.image_canvas_item.mouse_position_changed(midp[1], midp[0], modifiers)
         self.image_panel.image_canvas_item.mouse_position_changed(p2[1], p2[0], modifiers)
         self.image_panel.image_canvas_item.mouse_released(p2[1], p2[0], modifiers)
@@ -127,10 +128,10 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
 
     def assertClosePoint(self, p1, p2, e=0.00001):
-        self.assertTrue(Graphics.distance(p1, p2) < e)
+        self.assertTrue(Geometry.distance(p1, p2) < e)
 
     def assertCloseRectangle(self, r1, r2, e=0.00001):
-        self.assertTrue(Graphics.distance(r1[0], r2[0]) < e and Graphics.distance(r1[1], r2[1]) < e)
+        self.assertTrue(Geometry.distance(r1[0], r2[0]) < e and Geometry.distance(r1[1], r2[1]) < e)
 
     def test_drag_multiple(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).

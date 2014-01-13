@@ -16,8 +16,8 @@ from nion.swift import Image
 from nion.swift import ImagePanel
 from nion.swift import Operation
 from nion.swift import Storage
-from nion.swift import Test
-from nion.swift import UserInterface
+from nion.ui import Test
+from nion.ui import UserInterface
 
 
 def construct_test_document(app, workspace_id=None):

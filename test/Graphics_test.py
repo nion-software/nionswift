@@ -50,22 +50,6 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertIsNone(line_graphic.test(mapping, (760, 760), move_only=False))
         self.assertIsNone(line_graphic.test(mapping, (0, 0), move_only=False))
 
-    def test_fit_to_size(self):
-        eps = 0.0001
-        rects = []
-        sizes = []
-        rects.append( ((0, 0), (300, 700)) )
-        sizes.append( (600, 1200) )
-        rects.append( ((0, 0), (300, 700)) )
-        sizes.append( (1200, 600) )
-        rects.append( ((0, 0), (600, 800)) )
-        sizes.append( (700, 1300) )
-        rects.append( ((0, 0), (600, 800)) )
-        sizes.append( (1300, 700) )
-        for rect, size in zip(rects, sizes):
-            fit = Graphics.fit_to_size(rect, size)
-            self.assertTrue(abs(float(fit[1][1])/float(fit[1][0]) - float(size[1])/float(size[0])) < eps)
-
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

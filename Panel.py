@@ -13,7 +13,7 @@ from StringIO import StringIO
 # None
 
 # local libraries
-from nion.swift import Decorators
+from nion.ui import Process
 
 
 _ = gettext.gettext
@@ -33,8 +33,8 @@ class Panel(object):
         self.display_name = display_name
         self.widget = None
         # useful for many panels.
-        self.__periodic_task_queue = Decorators.TaskQueue()
-        self.__periodic_task_set = Decorators.TaskSet()
+        self.__periodic_task_queue = Process.TaskQueue()
+        self.__periodic_task_set = Process.TaskSet()
 
     # subclasses can override to clean up when the panel closes.
     def close(self):
