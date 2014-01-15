@@ -758,15 +758,7 @@ class DictDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "fft-operation": Operation.FFTOperation,
-                "inverse-fft-operation": Operation.IFFTOperation,
-                "invert-operation": Operation.InvertOperation,
-                "gaussian-blur-operation": Operation.GaussianBlurOperation,
-                "resample-operation": Operation.Resample2dOperation,
-                "crop-operation": Operation.Crop2dOperation,
-                "histogram-operation": Operation.HistogramOperation,
-                "line-profile-operation": Operation.LineProfileOperation,
-                "convert-to-scalar-operation": Operation.ConvertToScalarOperation,
+                "operation": Operation.Operation,
             }
             type = node["type"]
             if type in build_map:
@@ -984,7 +976,7 @@ class DbDatastore(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
-            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (2, ))
             self.conn.commit()
 
     # keep. used for testing
@@ -1171,15 +1163,7 @@ class DbDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "fft-operation": Operation.FFTOperation,
-                "inverse-fft-operation": Operation.IFFTOperation,
-                "invert-operation": Operation.InvertOperation,
-                "gaussian-blur-operation": Operation.GaussianBlurOperation,
-                "resample-operation": Operation.Resample2dOperation,
-                "crop-operation": Operation.Crop2dOperation,
-                "histogram-operation": Operation.HistogramOperation,
-                "line-profile-operation": Operation.LineProfileOperation,
-                "convert-to-scalar-operation": Operation.ConvertToScalarOperation,
+                "operation": Operation.Operation,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))

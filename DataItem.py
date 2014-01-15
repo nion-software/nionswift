@@ -240,7 +240,7 @@ class HistogramThread(ProcessingThread):
 
 # thumbnail: a small representation of this data item
 
-# graphic items: roi's
+# graphic items: regions of interest
 
 # intrinsic_calibrations: calibration for each dimension
 # display_calibrated_values: whether calibrated units are displayed

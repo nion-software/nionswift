@@ -46,7 +46,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.intrinsic_calibrations[1].units = "x"
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
-        data_item_copy.operations.append(Operation.InvertOperation())
+        data_item_copy.operations.append(Operation.Operation("invert-operation"))
         data_item.data_items.append(data_item_copy)
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(len(calculated_calibrations), 2)
@@ -56,7 +56,7 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(int(calculated_calibrations[1].origin), 3)
         self.assertEqual(int(calculated_calibrations[1].scale), 2)
         self.assertEqual(calculated_calibrations[1].units, "x")
-        data_item_copy.operations.append(Operation.FFTOperation())
+        data_item_copy.operations.append(Operation.Operation("fft-operation"))
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(int(calculated_calibrations[0].origin), 0)
         self.assertEqual(calculated_calibrations[0].units, "1/x")
@@ -69,13 +69,13 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.add_ref()
         data_item2 = DataItem.DataItem()
         data_item2.add_ref()
-        operation2 = Operation.Resample2dOperation()
+        operation2 = Operation.Operation("resample-operation")
         data_item2.operations.append(operation2)
         data_item.data_items.append(data_item2)
         data_item2.remove_ref()
         data_item3 = DataItem.DataItem()
         data_item3.add_ref()
-        operation3 = Operation.Resample2dOperation()
+        operation3 = Operation.Operation("resample-operation")
         data_item3.operations.append(operation3)
         data_item2.data_items.append(data_item3)
         data_item3.calculated_calibrations
@@ -118,7 +118,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
                 data_ref.master_data_updated()
             data_item.display_limits = (100, 900)
-            data_item.operations.append(Operation.InvertOperation())
+            data_item.operations.append(Operation.Operation("invert-operation"))
             data_item.graphics.append(Graphics.RectangleGraphic())
             data_item2 = DataItem.DataItem()
             data_item2.title = "data_item2"
@@ -168,8 +168,8 @@ class TestDataItemClass(unittest.TestCase):
             crop_graphic = Graphics.RectangleGraphic()
             crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(crop_graphic)
-            crop_operation = Operation.Crop2dOperation()
-            crop_operation.graphic = crop_graphic
+            crop_operation = Operation.Operation("crop-operation")
+            crop_operation.set_graphic("graphic", crop_graphic)
             data_item.operations.append(crop_operation)
             data_item_copy = copy.deepcopy(data_item)
             with data_item_copy.ref():
@@ -223,26 +223,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNotNone(data_item.get_thumbnail_data(self.app.ui, 64, 64))
         data_item.remove_ref()
 
-    # make sure thumbnail raises exception if a bad operation is involved
-    def test_thumbnail_bad_operation(self):
-        class BadOperation(Operation.FFTOperation):
-            def process_data_in_place(self, data_array):
-                raise NotImplementedError()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
-        data_item2 = DataItem.DataItem()
-        data_item2.operations.append(BadOperation())
-        data_item.data_items.append(data_item2)
-        with self.assertRaises(NotImplementedError):
-            with data_item2.data_ref() as data2_accessor:
-                data2_accessor.data  # trigger the data calculation
-            # NOTE: this test is no longer quite valid since the data call
-            # is required to trigger the thumbnail data functionality.
-            # thumbnails no longer trigger a call to data.
-            # CEM 2013-10-18
-            data_item2.get_thumbnail_data(self.app.ui, 64, 64)
-        data_item.remove_ref()
-
     def test_delete_nested_data_item(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
@@ -269,13 +249,13 @@ class TestDataItemClass(unittest.TestCase):
         # set up the data items
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item_roi = Graphics.LineGraphic()
-        data_item.graphics.append(data_item_roi)
+        data_item_graphic = Graphics.LineGraphic()
+        data_item.graphics.append(data_item_graphic)
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.FFTOperation())
+        data_item2.operations.append(Operation.Operation("fft-operation"))
         data_item.data_items.append(data_item2)
         data_item3 = DataItem.DataItem()
-        data_item3.operations.append(Operation.IFFTOperation())
+        data_item3.operations.append(Operation.Operation("inverse-fft-operation"))
         data_item2.data_items.append(data_item3)
         # establish listeners
         class Listener(object):
@@ -314,7 +294,7 @@ class TestDataItemClass(unittest.TestCase):
         # changing a graphic on source should NOT change dependent data
         # it should change the primary data item display, but not its data
         map(Listener.reset, listeners)
-        data_item_roi.start = (0.8, 0.2)
+        data_item_graphic.start = (0.8, 0.2)
         self.assertTrue(not listener.data_changed)
         self.assertTrue(listener.display_changed)
         self.assertTrue(not listener.data_changed and listener.display_changed)
@@ -334,7 +314,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # add/remove an operation. should change primary and dependent data and display
         map(Listener.reset, listeners)
-        invert_operation = Operation.InvertOperation()
+        invert_operation = Operation.Operation("invert-operation")
         data_item.operations.append(invert_operation)
         self.assertTrue(listener.data_changed and listener.display_changed)
         self.assertTrue(listener2.data_changed and listener2.display_changed)
@@ -357,23 +337,23 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener2.data_changed and not listener2.display_changed)
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # modify an operation. make sure data and dependent data gets updated.
-        blur_operation = Operation.GaussianBlurOperation()
+        blur_operation = Operation.Operation("gaussian-blur-operation")
         data_item.operations.append(blur_operation)
         map(Listener.reset, listeners)
-        blur_operation.sigma = 0.1
+        blur_operation.set_property("sigma", 0.1)
         self.assertTrue(listener.data_changed and listener.display_changed)
         self.assertTrue(listener2.data_changed and listener2.display_changed)
         self.assertTrue(listener3.data_changed and listener3.display_changed)
         data_item.operations.remove(blur_operation)
-        # modify an operation roi. make sure data and dependent data gets updated.
+        # modify an operation graphic. make sure data and dependent data gets updated.
         crop_graphic = Graphics.RectangleGraphic()
         crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
         data_item.graphics.append(crop_graphic)
-        crop_operation = Operation.Crop2dOperation()
-        crop_operation.graphic = crop_graphic
+        crop_operation = Operation.Operation("crop-operation")
+        crop_operation.set_graphic("graphic", crop_graphic)
         data_item.operations.append(crop_operation)
         map(Listener.reset, listeners)
-        crop_operation.graphic.bounds = ((0,0), (0.5, 0.5))
+        crop_operation.get_graphic("graphic").bounds = ((0,0), (0.5, 0.5))
         self.assertTrue(listener.data_changed and listener.display_changed)
         self.assertTrue(listener2.data_changed and listener2.display_changed)
         self.assertTrue(listener3.data_changed and listener3.display_changed)
@@ -411,8 +391,8 @@ class TestDataItemClass(unittest.TestCase):
             crop_graphic = Graphics.RectangleGraphic()
             crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(crop_graphic)
-            crop_operation = Operation.Crop2dOperation()
-            crop_operation.graphic = crop_graphic
+            crop_operation = Operation.Operation("crop-operation")
+            crop_operation.set_graphic("graphic", crop_graphic)
             crop_data_item.operations.append(crop_operation)
             data_item.data_items.append(crop_data_item)
             data_item._set_session_id("20131231-235959")

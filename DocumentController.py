@@ -366,7 +366,13 @@ class DocumentController(Observable.Broadcaster):
         else:
             self.workspace.display_data_item(data_panel_selection.data_item, source_data_item)
 
-    def add_processing_operation(self, data_panel_selection, operation, prefix=None, suffix=None, in_place=False, select=True):
+    def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
+        operation = Operation.Operation(operation_id)
+        assert operation is not None
+        self.add_processing_operation(operation, prefix, suffix, in_place, select)
+
+    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
+        data_panel_selection = self.selected_data_panel_selection
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
@@ -384,47 +390,47 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def processing_fft(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.FFTOperation(), prefix=_("FFT of "), select=select)
+        return self.add_processing_operation_by_id("fft-operation", prefix=_("FFT of "), select=select)
 
     def processing_ifft(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.IFFTOperation(), prefix=_("Inverse FFT of "), select=select)
+        return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
 
     def processing_gaussian_blur(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.GaussianBlurOperation(), prefix=_("Gaussian Blur of "), select=select)
+        return self.add_processing_operation_by_id("gaussian-blur-operation", prefix=_("Gaussian Blur of "), select=select)
 
     def processing_resample(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.Resample2dOperation(), prefix=_("Resample of "), select=select)
+        return self.add_processing_operation_by_id("resample-operation", prefix=_("Resample of "), select=select)
 
     def processing_histogram(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.HistogramOperation(), prefix=_("Histogram of "), select=select)
+        return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select)
 
     def processing_crop(self, select=True):
         data_panel_selection = self.selected_data_panel_selection
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
-            operation = Operation.Crop2dOperation()
+            operation = Operation.Operation("crop-operation")
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)
-            operation.graphic = graphic
-            return self.add_processing_operation(data_panel_selection, operation, prefix=_("Crop of "), select=select)
+            operation.set_graphic("graphic", graphic)
+            return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_line_profile(self, select=True):
         data_panel_selection = self.selected_data_panel_selection
         data_item = data_panel_selection.data_item if data_panel_selection else None
         if data_item:
-            operation = Operation.LineProfileOperation()
+            operation = Operation.Operation("line-profile-operation")
             graphic = Graphics.LineGraphic()
             graphic.start = (0.25,0.25)
             graphic.end = (0.75,0.75)
             graphic.end_arrow_enabled = True
             data_item.graphics.append(graphic)
-            operation.graphic = graphic
-            return self.add_processing_operation(data_panel_selection, operation, prefix=_("Line Profile of "), select=select)
+            operation.set_graphic("graphic", graphic)
+            return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
         return None
 
     def processing_invert(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.InvertOperation(), suffix=_(" Inverted"), select=select)
+        return self.add_processing_operation_by_id("invert-operation", suffix=_(" Inverted"), select=select)
 
     def processing_duplicate(self, select=True):
         data_item = self.selected_data_item
@@ -447,7 +453,7 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def processing_convert_to_scalar(self, select=True):
-        return self.add_processing_operation(self.selected_data_panel_selection, Operation.ConvertToScalarOperation(), suffix=_(" Gray"), select=select)
+        return self.add_processing_operation_by_id("convert-to-scalar-operation", suffix=_(" Gray"), select=select)
 
     def prepare_data_item_script(self):
         def find_var():

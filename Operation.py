@@ -15,6 +15,7 @@ import scipy.fftpack
 import scipy.ndimage
 
 # local libraries
+from nion.swift import Decorators
 from nion.swift.Decorators import timeit
 from nion.swift import Image
 from nion.swift import DataItem
@@ -30,35 +31,54 @@ class Operation(Storage.StorageBase):
         Pass in a description during construction. The description
         should describe what parameters are editable and how they
         are connected to the operation.
-        """
-    def __init__(self, name, description=None):
+    """
+    def __init__(self, operation_id):
         Storage.StorageBase.__init__(self)
 
-        self.storage_properties += ["enabled"]
         self.storage_type = "operation"
-        self.name = name
+
+        # an operation gets one chance to find its behavior. if the behavior doesn't exist
+        # then it will simply provide null data according to the saved parameters. if there
+        # are no saved parameters, defaults are used.
+        self.operation_behavior = OperationManager().build_operation_behavior(operation_id)
+        if self.operation_behavior:
+            self.operation_behavior.operation = self
+
+        self.name = self.operation_behavior.name if self.operation_behavior else _("Unavailable Operation")
         self.__enabled = True
-        self.description = description if description else []
-        self.properties = [dict["property"] for dict in self.description]
+
+        # operation_id is immutable
+        self.operation_id = operation_id
+
+        # manage properties
+        self.description = self.operation_behavior.description if self.operation_behavior else []
+        self.properties = [description_entry["property"] for description_entry in self.description]
         self.values = {}
-        for dict in self.description:
-            value = dict["default"]
-            # TODO: allow defaults to be specified as functions?
-            #if inspect.isfunction(value):
-            #   value = value()
-            self.values[dict["property"]] = value
-        self.defaults = copy.deepcopy(self.values)
-        self.storage_properties += self.properties
-        self.__initialized = True
+
+        # manage graphics
+        self.graphic = None
+
+        self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
+        self.storage_items += ["graphic"]
+
+    # called when remove_ref causes ref_count to go to 0
+    def about_to_delete(self):
+        self.set_graphic("graphic", None)
+        super(Operation, self).about_to_delete()
+
     @classmethod
     def build(cls, datastore, item_node, uuid_):
-        operation = cls()
+        operation_id = datastore.get_property(item_node, "operation_id")
+        operation = cls(operation_id)
         operation.enabled = datastore.get_property(item_node, "enabled", True)
-        for property in operation.properties:
-            setattr(operation, property, datastore.get_property(item_node, property, operation.defaults[property]))
+        operation.values = datastore.get_property(item_node, "values", dict())
+        graphic = datastore.get_item(item_node, "graphic")
+        operation.set_graphic("graphic", graphic)
         return operation
+
     def create_editor(self, ui):
         return None
+
     # enabled property
     def __get_enabled(self):
         return self.__enabled
@@ -66,71 +86,168 @@ class Operation(Storage.StorageBase):
         self.__enabled = enabled
         self.notify_set_property("enabled", enabled)
     enabled = property(__get_enabled, __set_enabled)
-    # handle properties from the description of the operation.
-    def __getattr__(self, name):
-        if name in self.properties:
-            return self.values[name]
-        logging.debug("Operation attribute missing %s", name)
-        raise AttributeError
-    def __setattr__(self, name, value):
-        if not self.__dict__.has_key('_Operation__initialized'):  # this test allows attributes to be set in the __init__ method
-            return object.__setattr__(self, name, value)
-        if name in self.properties:
-            self.values[name] = value
-            self.notify_set_property(name, value)
-        else:
-            object.__setattr__(self, name, value)
-    # subclasses can override this method to perform processing on a copy of the original data
-    # this method should return either the copy itself or a new data set
-    def process_data_copy(self, data_copy):
-        raise NotImplementedError
-    # subclasses can override this method to perform processing on the original data.
-    # this method should always return a new copy of data
-    def process_data_in_place(self, data):
-        return self.process_data_copy(data.copy())
+
+    # get a property.
+    def get_property(self, property_id, default_value=None):
+        if property_id in self.values:
+            return self.values[property_id]
+        if default_value is not None:
+            return default_value
+        for description_entry in self.description:
+            if description_entry["property"] == property_id:
+                return description_entry.get("default")
+        return None
+
+    # set a property.
+    def set_property(self, property_id, value):
+        self.values[property_id] = value
+        self.notify_set_property("values", self.values)
+
+    # update the default value for this operation.
+    def set_property_default(self, property_id, default_value):
+        for description_entry in self.description:
+            if description_entry["property"] == property_id:
+                description_entry["default"] = default_value
+                if property_id not in self.values or self.values[property_id] is None:
+                    self.values[property_id] = default_value
+
+    # clients call this to perform processing
     def process_data(self, data):
-        if self.enabled:
-            data = self.process_data_in_place(data)
-        return data
+        if self.operation_behavior:
+            return self.operation_behavior.process_data_in_place(data)
+        else:
+            return data.copy()
+
     # calibrations
+
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
-        return source_calibrations
+        if self.operation_behavior:
+            return self.operation_behavior.get_processed_calibrations(data_shape, data_dtype, source_calibrations)
+        else:
+            return source_calibrations
+
     def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
-        return intensity_calibration
-    # subclasses that change the type or shape of the data must override
+        if self.operation_behavior:
+            return self.operation_behavior.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
+        else:
+            return source_calibrations
+
+    # data shape and type
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        if self.operation_behavior:
+            return self.operation_behavior.get_processed_data_shape_and_dtype(data_shape, data_dtype)
         return data_shape, data_dtype
+
     # default value handling.
     def update_data_shape_and_dtype(self, data_shape, data_dtype):
-        pass
+        if self.operation_behavior:
+            self.operation_behavior.update_data_shape_and_dtype(data_shape, data_dtype)
+
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
-        operation = self.__class__()
+        operation = self.__class__(self.operation_id)
         operation.deepcopy_from(self, memo)
         memo[id(self)] = operation
         return operation
+
     def deepcopy_from(self, operation, memo):
         values = copy.deepcopy(operation.values)
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.values[key] = values[key]
+        # TODO: Check use of memo here.
+        if operation.graphic:
+            self.set_graphic("graphic", memo[id(operation.graphic)])
+        else:
+            self.set_graphic("graphic", None)
         self.__enabled = operation.enabled
-    def get_storage_property(self, key):
-        if key == "enabled":
-            return self.enabled
-        if key in self.properties:
-            return self.values[key]
-        return Storage.StorageBase.get_storage_property(self, key)
+
     def notify_set_property(self, key, value):
         super(Operation, self).notify_set_property(key, value)
         self.notify_listeners("operation_changed", self)
 
+    def get_storage_item(self, key):
+        if key == "graphic":
+            return self.graphic
+        return super(Operation, self).get_storage_item(key)
 
-class FFTOperation(Operation):
+    def get_graphic(self, key):
+        return self.get_storage_item(key)
+
+    def set_graphic(self, key, graphic):
+        if key == "graphic":
+            if self.graphic:
+                self.notify_clear_item("graphic")
+                self.graphic.remove_observer(self)
+                self.graphic.remove_ref()
+                self.graphic = None
+            if graphic:
+                self.graphic = graphic
+                graphic.add_observer(self)
+                graphic.add_ref()
+                self.notify_set_item("graphic", graphic)
+
+    def property_changed(self, object, key, value):
+        if object is not None and object == self.graphic:
+            # TODO: check for specific key, such as 'bounds' for rectangle?
+            self.notify_listeners("operation_changed", self)
+
+
+class OperationBehavior(object):
+
+    def __init__(self, name, operation_id, description=None):
+        self.__weak_operation = None
+        self.name = name
+        self.operation_id = operation_id
+        self.description = description if description else []
+
+    # this needs to be set externally
+    def __get_operation(self):
+        return self.__weak_operation()
+    def __set_operation(self, operation):
+        self.__weak_operation = weakref.ref(operation)
+    operation = property(__get_operation, __set_operation)
+
+    # handle properties from the description of the operation.
+    def get_property(self, property_id, default_value=None):
+        return self.operation.get_property(property_id, default_value)
+
+    def set_property_default(self, property_id, default_value):
+        self.operation.set_property_default(property_id, default_value)
+
+    # handle graphic
+    def get_graphic(self, graphic_id):
+        return self.operation.get_graphic(graphic_id)
+
+    # subclasses can override this method to perform processing on a copy of the original data
+    # this method should return either the copy itself or a new data set
+    def process_data_copy(self, data_copy):
+        raise NotImplementedError
+
+    # subclasses can override this method to perform processing on the original data.
+    # this method should always return a new copy of data
+    def process_data_in_place(self, data):
+        return self.process_data_copy(data.copy())
+
+    # calibrations
+    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
+        return source_calibrations
+    def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
+        return intensity_calibration
+
+    # subclasses that change the type or shape of the data must override
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return data_shape, data_dtype
+
+    # default value handling.
+    def update_data_shape_and_dtype(self, data_shape, data_dtype):
+        pass
+
+
+class FFTOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        description = []
-        super(FFTOperation, self).__init__(_("FFT"), description)
-        self.storage_type = "fft-operation"
+        super(FFTOperationBehavior, self).__init__(_("FFT"), "fft-operation")
 
     def process_data_in_place(self, data):
         if Image.is_data_1d(data):
@@ -151,11 +268,10 @@ class FFTOperation(Operation):
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
 
 
-class IFFTOperation(Operation):
+class IFFTOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        description = []
-        super(IFFTOperation, self).__init__(_("Inverse FFT"), description)
-        self.storage_type = "inverse-fft-operation"
+        super(IFFTOperationBehavior, self).__init__(_("Inverse FFT"), "inverse-fft-operation")
 
     def process_data_in_place(self, data):
         if Image.is_data_1d(data):
@@ -172,11 +288,10 @@ class IFFTOperation(Operation):
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
 
 
-class InvertOperation(Operation):
+class InvertOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        description = []
-        super(InvertOperation, self).__init__(_("Invert"), description)
-        self.storage_type = "invert-operation"
+        super(InvertOperationBehavior, self).__init__(_("Invert"), "invert-operation")
 
     def process_data_in_place(self, data_copy):
         if Image.is_data_rgba(data_copy) or Image.is_data_rgb(data_copy):
@@ -185,69 +300,30 @@ class InvertOperation(Operation):
             return 1.0 - data_copy[:]
 
 
-class GaussianBlurOperation(Operation):
+class GaussianBlurOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        # Note: Do not initialize any properties in this class or else they will not work correctly.
-        # __getattr__ only allows access to missing properties. Won't be missing if initialized.
         description = [
-            {"name": _("Radius"), "property": "sigma", "type": "scalar", "default": 0.3}
+            { "name": _("Radius"), "property": "sigma", "type": "scalar", "default": 0.3 }
         ]
-        super(GaussianBlurOperation, self).__init__(_("Gaussian"), description)
-        self.storage_type = "gaussian-blur-operation"
+        super(GaussianBlurOperationBehavior, self).__init__(_("FFT"), "fft-operation", description)
 
     def process_data_in_place(self, data_copy):
-        return scipy.ndimage.gaussian_filter(data_copy, sigma=10*self.sigma)
+        return scipy.ndimage.gaussian_filter(data_copy, sigma=10*self.get_property("sigma"))
 
 
-class Crop2dOperation(Operation):
-    def __init__(self, graphic=None):
-        description = []
-        super(Crop2dOperation, self).__init__(_("Crop"), description)
-        self.__graphic = None
-        self.storage_items += ["graphic"]
-        self.storage_type = "crop-operation"
-        if graphic:
-            self.graphic = graphic
+class Crop2dOperationBehavior(OperationBehavior):
 
-    def about_to_delete(self):
-        self.graphic = None
-        super(Crop2dOperation, self).about_to_delete()
+    def __init__(self):
+        super(Crop2dOperationBehavior, self).__init__(_("Crop"), "crop-operation", None)
 
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        crop_operation = super(Crop2dOperation, cls).build(datastore, item_node, uuid_)
-        graphic = datastore.get_item(item_node, "graphic")
-        crop_operation.graphic = graphic
-        return crop_operation
-
-    def deepcopy_from(self, operation, memo):
-        super(Crop2dOperation, self).deepcopy_from(operation, memo)
-        if operation.graphic:
-            self.graphic = memo[id(operation.graphic)]
-
-    def __get_graphic(self):
-        return self.__graphic
-    def __set_graphic(self, graphic):
-        if self.__graphic:
-            self.notify_clear_item("graphic")
-            self.__graphic.remove_observer(self)
-            self.__graphic.remove_ref()
-        self.__graphic = graphic
-        if graphic:
-            assert isinstance(graphic, Graphics.RectangleGraphic)
-        if self.__graphic:
-            self.__graphic.add_observer(self)
-            self.__graphic.add_ref()
-            self.notify_set_item("graphic", graphic)
-    graphic = property(__get_graphic, __set_graphic)
-
-    def property_changed(self, graphic, key, value):
-        if key == "bounds":
-            self.notify_listeners("operation_changed", self)
+    def process_data_in_place(self, data_copy):
+        return scipy.ndimage.gaussian_filter(data_copy, sigma=10 * self.get_property("sigma"))
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
-        bounds = self.graphic.bounds if self.graphic else ((0, 0), (1, 1))
+        graphic = self.get_graphic("graphic")
+        bounds = graphic.bounds if graphic else ((0, 0), (1, 1))
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
@@ -255,65 +331,58 @@ class Crop2dOperation(Operation):
             return bounds_int[1], data_dtype
 
     def process_data_in_place(self, data):
-        if self.graphic:
-            assert isinstance(self.graphic, Graphics.RectangleGraphic)
+        graphic = self.get_graphic("graphic")
+        if graphic:
+            assert isinstance(graphic, Graphics.RectangleGraphic)
         shape = data.shape
-        bounds = self.graphic.bounds if self.graphic else ((0, 0), (1, 1))
+        bounds = graphic.bounds if graphic else ((0, 0), (1, 1))
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
 
-class Resample2dOperation(Operation):
-    def __init__(self, width=None, height=None):
+class Resample2dOperationBehavior(OperationBehavior):
+
+    def __init__(self):
         description = [
-            {"name": _("Width"), "property": "width", "type": "integer-field", "default": width},
-            {"name": _("Height"), "property": "height", "type": "integer-field", "default": height},
+            {"name": _("Width"), "property": "width", "type": "integer-field", "default": None},
+            {"name": _("Height"), "property": "height", "type": "integer-field", "default": None},
         ]
-        super(Resample2dOperation, self).__init__(_("Resample"), description)
-        self.storage_type = "resample-operation"
+        super(Resample2dOperationBehavior, self).__init__(_("Resample"), "resample-operation", description)
 
     def process_data_copy(self, data_copy):
-        height = self.height if self.height else data_copy.shape[0]
-        width = self.width if self.width else data_copy.shape[1]
+        height = self.get_property("height", data_copy.shape[0])
+        width = self.get_property("width", data_copy.shape[1])
         if data_copy.shape[1] == width and data_copy.shape[0] == height:
             return data_copy
         return Image.scaled(data_copy, (height, width))
 
     def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
-        height = self.height if self.height else data_shape[0]
-        width = self.width if self.width else data_shape[1]
+        height = self.get_property("height", data_shape[0])
+        width = self.get_property("width", data_shape[1])
         dimensions = (height, width)
         return [DataItem.Calibration(source_calibrations[i].origin,
                                      source_calibrations[i].scale * data_shape[i] / dimensions[i],
                                      source_calibrations[i].units) for i in range(len(source_calibrations))]
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        height = self.get_property("height", data_shape[0])
+        width = self.get_property("width", data_shape[1])
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
-            return (self.height, self.width, data_shape[-1]), data_dtype
+            return (height, width, data_shape[-1]), data_dtype
         else:
-            return (self.height, self.width), data_dtype
+            return (height, width), data_dtype
 
     def update_data_shape_and_dtype(self, data_shape, data_dtype):
-        self.description[1]["default"] = data_shape[0]  # height = height
-        self.description[0]["default"] = data_shape[1]  # width = width
-        if "height" not in self.values or self.values["height"] is None:
-            self.values["height"] = data_shape[0]
-        if "width" not in self.values or self.values["width"] is None:
-            self.values["width"] = data_shape[1]
+        self.set_property_default("height", data_shape[0])
+        self.set_property_default("width", data_shape[1])
 
 
-class HistogramOperation(Operation):
+class HistogramOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        description = []
-        super(HistogramOperation, self).__init__(_("Histogram"), description)
-        self.storage_type = "histogram-operation"
+        super(HistogramOperationBehavior, self).__init__(_("Histogram"), "histogram-operation")
         self.bins = 256
-
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        histogram_operation = super(HistogramOperation, cls).build(datastore, item_node, uuid_)
-        return histogram_operation
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return (self.bins, ), numpy.dtype(numpy.int)
@@ -323,55 +392,15 @@ class HistogramOperation(Operation):
         return histogram_data[0].astype(numpy.int)
 
 
-class LineProfileOperation(Operation):
-    def __init__(self, graphic=None):
-        description = []
-        super(LineProfileOperation, self).__init__(_("Line Profile"), description)
-        self.__graphic = None
-        self.storage_items += ["graphic"]
-        self.storage_type = "line-profile-operation"
-        if graphic:
-            self.graphic = graphic
+class LineProfileOperationBehavior(OperationBehavior):
 
-    def about_to_delete(self):
-        self.graphic = None
-        super(LineProfileOperation, self).about_to_delete()
-
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        line_profile_operation = super(LineProfileOperation, cls).build(datastore, item_node, uuid_)
-        graphic = datastore.get_item(item_node, "graphic")
-        line_profile_operation.graphic = graphic
-        return line_profile_operation
-
-    def deepcopy_from(self, operation, memo):
-        super(LineProfileOperation, self).deepcopy_from(operation, memo)
-        if operation.graphic:
-            self.graphic = memo[id(operation.graphic)]
-
-    def __get_graphic(self):
-        return self.__graphic
-    def __set_graphic(self, graphic):
-        if self.__graphic:
-            self.notify_clear_item("graphic")
-            self.__graphic.remove_observer(self)
-            self.__graphic.remove_ref()
-        self.__graphic = graphic
-        if graphic:
-            assert isinstance(graphic, Graphics.LineGraphic)
-        if self.__graphic:
-            self.__graphic.add_observer(self)
-            self.__graphic.add_ref()
-            self.notify_set_item("graphic", graphic)
-    graphic = property(__get_graphic, __set_graphic)
-
-    def property_changed(self, graphic, key, value):
-        if key == "start" or key == "end":
-            self.notify_listeners("operation_changed", self)
+    def __init__(self):
+        super(LineProfileOperationBehavior, self).__init__(_("Line Profile"), "line-profile-operation", None)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        start = self.graphic.start if self.graphic else (0.25, 0.25)
-        end = self.graphic.end if self.graphic else (0.75, 0.75)
+        graphic = self.get_graphic("graphic")
+        start = graphic.start if graphic else (0.25, 0.25)
+        end = graphic.end if graphic else (0.75, 0.75)
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -385,10 +414,11 @@ class LineProfileOperation(Operation):
         return [DataItem.Calibration(0.0, source_calibrations[0].scale, source_calibrations[0].units)]
 
     def process_data_in_place(self, data):
-        if self.graphic:
-            assert isinstance(self.graphic, Graphics.LineGraphic)
-        start = self.graphic.start if self.graphic else (0.25, 0.25)
-        end = self.graphic.end if self.graphic else (0.75, 0.75)
+        graphic = self.get_graphic("graphic")
+        if graphic:
+            assert isinstance(graphic, Graphics.LineGraphic)
+        start = graphic.start if graphic else (0.25, 0.25)
+        end = graphic.end if graphic else (0.75, 0.75)
         shape = data.shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -400,11 +430,10 @@ class LineProfileOperation(Operation):
         return numpy.zeros((1))
 
 
-class ConvertToScalarOperation(Operation):
+class ConvertToScalarOperationBehavior(OperationBehavior):
+
     def __init__(self):
-        description = []
-        super(ConvertToScalarOperation, self).__init__(_("Convert to Scalar"), description)
-        self.storage_type = "convert-to-scalar-operation"
+        super(ConvertToScalarOperationBehavior, self).__init__(_("Convert to Scalar"), "convert-to-scalar-operation")
 
     def process_data_in_place(self, data):
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
@@ -416,3 +445,32 @@ class ConvertToScalarOperation(Operation):
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)
         return data_shape, data_dtype
+
+
+class OperationManager(object):
+    __metaclass__ = Decorators.Singleton
+
+    def __init__(self):
+        self.__operation_behaviors = dict()
+
+    def register_operation_behavior(self, operation_id, create_operation_fn):
+        self.__operation_behaviors[operation_id] = create_operation_fn
+
+    def unregister_operation_behavior(self, operation_id):
+        del self.__operation_behaviors[operation_id]
+
+    def build_operation_behavior(self, operation_id):
+        if operation_id in self.__operation_behaviors:
+            return self.__operation_behaviors[operation_id]()
+        return None
+
+
+OperationManager().register_operation_behavior("fft-operation", lambda: FFTOperationBehavior())
+OperationManager().register_operation_behavior("inverse-fft-operation", lambda: IFFTOperationBehavior())
+OperationManager().register_operation_behavior("invert-operation", lambda: InvertOperationBehavior())
+OperationManager().register_operation_behavior("gaussian-blur-operation", lambda: GaussianBlurOperationBehavior())
+OperationManager().register_operation_behavior("crop-operation", lambda: Crop2dOperationBehavior())
+OperationManager().register_operation_behavior("resample-operation", lambda: Resample2dOperationBehavior())
+OperationManager().register_operation_behavior("histogram-operation", lambda: HistogramOperationBehavior())
+OperationManager().register_operation_behavior("line-profile-operation", lambda: LineProfileOperationBehavior())
+OperationManager().register_operation_behavior("convert-to-scalar-operation", lambda: ConvertToScalarOperationBehavior())

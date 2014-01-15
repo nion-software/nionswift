@@ -967,7 +967,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             else:
                 data_item = None
                 for child_data_item in self.__data_item.data_items:
-                    if len(child_data_item.operations) and isinstance(child_data_item.operations[0], Operation.FFTOperation):
+                    if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "fft-operation":
                         data_item = child_data_item
                 if not data_item:
                     data_item = self.document_controller.processing_fft(select=False)
@@ -987,7 +987,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             else:
                 data_item = None
                 for child_data_item in self.__data_item.data_items:
-                    if len(child_data_item.operations) and isinstance(child_data_item.operations[0], Operation.LineProfileOperation):
+                    if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "line-profile-operation":
                         data_item = child_data_item
                 if not data_item:
                     data_item = self.document_controller.processing_line_profile(select=False)

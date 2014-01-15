@@ -6,6 +6,7 @@ import importlib
 import logging
 import os
 import cPickle as pickle
+import sqlite3
 import sys
 import uuid
 
@@ -123,7 +124,8 @@ class Application(object):
                 logging.debug("Committed")
                 c.execute("VACUUM")
                 logging.debug("Vacuumed")
-            elif version == 1:
+                version = 1
+            if version == 1:
                 # apply a backwards compatible change
                 c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
                 data_item_uuids = []
@@ -143,7 +145,21 @@ class Application(object):
                     calibration_uuid = str(uuid.uuid4())
                     c.execute("INSERT INTO items (parent_uuid, key, item_uuid) VALUES (?, 'intrinsic_intensity_calibration', ?)", (str(data_item_uuid), calibration_uuid))
                     c.execute("INSERT INTO nodes (uuid, type, refcount) VALUES (?, 'calibration', 1)", (str(calibration_uuid), ))
-            elif version > 1:
+            if version == 1:
+                logging.debug("Updating database from version 1 to version 2.")
+                c.execute("SELECT uuid, type FROM nodes WHERE type like '%-operation'")
+                operation_uuids = []
+                operation_types = {}
+                for row in c.fetchall():
+                    operation_uuids.append(row[0])
+                    operation_types[row[0]] = row[1]
+                c.execute("UPDATE nodes SET type='operation' WHERE type like '%-operation'")
+                for operation_uuid in operation_uuids:
+                    operation_id_data = sqlite3.Binary(pickle.dumps(operation_types[operation_uuid], pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT INTO properties (uuid, key, value) VALUES (?, 'operation_id', ?)", (str(operation_uuid), operation_id_data))
+                c.execute("UPDATE version SET version = ?", (2, ))
+                version = 2
+            if version > 2:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()
