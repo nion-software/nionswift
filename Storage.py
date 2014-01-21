@@ -1213,7 +1213,7 @@ class DbDatastore(object):
         # will always be unique even when the same item_uuid exists in multiple
         # indexes.
         c = self.conn.cursor()
-        c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY item_uuid HAVING c != 1")
+        c.execute("SELECT parent_uuid, key, item_index, item_uuid, COUNT(*) AS c FROM relationships GROUP BY parent_uuid, key, item_uuid HAVING c != 1")
         for row in c.fetchall():
             logging.debug("Duplicate item in relationship from %s to %s (%s[%s]) x%s", row[0], row[3], row[1], row[2], row[4])
             if raise_exception:
