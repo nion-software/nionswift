@@ -580,7 +580,7 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_content_changed(set([DISPLAY]))
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
-    def set_calibration(dimension, calibration):
+    def set_calibration(self, dimension, calibration):
         self.intrinsic_calibrations[dimension].origin = calibration.origin
         self.intrinsic_calibrations[dimension].scale = calibration.scale
         self.intrinsic_calibrations[dimension].units = calibration.units
