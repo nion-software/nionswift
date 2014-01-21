@@ -60,7 +60,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.selected_image_panel = image_panel
         # first delete a child of a data item
         self.assertEqual(len(data_item1.data_items), 1)
-        data_panel.data_group_widget.on_current_item_changed(0, -1, 0)
+        data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
         data_panel.data_item_widget.on_current_item_changed(1)
         data_panel.data_item_widget.on_item_key_pressed(1, self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_item1.data_items), 0)
@@ -177,7 +177,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_widget.current_index, 0)
         # now make sure group selections are preserved
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1))
-        data_panel.data_group_widget.on_current_item_changed(1, 0, 1)  # data_group1 now has data_group2 selected
+        data_panel.data_group_widget.on_selection_changed(((1, 0, 1), ))  # data_group1 now has data_group2 selected
         data_panel.data_item_widget.on_current_item_changed(-1)  # data_group1 now has no data item selected
         self.assertIsNone(data_panel._get_data_panel_selection().data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
@@ -197,7 +197,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_widget.current_index, -1)
         # make sure root level is handled ok
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, None))
-        data_panel.data_group_widget.on_current_item_changed(0, -1, 0)
+        data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item1))
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)

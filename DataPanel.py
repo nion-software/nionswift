@@ -489,10 +489,14 @@ class DataPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        def data_group_widget_current_item_changed(index, parent_row, parent_id):
+        def data_group_widget_selection_changed(selected_indexes):
             saved_block1 = self.__block1
             self.__block1 = True
-            data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+            if len(selected_indexes) > 0:
+                index, parent_row, parent_id = selected_indexes[0]
+                data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+            else:
+                data_group = None
             self.data_item_model_controller.data_group = data_group
             self.__current_data_item = None
             self.update_data_panel_selection(self._get_data_panel_selection())
@@ -509,7 +513,7 @@ class DataPanel(Panel.Panel):
 
         self.data_group_widget = ui.create_tree_widget(properties={"min-height": 80})
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
-        self.data_group_widget.on_current_item_changed = data_group_widget_current_item_changed
+        self.data_group_widget.on_selection_changed = data_group_widget_selection_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
         self.data_group_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
