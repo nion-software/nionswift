@@ -90,6 +90,19 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item.remove_ref()
 
+    def test_calibration_should_work_for_complex_data(self):
+        calibration = DataItem.Calibration(1.0, 2.0, "c")
+        value_array = numpy.zeros((1, ), dtype=numpy.complex128)
+        value_array[0] = 3 + 4j
+        self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7.0+8.0j c")
+        self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6.0+8.0j c")
+
+    def test_calibration_should_work_for_rgb_data(self):
+        calibration = DataItem.Calibration(1.0, 2.0, "c")
+        value = numpy.zeros((4, ), dtype=numpy.uint8)
+        self.assertEqual(calibration.convert_to_calibrated_value_str(value), "0, 0, 0, 0")
+        self.assertEqual(calibration.convert_to_calibrated_size_str(value), "0, 0, 0, 0")
+
 
 class TestDataItemClass(unittest.TestCase):
 
