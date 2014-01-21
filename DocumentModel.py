@@ -104,6 +104,7 @@ class DocumentModel(Storage.StorageBase):
         super(DocumentModel, self).notify_insert_item(key, value, before_index)
         if key == "data_groups":
             data_group = value
+            # update the count in the data groups
             self.update_counted_data_items(data_group.counted_data_items)
             # initialize data group with current set of data (used for smart data groups)
             if hasattr(data_group, "update_counted_data_items_for_filter"):
@@ -112,6 +113,7 @@ class DocumentModel(Storage.StorageBase):
     def notify_remove_item(self, key, value, index):
         super(DocumentModel, self).notify_remove_item(key, value, index)
         if key == "data_groups":
+            # update the count in the data groups
             self.subtract_counted_data_items(value.counted_data_items)
 
     # watch for property changes to data items so that smart filters get updated.

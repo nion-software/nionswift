@@ -322,6 +322,8 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(green_group.data_items), 1)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
+        data_panel.close()
+        document_controller.close()
 
     def test_data_panel_remove_item_by_key(self):
         datastore = Storage.DictDatastore()
@@ -342,6 +344,8 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertTrue(data_item1 in data_group1.data_items)
         data_panel.data_item_widget.on_item_key_pressed(0, self.app.ui.create_key_by_id("delete"))
         self.assertFalse(data_item1 in data_group1.data_items)
+        data_panel.close()
+        document_controller.close()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
