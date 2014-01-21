@@ -115,42 +115,6 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_controller.document_model.counted_data_items), 2)
         self.assertEqual(len(data_group.counted_data_items), 2)
 
-    # make sure that smart groups that get added have their counted set updated with any existing data items
-    def test_counted_data_items_order(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        data_group1 = DataGroup.DataGroup()
-        data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item1.title = "Green 1"
-        data_group1.data_items.append(data_item1)
-        document_controller.document_model.data_groups.append(data_group1)
-        green_group = DataGroup.SmartDataGroup()
-        green_group.title = "green_group"
-        document_controller.document_model.data_groups.append(green_group)
-        self.assertEqual(len(green_group.data_items), 1)
-
-    # make sure that property changes (title) trigger the smart group to update
-    def test_smart_group_property_change(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        data_group1 = DataGroup.DataGroup()
-        data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item1.title = "Green 1"
-        data_group1.data_items.append(data_item1)
-        document_controller.document_model.data_groups.append(data_group1)
-        green_group = DataGroup.SmartDataGroup()
-        green_group.title = "green_group"
-        document_controller.document_model.data_groups.append(green_group)
-        self.assertEqual(len(green_group.data_items), 1)
-        data_item1.title = "Blue 1"
-        self.assertEqual(len(green_group.data_items), 0)
-        data_item1.title = "Green 2"
-        self.assertEqual(len(green_group.data_items), 1)
-
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
 
 if __name__ == '__main__':

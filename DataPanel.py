@@ -55,7 +55,7 @@ class DataPanel(Panel.Panel):
         def close(self):
             # cheap way to unlisten to everything
             for object in self.__mapping.keys():
-                if isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup):
+                if isinstance(object, DataGroup.DataGroup):
                     object.remove_listener(self)
                     object.remove_observer(self)
                     object.remove_ref()
@@ -116,7 +116,7 @@ class DataPanel(Panel.Panel):
         # groups we're observing.
         def item_removed(self, container, key, object, index):
             if key == "data_groups":
-                assert isinstance(object, DataGroup.DataGroup) or isinstance(object, DataGroup.SmartDataGroup)
+                assert isinstance(object, DataGroup.DataGroup)
                 # get parent and item
                 parent_item = self.__mapping[container]
                 # manage the item model
@@ -129,7 +129,7 @@ class DataPanel(Panel.Panel):
                 self.item_model_controller.end_remove()
 
         def __update_item_count(self, data_group):
-            assert isinstance(data_group, DataGroup.DataGroup) or isinstance(data_group, DataGroup.SmartDataGroup)
+            assert isinstance(data_group, DataGroup.DataGroup)
             count = self.__get_data_item_count_flat(data_group)
             item = self.__mapping[data_group]
             item.data["display"] = str(data_group) + (" (%i)" % count)

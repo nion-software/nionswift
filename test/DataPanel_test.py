@@ -315,8 +315,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1.title = "Green 1"
         data_group1.data_items.append(data_item1)
         document_controller.document_model.data_groups.append(data_group1)
-        green_group = DataGroup.SmartDataGroup()
+        green_group = DataGroup.DataGroup()
         green_group.title = "green_group"
+        green_group.data_items.append(data_item1)
         document_controller.document_model.data_groups.insert(0, green_group)
         self.assertEqual(len(green_group.data_items), 1)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
@@ -331,8 +332,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "Green 1"
         data_group1.data_items.append(data_item1)
-        green_group = DataGroup.SmartDataGroup()
+        green_group = DataGroup.DataGroup()
         green_group.title = "green_group"
+        green_group.data_items.append(data_item1)
         document_controller.document_model.data_groups.insert(0, green_group)
         document_controller.document_model.data_groups.append(data_group1)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})

@@ -110,7 +110,6 @@ class DocumentController(Observable.Broadcaster):
         self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
         self.file_menu.add_separator()
-        #self.add_smart_group_action = self.file_menu.add_menu_item(_("Add Smart Group"), lambda: self.add_smart_group(), key_sequence="Ctrl+Alt+N")
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
         self.file_menu.add_separator()
         self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
@@ -299,18 +298,13 @@ class DocumentController(Observable.Broadcaster):
         self.notify_listeners("task_created", task)
         return task_context_manager
 
-    def add_smart_group(self):
-        smart_data_group = DataGroup.SmartDataGroup()
-        smart_data_group.title = _("Untitled Smart Group")
-        self.document_model.data_groups.insert(0, smart_data_group)
-
     def add_group(self):
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
         self.document_model.data_groups.insert(0, data_group)
 
     def remove_data_group_from_container(self, data_group, container):
-        data_group_empty = isinstance(data_group, DataGroup.SmartDataGroup) or (len(data_group.data_items) == 0 and len(data_group.data_groups) == 0)
+        data_group_empty = len(data_group.data_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups
             container.data_groups.remove(data_group)

@@ -752,7 +752,6 @@ class DictDatastore(object):
             from nion.swift import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
-                "smart-data-group": DataGroup.SmartDataGroup,
                 "data-item": DataItem.DataItem,
                 "calibration": DataItem.Calibration,
                 "line-graphic": Graphics.LineGraphic,
@@ -1157,7 +1156,6 @@ class DbDatastore(object):
             from nion.swift import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
-                "smart-data-group": DataGroup.SmartDataGroup,
                 "data-item": DataItem.DataItem,
                 "calibration": DataItem.Calibration,
                 "line-graphic": Graphics.LineGraphic,

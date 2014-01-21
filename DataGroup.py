@@ -26,7 +26,6 @@ _ = gettext.gettext
     *   The user cannot add/delete items from the Live group.
     *   Groups can be re-ordered, but the Live group is always first.
     *   New items are put in the first group after Live.
-    *   The user can create smart groups, which apply to sibling and their descendents.
 
     *   NOTES
     Groups can contain child groups and data items.
@@ -191,101 +190,6 @@ class DataGroup(Storage.StorageBase):
             data_group_copy.data_items.append(copy.deepcopy(data_item, memo))
         memo[id(self)] = data_group_copy
         return data_group_copy
-
-
-class SmartDataGroup(Storage.StorageBase):
-    def __init__(self):
-        super(SmartDataGroup, self).__init__()
-        self.storage_properties += ["title"]
-        self.storage_type = "smart-data-group"
-        self.__title = None
-        self.__counted_data_items = collections.Counter()
-        self.__data_items = []
-
-    def __str__(self):
-        return "* " + (self.title if self.title else _("Untitled"))
-
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        title = datastore.get_property(item_node, "title")
-        data_group = cls()
-        data_group.title = title
-        return data_group
-
-    # This gets called when reference count goes to 0, but before deletion.
-    def about_to_delete(self):
-        super(SmartDataGroup, self).about_to_delete()
-
-    # title
-    def __get_title(self):
-        return self.__title
-    def __set_title(self, value):
-        self.__title = value
-        self.notify_set_property("title", value)
-    title = property(__get_title, __set_title)
-
-    def __get_data_groups(self):
-        return []
-    data_groups = property(__get_data_groups)
-
-    def __get_data_items(self):
-        return self.__data_items
-    data_items = property(__get_data_items)
-
-    def __get_counted_data_items(self):
-        return collections.Counter()
-    counted_data_items = property(__get_counted_data_items)
-
-    def __includes(self, data_item):
-        return data_item.title and "Green" in data_item.title
-    def __position(self, data_item):
-        for index, i_data_item in enumerate(self.__data_items):
-            if data_item.title.lower() > i_data_item.title.lower():
-                return index
-        return len(self.__data_items)
-
-    def __insert_data_item(self, data_item):
-        if not data_item in self.__data_items and self.__includes(data_item):
-            before_index = self.__position(data_item)
-            self.__data_items.insert(before_index, data_item)
-            self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
-
-    def __remove_data_item(self, data_item):
-        if data_item in self.__data_items:
-            index = self.__data_items.index(data_item)
-            del self.__data_items[index]
-            self.notify_listeners("data_item_removed", self, data_item, index, False)
-
-    # TODO: how will filters based on data get updated?
-    # TODO: how will filters based on time stamp get updated?
-    # TODO: how will filters based on meta data get updated?
-    def update_counted_data_items_for_filter(self, counted_data_items):
-        for data_item in counted_data_items.keys():
-            assert data_item is not None
-            self.__insert_data_item(data_item)
-        self.__counted_data_items.update(counted_data_items)
-    def subtract_counted_data_items_for_filter(self, counted_data_items):
-        self.__counted_data_items.subtract(counted_data_items)
-        for data_item in self.__counted_data_items.keys():
-            if self.__counted_data_items[data_item] == 0:
-                self.__remove_data_item(data_item)
-        self.__counted_data_items += collections.Counter()  # strip empty items
-
-    # watch for property changes to data items so that smart filters get updated.
-    # insert or remove if the inclusion changes.
-    def adjust_data_item_for_filter(self, data_item, property, value):
-        if self.__includes(data_item):
-            if data_item not in self.__data_items:
-                self.__insert_data_item(data_item)
-        else:
-            if data_item in self.__data_items:
-                self.__remove_data_item(data_item)
-
-    def __deepcopy__(self, memo):
-        data_group = SmartDataGroup()
-        data_group.title = self.title
-        memo[id(self)] = data_group
-        return data_group
 
 
 # return a generator for all data groups and child data groups in container
