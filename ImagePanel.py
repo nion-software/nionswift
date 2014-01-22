@@ -544,7 +544,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 self.document_controller.cursor_changed(self, None, None, list(), None)
 
     def drag_enter(self, mime_data):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         return "ignore"
 
@@ -552,18 +552,16 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drag_move(self, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         return "ignore"
 
     def drop(self, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/ref_data_group_uuid"))
-            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
             if self.image_panel:
-                self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+                self.image_panel.data_item = data_item
             return "copy"
         return "ignore"
 
@@ -1162,7 +1160,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.repaint_if_needed()
 
     def drag_enter(self, mime_data):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         return "ignore"
 
@@ -1170,18 +1168,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drag_move(self, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         return "ignore"
 
     def drop(self, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid") and mime_data.has_format("text/ref_data_group_uuid"):
+        if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/ref_data_group_uuid"))
-            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
             if self.image_panel:
-                self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+                self.image_panel.data_item = data_item
             return "copy"
         return "ignore"
 
@@ -1230,7 +1226,7 @@ class ImagePanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
-        self.__data_panel_selection = DataItem.DataItemSpecifier()
+        self.__data_item = None
 
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
@@ -1260,39 +1256,42 @@ class ImagePanel(Panel.Panel):
 
         self.document_controller.register_image_panel(self)
 
+        self.document_controller.document_model.add_listener(self)
+
         self.closed = False
 
     def close(self):
         self.closed = True
         self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.image_root_canvas_item.close()
+        self.image_root_canvas_item = None
         self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)  # not strictly necessary except to make test_image_panel_releases_data_item pass
         self.line_plot_root_canvas_item.close()
+        self.line_plot_root_canvas_item = None
         self.line_plot_item_binding.close()
+        self.line_plot_item_binding = None
         self.image_data_item_binding.close()
+        self.image_data_item_binding = None
+        self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
-        self.data_panel_selection = DataItem.DataItemSpecifier()  # required before destructing display thread
+        self.data_item = None  # required before destructing display thread
         super(ImagePanel, self).close()
 
     # return a dictionary that can be used to restore the content of this image panel
     def save_content(self):
         content = {}
-        data_panel_selection = self.data_panel_selection
-        if data_panel_selection.data_group and data_panel_selection.data_item:
-            content["data-group"] = data_panel_selection.data_group.uuid
-            content["data-item"] = data_panel_selection.data_item.uuid
+        data_item = self.data_item
+        if data_item:
+            content["data-item"] = data_item.uuid
         return content
 
     # restore content from dictionary and document controller
     def restore_content(self, content, document_controller):
-        if "data-group" in content and "data-item" in content:
-            data_group_uuid = content["data-group"]
+        if "data-item" in content:
             data_item_uuid = content["data-item"]
-            data_group = DataGroup.get_data_group_in_container_by_uuid(document_controller.document_model, data_group_uuid)
-            if data_group:
-                data_item = document_controller.document_model.get_data_item_by_key(data_item_uuid)
-                if data_item:
-                    self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+            data_item = document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            if data_item:
+                self.data_item = data_item
 
     def set_selected(self, selected):
         if self.closed: return  # argh
@@ -1307,58 +1306,38 @@ class ImagePanel(Panel.Panel):
         self.document_controller.selected_image_panel = self
         self.document_controller.set_selected_data_item(self.data_item)
 
-    def __get_data_item(self):
-        return self.__data_panel_selection.data_item
-    data_item = property(__get_data_item)
-
-    def __get_data_item_container(self):
-        return self.__data_panel_selection.data_item_container
-    data_item_container = property(__get_data_item_container)
-
     # sets the data item that this panel displays
     def set_data_item(self, data_item):
-        data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
-        self.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        self.data_item = data_item
 
-    def __get_data_panel_selection(self):
-        return self.__data_panel_selection
-    def __set_data_panel_selection(self, data_panel_selection):
-        assert data_panel_selection is not None
-        # assert that either data_group is not None or both are None. it is acceptable
-        # to not have a data_item, but not acceptable to have a data_item without a container
-        assert data_panel_selection.data_group is not None or data_panel_selection.data_item is None
-        assert isinstance(data_panel_selection, DataItem.DataItemSpecifier)
+    def __get_data_item(self):
+        return self.__data_item
+    def __set_data_item(self, data_item):
+        if data_item:
+            assert isinstance(data_item, DataItem.DataItem)
+            # keep new data in memory. if new and old values are the same, putting
+            # this here will prevent the data from unloading and then reloading.
+            data_item.increment_data_ref_count()
         # track data item in this class to report changes
-        if self.data_item_container:
-            self.data_item_container.remove_listener(self)
-            self.data_item_container.remove_ref()
-        if self.data_item:
-            self.data_item.remove_observer(self)
-            self.data_item.remove_listener(self)
-            self.data_item.remove_ref()
-        if data_panel_selection and data_panel_selection.data_item:
-            data_panel_selection.data_item.increment_data_ref_count()
-        if self.__data_panel_selection and self.__data_panel_selection.data_item:
-            self.__data_panel_selection.data_item.decrement_data_ref_count()
-        self.__data_panel_selection = data_panel_selection
-        self.data_item_content_changed(self.data_item, set([DataItem.SOURCE]))
+        if self.__data_item:
+            self.__data_item.decrement_data_ref_count()  # don't keep data in memory anymore
+            self.__data_item.remove_observer(self)
+            self.__data_item.remove_listener(self)
+            self.__data_item.remove_ref()
+        self.__data_item = data_item
+        self.data_item_content_changed(self.__data_item, set([DataItem.SOURCE]))
         self.image_canvas_item.image_canvas_mode = "fit"
         self.image_canvas_item.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
-        data_item = self.data_item
-        data_item_container = self.data_item_container
-        if data_item:
-            data_item.add_ref()
-            data_item.add_listener(self)
-            data_item.add_observer(self)  # watch for graphics being added/removed
-        if data_item_container:
-            data_item_container.add_ref()
-            data_item_container.add_listener(self)
+        if self.__data_item:
+            self.__data_item.add_ref()
+            self.__data_item.add_listener(self)
+            self.__data_item.add_observer(self)  # watch for graphics being added/removed
+            # note: data_ref_count has already been incremented above.
         # let the image panel manager know the data item changed
         ImagePanelManager().data_item_changed(self)
-    data_panel_selection = property(__get_data_panel_selection, __set_data_panel_selection)
-
+    data_item = property(__get_data_item, __set_data_item)
 
     # watch for changes to the graphic item list
     def item_inserted(self, object, key, value, before_index):
@@ -1366,10 +1345,10 @@ class ImagePanel(Panel.Panel):
     def item_removed(self, object, key, value, index):
         self.image_canvas_item.item_removed(object, key, value, index)
 
-    def data_item_removed(self, container, data_item, index, moving):
+    def data_item_deleted(self, data_item):
         # if our item gets deleted, clear the selection
-        if not moving and container == self.data_item_container and data_item == self.data_item:
-            self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group)
+        if data_item == self.data_item:
+            self.data_item = None
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.
@@ -1394,8 +1373,10 @@ class ImagePanel(Panel.Panel):
                     self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.line_plot_canvas_item.selected = False
             else:
-                self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
-                self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
+                if self.line_plot_item_binding:
+                    self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
+                if self.image_data_item_binding:
+                    self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
                 self.image_canvas_item.selected = False
                 self.line_plot_canvas_item.selected = False
 
@@ -1415,9 +1396,8 @@ class ImagePanel(Panel.Panel):
     image_size = property(__get_image_size)
 
     def __show_data_source(self):
-        data_source = self.data_item.data_source
-        if data_source:
-            self.data_panel_selection = DataItem.DataItemSpecifier(self.__data_panel_selection.data_group, data_source)
+        # TODO: implement show data source again
+        pass
 
     # ths message comes from the widget
     def key_pressed(self, key):

@@ -23,13 +23,12 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element = dict()
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertIsNotNone(data_item.datetime_original)
-        self.assertIsNotNone(data_item.datetime_modified)
-        self.assertEqual(len(data_item.datetime_original["local_datetime"]), 26)
-        self.assertEqual(len(data_item.datetime_original["tz"]), 5)
-        self.assertEqual(len(data_item.datetime_original["dst"]), 3)
-        data_item.add_ref()
-        data_item.remove_ref()
+        with data_item.ref():
+            self.assertIsNotNone(data_item.datetime_original)
+            self.assertIsNotNone(data_item.datetime_modified)
+            self.assertEqual(len(data_item.datetime_original["local_datetime"]), 26)
+            self.assertEqual(len(data_item.datetime_original["tz"]), 5)
+            self.assertEqual(len(data_item.datetime_original["dst"]), 3)
 
     def test_date_formats(self):
         data_item = DataItem.DataItem()

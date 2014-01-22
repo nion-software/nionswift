@@ -47,33 +47,36 @@ class TestStorageClass(unittest.TestCase):
         data_item.intrinsic_intensity_calibration = DataItem.Calibration(1.0, 2.0, "three")
         with data_item.property_changes() as context:
             context.properties["one"] = 1
+        document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
-        data_group.data_items.append(data_item)
+        data_group.append_data_item(data_item)
         document_controller.document_model.data_groups.append(data_group)
         data_item2 = DataItem.DataItem(scipy.misc.lena())
-        data_group.data_items.append(data_item2)
+        document_controller.document_model.append_data_item(data_item2)
+        data_group.append_data_item(data_item2)
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        data_group.data_items.append(data_item3)
+        document_controller.document_model.append_data_item(data_item3)
+        data_group.append_data_item(data_item3)
         data_item2a = DataItem.DataItem()
         data_item2b = DataItem.DataItem()
         data_item2.data_items.append(data_item2a)
         data_item2.data_items.append(data_item2b)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         document_controller.selected_image_panel = image_panel
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        image_panel.data_item = data_item
         self.assertEqual(document_controller.selected_data_item, data_item)
         document_controller.add_line_graphic()
         document_controller.add_rectangle_graphic()
         document_controller.add_ellipse_graphic()
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        image_panel.data_item = data_item
         document_controller.processing_gaussian_blur()
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        image_panel.data_item = data_item
         document_controller.processing_resample()
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        image_panel.data_item = data_item
         document_controller.processing_invert()
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
+        image_panel.data_item = data_item
         document_controller.processing_crop()
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item2)
+        image_panel.data_item = data_item2
         self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()
@@ -160,8 +163,9 @@ class TestStorageClass(unittest.TestCase):
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
         data_item = DataItem.DataItem(data1)
+        document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
-        data_group.data_items.append(data_item)
+        data_group.append_data_item(data_item)
         document_controller.document_model.data_groups.append(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
@@ -192,7 +196,8 @@ class TestStorageClass(unittest.TestCase):
             datastore._throttling = 0.004  # 4ms
             for i in xrange(10):
                 data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-                data_group.data_items.append(data_item)
+                document_model.append_data_item(data_item)
+                data_group.append_data_item(data_item)
             datastore.disconnected = False
             self.assertEqual(len(datastore.get_items(datastore.find_parent_node(data_group), "data_items")), 0)
 
@@ -212,8 +217,9 @@ class TestStorageClass(unittest.TestCase):
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
         data_item = DataItem.DataItem(data1)
+        document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
-        data_group.data_items.append(data_item)
+        data_group.append_data_item(data_item)
         document_controller.document_model.data_groups.append(data_group)
         thread = threading.Thread(target=self.update_data, args=[data_item])
         thread.start()
@@ -237,18 +243,22 @@ class TestStorageClass(unittest.TestCase):
         self.save_document(document_controller)
         # insert two items at beginning. this generates primary key error unless key updating is carefully handled
         data_item4 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_controller.document_model.data_groups[0].data_items.insert(0, data_item4)
+        document_model.append_data_item(data_item4)
+        document_controller.document_model.data_groups[0].insert_data_item(0, data_item4)
         data_item5 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_controller.document_model.data_groups[0].data_items.insert(0, data_item5)
+        document_model.append_data_item(data_item5)
+        document_controller.document_model.data_groups[0].insert_data_item(0, data_item5)
         c = datastore.conn.cursor()
         c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 4", (str(document_controller.document_model.data_groups[0].uuid), ))
         self.assertEqual(c.fetchone()[0], 5)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
         data_item6 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_controller.document_model.data_groups[0].data_items.insert(1, data_item6)
+        document_model.append_data_item(data_item6)
+        document_controller.document_model.data_groups[0].insert_data_item(1, data_item6)
         data_item7 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_controller.document_model.data_groups[0].data_items.insert(1, data_item7)
-        document_controller.document_model.data_groups[0].data_items.remove(document_controller.document_model.data_groups[0].data_items[2])
+        document_model.append_data_item(data_item7)
+        document_controller.document_model.data_groups[0].insert_data_item(1, data_item7)
+        document_controller.document_model.data_groups[0].remove_data_item(document_controller.document_model.data_groups[0].data_items[2])
         # make sure indexes are in sequence still
         c = datastore.conn.cursor()
         c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 5", (str(document_controller.document_model.data_groups[0].uuid), ))
@@ -351,16 +361,27 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
-    # make sure thumbnail raises exception if a bad operation is involved
-    def test_duplicate_item(self):
+    def test_adding_data_item_to_document_model_twice_raises_exception(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.default_data_group.data_items.append(data_item)
+        document_model.append_data_item(data_item)
         with self.assertRaises(AssertionError):
-            document_model.default_data_group.data_items.append(data_item)
+            document_model.append_data_item(data_item)
+
+    # make sure thumbnail raises exception if a bad operation is involved
+    def test_adding_data_item_to_data_group_twice_raises_exception(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.save_document(document_controller)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_model.default_data_group.append_data_item(data_item)
+        with self.assertRaises(AssertionError):
+            document_model.default_data_group.append_data_item(data_item)
 
     def test_insert_item_with_transaction(self):
         db_name = ":memory:"
@@ -375,7 +396,8 @@ class TestStorageClass(unittest.TestCase):
         with data_item.transaction():
             with data_item.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-            data_group.data_items.append(data_item)
+            document_model.append_data_item(data_item)
+            data_group.append_data_item(data_item)
         storage_str = datastore.to_string()
         document_model.remove_ref()
         # make sure it reloads
@@ -390,9 +412,9 @@ class TestStorageClass(unittest.TestCase):
         data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        data_group.data_items.append(data_item1)
-        data_group.data_items.append(data_item2)
-        data_group.data_items.append(data_item3)
+        data_group.append_data_item(data_item1)
+        data_group.append_data_item(data_item2)
+        data_group.append_data_item(data_item3)
         # interleaved transactions
         data_item1.begin_transaction()
         data_item2.begin_transaction()

@@ -159,7 +159,24 @@ class Application(object):
                     c.execute("INSERT INTO properties (uuid, key, value) VALUES (?, 'operation_id', ?)", (str(operation_uuid), operation_id_data))
                 c.execute("UPDATE version SET version = ?", (2, ))
                 version = 2
-            if version > 2:
+            if version == 2:
+                logging.debug("Updating database from version 2 to version 3.")
+                c.execute("SELECT uuid FROM nodes WHERE type='document'")
+                document_uuid = c.fetchone()[0]
+                c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
+                data_item_uuids = []
+                for row in c.fetchall():
+                    data_item_uuids.append(row[0])
+                index = 0
+                for data_item_uuid in data_item_uuids:
+                    c.execute("SELECT COUNT(*) FROM data WHERE uuid=?", (data_item_uuid, ))
+                    count = c.fetchone()[0]
+                    if count == 1:
+                        c.execute("INSERT INTO relationships (parent_uuid, key, item_index, item_uuid) VALUES (?, 'data_items', ?, ?)", (document_uuid, index, data_item_uuid))
+                        index += 1
+                c.execute("UPDATE version SET version = ?", (3, ))
+                version = 3
+            if version > 3:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()
@@ -180,7 +197,7 @@ class Application(object):
         if data_panel_selection:
             image_panel = document_controller.selected_image_panel
             if image_panel:
-                image_panel.data_panel_selection = data_panel_selection
+                image_panel.data_item = data_panel_selection.data_item
         document_controller.document_window.show()
         return document_controller
 

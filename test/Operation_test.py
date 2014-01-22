@@ -29,7 +29,7 @@ class TestOperationClass(unittest.TestCase):
         default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, self.data_item)
+        self.image_panel.data_item = self.data_item
 
     def tearDown(self):
         self.image_panel.close()
@@ -293,7 +293,7 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.assertEqual(document_model.data_groups[0].data_items[0].operations[0].get_property("param"), 5)
+        self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5)
 
 
 if __name__ == '__main__':

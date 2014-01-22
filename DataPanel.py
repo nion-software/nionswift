@@ -195,7 +195,8 @@ class DataPanel(Panel.Panel):
                 data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                 if data_item:
                     data_item_copy = copy.deepcopy(data_item)
-                    data_group.data_items.append(data_item_copy)
+                    self.document_controller.document_model.append_data_item(data_item_copy)
+                    data_group.append_data_item(data_item_copy)
                     return action
                 return self.item_model_controller.NONE
             if mime_data.has_format("text/data_group_uuid"):
@@ -285,7 +286,7 @@ class DataPanel(Panel.Panel):
         # this method if called when one of our listened to items changes
         def data_item_inserted(self, container, data_item, before_index, moving):
             data_items_flat = self.get_data_items_flat()
-            before_data_item = container.get_storage_relationship("data_items", before_index)
+            before_data_item = container.get_storage_relationship_item("data_items", before_index)
             before_index_flat = data_items_flat.index(before_data_item)
             level = self.list_model_controller.model[data_items_flat.index(container)]["level"]+1 if container in data_items_flat else 0
             # add the listener. this will result in calls to data_item_content_changed
@@ -409,10 +410,11 @@ class DataPanel(Panel.Panel):
                     data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                     if data_item:
                         data_item_copy = copy.deepcopy(data_item)
+                        self.document_controller.document_model.append_data_item(data_item_copy)
                         if row >= 0:
-                            data_group.data_items.insert(row, data_item_copy)
+                            data_group.insert_data_item(row, data_item_copy)
                         else:
-                            data_group.data_items.append(data_item_copy)
+                            data_group.append_data_item(data_item_copy)
                         return action
             return self.list_model_controller.NONE
 
@@ -432,7 +434,7 @@ class DataPanel(Panel.Panel):
                 assert count == 1  # until implemented
                 data_item = self.get_data_items_flat()[row] if row >= 0 else None
                 if data_item:
-                    data_group.data_items.remove(data_item)
+                    data_group.remove_data_item(data_item)
             return True
 
         # this message comes from the styled item delegate
@@ -535,7 +537,7 @@ class DataPanel(Panel.Panel):
                 if key.is_delete:
                     container = self.data_item_model_controller.get_data_item_container(self.data_item_model_controller.data_group, data_item)
                     assert data_item in container.data_items
-                    container.data_items.remove(data_item)
+                    container.remove_data_item(data_item)
             return False
 
         def data_item_double_clicked(index):
@@ -640,6 +642,10 @@ class DataPanel(Panel.Panel):
         self.save_state()
         # unblock
         self.__block1 = saved_block1
+
+    def update_data_item_selection(self, data_item, source_data_item=None):
+        data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
+        self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
 
     # ugly code to keep the selection the same when _moving_ a data item.
     def data_item_begin_move(self, data_item):

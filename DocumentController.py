@@ -64,6 +64,7 @@ class DocumentController(Observable.Broadcaster):
             image_panel.close()
         self.document_window = None
         self.document_model.remove_ref()
+        self.document_model = None
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
 
@@ -76,7 +77,8 @@ class DocumentController(Observable.Broadcaster):
         self.close()
 
     def activation_changed(self, activated):
-        self.document_model.session.document_controller_activation_changed(self, activated)
+        if self.document_model and self.document_model.session:
+            self.document_model.session.document_controller_activation_changed(self, activated)
 
     def register_console(self, console):
         self.console = console
@@ -229,22 +231,17 @@ class DocumentController(Observable.Broadcaster):
     def set_selected_data_item(self, selected_data_item):
         self.notify_listeners("selected_data_item_changed", selected_data_item)
 
-    def __get_selected_data_panel_selection(self):
-        data_panel_selection = None
+    # access the currently selected data item. read only.
+    def __get_selected_data_item(self):
         # first check focused data panel
         if self.weak_data_panel:
             data_panel = self.weak_data_panel()
             if data_panel and data_panel.focused:
-                data_panel_selection = data_panel._get_data_panel_selection()
+                return data_panel._get_data_panel_selection().data_item
         # if not found, check for focused or selected image panel
-        if not data_panel_selection and self.selected_image_panel:
-            data_panel_selection = self.selected_image_panel.data_panel_selection
-        return data_panel_selection
-    selected_data_panel_selection = property(__get_selected_data_panel_selection)
-
-    def __get_selected_data_item(self):
-        selected_data_panel_selection = self.selected_data_panel_selection
-        return selected_data_panel_selection.data_item if selected_data_panel_selection else None
+        if self.selected_image_panel:
+            return self.selected_image_panel.data_item
+        return None
     selected_data_item = property(__get_selected_data_item)
 
     # this can be called from any user interface element that wants to update the cursor info
@@ -274,7 +271,7 @@ class DocumentController(Observable.Broadcaster):
         for path in paths:
             data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, path)
             for data_item in data_items:
-                self.document_model.default_data_group.data_items.append(data_item)
+                self.document_model.append_data_item(data_item)
 
     def export_file(self):
         # present a loadfile dialog to the user
@@ -349,16 +346,16 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             data_item.operations.remove(operation)
 
-    # sets the selected data item in the data panel.
+    # sets the selected data item in the data panel and an appropriate image panel.
     # use this sparingly, and only in response to user requests such as
     # adding an operation or starting an acquisition.
-    def set_data_panel_selection(self, data_panel_selection, source_data_item=None):
-        self.notify_listeners("update_data_panel_selection", data_panel_selection)
+    def set_data_item_selection(self, data_item, source_data_item=None):
+        self.notify_listeners("update_data_item_selection", data_item, source_data_item)
         # now attempt to display the data item in an image panel
         if not source_data_item:
-            self.workspace.display_data_item(data_panel_selection.data_item)
+            self.workspace.display_data_item(data_item)
         else:
-            self.workspace.display_data_item(data_panel_selection.data_item, source_data_item)
+            self.workspace.display_data_item(data_item, source_data_item)
 
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
         operation = Operation.Operation(operation_id)
@@ -366,8 +363,7 @@ class DocumentController(Observable.Broadcaster):
         self.add_processing_operation(operation, prefix, suffix, in_place, select)
 
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
-        data_panel_selection = self.selected_data_panel_selection
-        data_item = data_panel_selection.data_item if data_panel_selection else None
+        data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             if in_place:  # in place?
@@ -379,7 +375,7 @@ class DocumentController(Observable.Broadcaster):
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
-                    self.set_data_panel_selection(DataItem.DataItemSpecifier(data_panel_selection.data_group, new_data_item), source_data_item=data_item)
+                    self.set_data_item_selection(new_data_item, source_data_item=data_item)
                 return new_data_item
         return None
 
@@ -399,8 +395,7 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select)
 
     def processing_crop(self, select=True):
-        data_panel_selection = self.selected_data_panel_selection
-        data_item = data_panel_selection.data_item if data_panel_selection else None
+        data_item = self.selected_data_item
         if data_item:
             operation = Operation.Operation("crop-operation")
             graphic = Graphics.RectangleGraphic()
@@ -410,8 +405,7 @@ class DocumentController(Observable.Broadcaster):
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_line_profile(self, select=True):
-        data_panel_selection = self.selected_data_panel_selection
-        data_item = data_panel_selection.data_item if data_panel_selection else None
+        data_item = self.selected_data_item
         if data_item:
             operation = Operation.Operation("line-profile-operation")
             graphic = Graphics.LineGraphic()
@@ -436,13 +430,13 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def processing_snapshot(self, select=True):
-        data_panel_selection = self.selected_data_panel_selection
-        data_item = data_panel_selection.data_item if data_panel_selection else None
+        data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             data_item_copy = copy.deepcopy(data_item)
             data_item_copy.title = _("Copy of ") + str(data_item_copy)
-            data_panel_selection.data_group.data_items.append(data_item_copy)
+            # TODO: put this into existing group if copied from group
+            self.document_model.append_data_item(data_item_copy)
             return data_item_copy
         return None
 
@@ -470,11 +464,12 @@ class DocumentController(Observable.Broadcaster):
                 try:
                     data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
                     for data_item in data_items:
+                        self.document_model.append_data_item(data_item)
                         if index >= 0:
-                            data_group.data_items.insert(index, data_item)
+                            data_group.insert_data_item(index, data_item)
                             index += 1
                         else:
-                            data_group.data_items.append(data_item)
+                            data_group.append_data_item(data_item)
                         received_data_items.append(data_item)
                 except Exception as e:
                     logging.debug("Could not read image %s", file_path)

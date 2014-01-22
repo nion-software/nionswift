@@ -30,6 +30,7 @@ class DocumentModel(Storage.StorageBase):
         self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
+        self.__data_items = Storage.MutableRelationship(self, "data_items")
         self.session = Session.Session(self)
         if self.datastore.initialized:
             self.__read()
@@ -39,8 +40,11 @@ class DocumentModel(Storage.StorageBase):
 
     def about_to_delete(self):
         self.datastore.disconnected = True
+        self.session = None
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
+        for data_item in copy.copy(self.data_items):
+            self.remove_data_item(data_item)
 
     # TODO: make DocumentModel.read private
     def __read(self):
@@ -48,11 +52,26 @@ class DocumentModel(Storage.StorageBase):
         parent_node, uuid = self.datastore.find_root_node("document")
         self._set_uuid(uuid)
         data_groups = self.datastore.get_items(parent_node, "data_groups")
+        data_items = self.datastore.get_items(parent_node, "data_items")
         # now update the fields on self, disconnecting the datastore
         # to prevent writing them back out to the database.
         self.datastore.disconnected = True
         self.data_groups.extend(data_groups)
+        self.__data_items.extend(data_items)
         self.datastore.disconnected = False
+
+    def append_data_item(self, data_item):
+        self.__data_items.append(data_item)
+
+    def insert_data_item(self, before_index, data_item):
+        self.__data_items.insert(before_index, data_item)
+
+    def remove_data_item(self, data_item):
+        self.__data_items.remove(data_item)
+
+    def __get_data_items(self):
+        return tuple(self.__data_items)
+    data_items = property(__get_data_items)
 
     def create_default_data_groups(self):
         # ensure there is at least one group
@@ -67,19 +86,19 @@ class DocumentModel(Storage.StorageBase):
         checkerboard_image_source.title = "Checkerboard"
         with checkerboard_image_source.data_ref() as data_ref:
             data_ref.master_data = Image.create_checkerboard((512, 512))
-        self.default_data_group.data_items.append(checkerboard_image_source)
+        self.append_data_item(checkerboard_image_source)
         # for testing, add a color image data item
         color_image_source = DataItem.DataItem()
         color_image_source.title = "Green Color"
         with color_image_source.data_ref() as data_ref:
             data_ref.master_data = Image.create_color_image((512, 512), 128, 255, 128)
-        self.default_data_group.data_items.append(color_image_source)
+        self.append_data_item(color_image_source)
         # for testing, add a color image data item
         lena_image_source = DataItem.DataItem()
         lena_image_source.title = "Lena"
         with lena_image_source.data_ref() as data_ref:
             data_ref.master_data = scipy.misc.lena()
-        self.default_data_group.data_items.append(lena_image_source)
+        self.append_data_item(lena_image_source)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -109,12 +128,44 @@ class DocumentModel(Storage.StorageBase):
             # initialize data group with current set of data (used for smart data groups)
             if hasattr(data_group, "update_counted_data_items_for_filter"):
                 data_group.update_counted_data_items_for_filter(self.counted_data_items)
+        if key == "data_items":
+            # an item was inserted, start observing
+            self.item_inserted(self, key, value, before_index)
+
     # override from StorageBase
     def notify_remove_item(self, key, value, index):
         super(DocumentModel, self).notify_remove_item(key, value, index)
         if key == "data_groups":
             # update the count in the data groups
             self.subtract_counted_data_items(value.counted_data_items)
+        if key == "data_items":
+            # item will be removed, stop observing
+            self.item_removed(self, key, value, index)
+
+    def item_inserted(self, parent, key, item, before):
+        # watch for data items inserted into this document model or into other data items
+        if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
+            data_item = item
+            # become an observer of every data group and data item
+            #logging.debug("add observer [5] %s %s", data_item, self)
+            data_item.add_observer(self)
+            # and the children
+            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
+                #logging.debug("add observer [4] %s %s", child_data_item, self)
+                child_data_item.add_observer(self)
+
+    def item_removed(self, parent, key, item, index):
+        # watch for data items inserted into this document model or into other data items
+        if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
+            data_item = item
+            # become an observer of every data group and data item
+            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
+                #logging.debug("remove observer [4] %s %s", child_data_item, self)
+                child_data_item.remove_observer(self)
+            #logging.debug("remove observer [5] %s %s", data_item, self)
+            data_item.remove_observer(self)
+            if data_item.get_observer_count(self) == 0:
+                self.notify_listeners("data_item_deleted", data_item)
 
     # watch for property changes to data items so that smart filters get updated.
     # tell any data groups to update their filter.
@@ -164,7 +215,7 @@ class DocumentModel(Storage.StorageBase):
         def __delitem__(self, key):
             data_item = self.document_model.get_data_item_by_key(key)
             if data_item:
-                self.document_model.all_data_items.remove(data_item)
+                self.document_model.remove_data_item(data_item)
         def __iter__(self):
             return DocumentModel._DataAccessorIter(self.document_model.get_flat_data_item_generator())
         def uuid_keys(self):
@@ -191,7 +242,7 @@ class DocumentModel(Storage.StorageBase):
         def __delitem__(self, key):
             data_item = self.document_model.get_data_item_by_key(key)
             if data_item:
-                self.document_model.all_data_items.remove(data_item)
+                self.document_model.remove_data_item(data_item)
         def __iter__(self):
             return iter(self.document_model.get_flat_data_item_generator())
         def uuid_keys(self):
@@ -203,7 +254,10 @@ class DocumentModel(Storage.StorageBase):
 
     # Return a generator over all data items
     def get_flat_data_item_generator(self):
-        return DataGroup.get_flat_data_item_generator_in_container(self)
+        for data_item in self.data_items:
+            yield data_item
+            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
+                yield child_data_item
 
     # Return a generator over all data groups
     def get_flat_data_group_generator(self):
@@ -253,7 +307,7 @@ class DocumentModel(Storage.StorageBase):
             data_item.title = str(key)
             with data_item.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.default_data_group.data_items.append(data_item)
+            self.append_data_item(data_item)
         return data_item
 
     # access data items by title

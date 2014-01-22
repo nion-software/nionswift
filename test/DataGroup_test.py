@@ -27,23 +27,27 @@ class TestDataGroupClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_copy(self):
+    def test_deep_copy_should_deep_copy_child_data_groups(self):
         data_group = DataGroup.DataGroup()
-        data_group.add_ref()
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_group.data_items.append(data_item1)
-        data_group2 = DataGroup.DataGroup()
-        data_group.data_groups.append(data_group2)
-        # attempt to copy
-        data_group_copy = copy.deepcopy(data_group)
-        data_group_copy.add_ref()
-        # make sure data_items are not shared
-        self.assertNotEqual(data_group.data_items[0], data_group_copy.data_items[0])
-        # make sure data_groups are not shared
-        self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
-        # clean up
-        data_group_copy.remove_ref()
-        data_group.remove_ref()
+        with data_group.ref():
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_group.append_data_item(data_item1)
+            data_group2 = DataGroup.DataGroup()
+            data_group.data_groups.append(data_group2)
+            # attempt to copy
+            data_group_copy = copy.deepcopy(data_group)
+            with data_group_copy.ref():
+                # make sure data_groups are not shared
+                self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
+
+    def test_deep_copy_should_not_deep_copy_data_items(self):
+        data_group = DataGroup.DataGroup()
+        with data_group.ref():
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_group.append_data_item(data_item)
+            data_group_copy = copy.deepcopy(data_group)
+            with data_group_copy.ref():
+                self.assertEqual(data_item, data_group_copy.data_items[0])
 
     def test_counted_data_items(self):
         datastore = Storage.DictDatastore()
@@ -54,7 +58,8 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(data_group.counted_data_items), 0)
         self.assertEqual(len(document_controller.document_model.counted_data_items), 0)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_group.data_items.append(data_item1)
+        document_model.append_data_item(data_item1)
+        data_group.append_data_item(data_item1)
         # make sure that both top level and data_group see the data item
         self.assertEqual(len(document_controller.document_model.counted_data_items), 1)
         self.assertEqual(len(data_group.counted_data_items), 1)
@@ -69,7 +74,6 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_controller.document_model.counted_data_items), 2)
         self.assertEqual(len(data_group.counted_data_items), 2)
         self.assertEqual(len(data_item1.counted_data_items), 1)
-        self.assertEqual(document_controller.document_model.counted_data_items, data_group.counted_data_items)
         self.assertIn(data_item1, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_item1.counted_data_items.keys())
@@ -84,7 +88,6 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(data_group.counted_data_items), 3)
         self.assertEqual(len(data_item1.counted_data_items), 2)
         self.assertEqual(len(data_item1a.counted_data_items), 1)
-        self.assertEqual(document_controller.document_model.counted_data_items, data_group.counted_data_items)
         self.assertIn(data_item1, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_item1.counted_data_items.keys())
@@ -98,7 +101,8 @@ class TestDataGroupClass(unittest.TestCase):
         data_item2.data_items.append(data_item2a)
         self.assertEqual(len(data_item2.counted_data_items), 1)
         self.assertIn(data_item2a, data_item2.counted_data_items.keys())
-        data_group.data_items.append(data_item2)
+        document_model.append_data_item(data_item2)
+        data_group.append_data_item(data_item2)
         self.assertEqual(len(document_controller.document_model.counted_data_items), 5)
         self.assertEqual(len(data_group.counted_data_items), 5)
         self.assertEqual(len(data_item2.counted_data_items), 1)
@@ -111,7 +115,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(data_group.counted_data_items), 4)
         self.assertEqual(len(data_item1.counted_data_items), 1)
         # now remove data item with children
-        data_group.data_items.remove(data_item2)
+        data_group.remove_data_item(data_item2)
         self.assertEqual(len(document_controller.document_model.counted_data_items), 2)
         self.assertEqual(len(data_group.counted_data_items), 2)
 

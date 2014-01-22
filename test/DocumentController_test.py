@@ -25,11 +25,13 @@ def construct_test_document(app, workspace_id=None):
     document_model = DocumentModel.DocumentModel(datastore)
     document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
     data_group1 = DataGroup.DataGroup()
-    document_controller.document_model.data_groups.append(data_group1)
+    document_model.data_groups.append(data_group1)
     data_item1a = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-    data_group1.data_items.append(data_item1a)
+    document_model.append_data_item(data_item1a)
+    data_group1.append_data_item(data_item1a)
     data_item1b = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-    data_group1.data_items.append(data_item1b)
+    document_model.append_data_item(data_item1b)
+    data_group1.append_data_item(data_item1b)
     data_group1a = DataGroup.DataGroup()
     data_group1.data_groups.append(data_group1a)
     data_group1b = DataGroup.DataGroup()
@@ -43,7 +45,8 @@ def construct_test_document(app, workspace_id=None):
     data_group2b1 = DataGroup.DataGroup()
     data_group2b.data_groups.append(data_group2b1)
     data_item2b1a = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-    data_group2b1.data_items.append(data_item2b1a)
+    document_model.append_data_item(data_item2b1a)
+    data_group2b1.append_data_item(data_item2b1a)
     return document_controller
 
 class TestDocumentControllerClass(unittest.TestCase):
@@ -78,13 +81,15 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.document_model.create_default_data_groups()
         default_data_group = document_controller.document_model.data_groups[0]
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        default_data_group.data_items.append(data_item)
+        document_model.append_data_item(data_item)
+        default_data_group.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel.data_panel_selection = DataItem.DataItemSpecifier(default_data_group, data_item)
+        image_panel.data_item = data_item
         self.assertIsNotNone(weak_data_item())
         image_panel.close()
         document_controller.close()
+        document_controller = None
         data_item = None
         self.assertIsNone(weak_data_item())
 

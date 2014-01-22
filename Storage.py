@@ -248,7 +248,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
-                item = self.get_storage_relationship(relationship_key, index)
+                item = self.get_storage_relationship_item(relationship_key, index)
                 item.datastore = datastore
     datastore = property(__get_datastore, __set_datastore)
 
@@ -263,7 +263,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
-                item = self.get_storage_relationship(relationship_key, index)
+                item = self.get_storage_relationship_item(relationship_key, index)
                 item.storage_cache = storage_cache
         self.spill_cache()
     storage_cache = property(__get_storage_cache, __set_storage_cache)
@@ -355,25 +355,27 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         return data[0], data_file_path, data_file_datetime
 
     def get_storage_relationship_count(self, key):
-        if hasattr(self, key):
-            return len(getattr(self, key))
+        relationship = self.get_storage_relationship(key)
+        if relationship is not None:
+            return len(relationship)
         logging.debug("get_storage_relationship_count: %s missing %s", self, key)
         raise NotImplementedError()
 
-    def get_storage_relationship(self, key, index):
-        if hasattr(self, key):
-            return getattr(self, key)[index]
-        logging.debug("get_storage_relationship: %s missing %s[%d]", self, key, index)
+    def get_storage_relationship_item(self, key, index):
+        relationship = self.get_storage_relationship(key)
+        if relationship is not None:
+            return relationship[index]
+        logging.debug("get_storage_relationship_item: %s missing %s[%d]", self, key, index)
         raise NotImplementedError()
 
-    def get_storage_relationship_all(self, key):
+    def get_storage_relationship(self, key):
         if hasattr(self, key):
             return getattr(self, key)
         if hasattr(self, "get_" + key):
             return getattr(self, "get_" + key)()
         if hasattr(self, "_get_" + key):
             return getattr(self, "_get_" + key)()
-        return [self.get_storage_relationship(key, i) for i in range(self.get_storage_relationship_count(key))]
+        return None
 
     # implement observer/notification mechanism
 
@@ -465,7 +467,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
-                item = self.get_storage_relationship(relationship_key, index)
+                item = self.get_storage_relationship_item(relationship_key, index)
                 # TODO: are these redundant?
                 item.datastore = self.datastore
                 item.storage_cache = self.storage_cache
@@ -664,10 +666,11 @@ class DictDatastore(object):
     def set_item(self, parent, key, item):
         if self.disconnected:
             return
-        # make a node in storage
-        node = self.__make_node(item.uuid)
-        # write item to the new node
-        item.write()
+        if not self.find_node_or_none(item):
+            # make a node in storage
+            node = self.__make_node(item.uuid)
+            # write item to the new node
+            item.write()
         # get the parent node
         parent_node = self.find_node(parent)
         # insert new node in parent
@@ -689,10 +692,11 @@ class DictDatastore(object):
     def insert_item(self, parent, key, item, before):
         if self.disconnected:
             return
-        # make a node in storage
-        node = self.__make_node(item.uuid)
-        # write item to the new node
-        item.write()
+        if not self.find_node_or_none(item):
+            # make a node in storage
+            node = self.__make_node(item.uuid)
+            # write item to the new node
+            item.write()
         # get the parent node
         parent_node = self.find_node(parent)
         # insert new node in parent
@@ -975,7 +979,7 @@ class DbDatastore(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
-            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (2, ))
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (3, ))
             self.conn.commit()
 
     # keep. used for testing
@@ -1061,8 +1065,9 @@ class DbDatastore(object):
     def set_item(self, parent, key, item):
         if not self.disconnected:
             c = self.conn.cursor()
-            node = self.__make_node(item.uuid)
-            item.write()
+            if not self.find_node_or_none(item):
+                node = self.__make_node(item.uuid)
+                item.write()
             self.execute(c, "INSERT OR REPLACE INTO items (parent_uuid, key, item_uuid) VALUES (?, ?, ?)", (str(parent.uuid), key, str(item.uuid), ))
             self.__add_node_ref(item.uuid)
             self.conn.commit()
@@ -1087,8 +1092,9 @@ class DbDatastore(object):
     def insert_item(self, parent, key, item, before):
         if not self.disconnected:
             c = self.conn.cursor()
-            node = self.__make_node(item.uuid)
-            item.write()
+            if not self.find_node_or_none(item):
+                node = self.__make_node(item.uuid)
+                item.write()
             # 1 2 3 ^ 4 5 6 => 1 2 3 -5 -6 -7 => 1 2 3 5 6 7 => 1 2 3 4 5 6 7
             self.execute(c, "UPDATE relationships SET item_index = -(item_index + 1) WHERE parent_uuid=? AND key=? AND item_index >= ?", (str(parent.uuid), key, before, ))
             self.execute(c, "UPDATE relationships SET item_index = -item_index WHERE parent_uuid=? AND key=? AND item_index < -?", (str(parent.uuid), key, before, ))

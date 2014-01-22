@@ -160,9 +160,9 @@ class Workspace(object):
 
     def change_layout(self, layout_id):
         # remember what's current being displayed
-        old_data_panel_selections = []
+        old_displayed_data_items = []
         for image_panel in self.image_panels:
-            old_data_panel_selections.append(image_panel.data_panel_selection)
+            old_displayed_data_items.append(image_panel.data_item)
         # remove existing layout
         for image_panel in copy.copy(self.image_panels):
             image_panel.close()
@@ -241,45 +241,25 @@ class Workspace(object):
             layout_id = "1x1"  # set this in case it was something else
         # restore what was displayed
         displayed_data_items = []
-        last_data_panel_selection = None
+        last_displayed_data_item = None
         for index, image_panel in enumerate(self.image_panels):
-            data_panel_selection = None
-            if len(old_data_panel_selections) > index and old_data_panel_selections[index] and not old_data_panel_selections[index].is_empty:
-                data_panel_selection = old_data_panel_selections[index]
-                last_data_panel_selection = data_panel_selection
-            elif last_data_panel_selection and not last_data_panel_selection.is_empty:
+            data_item_to_display = None
+            if len(old_displayed_data_items) > index and old_displayed_data_items[index]:
+                last_displayed_data_item = old_displayed_data_items[index]
+            elif last_displayed_data_item:
                 # search for derived data items
-                for data_item in last_data_panel_selection.data_item.data_items:
+                for data_item in last_displayed_data_item.data_items:
                     if data_item not in displayed_data_items:
-                        data_panel_selection = DataItem.DataItemSpecifier(last_data_panel_selection.data_group, data_item)
+                        data_item_to_display = data_item
                         break
-                # search for another item in the group
-                if not data_panel_selection:
-                    for data_item in last_data_panel_selection.data_group.data_items:
-                        if data_item not in displayed_data_items:
-                            data_panel_selection = DataItem.DataItemSpecifier(last_data_panel_selection.data_group, data_item)
-                            break
-                # search in another group
-                if not data_panel_selection:
-                    for data_group in self.document_controller.document_model.data_groups:
-                        for data_item in data_group.data_items:
-                            if data_item not in displayed_data_items:
-                                data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
-                                break
-            else:
-                # search for next undisplayed data item
-                for data_group in self.document_controller.document_model.data_groups:
-                    if data_panel_selection:
+            if not data_item_to_display:
+                # TODO: make this search through the current criteria, such as group or session
+                for data_item in self.document_controller.document_model.get_flat_data_item_generator():
+                    if data_item not in displayed_data_items:
+                        data_item_to_display = data_item
                         break
-                    for data_item in data_group.data_items:
-                        if data_item not in displayed_data_items:
-                            data_panel_selection = DataItem.DataItemSpecifier(data_group, data_item)
-                            break
-            if not data_panel_selection:
-                data_panel_selection = DataItem.DataItemSpecifier()
-            if not data_panel_selection.is_empty:
-                displayed_data_items.append(data_panel_selection.data_item)
-            image_panel.data_panel_selection = data_panel_selection
+            # update the data item in the image panel to display it
+            image_panel.data_item = data_item_to_display
         # fill in the missing items if possible
         # save the layout id
         self.__current_layout_id = layout_id
@@ -291,8 +271,6 @@ class Workspace(object):
     # slot after the primary. if none, then the first before it. if none, then it will
     # not be displayed.
     # returns the image panel in which the data is placed.
-    # IN PROGRESS: the image panel no longer needs to take a data panel selection; it should
-    # just take a data item as its selection.
     # TODO: HANDLE CASE WHERE IT IS ALREADY DISPLAYED
     # TODO: PREFER TO USE ACQUISITION SLOTS FIRST, THEN PAUSED ONES
     def display_data_item(self, primary_data_item, source_data_item=None):

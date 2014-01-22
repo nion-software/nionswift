@@ -47,7 +47,7 @@ class SessionPanel(Panel.Panel):
 class Session(object):
 
     def __init__(self, document_model):
-        self.document_model = document_model
+        self.__weak_document_model = weakref.ref(document_model)
         self.__weak_document_controller = None
         self.session_id = None
         self.start_new_session()
@@ -59,6 +59,10 @@ class Session(object):
 
     def periodic(self):
         self.__periodic_queue.perform_tasks()
+
+    def __get_document_model(self):
+        return self.__weak_document_model() if self.__weak_document_model else None
+    document_model = property(__get_document_model)
 
     def __get_document_controller(self):
         return self.__weak_document_controller() if self.__weak_document_controller else None
@@ -96,16 +100,17 @@ class Session(object):
         # these functions will be run on the main thread.
         # be careful about binding the parameter. cannot use 'data_item' directly.
         def insert_data_item_to_data_group(append_data_item):
-            data_group.data_items.insert(0, append_data_item)
+            self.document_model.append_data_item(append_data_item)
+            data_group.insert_data_item(0, append_data_item)
             append_data_item.remove_ref()
         def append_data_item_to_data_group(append_data_item):
-            data_group.data_items.append(append_data_item)
+            self.document_model.append_data_item(append_data_item)
+            data_group.append_data_item(append_data_item)
             append_data_item.remove_ref()
         def activate_data_item(data_item_to_activate):
             data_group.move_data_item(data_item_to_activate, 0)
             if self.document_controller:
-                logging.debug("data_item_to_activate %s", data_item_to_activate)
-                self.document_controller.set_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item_to_activate))
+                self.document_controller.set_data_item_selection(data_item_to_activate)
 
         data_group = self.__get_data_group()
         data_item_set = {}

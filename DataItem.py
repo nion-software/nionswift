@@ -450,6 +450,9 @@ class DataItem(Storage.StorageBase):
             self.operations.remove(operation)
         super(DataItem, self).about_to_delete()
 
+    def remove_data_item(self, data_item):
+        self.data_items.remove(data_item)
+
     # cheap, but incorrect, way to tell whether this is live acquisition
     def __get_is_live(self):
         return self.transaction_count > 0

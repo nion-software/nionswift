@@ -79,7 +79,7 @@ class DataGroup(Storage.StorageBase):
         self.storage_type = "data-group"
         self.__title = None
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.data_items = Storage.MutableRelationship(self, "data_items")
+        self.__data_items = Storage.MutableRelationship(self, "data_items")
         self.__counted_data_items = collections.Counter()
         self.__moving = False  # ugh
 
@@ -94,7 +94,8 @@ class DataGroup(Storage.StorageBase):
         data_group = cls()
         data_group.title = title
         data_group.data_groups.extend(data_groups)
-        data_group.data_items.extend(data_items)
+        for data_item in data_items:
+            data_group.append_data_item(data_item)
         return data_group
 
     # This gets called when reference count goes to 0, but before deletion.
@@ -102,8 +103,21 @@ class DataGroup(Storage.StorageBase):
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
         for data_item in copy.copy(self.data_items):
-            self.data_items.remove(data_item)
+            self.remove_data_item(data_item)
         super(DataGroup, self).about_to_delete()
+
+    def append_data_item(self, data_item):
+        self.__data_items.append(data_item)
+
+    def insert_data_item(self, before_index, data_item):
+        self.__data_items.insert(before_index, data_item)
+
+    def remove_data_item(self, data_item):
+        self.__data_items.remove(data_item)
+
+    def __get_data_items(self):
+        return tuple(self.__data_items)
+    data_items = property(__get_data_items)
 
     # smart groups don't participate in the storage model directly. so allow
     # listeners an alternative way of hearing about data items being inserted
@@ -166,10 +180,10 @@ class DataGroup(Storage.StorageBase):
         if index != before_index:
             data_item.add_ref()
             self.__moving = True
-            self.data_items.remove(data_item)
+            self.remove_data_item(data_item)
             if index < before_index:
                 before_index -= 1
-            self.data_items.insert(before_index, data_item)
+            self.insert_data_item(before_index, data_item)
             self.__moving = False
             data_item.remove_ref()
 
@@ -184,10 +198,12 @@ class DataGroup(Storage.StorageBase):
     def __deepcopy__(self, memo):
         data_group_copy = DataGroup()
         data_group_copy.title = self.title
+        # data groups get deep copied
         for data_group in self.data_groups:
             data_group_copy.data_groups.append(copy.deepcopy(data_group, memo))
+        # data items do not get deep copied since they are only references anyway
         for data_item in self.data_items:
-            data_group_copy.data_items.append(copy.deepcopy(data_item, memo))
+            data_group_copy.append_data_item(data_item)
         memo[id(self)] = data_group_copy
         return data_group_copy
 
