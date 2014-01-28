@@ -222,6 +222,21 @@ def get_flat_data_item_generator_in_container(container):
             for data_item in get_flat_data_item_generator_in_container(data_group):
                 yield data_item
 
+
+# return a generator for all data items, child data items, and data items in child groups in container. return the level too.
+def get_flat_data_item_with_level_generator_in_container(container, level=0):
+    if hasattr(container, "data_items"):
+        for data_item in container.data_items:
+            yield data_item, level
+            for child_data_item, child_level in get_flat_data_item_with_level_generator_in_container(data_item, level + 1):
+                yield child_data_item, child_level
+    if hasattr(container, "data_groups"):
+        for data_group in container.data_groups:
+            # descending into data groups does NOT increase the level since the level represents only the dependent data item hierarchy.
+            for data_item, data_item_level in get_flat_data_item_with_level_generator_in_container(data_group, level):
+                yield data_item, data_item_level
+
+
 # Return the data_group matching name that is the descendent of the container.
 # Use the document_controller as the container if container is None.
 def get_data_group_in_container_by_title(container, data_group_title):
@@ -229,6 +244,7 @@ def get_data_group_in_container_by_title(container, data_group_title):
         if data_group.title == data_group_title:
             return data_group
     return None
+
 
 # Return the data_item matching name that is the descendent of the container.
 # Use the document_controller as the container if container is None.
@@ -238,6 +254,7 @@ def get_data_item_in_container_by_title(container, data_item_title):
             return data_item
     return None
 
+
 # Return the data_group matching name that is the descendent of the container.
 # Use the document_controller as the container if container is None.
 def get_data_group_in_container_by_uuid(container, data_group_uuid):
@@ -245,6 +262,7 @@ def get_data_group_in_container_by_uuid(container, data_group_uuid):
         if data_group.uuid == data_group_uuid:
             return data_group
     return None
+
 
 # Return the data_item matching name that is the descendent of the container.
 # Use the document_controller as the container if container is None.

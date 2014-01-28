@@ -368,8 +368,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.periodic()
         self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 3)
         self.assertEqual(data_panel.data_item_model_controller._get_model_data(0)["uuid"], str(data_item1.uuid))
-        self.assertEqual(data_panel.data_item_model_controller._get_model_data(1)["uuid"], str(data_item3.uuid))
-        self.assertEqual(data_panel.data_item_model_controller._get_model_data(2)["uuid"], str(data_item4.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(1)["uuid"], str(data_item4.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(2)["uuid"], str(data_item3.uuid))
         # finish up
         data_panel.close()
 

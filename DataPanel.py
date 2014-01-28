@@ -307,7 +307,8 @@ class DataPanel(Panel.Panel):
                     if data_item.has_master_data:
                         master_data_items.append(data_item)
                 # sort the master data list
-                master_data_items.sort(key=lambda x: Utility.get_datetime_from_datetime_element(x.datetime_original))
+                flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(self.data_group))
+                master_data_items.sort(key=lambda x: flat_data_items.index(x))
                 # construct the data items list by expanding each master data item to
                 # include its children
                 data_items = list()
@@ -444,9 +445,9 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 
-        # this method if called when one of our listened to items changes
+        # this method if called when one of our listened to items changes. not a shining example of efficiency.
         def __data_item_inserted(self, data_item, before_index):
-            level = 0
+            level = list(DataGroup.get_flat_data_item_with_level_generator_in_container(self.data_group))[before_index][1]
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.add_ref()
