@@ -240,7 +240,7 @@ class TestDataPanelClass(unittest.TestCase):
         # these three asserts were disabled when switching to flattened data items
         #self.assertEqual(selected_data_group, data_group1)
         #self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
-        #self.assertEqual(data_panel.data_item_model_controller.get_data_items_flat()[data_item_widget.current_index], data_item1.data_items[0])
+        #self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), data_item1.data_items[0])
         # switch away and back and make sure selection is still correct
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group2, data_item2))
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group1, data_item1.data_items[0]))
@@ -248,7 +248,7 @@ class TestDataPanelClass(unittest.TestCase):
         selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
         self.assertEqual(selected_data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
-        self.assertEqual(data_panel.data_item_model_controller.get_data_items_flat()[data_item_widget.current_index], data_item1.data_items[0])
+        self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), data_item1.data_items[0])
         data_panel.close()
         document_controller.close()
 
@@ -271,20 +271,20 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item2))
         # verify assumptions
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 3)
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 3)
         # delete 2nd item
         data_panel.data_item_widget.on_item_key_pressed(1, self.app.ui.create_key_by_id("delete"))
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 2)
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data(0)["uuid"], str(data_item1.uuid))
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data(1)["uuid"], str(data_item3.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 2)
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(0)["uuid"], str(data_item1.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(1)["uuid"], str(data_item3.uuid))
         # insert new item
         data_item4 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item4.title = "data_item4"
         data_group.insert_data_item(1, data_item4)
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data_count(), 3)
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data(0)["uuid"], str(data_item1.uuid))
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data(1)["uuid"], str(data_item4.uuid))
-        self.assertEqual(data_panel.data_item_model_controller.get_model_data(2)["uuid"], str(data_item3.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 3)
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(0)["uuid"], str(data_item1.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(1)["uuid"], str(data_item4.uuid))
+        self.assertEqual(data_panel.data_item_model_controller._get_model_data(2)["uuid"], str(data_item3.uuid))
         # finish up
         data_panel.close()
 
