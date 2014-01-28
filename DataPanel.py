@@ -1,5 +1,7 @@
 # standard libraries
+import collections
 import copy
+import functools
 import gettext
 import logging
 import threading
@@ -13,7 +15,9 @@ import weakref
 from nion.swift import DataItem
 from nion.swift import DataGroup
 from nion.swift import Panel
+from nion.swift import Utility
 from nion.ui import Geometry
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -226,6 +230,279 @@ class DataPanel(Panel.Panel):
                 del container.data_groups[row]
             return True
 
+
+    class DataGroupDataItemsBinding(UserInterfaceUtility.Binding):
+        """
+            Track the data items in a data group (recursively).
+
+            When a data item is added or removed, the list is sorted, filtered, and
+            a set of insert/remove messages are sent to the inserter and remover
+            connections.
+        """
+
+        def __init__(self):
+            super(DataPanel.DataGroupDataItemsBinding, self).__init__(None)
+            self.__counted_data_items = collections.Counter()
+            self.__data_items = list()
+            self.__update_mutex = threading.RLock()
+            self.inserter = None
+            self.remover = None
+            self.__data_group = None
+
+        def close(self):
+            self.data_group = None
+
+        # thread safe.
+        def __get_data_group(self):
+            return self.__data_group
+        # not thread safe.
+        def __set_data_group(self, data_group):
+            if self.__data_group:
+                self.__data_group.remove_listener(self)
+                self.subtract_counted_data_items(self.__data_group.counted_data_items)
+            self.__data_group = data_group
+            if self.__data_group:
+                self.__data_group.add_listener(self)
+                self.update_counted_data_items(self.__data_group.counted_data_items)
+        data_group = property(__get_data_group, __set_data_group)
+
+        # thread safe
+        def __get_data_items(self):
+            with self.__update_mutex:
+                return copy.copy(self.__data_items)
+        data_items = property(__get_data_items)
+
+        # not thread safe. private method.
+        # this method gets called on the main thread and then
+        # calls the inserter function, typically on the target.
+        def __insert_item(self, item, before_index):
+            if self.inserter:
+                self.inserter(item, before_index)
+
+        # not thread safe. private method.
+        # this method gets called on the main thread and then
+        # calls the remover function, typically on the target.
+        def __remove_item(self, item, index):
+            if self.remover:
+                self.remover(item, index)
+
+        # thread safe.
+        def update_counted_data_items(self, counted_data_items):
+            self.__counted_data_items.update(counted_data_items)
+            self.__update_data_items()
+
+        # thread safe.
+        def subtract_counted_data_items(self, counted_data_items):
+            self.__counted_data_items.subtract(counted_data_items)
+            self.__counted_data_items += collections.Counter()  # strip empty items
+            self.__update_data_items()
+
+        # thread safe.
+        def __update_data_items(self):
+            with self.__update_mutex:
+                # first build the new data_items list, including data items with master data.
+                old_data_items = copy.copy(self.__data_items)
+                master_data_items = list()
+                for data_item in self.__counted_data_items:
+                    if data_item.has_master_data:
+                        master_data_items.append(data_item)
+                # sort the master data list
+                master_data_items.sort(key=lambda x: Utility.get_datetime_from_datetime_element(x.datetime_original))
+                # construct the data items list by expanding each master data item to
+                # include its children
+                data_items = list()
+                for data_item in master_data_items:
+                    data_items.append(data_item)
+                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+                # next filter the list
+                pass
+                # now generate the insert/remove instructions to make the official
+                # list match the proposed list.
+                index = 0
+                for data_item in data_items:
+                    if index < len(old_data_items) and old_data_items[index] not in data_items:
+                        self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, old_data_items[index], index))
+                        del old_data_items[index]
+                        del self.__data_items[index]
+                    if data_item in old_data_items:
+                        old_index = old_data_items.index(data_item)
+                        assert index <= old_index
+                        if index < old_index:
+                            self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, data_item, old_index))
+                            del old_data_items[old_index]
+                            del self.__data_items[old_index]
+                            self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__insert_item, self, data_item, index))
+                            old_data_items.insert(index, data_item)
+                            self.__data_items.insert(index, data_item)
+                    else:
+                        self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__insert_item, self, data_item, index))
+                        old_data_items.insert(index, data_item)
+                        self.__data_items.insert(index, data_item)
+                    index += 1
+                while index < len(old_data_items):
+                    self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, old_data_items[index], index))
+                    del old_data_items[index]
+                    del self.__data_items[index]
+
+    """
+
+        a b c d e f g
+
+        a d c h f
+
+    """
+
+    class DataItemModelController2(object):
+
+        def __init__(self, document_controller):
+            self.ui = document_controller.ui
+            self.__binding = DataPanel.DataGroupDataItemsBinding()
+            self.__binding.inserter = lambda data_item, before_index: self.__data_item_inserted(data_item, before_index)
+            self.__binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
+            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
+            self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
+            self.__document_controller_weakref = weakref.ref(document_controller)
+            # changed data items keep track of items whose content has changed
+            # the content changed messages may come from a thread so have to be
+            # moved to the main thread via this object.
+            self.__changed_data_items = set()
+            self.__changed_data_items_mutex = threading.RLock()
+
+        def close(self):
+            self.__binding.close()
+            self.__binding = None
+            self.list_model_controller.close()
+            self.list_model_controller = None
+
+        def periodic(self):
+            self.__binding.periodic()
+            # handle the 'changed' stuff
+            with self.__changed_data_items_mutex:
+                changed_data_items = self.__changed_data_items
+                self.__changed_data_items = set()
+            data_items = copy.copy(self.__binding.data_items)
+            # we might be receiving this message for an item that is no longer in the list
+            # if the item updates and the user switches panels. check and skip it if so.
+            for data_item in changed_data_items:
+                if data_item in data_items:
+                    index = data_items.index(data_item)
+                    properties = self.list_model_controller.model[index]
+                    self.list_model_controller.data_changed()
+
+        def __get_document_controller(self):
+            return self.__document_controller_weakref()
+        document_controller = property(__get_document_controller)
+
+        def __get_data_group(self):
+            return self.__binding.data_group
+        def __set_data_group(self, data_group):
+            self.__binding.data_group = data_group
+        data_group = property(__get_data_group, __set_data_group)
+
+        def __get_data_items(self):
+            return self.__binding.data_items
+        data_items = property(__get_data_items)
+
+        def get_data_item_by_index(self, index):
+            data_items = self.__binding.data_items
+            return data_items[index] if index >= 0 and index < len(data_items) else None
+
+        # return a dict with key value pairs. these methods are here for testing only.
+        def _get_model_data(self, index):
+            return self.list_model_controller.model[index]
+        def _get_model_data_count(self):
+            return len(self.list_model_controller.model)
+
+        # determine the container for the data item. this is needed because the container
+        # will not always be the data group that is being currently displayed. for instance,
+        # the data item might be a processed data item and the container would be the
+        # source data item. this is a recursive function, so pass the container in which
+        # to search as first parameter.
+        def __get_data_item_container(self, container, query_data_item):
+            if hasattr(container, "data_items") and query_data_item in container.data_items:
+                return container
+            if hasattr(container, "data_groups"):
+                for data_group in container.data_groups:
+                    container = self.__get_data_item_container(data_group, query_data_item)
+                    if container:
+                        return container
+            if hasattr(container, "data_items"):
+                for data_item in container.data_items:
+                    container = self.__get_data_item_container(data_item, query_data_item)
+                    if container:
+                        return container
+            return None
+
+        def remove_data_item(self, data_item):
+            container = self.__get_data_item_container(self.data_group, data_item)
+            assert data_item in container.data_items
+            container.remove_data_item(data_item)
+
+        def get_data_item_index(self, data_item):
+            data_items = self.__binding.data_items
+            return data_items.index(data_item) if data_item in data_items else -1
+
+        # data_item_content_changed is received from data items tracked in this model.
+        # the connection is established in add_data_item using add_listener.
+        def data_item_content_changed(self, data_item, changes):
+            with self.__changed_data_items_mutex:
+                self.__changed_data_items.add(data_item)
+
+        # this method if called when one of our listened to items changes
+        def __data_item_inserted(self, data_item, before_index):
+            level = 0
+            # add the listener. this will result in calls to data_item_content_changed
+            data_item.add_listener(self)
+            data_item.add_ref()
+            # do the insert
+            properties = {
+                "uuid": str(data_item.uuid),
+                "level": level,
+                "display": str(data_item),
+            }
+            self.list_model_controller.begin_insert(before_index, before_index)
+            self.list_model_controller.model.insert(before_index, properties)
+            self.list_model_controller.end_insert()
+
+        # this method if called when one of our listened to items changes
+        def __data_item_removed(self, data_item, index):
+            assert isinstance(data_item, DataItem.DataItem)
+            # manage the item model
+            self.list_model_controller.begin_remove(index, index)
+            del self.list_model_controller.model[index]
+            self.list_model_controller.end_remove()
+            # remove the listener.
+            data_item.remove_listener(self)
+            data_item.remove_ref()
+
+        # this message comes from the styled item delegate
+        def paint(self, ctx, options):
+            rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
+            index = options["index"]["row"]
+            data_item = self.get_data_item_by_index(index)
+            thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
+            data = self._get_model_data(index)
+            level = data["level"]
+            display = str(data_item)
+            display2 = data_item.size_and_data_format_as_string
+            display3 = data_item.datetime_original_as_string
+            display4 = data_item.live_status_as_string
+            ctx.save()
+            if thumbnail_data is not None:
+                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
+                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+            ctx.fill_style = "#000"
+            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12)
+            ctx.font = "11px italic"
+            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+            ctx.font = "11px italic"
+            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+            ctx.font = "11px italic"
+            ctx.fill_text(display4, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+            ctx.restore()
+
+
     # a list model of the data items. data items are actually hierarchical in nature,
     # but we don't use a tree view since the hierarchy is always visible and represented
     # by indent level. this means that we must track changes to the data group that we're
@@ -365,20 +642,25 @@ class DataPanel(Panel.Panel):
         # the data item might be a processed data item and the container would be the
         # source data item. this is a recursive function, so pass the container in which
         # to search as first parameter.
-        def get_data_item_container(self, container, query_data_item):
+        def __get_data_item_container(self, container, query_data_item):
             if hasattr(container, "data_items") and query_data_item in container.data_items:
                 return container
             if hasattr(container, "data_groups"):
                 for data_group in container.data_groups:
-                    container = self.get_data_item_container(data_group, query_data_item)
+                    container = self.__get_data_item_container(data_group, query_data_item)
                     if container:
                         return container
             if hasattr(container, "data_items"):
                 for data_item in container.data_items:
-                    container = self.get_data_item_container(data_item, query_data_item)
+                    container = self.__get_data_item_container(data_item, query_data_item)
                     if container:
                         return container
             return None
+
+        def remove_data_item(self, data_item):
+            container = self.__get_data_item_container(self.data_group, data_item)
+            assert data_item in container.data_items
+            container.remove_data_item(data_item)
 
         def __get_data_group(self):
             return self.__data_group
@@ -482,7 +764,7 @@ class DataPanel(Panel.Panel):
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
 
-        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
+        self.data_item_model_controller = DataPanel.DataItemModelController2(document_controller)
 
         def data_item_model_receive_files(file_paths, row, parent_row):
             data_group = self.data_item_model_controller.data_group
@@ -542,9 +824,7 @@ class DataPanel(Panel.Panel):
             data_item = self.data_item_model_controller.get_data_item_by_index(index)
             if data_item:
                 if key.is_delete:
-                    container = self.data_item_model_controller.get_data_item_container(self.data_item_model_controller.data_group, data_item)
-                    assert data_item in container.data_items
-                    container.remove_data_item(data_item)
+                    self.data_item_model_controller.remove_data_item(data_item)
             return False
 
         def data_item_double_clicked(index):

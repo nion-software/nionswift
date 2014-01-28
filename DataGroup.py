@@ -164,10 +164,12 @@ class DataGroup(Storage.StorageBase):
     def update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
         self.notify_parents("update_counted_data_items", counted_data_items)
+        self.notify_listeners("update_counted_data_items", counted_data_items)
     def subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
         self.notify_parents("subtract_counted_data_items", counted_data_items)
+        self.notify_listeners("subtract_counted_data_items", counted_data_items)
 
     def move_data_item(self, data_item, before_index):
         index = self.data_items.index(data_item)
@@ -185,6 +187,7 @@ class DataGroup(Storage.StorageBase):
     # tell any data groups to update their filter.
     def data_item_property_changed(self, data_item, property, value):
         self.notify_parents("data_item_property_changed", data_item, property, value)
+        self.notify_listeners("data_item_property_changed", data_item, property, value)
 
     def __deepcopy__(self, memo):
         data_group_copy = DataGroup()

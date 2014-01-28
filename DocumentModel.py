@@ -164,6 +164,7 @@ class DocumentModel(Storage.StorageBase):
     # tell any data groups to update their filter.
     def data_item_property_changed(self, data_item, property, value):
         self.notify_parents("data_item_property_changed", data_item, property, value)
+        self.notify_listeners("data_item_property_changed", data_item, property, value)
 
     # TODO: what about thread safety for these classes?
 
