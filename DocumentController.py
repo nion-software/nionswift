@@ -191,8 +191,9 @@ class DocumentController(Observable.Broadcaster):
     def periodic(self):
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
-        # for sessions
-        self.document_model.session.periodic()
+        if self.document_model and self.document_model.session:
+            # for sessions
+            self.document_model.session.periodic()
         # workspace
         if self.workspace:
             self.workspace.periodic()
