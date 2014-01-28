@@ -386,7 +386,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         self.assertIsNone(data_panel._get_data_panel_selection().data_group)
         self.assertIsNone(data_panel._get_data_panel_selection().data_item)
-        data_panel.data_group_model_receive_files(data_group, 0, [":/app/scroll_gem.png"])
+        data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, 0)
         self.assertEqual(data_panel._get_data_panel_selection().data_group, data_group)
         self.assertEqual(data_panel._get_data_panel_selection().data_item, data_group.data_items[0])
         data_panel.close()
@@ -434,6 +434,10 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertFalse(data_item1 in data_group1.data_items)
         data_panel.close()
         document_controller.close()
+
+    def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
+        # TODO: implement data panel save/restore test
+        self.assertTrue(True)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

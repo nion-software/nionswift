@@ -187,7 +187,7 @@ class DataPanel(Panel.Panel):
             if data_group and mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                     return self.item_model_controller.NONE
-                if self.on_receive_files and self.on_receive_files(data_group, len(data_group.data_items), mime_data.file_paths):
+                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
                     return self.item_model_controller.COPY
             if data_group and mime_data.has_format("text/data_item_uuid"):
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
@@ -398,11 +398,21 @@ class DataPanel(Panel.Panel):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
 
+        # data group is a data group or None
         def __get_data_group(self):
-            return self.__binding.container
+            container = self.__binding.container
+            return self.__binding.container if isinstance(container, DataGroup.DataGroup) else None
         def __set_data_group(self, data_group):
-            self.__binding.container = data_group
+            if data_group:
+                self.__binding.container = data_group
+            else:
+                self.__binding.container = self.document_controller.document_model
         data_group = property(__get_data_group, __set_data_group)
+
+        # container is either a data group or a document model
+        def __get_container(self):
+            return self.__binding.container
+        container = property(__get_container)
 
         def get_data_item_by_index(self, index):
             data_items = self.__binding.data_items
@@ -435,7 +445,7 @@ class DataPanel(Panel.Panel):
             return None
 
         def remove_data_item(self, data_item):
-            container = self.__get_data_item_container(self.data_group, data_item)
+            container = self.__get_data_item_container(self.container, data_item)
             assert data_item in container.data_items
             container.remove_data_item(data_item)
 
@@ -451,7 +461,7 @@ class DataPanel(Panel.Panel):
 
         # this method if called when one of our listened to items changes. not a shining example of efficiency.
         def __data_item_inserted(self, data_item, before_index):
-            level = list(DataGroup.get_flat_data_item_with_level_generator_in_container(self.data_group))[before_index][1]
+            level = list(DataGroup.get_flat_data_item_with_level_generator_in_container(self.container))[before_index][1]
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.add_ref()
@@ -481,7 +491,8 @@ class DataPanel(Panel.Panel):
             if data_item:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-                mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
+                if self.data_group:
+                    mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
                 return mime_data
             return None
 
@@ -490,6 +501,10 @@ class DataPanel(Panel.Panel):
             rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
             index = options["index"]["row"]
             data_item = self.get_data_item_by_index(index)
+            if not data_item:
+                # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
+                # not sure of the best solution here, but I expect that it will present itself over time.
+                return
             thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
             data = self._get_model_data(index)
             level = data["level"]
@@ -763,7 +778,7 @@ class DataPanel(Panel.Panel):
         self.__closing = False
 
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
-        self.data_group_model_controller.on_receive_files = lambda data_group, index, file_paths: self.data_group_model_receive_files(data_group, index, file_paths)
+        self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
         self.data_item_model_controller = DataPanel.DataItemModelController2(document_controller)
 
@@ -772,7 +787,7 @@ class DataPanel(Panel.Panel):
             if parent_row == -1:  # don't accept drops _on top_ of other items
                 # row=-1, parent=-1 means dropping outside of any items; so put it at the end
                 row = row if row >= 0 else len(data_group.data_items)
-                return self.data_group_model_receive_files(data_group, row, file_paths)
+                return self.data_group_model_receive_files(file_paths, data_group, row)
             else:
                 return False
 
@@ -876,23 +891,20 @@ class DataPanel(Panel.Panel):
         data_item_uuid_str = self.ui.get_persistent_string("selected_data_item")
         data_group_uuid = uuid.UUID(data_group_uuid_str) if data_group_uuid_str else None
         data_item_uuid = uuid.UUID(data_item_uuid_str) if data_item_uuid_str else None
-        if data_group_uuid:
-            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
-            if data_group:
-                data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
-                self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
+        data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+        data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
+        self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
 
     def save_state(self):
         if not self.__closing:
             data_panel_selection = self._get_data_panel_selection()
             if data_panel_selection.data_group:
                 self.ui.set_persistent_string("selected_data_group", str(data_panel_selection.data_group.uuid))
-                if data_panel_selection.data_item:
-                    self.ui.set_persistent_string("selected_data_item", str(data_panel_selection.data_item.uuid))
-                else:
-                    self.ui.remove_persistent_key("selected_data_item")
             else:
                 self.ui.remove_persistent_key("selected_data_group")
+            if data_panel_selection.data_item:
+                self.ui.set_persistent_string("selected_data_item", str(data_panel_selection.data_item.uuid))
+            else:
                 self.ui.remove_persistent_key("selected_data_item")
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
@@ -902,7 +914,7 @@ class DataPanel(Panel.Panel):
     def __set_focused(self, focused):
         self.__focused = focused
         if not self.__closing:
-            self.document_controller.set_selected_data_item(self._get_data_panel_selection().data_item)
+            self.document_controller.set_selected_data_item(self.__current_data_item)
     focused = property(__get_focused, __set_focused)
 
     def _get_data_panel_selection(self):
@@ -935,8 +947,8 @@ class DataPanel(Panel.Panel):
         data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
         self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
 
-    # this message comes from the data group model
-    def data_group_model_receive_files(self, data_group, index, file_paths):
+    # this message comes from the data group model, which is why it is named the way it is
+    def data_group_model_receive_files(self, file_paths, data_group, index):
         data_items = self.document_controller.receive_files(file_paths, data_group, index)
         if len(data_items) > 0:
             # select the first item/group
