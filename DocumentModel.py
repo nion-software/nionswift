@@ -144,6 +144,7 @@ class DocumentModel(Storage.StorageBase):
 
     def item_inserted(self, parent, key, item, before):
         # watch for data items inserted into this document model or into other data items
+        # but not into data groups.
         if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
             data_item = item
             # become an observer of every data group and data item
@@ -156,6 +157,7 @@ class DocumentModel(Storage.StorageBase):
 
     def item_removed(self, parent, key, item, index):
         # watch for data items inserted into this document model or into other data items
+        # but not into data groups.
         if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
             data_item = item
             # become an observer of every data group and data item
