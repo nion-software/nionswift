@@ -107,16 +107,10 @@ class DocumentModel(Storage.StorageBase):
     def update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
         self.notify_parents("update_counted_data_items", counted_data_items)
-        for data_group in self.data_groups:
-            if hasattr(data_group, "update_counted_data_items_for_filter"):
-                data_group.update_counted_data_items_for_filter(counted_data_items)
     def subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
         self.notify_parents("subtract_counted_data_items", counted_data_items)
-        for data_group in self.data_groups:
-            if hasattr(data_group, "subtract_counted_data_items_for_filter"):
-                data_group.subtract_counted_data_items_for_filter(counted_data_items)
 
     # override from StorageBase.
     def notify_insert_item(self, key, value, before_index):
@@ -125,9 +119,6 @@ class DocumentModel(Storage.StorageBase):
             data_group = value
             # update the count in the data groups
             self.update_counted_data_items(data_group.counted_data_items)
-            # initialize data group with current set of data (used for smart data groups)
-            if hasattr(data_group, "update_counted_data_items_for_filter"):
-                data_group.update_counted_data_items_for_filter(self.counted_data_items)
         if key == "data_items":
             # an item was inserted, start observing
             self.item_inserted(self, key, value, before_index)
@@ -173,9 +164,6 @@ class DocumentModel(Storage.StorageBase):
     # tell any data groups to update their filter.
     def data_item_property_changed(self, data_item, property, value):
         self.notify_parents("data_item_property_changed", data_item, property, value)
-        for data_group in self.data_groups:
-            if hasattr(data_group, "adjust_data_item_for_filter"):
-                data_group.adjust_data_item_for_filter(data_item, property, value)
 
     # TODO: what about thread safety for these classes?
 
