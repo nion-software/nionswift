@@ -175,13 +175,6 @@ class DocumentModel(Storage.StorageBase):
             if hasattr(data_group, "adjust_data_item_for_filter"):
                 data_group.adjust_data_item_for_filter(data_item, property, value)
 
-    def __get_default_data_group(self):
-        for data_group in self.data_groups:
-            if isinstance(data_group, DataGroup.DataGroup):
-                return data_group
-        return None
-    default_data_group = property(__get_default_data_group)
-
     # TODO: what about thread safety for these classes?
 
     class _DataAccessorIter(object):

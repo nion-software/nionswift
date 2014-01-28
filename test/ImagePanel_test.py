@@ -41,12 +41,9 @@ class TestImagePanelClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.document_controller.document_model.create_default_data_groups()
-        default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 1000))
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        default_data_group.append_data_item(self.data_item)
         self.image_panel.data_item = self.data_item
 
     def tearDown(self):
@@ -69,14 +66,13 @@ class TestImagePanelClass(unittest.TestCase):
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_disappearing_data(self):
-        self.assertEqual(self.image_panel.data_item, self.document_controller.document_model.data_groups[0].data_items[0])
+        self.assertEqual(self.image_panel.data_item, self.document_controller.document_model.data_items[0])
         self.document_controller.processing_invert()
-        data_group = self.document_controller.document_model.data_groups[0]
-        data_item_container = data_group.data_items[0]
+        data_item_container = self.document_controller.document_model
         data_item = data_item_container.data_items[0]
         self.image_panel.data_item = data_item
         self.assertEqual(self.image_panel.data_item, data_item)
-        data_item_container.data_items.remove(data_item)
+        data_item_container.remove_data_item(data_item)
         self.assertIsNone(self.image_panel.data_item)
 
     def test_select_line(self):

@@ -93,8 +93,8 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        data_items_count = len(document_controller.document_model.default_data_group.data_items)
-        data_items_type = type(document_controller.document_model.default_data_group.data_items)
+        data_items_count = len(document_controller.document_model.data_items)
+        data_items_type = type(document_controller.document_model.data_items)
         document_controller.close()
         # read it back
         node_map_copy = copy.deepcopy(datastore.node_map)
@@ -102,8 +102,8 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DictStorageCache()
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
-        self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
+        self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
+        self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
         document_controller.close()
 
     def write_read_db_storage(self, include_rewrite=False):
@@ -115,13 +115,13 @@ class TestStorageClass(unittest.TestCase):
         self.save_document(document_controller)
         storage_str = datastore.to_string()
         document_model_uuid = document_controller.document_model.uuid
-        data_items_count = len(document_controller.document_model.default_data_group.data_items)
-        data_items_type = type(document_controller.document_model.default_data_group.data_items)
-        data_item0_calibration_len = len(document_controller.document_model.default_data_group.data_items[0].intrinsic_calibrations)
-        data_item0_uuid = document_controller.document_model.default_data_group.data_items[0].uuid
-        data_item1_data_items_len = len(document_controller.document_model.default_data_group.data_items[1].data_items)
+        data_items_count = len(document_controller.document_model.data_items)
+        data_items_type = type(document_controller.document_model.data_items)
+        data_item0_calibration_len = len(document_controller.document_model.data_items[0].intrinsic_calibrations)
+        data_item0_uuid = document_controller.document_model.data_items[0].uuid
+        data_item1_data_items_len = len(document_controller.document_model.data_items[1].data_items)
         if include_rewrite:
-            document_controller.document_model.default_data_group.data_items[0].rewrite()
+            document_controller.document_model.data_items[0].rewrite()
         document_controller.close()
         datastore.close()
         # read it back
@@ -130,16 +130,16 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
-        self.assertEqual(data_items_count, len(document_controller.document_model.default_data_group.data_items))
-        self.assertEqual(data_items_type, type(document_controller.document_model.default_data_group.data_items))
-        self.assertIsNotNone(document_controller.document_model.default_data_group.data_items[0])
-        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+        self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
+        self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
+        self.assertIsNotNone(document_controller.document_model.data_items[0])
+        with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertIsNotNone(data_ref.data)
-        self.assertEqual(data_item0_uuid, document_controller.document_model.default_data_group.data_items[0].uuid)
-        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.default_data_group.data_items[0].intrinsic_calibrations))
-        self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.default_data_group.data_items[1].data_items))
+        self.assertEqual(data_item0_uuid, document_controller.document_model.data_items[0].uuid)
+        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.data_items[0].intrinsic_calibrations))
+        self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.data_items[1].data_items))
         # check over the data item
-        data_item = document_controller.document_model.default_data_group.data_items[0]
+        data_item = document_controller.document_model.data_items[0]
         self.assertEqual(data_item.display_limits, (500, 1000))
         self.assertEqual(data_item.intrinsic_intensity_calibration.origin, 1.0)
         self.assertEqual(data_item.intrinsic_intensity_calibration.scale, 2.0)
@@ -178,7 +178,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+        with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
     # test to ensure that no duplicate relationships are created
@@ -231,7 +231,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.default_data_group.data_items[0].data_ref() as data_ref:
+        with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
     def test_db_storage_insert_items(self):
@@ -379,9 +379,9 @@ class TestStorageClass(unittest.TestCase):
         self.save_document(document_controller)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        document_model.default_data_group.append_data_item(data_item)
+        document_model.data_groups[0].append_data_item(data_item)
         with self.assertRaises(AssertionError):
-            document_model.default_data_group.append_data_item(data_item)
+            document_model.data_groups[0].append_data_item(data_item)
 
     def test_insert_item_with_transaction(self):
         db_name = ":memory:"

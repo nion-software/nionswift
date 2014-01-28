@@ -25,8 +25,6 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.document_controller.document_model.create_default_data_groups()
-        default_data_group = self.document_controller.document_model.data_groups[0]
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.data_item = self.data_item
@@ -279,7 +277,6 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        document_controller.document_model.create_default_data_groups()
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         Operation.OperationManager().register_operation_behavior("dummy-operation", lambda: TestOperationClass.DummyOperationBehavior())
         dummy_operation = Operation.Operation("dummy-operation")

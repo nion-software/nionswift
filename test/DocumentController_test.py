@@ -78,11 +78,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        document_controller.document_model.create_default_data_groups()
-        default_data_group = document_controller.document_model.data_groups[0]
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        default_data_group.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.data_item = data_item
@@ -91,6 +88,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.close()
         document_controller = None
         data_item = None
+        document_model = None
         self.assertIsNone(weak_data_item())
 
     def test_flat_data_groups(self):
