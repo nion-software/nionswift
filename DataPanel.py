@@ -535,11 +535,6 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items = set()
             self.__changed_data_items_mutex = threading.RLock()
             self.on_receive_files = None
-            # here lies some really ugly code. still thinking about better architecture.
-            # this is here to allow the data panel to keep the selection the same when
-            # a data item is being moved.
-            self.on_data_item_begin_move = None
-            self.on_data_item_finish_move = None
 
         def close(self):
             self.data_group = None
@@ -600,13 +595,9 @@ class DataPanel(Panel.Panel):
             # recursively insert items that already exist
             for index, child_data_item in enumerate(data_item.data_items):
                 self.data_item_inserted(data_item, child_data_item, index, moving)
-            if moving and self.on_data_item_finish_move:
-                self.on_data_item_finish_move(data_item)
 
         # this method if called when one of our listened to items changes
         def data_item_removed(self, container, data_item, index, moving):
-            if moving and self.on_data_item_begin_move:
-                self.on_data_item_begin_move(data_item)
             assert isinstance(data_item, DataItem.DataItem)
             # recursively remove child items
             for index in reversed(range(len(data_item.data_items))):
@@ -786,8 +777,6 @@ class DataPanel(Panel.Panel):
                 return False
 
         self.data_item_model_controller.on_receive_files = data_item_model_receive_files
-        self.data_item_model_controller.on_data_item_begin_move = lambda data_item: self.data_item_begin_move(data_item)
-        self.data_item_model_controller.on_data_item_finish_move = lambda data_item: self.data_item_finish_move(data_item)
 
         ui = document_controller.ui
 
@@ -825,7 +814,7 @@ class DataPanel(Panel.Panel):
             if not self.__block1:
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = self.data_item_model_controller.get_data_item_by_index(index)
-                self.__current_data_item = data_item  # useful for on_data_item_begin_move
+                self.__current_data_item = data_item
                 if self.focused:
                     self.document_controller.set_selected_data_item(data_item)
                 self.save_state()
@@ -936,7 +925,7 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller.data_group = data_group
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
-        self.__current_data_item = data_panel_selection.data_item  # useful for on_data_item_begin_move. redundant in some cases. argh.
+        self.__current_data_item = data_panel_selection.data_item
         # save the users selection
         self.save_state()
         # unblock
@@ -945,15 +934,6 @@ class DataPanel(Panel.Panel):
     def update_data_item_selection(self, data_item, source_data_item=None):
         data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
         self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
-
-    # ugly code to keep the selection the same when _moving_ a data item.
-    def data_item_begin_move(self, data_item):
-        #logging.debug("before move %s", self.__current_data_item)
-        self.__block1 = True
-    def data_item_finish_move(self, data_item):
-        self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(self.__current_data_item)
-        #logging.debug("after move %s %s", self.data_item_widget.current_index, self.__current_data_item)
-        self.__block1 = False
 
     # this message comes from the data group model
     def data_group_model_receive_files(self, data_group, index, file_paths):
