@@ -399,10 +399,6 @@ class DataPanel(Panel.Panel):
             self.__binding.data_group = data_group
         data_group = property(__get_data_group, __set_data_group)
 
-        def __get_data_items(self):
-            return self.__binding.data_items
-        data_items = property(__get_data_items)
-
         def get_data_item_by_index(self, index):
             data_items = self.__binding.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
@@ -896,12 +892,14 @@ class DataPanel(Panel.Panel):
                 self.ui.remove_persistent_key("selected_data_group")
                 self.ui.remove_persistent_key("selected_data_item")
 
-    # the focused property gets set from on_focus_changed on the data item widget
+    # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
+    # make sure the document controller knows what is selected so it can update the inspector.
     def __get_focused(self):
         return self.__focused
     def __set_focused(self, focused):
         self.__focused = focused
-        self.document_controller.set_selected_data_item(self._get_data_panel_selection().data_item)
+        if not self.__closing:
+            self.document_controller.set_selected_data_item(self._get_data_panel_selection().data_item)
     focused = property(__get_focused, __set_focused)
 
     def _get_data_panel_selection(self):
