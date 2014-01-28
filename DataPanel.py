@@ -362,6 +362,7 @@ class DataPanel(Panel.Panel):
             self.__binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
+            self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
             self.__document_controller_weakref = weakref.ref(document_controller)
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
@@ -471,6 +472,15 @@ class DataPanel(Panel.Panel):
             # remove the listener.
             data_item.remove_listener(self)
             data_item.remove_ref()
+
+        def item_mime_data(self, row):
+            data_item = self.get_data_item_by_index(row)
+            if data_item:
+                mime_data = self.ui.create_mime_data()
+                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+                mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
+                return mime_data
+            return None
 
         # this message comes from the styled item delegate
         def paint(self, ctx, options):
