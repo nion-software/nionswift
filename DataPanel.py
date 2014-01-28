@@ -231,40 +231,43 @@ class DataPanel(Panel.Panel):
             return True
 
 
-    class DataGroupDataItemsBinding(UserInterfaceUtility.Binding):
+    class DataItemsInContainerBinding(UserInterfaceUtility.Binding):
         """
-            Track the data items in a data group (recursively).
+            Bind the data items in a container (recursively).
 
             When a data item is added or removed, the list is sorted, filtered, and
             a set of insert/remove messages are sent to the inserter and remover
             connections.
+            
+            The container must send the update_counted_data_items and
+            subtract_counted_data_items messages to this object.
         """
 
         def __init__(self):
-            super(DataPanel.DataGroupDataItemsBinding, self).__init__(None)
+            super(DataPanel.DataItemsInContainerBinding, self).__init__(None)
             self.__counted_data_items = collections.Counter()
             self.__data_items = list()
             self.__update_mutex = threading.RLock()
             self.inserter = None
             self.remover = None
-            self.__data_group = None
+            self.__container = None
 
         def close(self):
-            self.data_group = None
+            self.container = None
 
         # thread safe.
-        def __get_data_group(self):
-            return self.__data_group
+        def __get_container(self):
+            return self.__container
         # not thread safe.
-        def __set_data_group(self, data_group):
-            if self.__data_group:
-                self.__data_group.remove_listener(self)
-                self.subtract_counted_data_items(self.__data_group.counted_data_items)
-            self.__data_group = data_group
-            if self.__data_group:
-                self.__data_group.add_listener(self)
-                self.update_counted_data_items(self.__data_group.counted_data_items)
-        data_group = property(__get_data_group, __set_data_group)
+        def __set_container(self, container):
+            if self.__container:
+                self.__container.remove_listener(self)
+                self.subtract_counted_data_items(self.__container.counted_data_items)
+            self.__container = container
+            if self.__container:
+                self.__container.add_listener(self)
+                self.update_counted_data_items(self.__container.counted_data_items)
+        container = property(__get_container, __set_container)
 
         # thread safe
         def __get_data_items(self):
@@ -307,7 +310,7 @@ class DataPanel(Panel.Panel):
                     if data_item.has_master_data:
                         master_data_items.append(data_item)
                 # sort the master data list
-                flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(self.data_group))
+                flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(self.container))
                 master_data_items.sort(key=lambda x: flat_data_items.index(x))
                 # construct the data items list by expanding each master data item to
                 # include its children
@@ -322,26 +325,26 @@ class DataPanel(Panel.Panel):
                 index = 0
                 for data_item in data_items:
                     if index < len(old_data_items) and old_data_items[index] not in data_items:
-                        self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, old_data_items[index], index))
+                        self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, old_data_items[index], index))
                         del old_data_items[index]
                         del self.__data_items[index]
                     if data_item in old_data_items:
                         old_index = old_data_items.index(data_item)
                         assert index <= old_index
                         if index < old_index:
-                            self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, data_item, old_index))
+                            self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, data_item, old_index))
                             del old_data_items[old_index]
                             del self.__data_items[old_index]
-                            self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__insert_item, self, data_item, index))
+                            self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__insert_item, self, data_item, index))
                             old_data_items.insert(index, data_item)
                             self.__data_items.insert(index, data_item)
                     else:
-                        self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__insert_item, self, data_item, index))
+                        self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__insert_item, self, data_item, index))
                         old_data_items.insert(index, data_item)
                         self.__data_items.insert(index, data_item)
                     index += 1
                 while index < len(old_data_items):
-                    self.queue_task(functools.partial(DataPanel.DataGroupDataItemsBinding.__remove_item, self, old_data_items[index], index))
+                    self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, old_data_items[index], index))
                     del old_data_items[index]
                     del self.__data_items[index]
 
@@ -357,7 +360,7 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
-            self.__binding = DataPanel.DataGroupDataItemsBinding()
+            self.__binding = DataPanel.DataItemsInContainerBinding()
             self.__binding.inserter = lambda data_item, before_index: self.__data_item_inserted(data_item, before_index)
             self.__binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
@@ -396,9 +399,9 @@ class DataPanel(Panel.Panel):
         document_controller = property(__get_document_controller)
 
         def __get_data_group(self):
-            return self.__binding.data_group
+            return self.__binding.container
         def __set_data_group(self, data_group):
-            self.__binding.data_group = data_group
+            self.__binding.container = data_group
         data_group = property(__get_data_group, __set_data_group)
 
         def get_data_item_by_index(self, index):

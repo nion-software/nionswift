@@ -280,8 +280,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataGroupDataItemsBinding()
-        binding.data_group = data_group
+        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         data_panel.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item1))
@@ -303,8 +303,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataGroupDataItemsBinding()
-        binding.data_group = data_group
+        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         binding.close()
         binding = None
@@ -324,9 +324,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataGroupDataItemsBinding()
-        binding.data_group = data_group
-        binding.data_group = data_group
+        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding.container = data_group
+        binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         binding.close()
         binding = None
