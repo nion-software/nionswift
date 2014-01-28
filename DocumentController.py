@@ -458,12 +458,17 @@ class DocumentController(Observable.Broadcaster):
         if self.console:
             self.console.insert_lines(lines)
 
-    def receive_files(self, file_paths, data_group, index=-1):
+    # receive files into the document model. data_group and index can optionally
+    # be specified. if data_group is specified, the item is added to an arbitrary
+    # position in the document model (the end) and at the group at the position
+    # specified by the index. if the data group is not specified, the item is added
+    # at the index within the document model.
+    def receive_files(self, file_paths, data_group=None, index=-1):
         received_data_items = list()
-        if data_group and isinstance(data_group, DataGroup.DataGroup):
-            for file_path in file_paths:
-                try:
-                    data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+        for file_path in file_paths:
+            try:
+                data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+                if data_group and isinstance(data_group, DataGroup.DataGroup):
                     for data_item in data_items:
                         self.document_model.append_data_item(data_item)
                         if index >= 0:
@@ -471,12 +476,19 @@ class DocumentController(Observable.Broadcaster):
                             index += 1
                         else:
                             data_group.append_data_item(data_item)
-                        received_data_items.append(data_item)
-                except Exception as e:
-                    logging.debug("Could not read image %s", file_path)
-                    import traceback
-                    traceback.print_exc()
-                    logging.debug("Error: %s", e)
+                else:  # insert into document model only
+                    for data_item in data_items:
+                        if index >= 0:
+                            self.document_model.insert_data_item(index, data_item)
+                            index += 1
+                        else:
+                            self.document_model.append_data_item(data_item)
+                received_data_items.extend(data_items)
+            except Exception as e:
+                logging.debug("Could not read image %s", file_path)
+                import traceback
+                traceback.print_exc()
+                logging.debug("Error: %s", e)
         return received_data_items
 
     # this helps avoid circular imports

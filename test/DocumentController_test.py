@@ -99,5 +99,59 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_controller.document_model.get_data_item_by_key(1), document_controller.document_model.data_groups[0].data_items[1])
         self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])
 
+    def test_receive_files_should_put_files_into_document_model_at_end(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1.title = "data_item1"
+        document_model.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2.title = "data_item2"
+        document_model.append_data_item(data_item2)
+        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item3.title = "data_item3"
+        document_model.append_data_item(data_item3)
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"])
+        self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
+
+    def test_receive_files_should_put_files_into_document_model_at_index(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1.title = "data_item1"
+        document_model.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2.title = "data_item2"
+        document_model.append_data_item(data_item2)
+        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item3.title = "data_item3"
+        document_model.append_data_item(data_item3)
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], index=2)
+        self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
+
+    def test_receive_files_should_put_files_into_data_group_at_index(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_group = DataGroup.DataGroup()
+        document_model.data_groups.append(data_group)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1.title = "data_item1"
+        document_model.append_data_item(data_item1)
+        data_group.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2.title = "data_item2"
+        document_model.append_data_item(data_item2)
+        data_group.append_data_item(data_item2)
+        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item3.title = "data_item3"
+        document_model.append_data_item(data_item3)
+        data_group.append_data_item(data_item3)
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2)
+        self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
+        self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
+
 if __name__ == '__main__':
     unittest.main()
