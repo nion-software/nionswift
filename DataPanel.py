@@ -15,6 +15,7 @@ import weakref
 from nion.swift import DataItem
 from nion.swift import DataGroup
 from nion.swift import Panel
+from nion.swift import Storage
 from nion.swift import Utility
 from nion.ui import Geometry
 from nion.ui import UserInterfaceUtility
@@ -31,6 +32,36 @@ _ = gettext.gettext
 
 
 class DataPanel(Panel.Panel):
+
+    class LibraryModelController(object):
+
+        def __init__(self, document_controller):
+            self.ui = document_controller.ui
+            self.item_model_controller = self.ui.create_item_model_controller(["display"])
+            self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
+            self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
+            self.__document_controller_weakref = weakref.ref(document_controller)
+            self.on_receive_files = None
+            # manage the item model
+            parent_item = self.item_model_controller.root
+            before_index = 0
+            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
+            properties = { "display": _("All") }
+            item = self.item_model_controller.create_item(properties)
+            parent_item.insert_child(before_index, item)
+            self.item_model_controller.end_insert()
+
+        def close(self):
+            self.item_model_controller.close()
+            self.item_model_controller = None
+
+        def __get_document_controller(self):
+            return self.__document_controller_weakref()
+        document_controller = property(__get_document_controller)
+
+        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+            pass
+
 
     # a tree model of the data groups. this class watches for changes to the data groups contained in the document controller
     # and responds by updating the item model controller associated with the data group tree view widget. it also handles
@@ -777,6 +808,12 @@ class DataPanel(Panel.Panel):
         self.__current_data_item = None
         self.__closing = False
 
+        self.__block1 = False
+        self.__block2 = False
+
+        self.library_model_controller = DataPanel.LibraryModelController(document_controller)
+        self.library_model_controller.on_receive_files = lambda file_paths, index: self.library_model_receive_files(file_paths, data_group, index)
+
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
@@ -795,18 +832,33 @@ class DataPanel(Panel.Panel):
 
         ui = document_controller.ui
 
+        def library_widget_selection_changed(selected_indexes):
+            if not self.__block2:
+                saved_block1 = self.__block1
+                self.__block1 = True
+                self.data_item_model_controller.data_group = None
+                self.__current_data_item = None
+                self.update_data_panel_selection(self._get_data_panel_selection())
+                self.__block1 = saved_block1
+
+        self.library_widget = ui.create_tree_widget(properties={"height": 24})
+        self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
+        self.library_widget.on_selection_changed = library_widget_selection_changed
+        self.library_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
+
         def data_group_widget_selection_changed(selected_indexes):
-            saved_block1 = self.__block1
-            self.__block1 = True
-            if len(selected_indexes) > 0:
-                index, parent_row, parent_id = selected_indexes[0]
-                data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
-            else:
-                data_group = None
-            self.data_item_model_controller.data_group = data_group
-            self.__current_data_item = None
-            self.update_data_panel_selection(self._get_data_panel_selection())
-            self.__block1 = saved_block1
+            if not self.__block2:
+                saved_block1 = self.__block1
+                self.__block1 = True
+                if len(selected_indexes) > 0:
+                    index, parent_row, parent_id = selected_indexes[0]
+                    data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+                else:
+                    data_group = None
+                self.data_item_model_controller.data_group = data_group
+                self.__current_data_item = None
+                self.update_data_panel_selection(self._get_data_panel_selection())
+                self.__block1 = saved_block1
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
             if key.is_delete:
@@ -817,14 +869,13 @@ class DataPanel(Panel.Panel):
                     self.document_controller.remove_data_group_from_container(data_group, container)
             return False
 
-        self.data_group_widget = ui.create_tree_widget(properties={"min-height": 80})
+        self.data_group_widget = ui.create_tree_widget()
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
         self.data_group_widget.on_selection_changed = data_group_widget_selection_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
         self.data_group_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
         # this message is received when the current item changes in the widget
-        self.__block1 = False
         def data_item_widget_current_item_changed(index):
             if not self.__block1:
                 # check the proper index; there are some cases where it gets out of sync
@@ -854,9 +905,52 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
         self.data_item_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
+        library_label_row = ui.create_row_widget()
+        library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
+        library_label_row.add_spacing(8)
+        library_label_row.add(library_label)
+        library_label_row.add_stretch()
+
+        def create_list_item_widget(ui, item):
+            properties = {"stylesheet": "color: white; background-color: #3875D6;"} if item != "All" else None
+            column = ui.create_column_widget(properties=properties)
+            row = ui.create_row_widget()
+            row.add_spacing(25)
+            row.add(ui.create_label_widget(unicode(item)))
+            row.add_stretch()
+            column.add_spacing(1)
+            column.add(row)
+            column.add_spacing(1)
+            return column
+
+        class StringListBinding(UserInterfaceUtility.Binding):
+            def __init__(self, items):
+                super(StringListBinding, self).__init__(None)
+                self.items = items
+
+        string_list_binding_type = StringListBinding(["All", "Recent"])
+
+        library_list_widget = ui.create_new_list_widget(lambda item: create_list_item_widget(self.ui, item))
+        library_list_widget.bind_items(string_list_binding_type)
+
+        collections_label_row = ui.create_row_widget()
+        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
+        collections_label_row.add_spacing(8)
+        collections_label_row.add(collections_label)
+        collections_label_row.add_stretch()
+
+        self.master_widget = ui.create_column_widget()
+        self.master_widget.add_spacing(4)
+        self.master_widget.add(library_label_row)
+        self.master_widget.add(self.library_widget)
+        self.master_widget.add_spacing(4)
+        self.master_widget.add(collections_label_row)
+        self.master_widget.add(self.data_group_widget)
+        self.master_widget.add_stretch()
+
         self.splitter = ui.create_splitter_widget("vertical", properties)
         self.splitter.orientation = "vertical"
-        self.splitter.add(self.data_group_widget)
+        self.splitter.add(self.master_widget)
         self.splitter.add(self.data_item_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
@@ -926,13 +1020,20 @@ class DataPanel(Panel.Panel):
     # add_listener.
     def update_data_panel_selection(self, data_panel_selection):
         # block. why? so we don't get infinite loops.
+        saved_block2 = self.__block2
+        self.__block2 = True
         saved_block1 = self.__block1
         self.__block1 = True
         data_group = data_panel_selection.data_group
         data_item = data_panel_selection.data_item
-        # first select the right row in the data group widget
-        index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
-        self.data_group_widget.set_current_row(index, parent_row, parent_id)
+        # first select the right row in the library or data group widget
+        if data_group:
+            index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
+            self.library_widget.clear_current_row()
+            self.data_group_widget.set_current_row(index, parent_row, parent_id)
+        else:
+            self.data_group_widget.clear_current_row()
+            self.library_widget.set_current_row(0, 0, 0)
         # update the data group that the data item model is tracking
         self.data_item_model_controller.data_group = data_group
         # update the data item selection
@@ -942,6 +1043,7 @@ class DataPanel(Panel.Panel):
         self.save_state()
         # unblock
         self.__block1 = saved_block1
+        self.__block2 = saved_block2
 
     def update_data_item_selection(self, data_item, source_data_item=None):
         data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
