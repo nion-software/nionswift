@@ -225,7 +225,10 @@ class CalibrationsInspector(InspectorSection):
         calibration_row.add_spacing(12)
         calibration_row.add(units_field)
         calibration_row.add_stretch()
-        return calibration_row
+        column = self.ui.create_column_widget()
+        column.add_spacing(4)
+        column.add(calibration_row)
+        return column
 
 
 class DisplayLimitsInspector(InspectorSection):
@@ -451,7 +454,10 @@ class GraphicsInspector(InspectorSection):
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_size_row)
             graphic_widget.add_spacing(4)
-        return graphic_widget
+        column = self.ui.create_column_widget()
+        column.add_spacing(4)
+        column.add(graphic_widget)
+        return column
 
 
 class DataItemInspector(object):
