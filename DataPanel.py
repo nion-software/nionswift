@@ -23,28 +23,35 @@ from nion.ui import UserInterfaceUtility
 _ = gettext.gettext
 
 
-# TODO: User can delete items from just that folder (delete), or from all folders (shift-delete)
-
 """
-    User clicks on data item -> update data_panel_selection, highlight data group and data item
-    User clicks on data group -> highlight data group, highlight data item if data_panel_selection matches data group
+    The data panel has two parts:
+
+    (1) a selection of what collection is displayed, which may be a data group, smart data group,
+    or the whole document. If the whole document, then an optional filter may also be applied.
+    "within the last 24 hours" would be an example filter.
+
+    (2) the list of data items from the collection. the user may further refine the list of
+    items by filtering by additional criteria. the user also chooses the sorting on the list of
+    data items.
+
 """
 
 
 # persistently store a data specifier
 class DataPanelSelection(object):
-    def __init__(self, data_group=None, data_item=None):
+    def __init__(self, data_group=None, data_item=None, filter_id=None):
         self.__data_group = data_group
         self.__data_item = data_item
-    def __is_empty(self):
-        return not (self.__data_group and self.__data_item)
-    is_empty = property(__is_empty)
+        self.__filter_id = filter_id
     def __get_data_group(self):
         return self.__data_group
     data_group = property(__get_data_group)
     def __get_data_item(self):
         return self.__data_item
     data_item = property(__get_data_item)
+    def __get_filter_id(self):
+        return self.__filter_id
+    filter_id = property(__get_filter_id)
     def __str__(self):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
@@ -62,9 +69,17 @@ class DataPanel(Panel.Panel):
             self.on_receive_files = None
             # manage the item model
             parent_item = self.item_model_controller.root
+            # first item
             before_index = 0
             self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
             properties = { "display": _("All") }
+            item = self.item_model_controller.create_item(properties)
+            parent_item.insert_child(before_index, item)
+            self.item_model_controller.end_insert()
+            # next item
+            before_index = 1
+            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
+            properties = { "display": _("Latest Session") }
             item = self.item_model_controller.create_item(properties)
             parent_item.insert_child(before_index, item)
             self.item_model_controller.end_insert()
@@ -300,6 +315,7 @@ class DataPanel(Panel.Panel):
             self.inserter = None
             self.remover = None
             self.__container = None
+            self.__filter = None
 
         def close(self):
             self.container = None
@@ -317,6 +333,14 @@ class DataPanel(Panel.Panel):
                 self.__container.add_listener(self)
                 self.update_counted_data_items(self.__container.counted_data_items)
         container = property(__get_container, __set_container)
+
+        # thread safe.
+        def __get_filter(self):
+            return self.__filter
+        def __set_filter(self, filter):
+            self.__filter = filter
+            self.__update_data_items()
+        filter = property(__get_filter, __set_filter)
 
         # thread safe
         def __get_data_items(self):
@@ -365,10 +389,11 @@ class DataPanel(Panel.Panel):
                 # include its children
                 data_items = list()
                 for data_item in master_data_items:
-                    data_items.append(data_item)
-                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
-                # next filter the list
-                pass
+                    # apply filter
+                    if not self.__filter or self.__filter(data_item):
+                        # add data item and its dependent data items
+                        data_items.append(data_item)
+                        data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
                 # now generate the insert/remove instructions to make the official
                 # list match the proposed list.
                 index = 0
@@ -447,16 +472,18 @@ class DataPanel(Panel.Panel):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
 
-        # data group is a data group or None
-        def __get_data_group(self):
-            container = self.__binding.container
-            return self.__binding.container if isinstance(container, DataGroup.DataGroup) else None
-        def __set_data_group(self, data_group):
+        def set_data_group_or_filter(self, data_group, filter_id):
             if data_group:
                 self.__binding.container = data_group
+                self.__binding.filter = None
             else:
                 self.__binding.container = self.document_controller.document_model
-        data_group = property(__get_data_group, __set_data_group)
+                if filter_id == "latest-session":
+                    def my_filter(data_item):
+                        return data_item.session_id == self.document_controller.document_model.session.session_id
+                    self.__binding.filter = my_filter
+                else:
+                    self.__binding.filter = None
 
         # container is either a data group or a document model
         def __get_container(self):
@@ -520,8 +547,7 @@ class DataPanel(Panel.Panel):
             if data_item:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-                if self.data_group:
-                    mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
+                mime_data.set_data_as_string("text/ref_container_uuid", str(self.container.uuid))
                 return mime_data
             return None
 
@@ -811,7 +837,11 @@ class DataPanel(Panel.Panel):
 
         def library_widget_selection_changed(selected_indexes):
             if not self.__block1:
-                self.update_data_panel_selection(DataPanelSelection(None, None))
+                index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
+                if index == 0:
+                    self.update_data_panel_selection(DataPanelSelection())
+                else:
+                    self.update_data_panel_selection(DataPanelSelection(filter_id="latest-session"))
 
         self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
@@ -992,6 +1022,7 @@ class DataPanel(Panel.Panel):
         self.__block1 = True
         data_group = data_panel_selection.data_group
         data_item = data_panel_selection.data_item
+        filter_id = data_panel_selection.filter_id
         # first select the right row in the library or data group widget
         if data_group:
             index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
@@ -999,9 +1030,12 @@ class DataPanel(Panel.Panel):
             self.data_group_widget.set_current_row(index, parent_row, parent_id)
         else:
             self.data_group_widget.clear_current_row()
-            self.library_widget.set_current_row(0, 0, 0)
+            if filter_id == "latest-session":
+                self.library_widget.set_current_row(1, -1, 0)
+            else:
+                self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking
-        self.data_item_model_controller.data_group = data_group
+        self.data_item_model_controller.set_data_group_or_filter(data_group, filter_id)
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         self.__selection = data_panel_selection
