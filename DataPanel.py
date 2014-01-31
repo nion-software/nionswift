@@ -930,8 +930,8 @@ class DataPanel(Panel.Panel):
 
         string_list_binding_type = StringListBinding(["All", "Recent"])
 
-        library_list_widget = ui.create_new_list_widget(lambda item: create_list_item_widget(self.ui, item))
-        library_list_widget.bind_items(string_list_binding_type)
+        #library_list_widget = ui.create_new_list_widget(lambda item: create_list_item_widget(self.ui, item))
+        #library_list_widget.bind_items(string_list_binding_type)
 
         collections_label_row = ui.create_row_widget()
         collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
