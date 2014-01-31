@@ -104,21 +104,23 @@ class DocumentModel(Storage.StorageBase):
         return self.__counted_data_items
     counted_data_items = property(__get_counted_data_items)
 
-    def update_counted_data_items(self, counted_data_items):
+    # these are the internal counted data items, not the ones participating in the
+    # data group counting. they are different because the document model doesn't
+    # count data items in sub-groups, whereas the data groups do. these methods are
+    # differentiated only in the two underscores preceding the name.
+    def __update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
         self.notify_parents("update_counted_data_items", counted_data_items)
-    def subtract_counted_data_items(self, counted_data_items):
+        self.notify_listeners("update_counted_data_items", counted_data_items)
+    def __subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
         self.notify_parents("subtract_counted_data_items", counted_data_items)
+        self.notify_listeners("subtract_counted_data_items", counted_data_items)
 
     # override from StorageBase.
     def notify_insert_item(self, key, value, before_index):
         super(DocumentModel, self).notify_insert_item(key, value, before_index)
-        if key == "data_groups":
-            data_group = value
-            # update the count in the data groups
-            self.update_counted_data_items(data_group.counted_data_items)
         if key == "data_items":
             # an item was inserted, start observing
             self.item_inserted(self, key, value, before_index)
@@ -126,9 +128,6 @@ class DocumentModel(Storage.StorageBase):
     # override from StorageBase
     def notify_remove_item(self, key, value, index):
         super(DocumentModel, self).notify_remove_item(key, value, index)
-        if key == "data_groups":
-            # update the count in the data groups
-            self.subtract_counted_data_items(value.counted_data_items)
         if key == "data_items":
             # item will be removed, stop observing
             self.item_removed(self, key, value, index)
@@ -138,25 +137,37 @@ class DocumentModel(Storage.StorageBase):
         # but not into data groups.
         if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
             data_item = item
+            counted_data_items = collections.Counter()
             # become an observer of every data group and data item
             #logging.debug("add observer [5] %s %s", data_item, self)
             data_item.add_observer(self)
+            # update data item count
+            counted_data_items.update([data_item])
             # and the children
             for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
                 #logging.debug("add observer [4] %s %s", child_data_item, self)
                 child_data_item.add_observer(self)
+                # update data item count
+                counted_data_items.update([child_data_item])
+            self.__update_counted_data_items(counted_data_items)
 
     def item_removed(self, parent, key, item, index):
         # watch for data items inserted into this document model or into other data items
         # but not into data groups.
         if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
             data_item = item
+            counted_data_items = collections.Counter()
             # become an observer of every data group and data item
             for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
                 #logging.debug("remove observer [4] %s %s", child_data_item, self)
                 child_data_item.remove_observer(self)
+                # update data item count
+                counted_data_items.update([child_data_item])
             #logging.debug("remove observer [5] %s %s", data_item, self)
             data_item.remove_observer(self)
+            # update data item count
+            counted_data_items.update([data_item])
+            self.__subtract_counted_data_items(counted_data_items)
             if data_item.get_observer_count(self) == 0:
                 self.notify_listeners("data_item_deleted", data_item)
 

@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import logging
 import unittest
 import weakref
 
@@ -116,7 +117,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(data_item1.counted_data_items), 1)
         # now remove data item with children
         data_group.remove_data_item(data_item2)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 2)
+        self.assertEqual(len(document_controller.document_model.counted_data_items), 4)
         self.assertEqual(len(data_group.counted_data_items), 2)
 
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
