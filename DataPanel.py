@@ -455,28 +455,8 @@ class DataPanel(Panel.Panel):
         def _get_model_data_count(self):
             return len(self.list_model_controller.model)
 
-        # determine the container for the data item. this is needed because the container
-        # will not always be the data group that is being currently displayed. for instance,
-        # the data item might be a processed data item and the container would be the
-        # source data item. this is a recursive function, so pass the container in which
-        # to search as first parameter.
-        def __get_data_item_container(self, container, query_data_item):
-            if hasattr(container, "data_items") and query_data_item in container.data_items:
-                return container
-            if hasattr(container, "data_groups"):
-                for data_group in container.data_groups:
-                    container = self.__get_data_item_container(data_group, query_data_item)
-                    if container:
-                        return container
-            if hasattr(container, "data_items"):
-                for data_item in container.data_items:
-                    container = self.__get_data_item_container(data_item, query_data_item)
-                    if container:
-                        return container
-            return None
-
         def remove_data_item(self, data_item):
-            container = self.__get_data_item_container(self.container, data_item)
+            container = DataGroup.get_data_item_container(self.container, data_item)
             assert data_item in container.data_items
             container.remove_data_item(data_item)
 
@@ -684,28 +664,8 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 
-        # determine the container for the data item. this is needed because the container
-        # will not always be the data group that is being currently displayed. for instance,
-        # the data item might be a processed data item and the container would be the
-        # source data item. this is a recursive function, so pass the container in which
-        # to search as first parameter.
-        def __get_data_item_container(self, container, query_data_item):
-            if hasattr(container, "data_items") and query_data_item in container.data_items:
-                return container
-            if hasattr(container, "data_groups"):
-                for data_group in container.data_groups:
-                    container = self.__get_data_item_container(data_group, query_data_item)
-                    if container:
-                        return container
-            if hasattr(container, "data_items"):
-                for data_item in container.data_items:
-                    container = self.__get_data_item_container(data_item, query_data_item)
-                    if container:
-                        return container
-            return None
-
         def remove_data_item(self, data_item):
-            container = self.__get_data_item_container(self.data_group, data_item)
+            container = DataGroup.get_data_item_container(self.data_group, data_item)
             assert data_item in container.data_items
             container.remove_data_item(data_item)
 
