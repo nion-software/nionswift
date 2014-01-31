@@ -31,6 +31,24 @@ _ = gettext.gettext
 """
 
 
+# persistently store a data specifier
+class DataPanelSelection(object):
+    def __init__(self, data_group=None, data_item=None):
+        self.__data_group = data_group
+        self.__data_item = data_item
+    def __is_empty(self):
+        return not (self.__data_group and self.__data_item)
+    is_empty = property(__is_empty)
+    def __get_data_group(self):
+        return self.__data_group
+    data_group = property(__get_data_group)
+    def __get_data_item(self):
+        return self.__data_item
+    data_item = property(__get_data_item)
+    def __str__(self):
+        return "(%s,%s)" % (str(self.data_group), str(self.data_item))
+
+
 class DataPanel(Panel.Panel):
 
     class LibraryModelController(object):
@@ -855,7 +873,7 @@ class DataPanel(Panel.Panel):
         def data_item_double_clicked(index):
             data_item = self.data_item_model_controller.get_data_item_by_index(index)
             if data_item:
-                self.document_controller.new_window("data", DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, data_item))
+                self.document_controller.new_window("data", DataPanelSelection(self.data_item_model_controller.data_group, data_item))
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
@@ -926,7 +944,7 @@ class DataPanel(Panel.Panel):
     def close(self):
         self.__closing = True
         self.splitter.save_state("window/v1/data_panel_splitter")
-        self.update_data_panel_selection(DataItem.DataItemSpecifier())
+        self.update_data_panel_selection(DataPanelSelection())
         # close the models
         self.data_item_model_controller.close()
         self.data_group_model_controller.close()
@@ -947,7 +965,7 @@ class DataPanel(Panel.Panel):
         data_item_uuid = uuid.UUID(data_item_uuid_str) if data_item_uuid_str else None
         data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
         data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
-        self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
+        self.update_data_panel_selection(DataPanelSelection(data_group, data_item))
 
     def save_state(self):
         if not self.__closing:
@@ -972,7 +990,7 @@ class DataPanel(Panel.Panel):
     focused = property(__get_focused, __set_focused)
 
     def _get_data_panel_selection(self):
-        return DataItem.DataItemSpecifier(self.data_item_model_controller.data_group, self.__current_data_item)
+        return DataPanelSelection(self.data_item_model_controller.data_group, self.__current_data_item)
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
@@ -1007,13 +1025,13 @@ class DataPanel(Panel.Panel):
 
     def update_data_item_selection(self, data_item, source_data_item=None):
         data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
-        self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_item))
+        self.update_data_panel_selection(DataPanelSelection(data_group, data_item))
 
     # this message comes from the data group model, which is why it is named the way it is
     def data_group_model_receive_files(self, file_paths, data_group, index):
         data_items = self.document_controller.receive_files(file_paths, data_group, index)
         if len(data_items) > 0:
             # select the first item/group
-            self.update_data_panel_selection(DataItem.DataItemSpecifier(data_group, data_items[0]))
+            self.update_data_panel_selection(DataPanelSelection(data_group, data_items[0]))
             return True
         return False

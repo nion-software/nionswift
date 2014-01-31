@@ -1244,24 +1244,6 @@ class DataItem(Storage.StorageBase):
         return data_item_copy
 
 
-# persistently store a data specifier
-class DataItemSpecifier(object):
-    def __init__(self, data_group=None, data_item=None):
-        self.__data_group = data_group
-        self.__data_item = data_item
-    def __is_empty(self):
-        return not (self.__data_group and self.__data_item)
-    is_empty = property(__is_empty)
-    def __get_data_group(self):
-        return self.__data_group
-    data_group = property(__get_data_group)
-    def __get_data_item(self):
-        return self.__data_item
-    data_item = property(__get_data_item)
-    def __str__(self):
-        return "(%s,%s)" % (str(self.data_group), str(self.data_item))
-
-
 # TODO: Migrate to use DataItemBindingSource instead.
 class DataItemBinding(Observable.Broadcaster):
 
