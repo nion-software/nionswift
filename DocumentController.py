@@ -238,7 +238,7 @@ class DocumentController(Observable.Broadcaster):
         if self.weak_data_panel:
             data_panel = self.weak_data_panel()
             if data_panel and data_panel.focused:
-                return data_panel._get_data_panel_selection().data_item
+                return data_panel.data_item
         # if not found, check for focused or selected image panel
         if self.selected_image_panel:
             return self.selected_image_panel.data_item

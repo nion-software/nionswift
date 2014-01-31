@@ -783,11 +783,10 @@ class DataPanel(Panel.Panel):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
         self.__focused = False
-        self.__current_data_item = None
+        self.__selection = DataPanelSelection()
         self.__closing = False
 
         self.__block1 = False
-        self.__block2 = False
 
         self.library_model_controller = DataPanel.LibraryModelController(document_controller)
         self.library_model_controller.on_receive_files = lambda file_paths, index: self.library_model_receive_files(file_paths, data_group, index)
@@ -798,7 +797,7 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller = DataPanel.DataItemModelController2(document_controller)
 
         def data_item_model_receive_files(file_paths, row, parent_row):
-            data_group = self.data_item_model_controller.data_group
+            data_group = self.__selection.data_group
             if parent_row == -1:  # don't accept drops _on top_ of other items
                 # row=-1, parent=-1 means dropping outside of any items; so put it at the end
                 row = row if row >= 0 else len(data_group.data_items)
@@ -811,32 +810,22 @@ class DataPanel(Panel.Panel):
         ui = document_controller.ui
 
         def library_widget_selection_changed(selected_indexes):
-            if not self.__block2:
-                saved_block1 = self.__block1
-                self.__block1 = True
-                self.data_item_model_controller.data_group = None
-                self.__current_data_item = None
-                self.update_data_panel_selection(self._get_data_panel_selection())
-                self.__block1 = saved_block1
+            if not self.__block1:
+                self.update_data_panel_selection(DataPanelSelection(None, None))
 
-        self.library_widget = ui.create_tree_widget(properties={"height": 24})
+        self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
         self.library_widget.on_selection_changed = library_widget_selection_changed
         self.library_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
         def data_group_widget_selection_changed(selected_indexes):
-            if not self.__block2:
-                saved_block1 = self.__block1
-                self.__block1 = True
+            if not self.__block1:
                 if len(selected_indexes) > 0:
                     index, parent_row, parent_id = selected_indexes[0]
                     data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
                 else:
                     data_group = None
-                self.data_item_model_controller.data_group = data_group
-                self.__current_data_item = None
-                self.update_data_panel_selection(self._get_data_panel_selection())
-                self.__block1 = saved_block1
+                self.update_data_panel_selection(DataPanelSelection(data_group, None))
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
             if key.is_delete:
@@ -858,7 +847,7 @@ class DataPanel(Panel.Panel):
             if not self.__block1:
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = self.data_item_model_controller.get_data_item_by_index(index)
-                self.__current_data_item = data_item
+                self.__selection = DataPanelSelection(self.__selection.data_group, data_item)
                 if self.focused:
                     self.document_controller.set_selected_data_item(data_item)
                 self.save_state()
@@ -873,7 +862,7 @@ class DataPanel(Panel.Panel):
         def data_item_double_clicked(index):
             data_item = self.data_item_model_controller.get_data_item_by_index(index)
             if data_item:
-                self.document_controller.new_window("data", DataPanelSelection(self.data_item_model_controller.data_group, data_item))
+                self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item))
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
@@ -969,7 +958,7 @@ class DataPanel(Panel.Panel):
 
     def save_state(self):
         if not self.__closing:
-            data_panel_selection = self._get_data_panel_selection()
+            data_panel_selection = self.__selection
             if data_panel_selection.data_group:
                 self.ui.set_persistent_string("selected_data_group", str(data_panel_selection.data_group.uuid))
             else:
@@ -986,11 +975,12 @@ class DataPanel(Panel.Panel):
     def __set_focused(self, focused):
         self.__focused = focused
         if not self.__closing:
-            self.document_controller.set_selected_data_item(self.__current_data_item)
+            self.document_controller.set_selected_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)
 
-    def _get_data_panel_selection(self):
-        return DataPanelSelection(self.data_item_model_controller.data_group, self.__current_data_item)
+    def __get_data_item(self):
+        return self.__selection.data_item
+    data_item = property(__get_data_item)
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
@@ -998,8 +988,6 @@ class DataPanel(Panel.Panel):
     # add_listener.
     def update_data_panel_selection(self, data_panel_selection):
         # block. why? so we don't get infinite loops.
-        saved_block2 = self.__block2
-        self.__block2 = True
         saved_block1 = self.__block1
         self.__block1 = True
         data_group = data_panel_selection.data_group
@@ -1016,12 +1004,11 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller.data_group = data_group
         # update the data item selection
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
-        self.__current_data_item = data_panel_selection.data_item
+        self.__selection = data_panel_selection
         # save the users selection
         self.save_state()
         # unblock
         self.__block1 = saved_block1
-        self.__block2 = saved_block2
 
     def update_data_item_selection(self, data_item, source_data_item=None):
         data_group = self.document_controller.document_model.get_data_item_data_group(data_item)

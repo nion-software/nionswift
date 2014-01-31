@@ -170,7 +170,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_item_widget.on_current_item_changed(1)  # data_group2 now has data_item1 selected
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         data_panel.data_item_widget.on_current_item_changed(0)  # data_group1 still has data_item1 selected
-        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1)
+        self.assertEqual(data_panel.data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
@@ -181,7 +181,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
-        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1)
+        self.assertEqual(data_panel.data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
@@ -190,7 +190,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         data_panel.data_group_widget.on_selection_changed(((1, 0, 1), ))  # data_group1 now has data_group2 selected
         data_panel.data_item_widget.on_current_item_changed(-1)  # data_group1 now has no data item selected
-        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
+        self.assertIsNone(data_panel.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
@@ -201,7 +201,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group2, None))
-        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
+        self.assertIsNone(data_panel.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
@@ -246,18 +246,13 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.processing_invert()
         self.assertEqual(len(data_item1.data_items), 1)
         # now make sure data panel shows it as selected
-        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1.data_items[0])
+        self.assertEqual(data_panel.data_item, data_item1.data_items[0])
         data_group_widget = data_panel.data_group_widget
         data_item_widget = data_panel.data_item_widget
-        selected_data_group = data_panel._get_data_panel_selection().data_group
-        # these three asserts were disabled when switching to flattened data items
-        #self.assertEqual(selected_data_group, data_group1)
-        #self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
-        #self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), data_item1.data_items[0])
         # switch away and back and make sure selection is still correct
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group2, data_item2))
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1.data_items[0]))
-        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_item1.data_items[0])
+        self.assertEqual(data_panel.data_item, data_item1.data_items[0])
         selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
         self.assertEqual(selected_data_group, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
@@ -384,11 +379,9 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_group.append_data_item(data_item)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
-        self.assertIsNone(data_panel._get_data_panel_selection().data_group)
-        self.assertIsNone(data_panel._get_data_panel_selection().data_item)
+        self.assertIsNone(data_panel.data_item)
         data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, 0)
-        self.assertEqual(data_panel._get_data_panel_selection().data_group, data_group)
-        self.assertEqual(data_panel._get_data_panel_selection().data_item, data_group.data_items[0])
+        self.assertEqual(data_panel.data_item, data_group.data_items[0])
         data_panel.close()
 
     def test_data_panel_remove_group(self):
