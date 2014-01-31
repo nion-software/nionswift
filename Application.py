@@ -173,6 +173,7 @@ class Application(object):
                     count = c.fetchone()[0]
                     if count == 1:
                         c.execute("INSERT INTO relationships (parent_uuid, key, item_index, item_uuid) VALUES (?, 'data_items', ?, ?)", (document_uuid, index, data_item_uuid))
+                        c.execute("UPDATE nodes SET refcount=refcount+1 WHERE uuid = ?", (data_item_uuid, ))
                         index += 1
                 c.execute("UPDATE version SET version = ?", (3, ))
                 version = 3
