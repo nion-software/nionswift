@@ -73,6 +73,46 @@ def sort_by_date_desc(container):
 
 class DataPanel(Panel.Panel):
 
+    class LibraryItemController(object):
+
+        def __init__(self, container, filter_id=None):
+            self.__binding = DataPanel.DataItemsInContainerBinding()
+            self.__count = 0
+            self.title_updater = None
+            def increment_count():
+                self.__count += 1
+                if self.title_updater:
+                    self.title_updater(self.__count)
+            def decrement_count():
+                self.__count -= 1
+                if self.title_updater:
+                    self.title_updater(self.__count)
+            self.__binding.inserter = lambda data_item, before_index: increment_count()
+            self.__binding.remover = lambda data_item, index: decrement_count()
+            self.__binding.container = container
+            if filter_id == "latest-session":
+                def latest_session_filter(data_item):
+                    return data_item.session_id == container.session.session_id
+                self.__binding.filter = latest_session_filter
+                self.__binding.sort = sort_by_date_desc
+            elif filter_id == "recent":
+                def recent_filter(data_item):
+                    date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                self.__binding.filter = recent_filter
+                self.__binding.sort = sort_by_date_desc
+            else:
+                self.__binding.filter = None
+                self.__binding.sort = sort_natural
+
+        def close(self):
+            self.__binding.close()
+            self.__binding = None
+
+        def periodic(self):
+            self.__binding.periodic()
+
+
     class LibraryModelController(object):
 
         def __init__(self, document_controller):
@@ -82,37 +122,40 @@ class DataPanel(Panel.Panel):
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.on_receive_files = None
-            # manage the item model
-            parent_item = self.item_model_controller.root
-            # first item
-            before_index = 0
-            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-            properties = { "display": _("All") }
-            item = self.item_model_controller.create_item(properties)
-            parent_item.insert_child(before_index, item)
-            self.item_model_controller.end_insert()
-            # next item
-            before_index = 1
-            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-            properties = { "display": _("Latest Session") }
-            item = self.item_model_controller.create_item(properties)
-            parent_item.insert_child(before_index, item)
-            self.item_model_controller.end_insert()
-            # next item
-            before_index = 2
-            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-            properties = { "display": _("Recent Data") }
-            item = self.item_model_controller.create_item(properties)
-            parent_item.insert_child(before_index, item)
-            self.item_model_controller.end_insert()
+            self.__item_controllers = list()
+            self.__item_count = 0
+            # build the items
+            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller.document_model))
+            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller.document_model, "latest-session"))
+            self.__append_item_controller(_("Recent"), DataPanel.LibraryItemController(document_controller.document_model, "recent"))
 
         def close(self):
+            for item_controller in self.__item_controllers:
+                item_controller.close()
+            self.__item_controllers = None
             self.item_model_controller.close()
             self.item_model_controller = None
+
+        def periodic(self):
+            for item_controller in self.__item_controllers:
+                item_controller.periodic()
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
+
+        def __append_item_controller(self, title, item_controller):
+            parent_item = self.item_model_controller.root
+            self.item_model_controller.begin_insert(self.__item_count, self.__item_count, parent_item.row, parent_item.id)
+            item = self.item_model_controller.create_item()
+            parent_item.insert_child(self.__item_count, item)
+            self.item_model_controller.end_insert()
+            def title_updater(count):
+                item.data["display"] = title + (" (%i)" % count)
+                self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+            item_controller.title_updater = title_updater
+            self.__item_controllers.append(item_controller)
+            self.__item_count += 1
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
             pass
@@ -1027,6 +1070,7 @@ class DataPanel(Panel.Panel):
     def periodic(self):
         super(DataPanel, self).periodic()
         self.data_item_model_controller.periodic()
+        self.library_model_controller.periodic()
 
     def restore_state(self):
         data_group_uuid_str = self.ui.get_persistent_string("selected_data_group")

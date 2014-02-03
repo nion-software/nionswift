@@ -40,11 +40,12 @@ class DocumentModel(Storage.StorageBase):
 
     def about_to_delete(self):
         self.datastore.disconnected = True
-        self.session = None
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
         for data_item in copy.copy(self.data_items):
             self.remove_data_item(data_item)
+        # clear the session last because filters might be using it when removing other items
+        self.session = None
 
     # TODO: make DocumentModel.read private
     def __read(self):
