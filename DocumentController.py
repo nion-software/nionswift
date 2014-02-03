@@ -372,7 +372,7 @@ class DocumentController(Observable.Broadcaster):
                 return data_item
             else:
                 new_data_item = DataItem.DataItem()
-                new_data_item.title = (prefix if prefix else "") + str(data_item) + (suffix if suffix else "")
+                new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
                 new_data_item.operations.append(operation)
                 data_item.data_items.append(new_data_item)
                 if select:
@@ -425,7 +425,7 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item:
             new_data_item = DataItem.DataItem()
-            new_data_item.title = _("Clone of ") + str(data_item)
+            new_data_item.title = _("Clone of ") + data_item.title
             data_item.data_items.append(new_data_item)
             return new_data_item
         return None

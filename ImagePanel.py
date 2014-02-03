@@ -1356,8 +1356,8 @@ class ImagePanel(Panel.Panel):
     # like graphics or the data itself.
     def data_item_content_changed(self, data_item, changes):
         if data_item == self.data_item:  # we can get messages from our source data items too
-            self.image_header_controller.title = str(data_item)
-            self.line_plot_header_controller.title = str(data_item)
+            self.image_header_controller.title = data_item.title if data_item else unicode()
+            self.line_plot_header_controller.title = data_item.title if data_item else unicode()
             selected = self.document_controller.selected_image_panel == self
             if data_item:
                 if data_item.is_data_1d:

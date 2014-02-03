@@ -570,7 +570,7 @@ class DataPanel(Panel.Panel):
             properties = {
                 "uuid": str(data_item.uuid),
                 "level": level,
-                "display": str(data_item),
+                "display": data_item.title,
             }
             self.list_model_controller.begin_insert(before_index, before_index)
             self.list_model_controller.model.insert(before_index, properties)
@@ -608,7 +608,7 @@ class DataPanel(Panel.Panel):
             thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
             data = self._get_model_data(index)
             level = data["level"]
-            display = str(data_item)
+            display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
             display4 = data_item.live_status_as_string
@@ -702,7 +702,7 @@ class DataPanel(Panel.Panel):
             properties = {
                 "uuid": str(data_item.uuid),
                 "level": level,
-                "display": str(data_item),
+                "display": data_item.title,
             }
             self.list_model_controller.begin_insert(before_index_flat, before_index_flat)
             self.list_model_controller.model.insert(before_index_flat, properties)
@@ -831,7 +831,7 @@ class DataPanel(Panel.Panel):
             thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
             data = self._get_model_data(index)
             level = data["level"]
-            display = str(data_item)
+            display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
             display4 = data_item.live_status_as_string

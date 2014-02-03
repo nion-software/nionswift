@@ -216,7 +216,7 @@ class DocumentModel(Storage.StorageBase):
         def uuid_keys(self):
             return [data_item.uuid for data_item in self.document_model.data_items_by_key]
         def title_keys(self):
-            return [str(data_item) for data_item in self.document_model.data_items_by_key]
+            return [data_item.title for data_item in self.document_model.data_items_by_key]
         def keys(self):
             return self.uuid_keys()
 
@@ -243,7 +243,7 @@ class DocumentModel(Storage.StorageBase):
         def uuid_keys(self):
             return [data_item.uuid for data_item in self.document_model.data_items_by_key]
         def title_keys(self):
-            return [str(data_item) for data_item in self.document_model.data_items_by_key]
+            return [data_item.title for data_item in self.document_model.data_items_by_key]
         def keys(self):
             return self.uuid_keys()
 
@@ -308,7 +308,7 @@ class DocumentModel(Storage.StorageBase):
     # access data items by title
     def get_data_item_by_title(self, title):
         for data_item in self.get_flat_data_item_generator():
-            if str(data_item) == title:
+            if data_item.title == title:
                 return data_item
         return None
     def get_data_by_title(self, title):

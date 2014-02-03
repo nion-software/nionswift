@@ -357,7 +357,7 @@ class DataItem(Storage.StorageBase):
         self.__set_master_data(data)
 
     def __str__(self):
-        return self.title if self.title else _("Untitled")
+        return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
 
     @classmethod
     def _get_data_file_path(cls, uuid_, datetime_element, session_id=None):
@@ -785,7 +785,7 @@ class DataItem(Storage.StorageBase):
 
     # title
     def __get_title(self):
-        return self.__title
+        return self.__title if self.__title else _("Untitled")
     def __set_title(self, value):
         self.__title = value
         self.notify_set_property("title", value)
