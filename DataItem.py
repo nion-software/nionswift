@@ -477,14 +477,13 @@ class DataItem(Storage.StorageBase):
             datetime_ = datetime_ if datetime_ else datetime.datetime.now()
             session_id = datetime_.strftime("%Y%m%d-000000")
         return session_id
-    # used for testing only (for now)
-    def _set_session_id(self, session_id):
+    def __set_session_id(self, session_id):
         # verify its in suitable form
         assert datetime.datetime.strptime(session_id, "%Y%m%d-%H%M%S")
         # set it into properties
         with self.property_changes() as property_accessor:
             property_accessor.properties["session_id"] = session_id
-    session_id = property(__get_session_id)
+    session_id = property(__get_session_id, __set_session_id)
 
     def data_item_changes(self):
         class DataItemChangeContextManager(object):

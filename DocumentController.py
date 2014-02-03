@@ -350,6 +350,7 @@ class DocumentController(Observable.Broadcaster):
     # sets the selected data item in the data panel and an appropriate image panel.
     # use this sparingly, and only in response to user requests such as
     # adding an operation or starting an acquisition.
+    # not thread safe
     def set_data_item_selection(self, data_item, source_data_item=None):
         self.notify_listeners("update_data_item_selection", data_item, source_data_item)
         # now attempt to display the data item in an image panel

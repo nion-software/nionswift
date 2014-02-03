@@ -408,7 +408,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_operation.set_graphic("graphic", crop_graphic)
             crop_data_item.operations.append(crop_operation)
             data_item.data_items.append(crop_data_item)
-            data_item._set_session_id("20131231-235959")
+            data_item.session_id = "20131231-235959"
             self.assertEqual(crop_data_item.session_id, data_item.session_id)
 
 

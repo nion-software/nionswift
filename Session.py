@@ -55,7 +55,6 @@ class Session(object):
         self.__channel_activations = dict()  # maps hardware_source_id to a set of activated channels
         self.__channel_activations_mutex = threading.RLock()
         self.__periodic_queue = Process.TaskQueue()
-        self.__data_group = None
 
     def periodic(self):
         self.__periodic_queue.perform_tasks()
@@ -76,11 +75,6 @@ class Session(object):
         elif self.document_controller == document_controller:
             self.document_controller = None
 
-    def __get_data_group(self):
-        if self.__data_group is None:
-            self.__data_group = self.document_model.get_or_create_data_group(_("Sources"))
-        return self.__data_group
-
     # this message is received when a hardware source will start playing in this session.
     def will_start_playing(self, hardware_source):
         with self.__channel_activations_mutex:
@@ -99,20 +93,16 @@ class Session(object):
 
         # these functions will be run on the main thread.
         # be careful about binding the parameter. cannot use 'data_item' directly.
-        def insert_data_item_to_data_group(append_data_item):
-            self.document_model.append_data_item(append_data_item)
-            data_group.insert_data_item(0, append_data_item)
+        def insert_data_item(append_data_item):
+            self.document_model.insert_data_item(0, append_data_item)
             append_data_item.remove_ref()
-        def append_data_item_to_data_group(append_data_item):
+        def append_data_item(append_data_item):
             self.document_model.append_data_item(append_data_item)
-            data_group.append_data_item(append_data_item)
             append_data_item.remove_ref()
         def activate_data_item(data_item_to_activate):
-            data_group.move_data_item(data_item_to_activate, 0)
             if self.document_controller:
                 self.document_controller.set_data_item_selection(data_item_to_activate)
 
-        data_group = self.__get_data_group()
         data_item_set = {}
 
         # for each channel, see if a matching data item exists.
@@ -121,7 +111,7 @@ class Session(object):
         for channel in channels:
             data_item_name = "%s.%s" % (hardware_source.display_name, channel)
             # only use existing data item if it has a data buffer that matches
-            data_item = DataGroup.get_data_item_in_container_by_title(data_group, data_item_name)
+            data_item = DataGroup.get_data_item_in_container_by_title(self.document_model, data_item_name)
             # to reuse, first verify that the hardware source id, if any, matches
             if data_item:
                 hardware_source_id = data_item.properties.get("hardware_source_id")
@@ -139,27 +129,26 @@ class Session(object):
                 do_copy = True
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
-                data_item_copy.add_ref()  # this will be balanced in append_data_item_to_data_group
+                data_item_copy.add_ref()  # this will be balanced in append_data_item
                 for _ in xrange(len(data_item_copy.data_items)):
                     data_item_copy.data_items.pop()
-                self.__periodic_queue.put(lambda value=data_item_copy: append_data_item_to_data_group(value))
+                data_item.session_id = self.session_id  # immediately update the session id
+                self.__periodic_queue.put(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
-                data_item.add_ref()  # this will be balanced in insert_data_item_to_data_group
+                data_item.add_ref()  # this will be balanced in insert_data_item
                 data_item.title = data_item_name
                 with data_item.property_changes() as context:
                     context.properties["hardware_source_id"] = hardware_source.hardware_source_id
-                self.__periodic_queue.put(lambda value=data_item: insert_data_item_to_data_group(value))
+                self.__periodic_queue.put(lambda value=data_item: insert_data_item(value))
                 with self.__channel_activations_mutex:
                     self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
-            with data_item.property_changes() as context:
-                context.properties["session_id"] = self.session_id
+            data_item.session_id = self.session_id
             data_item_set[channel] = data_item
             # check to see if its been activated. if not, activate it.
             with self.__channel_activations_mutex:
                 if channel not in self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()):
-                    logging.debug("queueing %s", data_item)
                     self.__periodic_queue.put(lambda value=data_item: activate_data_item(value))
                     self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
 

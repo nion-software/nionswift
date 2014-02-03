@@ -530,6 +530,10 @@ class DataPanel(Panel.Panel):
             return self.__binding.container
         container = property(__get_container)
 
+        def __get_data_items(self):
+            return self.__binding.data_items
+        data_items = property(__get_data_items)
+
         def get_data_item_by_index(self, index):
             data_items = self.__binding.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
@@ -1068,6 +1072,9 @@ class DataPanel(Panel.Panel):
     # to be updated to reflect the new selection. care needs to be taken to not introduce
     # update cycles. this message is also received directly from the document_controller via
     # add_listener.
+    # three areas where this method is used are when starting acquisition, when quitting and
+    # restarting, and after adding an operation to a data item.
+    # not thread safe
     def update_data_panel_selection(self, data_panel_selection):
         # block. why? so we don't get infinite loops.
         saved_block1 = self.__block1
@@ -1091,6 +1098,7 @@ class DataPanel(Panel.Panel):
         # update the data group that the data item model is tracking
         self.data_item_model_controller.set_data_group_or_filter(data_group, filter_id)
         # update the data item selection
+        self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         self.__selection = data_panel_selection
         # save the users selection
@@ -1098,9 +1106,13 @@ class DataPanel(Panel.Panel):
         # unblock
         self.__block1 = saved_block1
 
+    # not thread safe
     def update_data_item_selection(self, data_item, source_data_item=None):
-        data_group = self.document_controller.document_model.get_data_item_data_group(data_item)
-        self.update_data_panel_selection(DataPanelSelection(data_group, data_item))
+        # never change the selected data group or filter. however, if the data item appears in the list, select it
+        for i_data_item in self.data_item_model_controller.data_items:
+            if data_item == i_data_item:
+                self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
+                break
 
     # this message comes from the data group model, which is why it is named the way it is
     def data_group_model_receive_files(self, file_paths, data_group, index):
