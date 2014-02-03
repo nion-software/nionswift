@@ -52,6 +52,8 @@ _ = gettext.gettext
 
 # refer to Illustrator / Default keyboard shortcuts
 # http://help.adobe.com/en_US/illustrator/cs/using/WS714a382cdf7d304e7e07d0100196cbc5f-6426a.html
+# secondary Lightroom:
+# http://helpx.adobe.com/lightroom/help/keyboard-shortcuts.html
 
 # KEYS FOR CHOOSING TOOLS               ACTION/KEY
 # selection tool (whole object)         v

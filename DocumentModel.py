@@ -40,10 +40,10 @@ class DocumentModel(Storage.StorageBase):
 
     def about_to_delete(self):
         self.datastore.disconnected = True
-        for data_group in copy.copy(self.data_groups):
-            self.data_groups.remove(data_group)
         for data_item in copy.copy(self.data_items):
             self.remove_data_item(data_item)
+        for data_group in copy.copy(self.data_groups):
+            self.data_groups.remove(data_group)
         # clear the session last because filters might be using it when removing other items
         self.session = None
 
@@ -68,6 +68,9 @@ class DocumentModel(Storage.StorageBase):
         self.__data_items.insert(before_index, data_item)
 
     def remove_data_item(self, data_item):
+        for data_group in self.get_flat_data_group_generator():
+            if data_item in data_group.data_items:
+                data_group.remove_data_item(data_item)
         self.__data_items.remove(data_item)
 
     def __get_data_items(self):
