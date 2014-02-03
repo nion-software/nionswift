@@ -557,7 +557,12 @@ class DataPanel(Panel.Panel):
 
         # this method if called when one of our listened to items changes. not a shining example of efficiency.
         def __data_item_inserted(self, data_item, before_index):
-            level = list(DataGroup.get_flat_data_item_with_level_generator_in_container(self.container))[before_index][1]
+            data_item_list_with_levels = DataGroup.get_flat_data_item_with_level_generator_in_container(self.container)
+            level = 0
+            for i_data_item, i_level in data_item_list_with_levels:
+                if i_data_item == data_item:
+                    level = i_level
+                    break
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.add_ref()

@@ -255,7 +255,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item, data_item1.data_items[0])
         selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
         self.assertEqual(selected_data_group, data_group1)
-        self.assertEqual(data_panel.data_item_model_controller.data_group, data_group1)
+        self.assertEqual(data_panel.data_item_model_controller.container, data_group1)
         self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), data_item1.data_items[0])
         data_panel.close()
         document_controller.close()
