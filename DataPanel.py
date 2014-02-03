@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import functools
 import gettext
 import logging
@@ -56,6 +57,20 @@ class DataPanelSelection(object):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
 
+def sort_natural(container):
+    flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(container))
+    def sort_key(data_item):
+        return flat_data_items.index(data_item)
+    return sort_key, False
+
+
+def sort_by_date_desc(container):
+    def sort_key(data_item):
+        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+        return date_item_datetime
+    return sort_key, True
+
+
 class DataPanel(Panel.Panel):
 
     class LibraryModelController(object):
@@ -80,6 +95,13 @@ class DataPanel(Panel.Panel):
             before_index = 1
             self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
             properties = { "display": _("Latest Session") }
+            item = self.item_model_controller.create_item(properties)
+            parent_item.insert_child(before_index, item)
+            self.item_model_controller.end_insert()
+            # next item
+            before_index = 2
+            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
+            properties = { "display": _("Recent Data") }
             item = self.item_model_controller.create_item(properties)
             parent_item.insert_child(before_index, item)
             self.item_model_controller.end_insert()
@@ -316,6 +338,7 @@ class DataPanel(Panel.Panel):
             self.remover = None
             self.__container = None
             self.__filter = None
+            self.sort = sort_natural
 
         def close(self):
             self.container = None
@@ -341,6 +364,14 @@ class DataPanel(Panel.Panel):
             self.__filter = filter
             self.__update_data_items()
         filter = property(__get_filter, __set_filter)
+
+        # thread safe.
+        def __get_sort(self):
+            return self.__sort
+        def __set_sort(self, sort):
+            self.__sort = sort
+            self.__update_data_items()
+        sort = property(__get_sort, __set_sort)
 
         # thread safe
         def __get_data_items(self):
@@ -383,8 +414,8 @@ class DataPanel(Panel.Panel):
                     if data_item.has_master_data:
                         master_data_items.append(data_item)
                 # sort the master data list
-                flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(self.container))
-                master_data_items.sort(key=lambda x: flat_data_items.index(x))
+                sort_key, reverse = self.sort(self.container)
+                master_data_items.sort(key=sort_key, reverse=reverse)
                 # construct the data items list by expanding each master data item to
                 # include its children
                 data_items = list()
@@ -476,14 +507,23 @@ class DataPanel(Panel.Panel):
             if data_group:
                 self.__binding.container = data_group
                 self.__binding.filter = None
+                self.__binding.sort = sort_natural
             else:
                 self.__binding.container = self.document_controller.document_model
                 if filter_id == "latest-session":
-                    def my_filter(data_item):
+                    def latest_session_filter(data_item):
                         return data_item.session_id == self.document_controller.document_model.session.session_id
-                    self.__binding.filter = my_filter
+                    self.__binding.filter = latest_session_filter
+                    self.__binding.sort = sort_by_date_desc
+                elif filter_id == "recent":
+                    def recent_filter(data_item):
+                        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                        return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                    self.__binding.filter = recent_filter
+                    self.__binding.sort = sort_by_date_desc
                 else:
                     self.__binding.filter = None
+                    self.__binding.sort = sort_natural
 
         # container is either a data group or a document model
         def __get_container(self):
@@ -838,12 +878,14 @@ class DataPanel(Panel.Panel):
         def library_widget_selection_changed(selected_indexes):
             if not self.__block1:
                 index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
-                if index == 0:
-                    self.update_data_panel_selection(DataPanelSelection())
-                else:
+                if index == 1:
                     self.update_data_panel_selection(DataPanelSelection(filter_id="latest-session"))
+                elif index == 2:
+                    self.update_data_panel_selection(DataPanelSelection(filter_id="recent"))
+                else:
+                    self.update_data_panel_selection(DataPanelSelection())
 
-        self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18})
+        self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
         self.library_widget.on_selection_changed = library_widget_selection_changed
         self.library_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
@@ -1032,6 +1074,8 @@ class DataPanel(Panel.Panel):
             self.data_group_widget.clear_current_row()
             if filter_id == "latest-session":
                 self.library_widget.set_current_row(1, -1, 0)
+            elif filter_id == "recent":
+                self.library_widget.set_current_row(2, -1, 0)
             else:
                 self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking
