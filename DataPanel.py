@@ -924,7 +924,7 @@ class DataPanel(Panel.Panel):
             if not self.__block1:
                 # check the proper index; there are some cases where it gets out of sync
                 data_item = self.data_item_model_controller.get_data_item_by_index(index)
-                self.__selection = DataPanelSelection(self.__selection.data_group, data_item)
+                self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
                 if self.focused:
                     self.document_controller.set_selected_data_item(data_item)
                 self.save_state()
@@ -939,7 +939,7 @@ class DataPanel(Panel.Panel):
         def data_item_double_clicked(index):
             data_item = self.data_item_model_controller.get_data_item_by_index(index)
             if data_item:
-                self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item))
+                self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
@@ -1027,11 +1027,12 @@ class DataPanel(Panel.Panel):
     def restore_state(self):
         data_group_uuid_str = self.ui.get_persistent_string("selected_data_group")
         data_item_uuid_str = self.ui.get_persistent_string("selected_data_item")
+        filter_id = self.ui.get_persistent_string("selected_filter_id")
         data_group_uuid = uuid.UUID(data_group_uuid_str) if data_group_uuid_str else None
         data_item_uuid = uuid.UUID(data_item_uuid_str) if data_item_uuid_str else None
         data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
         data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
-        self.update_data_panel_selection(DataPanelSelection(data_group, data_item))
+        self.update_data_panel_selection(DataPanelSelection(data_group, data_item, filter_id))
 
     def save_state(self):
         if not self.__closing:
@@ -1044,6 +1045,10 @@ class DataPanel(Panel.Panel):
                 self.ui.set_persistent_string("selected_data_item", str(data_panel_selection.data_item.uuid))
             else:
                 self.ui.remove_persistent_key("selected_data_item")
+            if data_panel_selection.filter_id:
+                self.ui.set_persistent_string("selected_filter_id", str(data_panel_selection.filter_id))
+            else:
+                self.ui.remove_persistent_key("selected_filter_id")
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
     # make sure the document controller knows what is selected so it can update the inspector.
