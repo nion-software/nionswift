@@ -186,36 +186,34 @@ class TestOperationClass(unittest.TestCase):
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgba(self):
         data_item_rgb = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
-        data_item_rgb.add_ref()
+        with data_item_rgb.ref():
 
-        operation_list = []
-        operation_list.append((data_item_rgb, Operation.Operation("invert-operation")))
-        operation_list.append((data_item_rgb, Operation.Operation("gaussian-blur-operation")))
-        crop_2d_operation = Operation.Operation("crop-operation")
-        crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
-        operation_list.append((data_item_rgb, crop_2d_operation))
-        resample_2d_operation = Operation.Operation("resample-operation")
-        resample_2d_operation.width = 128
-        resample_2d_operation.height = 128
-        operation_list.append((data_item_rgb, resample_2d_operation))
-        operation_list.append((data_item_rgb, Operation.Operation("histogram-operation")))
-        line_profile_operation = Operation.Operation("line-profile-operation")
-        line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
-        operation_list.append((data_item_rgb, line_profile_operation))
-        operation_list.append((data_item_rgb, Operation.Operation("convert-to-scale_operation")))
+            operation_list = []
+            operation_list.append((data_item_rgb, Operation.Operation("invert-operation")))
+            operation_list.append((data_item_rgb, Operation.Operation("gaussian-blur-operation")))
+            crop_2d_operation = Operation.Operation("crop-operation")
+            crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
+            operation_list.append((data_item_rgb, crop_2d_operation))
+            resample_2d_operation = Operation.Operation("resample-operation")
+            resample_2d_operation.width = 128
+            resample_2d_operation.height = 128
+            operation_list.append((data_item_rgb, resample_2d_operation))
+            operation_list.append((data_item_rgb, Operation.Operation("histogram-operation")))
+            line_profile_operation = Operation.Operation("line-profile-operation")
+            line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
+            operation_list.append((data_item_rgb, line_profile_operation))
+            operation_list.append((data_item_rgb, Operation.Operation("convert-to-scale_operation")))
 
-        for source_data_item, operation in operation_list:
-            data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
-            source_data_item.data_items.append(data_item)
-            with data_item.data_ref() as data_ref:
-                self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
-
-        data_item_rgb.remove_ref()
+            for source_data_item, operation in operation_list:
+                data_item = DataItem.DataItem()
+                data_item.operations.append(operation)
+                source_data_item.data_items.append(data_item)
+                with data_item.data_ref() as data_ref:
+                    self.assertIsNotNone(data_ref.data)
+                    self.assertIsNotNone(data_item.calculated_calibrations)
+                    self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                    self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
+                    self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_operations_2d_complex(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
@@ -292,6 +290,18 @@ class TestOperationClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5)
 
+    def test_rgba_invert_operation_should_retain_alpha(self):
+        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        with data_item_rgba.ref():
+            with data_item_rgba.data_ref() as data_ref:
+                data_ref.master_data[:] = (20,40,60,100)
+            data_item_rgba.operations.append(Operation.Operation("invert-operation"))
+            with data_item_rgba.data_ref() as data_ref:
+                pixel = data_ref.data[0,0,...]
+                self.assertEqual(pixel[0], 255 - 20)
+                self.assertEqual(pixel[1], 255 - 40)
+                self.assertEqual(pixel[2], 255 - 60)
+                self.assertEqual(pixel[3], 100)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
