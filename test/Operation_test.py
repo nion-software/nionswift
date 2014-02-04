@@ -12,6 +12,7 @@ from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import DocumentModel
 from nion.swift import Graphics
+from nion.swift import ImagePanel
 from nion.swift import Operation
 from nion.swift import Storage
 from nion.ui import Test
@@ -24,8 +25,8 @@ class TestOperationClass(unittest.TestCase):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.data_item = self.data_item
@@ -325,8 +326,26 @@ class TestOperationClass(unittest.TestCase):
                     # and for safety that the graphic is what we expect it to be
                     self.assertEqual(data_item_rgba.graphics[0], data_item_rgba2.operations[0].graphic)
 
+    def test_snapshot_of_operation_should_copy_data_items(self):
+        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        self.document_model.append_data_item(data_item_rgba)
+        data_item_rgba2 = DataItem.DataItem()
+        data_item_rgba2.operations.append(Operation.Operation("invert-operation"))
+        data_item_rgba.data_items.append(data_item_rgba2)
+        self.image_panel.data_item = data_item_rgba2
+        self.document_controller.processing_snapshot()
+        data_item_rgba_copy = self.document_model.data_items[2]
+        self.assertTrue(data_item_rgba_copy.has_master_data)
+
     def test_snapshot_of_operation_should_result_in_new_master_data(self):
-        self.assertTrue(False)
+        data_item2 = DataItem.DataItem()
+        data_item2.operations.append(Operation.Operation("invert-operation"))
+        self.data_item.data_items.append(data_item2)
+        self.image_panel.data_item = self.data_item
+        self.document_controller.processing_snapshot()
+        data_item_copy = self.document_model.data_items[1]
+        self.assertEqual(len(data_item_copy.data_items), 1)
+        self.assertEqual(data_item_copy.data_items[0].data_source, data_item_copy)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

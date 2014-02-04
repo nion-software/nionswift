@@ -435,8 +435,8 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
-            data_item_copy = copy.deepcopy(data_item)
-            data_item_copy.title = _("Copy of ") + str(data_item_copy)
+            data_item_copy = data_item.snapshot()
+            data_item_copy.title = _("Snapshot of ") + data_item.title
             # TODO: put this into existing group if copied from group
             self.document_model.append_data_item(data_item_copy)
             return data_item_copy

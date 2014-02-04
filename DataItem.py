@@ -1242,6 +1242,30 @@ class DataItem(Storage.StorageBase):
         memo[id(self)] = data_item_copy
         return data_item_copy
 
+    def snapshot(self):
+        data_item_copy = DataItem()
+        data_item_copy.title = self.title
+        data_item_copy.param = self.param
+        with data_item_copy.property_changes() as property_accessor:
+            property_accessor.properties.clear()
+            property_accessor.properties.update(self.properties)
+        data_item_copy.display_limits = self.display_limits
+        data_item_copy.datetime_original = Utility.get_current_datetime_element()
+        data_item_copy.datetime_modified = data_item_copy.datetime_original
+        for calibration in self.intrinsic_calibrations:
+            data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))
+        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
+        data_item_copy.display_calibrated_values = self.display_calibrated_values
+        # graphic must be copied before operation, since operations can
+        # depend on graphics.
+        for graphic in self.graphics:
+            data_item_copy.graphics.append(copy.deepcopy(graphic))
+        for data_item in self.data_items:
+            data_item_copy.data_items.append(copy.deepcopy(data_item))
+        with self.data_ref() as data_ref:
+            data_item_copy.__set_master_data(numpy.copy(data_ref.data))
+        return data_item_copy
+
 
 # TODO: Migrate to use DataItemBindingSource instead.
 class DataItemBinding(Observable.Broadcaster):
