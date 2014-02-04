@@ -295,7 +295,12 @@ class InvertOperationBehavior(OperationBehavior):
 
     def process_data_in_place(self, data_copy):
         if Image.is_data_rgba(data_copy) or Image.is_data_rgb(data_copy):
-            return 255 - data_copy[:]
+            if Image.is_data_rgba(data_copy):
+                inverted = 255 - data_copy[:]
+                inverted[...,3] = data_copy[...,3]
+                return inverted
+            else:
+                return 255 - data_copy[:]
         else:
             return 1.0 - data_copy[:]
 
