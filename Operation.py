@@ -157,7 +157,7 @@ class Operation(Storage.StorageBase):
             self.values[key] = values[key]
         # TODO: Check use of memo here.
         if operation.graphic:
-            self.set_graphic("graphic", memo[id(operation.graphic)])
+            self.set_graphic("graphic", operation.graphic)
         else:
             self.set_graphic("graphic", None)
         self.__enabled = operation.enabled

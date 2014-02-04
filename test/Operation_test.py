@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import logging
 import unittest
 
@@ -302,6 +303,30 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(pixel[1], 255 - 40)
                 self.assertEqual(pixel[2], 255 - 60)
                 self.assertEqual(pixel[3], 100)
+
+    def test_deepcopy_of_crop_operation_should_copy_roi(self):
+        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        with data_item_rgba.ref():
+            data_item_rgba2 = DataItem.DataItem()
+            with data_item_rgba2.ref():
+                data_item_rgba2.data_source = data_item_rgba
+                graphic1 = Graphics.RectangleGraphic()
+                graphic1.bounds = ((0.25, 0.25), (0.5, 0.5))
+                data_item_rgba.graphics.append(graphic1)
+                operation = Operation.Operation("crop-operation")
+                operation.set_graphic("graphic", graphic1)
+                data_item_rgba2.operations.append(operation)
+                data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
+                with data_item_rgba2_copy.ref():
+                    # make sure the operation was copied
+                    self.assertNotEqual(data_item_rgba2.operations[0], data_item_rgba2_copy.operations[0])
+                    # and that the two operations shared the same graphic
+                    self.assertEqual(data_item_rgba2.operations[0].graphic, data_item_rgba2_copy.operations[0].graphic)
+                    # and for safety that the graphic is what we expect it to be
+                    self.assertEqual(data_item_rgba.graphics[0], data_item_rgba2.operations[0].graphic)
+
+    def test_snapshot_of_operation_should_result_in_new_master_data(self):
+        self.assertTrue(False)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
