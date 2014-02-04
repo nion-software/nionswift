@@ -589,8 +589,8 @@ class DataPanel(Panel.Panel):
 
         def remove_data_item(self, data_item):
             container = DataGroup.get_data_item_container(self.container, data_item)
-            assert data_item in container.data_items
-            container.remove_data_item(data_item)
+            if container and data_item in container.data_items:
+                container.remove_data_item(data_item)
 
         def get_data_item_index(self, data_item):
             data_items = self.__binding.data_items
@@ -802,8 +802,8 @@ class DataPanel(Panel.Panel):
 
         def remove_data_item(self, data_item):
             container = DataGroup.get_data_item_container(self.data_group, data_item)
-            assert data_item in container.data_items
-            container.remove_data_item(data_item)
+            if data_item in container.data_items:
+                container.remove_data_item(data_item)
 
         def __get_data_group(self):
             return self.__data_group
@@ -967,20 +967,25 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
         # this message is received when the current item changes in the widget
-        def data_item_widget_current_item_changed(index):
+        def data_item_widget_selection_changed(indexes):
             if not self.__block1:
-                # check the proper index; there are some cases where it gets out of sync
-                data_item = self.data_item_model_controller.get_data_item_by_index(index)
+                if len(indexes) == 1:
+                    # check the proper index; there are some cases where it gets out of sync
+                    data_item = self.data_item_model_controller.get_data_item_by_index(indexes[0])
+                else:
+                    # nothing or multiple items selected
+                    data_item = None
                 self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
                 if self.focused:
                     self.document_controller.set_selected_data_item(data_item)
                 self.save_state()
 
-        def data_item_widget_key_pressed(index, key):
-            data_item = self.data_item_model_controller.get_data_item_by_index(index)
-            if data_item:
-                if key.is_delete:
-                    self.data_item_model_controller.remove_data_item(data_item)
+        def data_item_widget_key_pressed(indexes, key):
+            if key.is_delete:
+                data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
+                if len(data_items):
+                    for data_item in data_items:
+                        self.data_item_model_controller.remove_data_item(data_item)
             return False
 
         def data_item_double_clicked(index):
@@ -989,10 +994,11 @@ class DataPanel(Panel.Panel):
                 self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
         self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
+        self.data_item_widget.selection_mode = "extended"
         self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
         self.data_item_widget.on_paint = lambda dc, options: self.data_item_model_controller.paint(dc, options)
-        self.data_item_widget.on_current_item_changed = data_item_widget_current_item_changed
-        self.data_item_widget.on_item_key_pressed = data_item_widget_key_pressed
+        self.data_item_widget.on_selection_changed = data_item_widget_selection_changed
+        self.data_item_widget.on_key_pressed = data_item_widget_key_pressed
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
         self.data_item_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 

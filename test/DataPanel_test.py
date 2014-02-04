@@ -67,13 +67,13 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(data_item1.data_items), 1)
         data_panel.update_data_item_selection(data_item1a)
         #data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
-        #data_panel.data_item_widget.on_current_item_changed(1)
-        data_panel.data_item_widget.on_item_key_pressed(1, self.app.ui.create_key_by_id("delete"))
+        #data_panel.data_item_widget.on_selection_changed([1])
+        data_panel.data_item_widget.on_key_pressed([1], self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_item1.data_items), 0)
         # now delete a child of a data group
         self.assertEqual(len(data_group.data_items), 3)
-        data_panel.data_item_widget.on_current_item_changed(3)
-        data_panel.data_item_widget.on_item_key_pressed(3, self.app.ui.create_key_by_id("delete"))
+        data_panel.data_item_widget.on_selection_changed([3])
+        data_panel.data_item_widget.on_key_pressed([3], self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_group.data_items), 2)
         image_panel.close()
         data_panel.close()
@@ -167,9 +167,9 @@ class TestDataPanelClass(unittest.TestCase):
         # now make sure if a data item is in multiple groups, the right one is selected
         data_group2.append_data_item(data_item1)
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group2, data_item2))
-        data_panel.data_item_widget.on_current_item_changed(1)  # data_group2 now has data_item1 selected
+        data_panel.data_item_widget.on_selection_changed([1])  # data_group2 now has data_item1 selected
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
-        data_panel.data_item_widget.on_current_item_changed(0)  # data_group1 still has data_item1 selected
+        data_panel.data_item_widget.on_selection_changed([0])  # data_group1 still has data_item1 selected
         self.assertEqual(data_panel.data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
@@ -189,7 +189,7 @@ class TestDataPanelClass(unittest.TestCase):
         # now make sure group selections are preserved
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         data_panel.data_group_widget.on_selection_changed(((1, 0, 1), ))  # data_group1 now has data_group2 selected
-        data_panel.data_item_widget.on_current_item_changed(-1)  # data_group1 now has no data item selected
+        data_panel.data_item_widget.on_selection_changed([])  # data_group1 now has no data item selected
         self.assertIsNone(data_panel.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
@@ -423,10 +423,23 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         self.assertTrue(data_item1 in data_group1.data_items)
-        data_panel.data_item_widget.on_item_key_pressed(0, self.app.ui.create_key_by_id("delete"))
+        data_panel.data_item_widget.on_key_pressed([0], self.app.ui.create_key_by_id("delete"))
         self.assertFalse(data_item1 in data_group1.data_items)
         data_panel.close()
         document_controller.close()
+
+    def test_remove_item_should_remove_children_when_both_parent_and_child_are_selected(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1.title = "data_item1"
+        document_model.append_data_item(data_item1)
+        data_item1a = DataItem.DataItem()
+        data_item1a.title = "data_item1a"
+        data_item1.data_items.append(data_item1a)
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
+        data_panel.data_item_widget.on_key_pressed([0, 1], self.app.ui.create_key_by_id("delete"))
 
     def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
         # TODO: implement data panel save/restore test
