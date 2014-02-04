@@ -333,6 +333,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba2.operations.append(Operation.Operation("invert-operation"))
         data_item_rgba.data_items.append(data_item_rgba2)
         self.image_panel.data_item = data_item_rgba2
+        self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
         self.document_controller.processing_snapshot()
         data_item_rgba_copy = self.document_model.data_items[2]
         self.assertTrue(data_item_rgba_copy.has_master_data)
@@ -342,10 +343,48 @@ class TestOperationClass(unittest.TestCase):
         data_item2.operations.append(Operation.Operation("invert-operation"))
         self.data_item.data_items.append(data_item2)
         self.image_panel.data_item = self.data_item
+        self.assertEqual(self.document_controller.selected_data_item, self.data_item)
         self.document_controller.processing_snapshot()
         data_item_copy = self.document_model.data_items[1]
         self.assertEqual(len(data_item_copy.data_items), 1)
         self.assertEqual(data_item_copy.data_items[0].data_source, data_item_copy)
+
+    def test_snapshot_of_operation_should_copy_calibrations_not_intrinsic_calibrations(self):
+        # setup
+        self.data_item.intrinsic_calibrations[0].scale = 2.0
+        self.data_item.intrinsic_calibrations[0].origin = 5.0
+        self.data_item.intrinsic_calibrations[0].units = u"nm"
+        self.data_item.intrinsic_calibrations[1].scale = 2.0
+        self.data_item.intrinsic_calibrations[1].origin = 5.0
+        self.data_item.intrinsic_calibrations[1].units = u"nm"
+        self.data_item.intrinsic_intensity_calibration.scale = 2.5
+        self.data_item.intrinsic_intensity_calibration.origin = 7.5
+        self.data_item.intrinsic_intensity_calibration.units = u"ll"
+        data_item2 = DataItem.DataItem()
+        data_item2.operations.append(Operation.Operation("invert-operation"))
+        self.data_item.data_items.append(data_item2)
+        # make sure our assumptions are correct
+        self.assertEqual(len(self.data_item.calculated_calibrations), 2)
+        self.assertEqual(len(self.data_item.intrinsic_calibrations), 2)
+        self.assertEqual(len(data_item2.calculated_calibrations), 2)
+        self.assertEqual(len(data_item2.intrinsic_calibrations), 0)
+        # take snapshot
+        self.image_panel.data_item = data_item2
+        self.assertEqual(self.document_controller.selected_data_item, data_item2)
+        self.document_controller.processing_snapshot()
+        data_item_copy = self.document_model.data_items[1]
+        # check calibrations
+        self.assertEqual(len(data_item_copy.calculated_calibrations), 2)
+        self.assertEqual(len(data_item_copy.intrinsic_calibrations), 2)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[0].scale, 2.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[0].origin, 5.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[0].units, u"nm")
+        self.assertEqual(data_item_copy.intrinsic_calibrations[1].scale, 2.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[1].origin, 5.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[1].units, u"nm")
+        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.scale, 2.5)
+        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.origin, 7.5)
+        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

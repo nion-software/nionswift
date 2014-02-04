@@ -1252,9 +1252,9 @@ class DataItem(Storage.StorageBase):
         data_item_copy.display_limits = self.display_limits
         data_item_copy.datetime_original = Utility.get_current_datetime_element()
         data_item_copy.datetime_modified = data_item_copy.datetime_original
-        for calibration in self.intrinsic_calibrations:
+        for calibration in self.calculated_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))
-        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
+        data_item_copy.intrinsic_intensity_calibration = self.calculated_intensity_calibration
         data_item_copy.display_calibrated_values = self.display_calibrated_values
         # graphic must be copied before operation, since operations can
         # depend on graphics.
