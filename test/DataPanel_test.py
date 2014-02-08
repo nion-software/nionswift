@@ -445,6 +445,17 @@ class TestDataPanelClass(unittest.TestCase):
         # TODO: implement data panel save/restore test
         self.assertTrue(True)
 
+    def test_data_items_are_inserted_correctly_when_switching_from_none_to_all_selected(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        for i in xrange(3):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
+        data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+        data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

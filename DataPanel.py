@@ -379,6 +379,8 @@ class DataPanel(Panel.Panel):
             self.__update_mutex = threading.RLock()
             self.inserter = None
             self.remover = None
+            self.inserter_async = None
+            self.remover_async = None
             self.__container = None
             self.__filter = None
             self.sort = sort_natural
@@ -438,13 +440,15 @@ class DataPanel(Panel.Panel):
 
         # thread safe.
         def update_counted_data_items(self, counted_data_items):
-            self.__counted_data_items.update(counted_data_items)
+            with self.__update_mutex:
+                self.__counted_data_items.update(counted_data_items)
             self.__update_data_items()
 
         # thread safe.
         def subtract_counted_data_items(self, counted_data_items):
-            self.__counted_data_items.subtract(counted_data_items)
-            self.__counted_data_items += collections.Counter()  # strip empty items
+            with self.__update_mutex:
+                self.__counted_data_items.subtract(counted_data_items)
+                self.__counted_data_items += collections.Counter()  # strip empty items
             self.__update_data_items()
 
         # thread safe.
@@ -470,31 +474,54 @@ class DataPanel(Panel.Panel):
                         data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
                 # now generate the insert/remove instructions to make the official
                 # list match the proposed list.
+                assert len(set(data_items)) == len(data_items)
                 index = 0
                 for data_item in data_items:
+                    # if old data item at current index isn't in new list, remove it
                     if index < len(old_data_items) and old_data_items[index] not in data_items:
-                        self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, old_data_items[index], index))
+                        data_item_to_remove = old_data_items[index]
+                        self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, data_item_to_remove, index))
+                        assert data_item_to_remove in self.__data_items
                         del old_data_items[index]
                         del self.__data_items[index]
+                        if self.remover_async:
+                            self.remover_async(data_item_to_remove, index)
+                    # otherwise, if new data item at current index is in old list, remove it, then re-insert
                     if data_item in old_data_items:
                         old_index = old_data_items.index(data_item)
                         assert index <= old_index
+                        # remove, re-insert, unless old and new position are the same
                         if index < old_index:
                             self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, data_item, old_index))
+                            assert data_item in self.__data_items
                             del old_data_items[old_index]
                             del self.__data_items[old_index]
+                            if self.remover_async:
+                                self.remover_async(data_item, old_index)
                             self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__insert_item, self, data_item, index))
+                            assert data_item not in self.__data_items
                             old_data_items.insert(index, data_item)
                             self.__data_items.insert(index, data_item)
+                            if self.inserter_async:
+                                self.inserter_async(data_item, index)
+                    # else new data item at current index is not in old list, insert it
                     else:
                         self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__insert_item, self, data_item, index))
+                        assert data_item not in self.__data_items
                         old_data_items.insert(index, data_item)
                         self.__data_items.insert(index, data_item)
+                        if self.inserter_async:
+                            self.inserter_async(data_item, index)
                     index += 1
+                # finally anything left in the old list can be removed
                 while index < len(old_data_items):
-                    self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, old_data_items[index], index))
+                    data_item_to_remove = old_data_items[index]
+                    self.queue_task(functools.partial(DataPanel.DataItemsInContainerBinding.__remove_item, self, data_item_to_remove, index))
+                    assert data_item_to_remove in self.__data_items
                     del old_data_items[index]
                     del self.__data_items[index]
+                    if self.remover_async:
+                        self.remover_async(data_item_to_remove, index)
 
     """
 
@@ -504,13 +531,118 @@ class DataPanel(Panel.Panel):
 
     """
 
+    class DataItemsFilterBinding(UserInterfaceUtility.Binding):
+
+        def __init__(self):
+            super(DataPanel.DataItemsFilterBinding, self).__init__(None)
+            self.__master_data_items = list()
+            self.__data_items = list()
+            self.__update_mutex = threading.RLock()
+            self.inserter = None
+            self.remover = None
+            self.__filter = None
+
+        # thread safe.
+        def __get_filter(self):
+            return self.__filter
+        def __set_filter(self, filter):
+            self.__filter = filter
+            self.__update_data_items()
+        filter = property(__get_filter, __set_filter)
+
+        # thread safe
+        def __get_data_items(self):
+            with self.__update_mutex:
+                return copy.copy(self.__data_items)
+        data_items = property(__get_data_items)
+
+        # not thread safe. private method.
+        # this method gets called on the main thread and then
+        # calls the inserter function, typically on the target.
+        def __insert_item(self, item, before_index):
+            if self.inserter:
+                self.inserter(item, before_index)
+
+        # not thread safe. private method.
+        # this method gets called on the main thread and then
+        # calls the remover function, typically on the target.
+        def __remove_item(self, item, index):
+            if self.remover:
+                self.remover(item, index)
+
+        # thread safe.
+        def data_item_inserted(self, data_item, before_index):
+            with self.__update_mutex:
+                assert data_item not in self.__master_data_items
+                self.__master_data_items.insert(before_index, data_item)
+            self.__update_data_items()
+
+        # thread safe.
+        def data_item_removed(self, data_item, index):
+            with self.__update_mutex:
+                assert data_item in self.__master_data_items
+                del self.__master_data_items[index]
+            self.__update_data_items()
+
+        # thread safe.
+        def __update_data_items(self):
+            with self.__update_mutex:
+                # first build the new data_items list, including data items with master data.
+                old_data_items = copy.copy(self.__data_items)
+                master_data_items = list()
+                for data_item in self.__master_data_items:
+                    if data_item.has_master_data:
+                        master_data_items.append(data_item)
+                # construct the data items list by expanding each master data item to
+                # include its children
+                data_items = list()
+                for data_item in master_data_items:
+                    # apply filter
+                    if not self.__filter or self.__filter(data_item):
+                        # add data item and its dependent data items
+                        data_items.append(data_item)
+                        data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+                # now generate the insert/remove instructions to make the official
+                # list match the proposed list.
+                assert len(set(self.__master_data_items)) == len(self.__master_data_items)
+                assert len(set(master_data_items)) == len(master_data_items)
+                assert len(set(data_items)) == len(data_items)
+                index = 0
+                for data_item in data_items:
+                    if index < len(old_data_items) and old_data_items[index] not in data_items:
+                        self.queue_task(functools.partial(DataPanel.DataItemsFilterBinding.__remove_item, self, old_data_items[index], index))
+                        del old_data_items[index]
+                        del self.__data_items[index]
+                    if data_item in old_data_items:
+                        old_index = old_data_items.index(data_item)
+                        assert index <= old_index
+                        if index < old_index:
+                            self.queue_task(functools.partial(DataPanel.DataItemsFilterBinding.__remove_item, self, data_item, old_index))
+                            del old_data_items[old_index]
+                            del self.__data_items[old_index]
+                            self.queue_task(functools.partial(DataPanel.DataItemsFilterBinding.__insert_item, self, data_item, index))
+                            old_data_items.insert(index, data_item)
+                            self.__data_items.insert(index, data_item)
+                    else:
+                        self.queue_task(functools.partial(DataPanel.DataItemsFilterBinding.__insert_item, self, data_item, index))
+                        old_data_items.insert(index, data_item)
+                        self.__data_items.insert(index, data_item)
+                    index += 1
+                while index < len(old_data_items):
+                    self.queue_task(functools.partial(DataPanel.DataItemsFilterBinding.__remove_item, self, old_data_items[index], index))
+                    del old_data_items[index]
+                    del self.__data_items[index]
+
     class DataItemModelController2(object):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
+            self.__filter_binding = DataPanel.DataItemsFilterBinding()
+            self.__filter_binding.inserter = lambda data_item, before_index: self.__data_item_inserted(data_item, before_index)
+            self.__filter_binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
             self.__binding = DataPanel.DataItemsInContainerBinding()
-            self.__binding.inserter = lambda data_item, before_index: self.__data_item_inserted(data_item, before_index)
-            self.__binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
+            self.__binding.inserter_async = lambda data_item, before_index: self.__filter_binding.data_item_inserted(data_item, before_index)
+            self.__binding.remover_async = lambda data_item, index: self.__filter_binding.data_item_removed(data_item, index)
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
@@ -524,16 +656,19 @@ class DataPanel(Panel.Panel):
         def close(self):
             self.__binding.close()
             self.__binding = None
+            self.__filter_binding.close()
+            self.__filter_binding = None
             self.list_model_controller.close()
             self.list_model_controller = None
 
         def periodic(self):
             self.__binding.periodic()
+            self.__filter_binding.periodic()
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
                 self.__changed_data_items = set()
-            data_items = copy.copy(self.__binding.data_items)
+            data_items = copy.copy(self.__filter_binding.data_items)
             # we might be receiving this message for an item that is no longer in the list
             # if the item updates and the user switches panels. check and skip it if so.
             for data_item in changed_data_items:
@@ -574,11 +709,11 @@ class DataPanel(Panel.Panel):
         container = property(__get_container)
 
         def __get_data_items(self):
-            return self.__binding.data_items
+            return self.__filter_binding.data_items
         data_items = property(__get_data_items)
 
         def get_data_item_by_index(self, index):
-            data_items = self.__binding.data_items
+            data_items = self.__filter_binding.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
         # return a dict with key value pairs. these methods are here for testing only.
@@ -593,7 +728,7 @@ class DataPanel(Panel.Panel):
                 container.remove_data_item(data_item)
 
         def get_data_item_index(self, data_item):
-            data_items = self.__binding.data_items
+            data_items = self.__filter_binding.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
         # data_item_content_changed is received from data items tracked in this model.
