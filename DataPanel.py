@@ -633,7 +633,7 @@ class DataPanel(Panel.Panel):
                     del old_data_items[index]
                     del self.__data_items[index]
 
-    class DataItemModelController2(object):
+    class DataItemModelController(object):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
@@ -779,6 +779,10 @@ class DataPanel(Panel.Panel):
             return None
 
         # this message comes from the styled item delegate
+        # data items are actually hierarchical in nature,
+        # but we don't use a tree view since the hierarchy is always visible and represented
+        # by indent level. this means that we must track changes to the data group that we're
+        # inspecting and translate the hierarchy into a linear indexing scheme.
         def paint(self, ctx, options):
             rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
             index = options["index"]["row"]
@@ -787,229 +791,6 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
-            data = self._get_model_data(index)
-            level = data["level"]
-            display = data_item.title
-            display2 = data_item.size_and_data_format_as_string
-            display3 = data_item.datetime_original_as_string
-            display4 = data_item.live_status_as_string
-            ctx.save()
-            if thumbnail_data is not None:
-                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
-                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-            ctx.fill_style = "#000"
-            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12)
-            ctx.font = "11px italic"
-            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15)
-            ctx.font = "11px italic"
-            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
-            ctx.font = "11px italic"
-            ctx.fill_text(display4, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
-            ctx.restore()
-
-
-    # a list model of the data items. data items are actually hierarchical in nature,
-    # but we don't use a tree view since the hierarchy is always visible and represented
-    # by indent level. this means that we must track changes to the data group that we're
-    # inspecting and translate the hierarchy into a linear indexing scheme.
-    class DataItemModelController(object):
-
-        def __init__(self, document_controller):
-            self.ui = document_controller.ui
-            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
-            self.list_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row: self.item_drop_mime_data(mime_data, action, row, parent_row)
-            self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
-            self.list_model_controller.on_remove_rows = lambda row, count: self.remove_rows(row, count)
-            self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
-            self.list_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
-            self.__document_controller_weakref = weakref.ref(document_controller)
-            self.__data_group = None
-            # changed data items keep track of items whose content has changed
-            # the content changed messages may come from a thread so have to be
-            # moved to the main thread via this object.
-            self.__changed_data_items = set()
-            self.__changed_data_items_mutex = threading.RLock()
-            self.on_receive_files = None
-
-        def close(self):
-            self.data_group = None
-            self.list_model_controller.close()
-            self.list_model_controller = None
-
-        def __get_document_controller(self):
-            return self.__document_controller_weakref()
-        document_controller = property(__get_document_controller)
-
-        def __append_data_item_flat(self, data_item, data_items):
-            data_items.append(data_item)
-            for child_data_item in data_item.data_items:
-                self.__append_data_item_flat(child_data_item, data_items)
-
-        def __get_data_items_flat(self):
-            data_items = []
-            if self.data_group:
-                for data_item in self.data_group.data_items:
-                    self.__append_data_item_flat(data_item, data_items)
-            else:
-                data_items.append(self.document_controller.document_model.get_flat_data_item_generator())
-            return data_items
-
-        def __get_data_item_count_flat(self, data_item):
-            return len(self.__get_data_items_flat())
-
-        def get_data_item_by_index(self, index):
-            data_items = self.__get_data_items_flat()
-            return data_items[index] if index >= 0 and index < len(data_items) else None
-
-        # return a dict with key value pairs. these methods are here for testing only.
-        def _get_model_data(self, index):
-            return self.list_model_controller.model[index]
-        def _get_model_data_count(self):
-            return len(self.list_model_controller.model)
-
-        # this method if called when one of our listened to items changes
-        def data_item_inserted(self, container, data_item, before_index, moving):
-            data_items_flat = self.__get_data_items_flat()
-            before_data_item = container.get_storage_relationship_item("data_items", before_index)
-            before_index_flat = data_items_flat.index(before_data_item)
-            level = self.list_model_controller.model[data_items_flat.index(container)]["level"]+1 if container in data_items_flat else 0
-            # add the listener. this will result in calls to data_item_content_changed
-            data_item.add_listener(self)
-            # begin observing
-            data_item.add_observer(self)
-            data_item.add_ref()
-            # do the insert
-            properties = {
-                "uuid": str(data_item.uuid),
-                "level": level,
-                "display": data_item.title,
-            }
-            self.list_model_controller.begin_insert(before_index_flat, before_index_flat)
-            self.list_model_controller.model.insert(before_index_flat, properties)
-            self.list_model_controller.end_insert()
-            # recursively insert items that already exist
-            for index, child_data_item in enumerate(data_item.data_items):
-                self.data_item_inserted(data_item, child_data_item, index, moving)
-
-        # this method if called when one of our listened to items changes
-        def data_item_removed(self, container, data_item, index, moving):
-            assert isinstance(data_item, DataItem.DataItem)
-            # recursively remove child items
-            for index in reversed(range(len(data_item.data_items))):
-                self.data_item_removed(data_item, data_item.data_items[index], index, moving)
-            # now figure out which index was removed
-            index_flat = 0
-            for item in self.list_model_controller.model:
-                if uuid.UUID(item["uuid"]) == data_item.uuid:
-                    break
-                index_flat = index_flat + 1
-            assert index_flat < len(self.list_model_controller.model)
-            # manage the item model
-            self.list_model_controller.begin_remove(index_flat, index_flat)
-            del self.list_model_controller.model[index_flat]
-            self.list_model_controller.end_remove()
-            # remove the listener.
-            data_item.remove_listener(self)
-            # remove the observer.
-            data_item.remove_observer(self)
-            data_item.remove_ref()
-
-        def periodic(self):
-            with self.__changed_data_items_mutex:
-                changed_data_items = self.__changed_data_items
-                self.__changed_data_items = set()
-            data_items_flat = self.__get_data_items_flat()
-            # we might be receiving this message for an item that is no longer in the list
-            # if the item updates and the user switches panels. check and skip it if so.
-            for data_item in changed_data_items:
-                if data_item in data_items_flat:
-                    index = data_items_flat.index(data_item)
-                    properties = self.list_model_controller.model[index]
-                    self.list_model_controller.data_changed()
-
-        # data_item_content_changed is received from data items tracked in this model.
-        # the connection is established in add_data_item using add_listener.
-        def data_item_content_changed(self, data_item, changes):
-            with self.__changed_data_items_mutex:
-                self.__changed_data_items.add(data_item)
-
-        def remove_data_item(self, data_item):
-            container = DataGroup.get_data_item_container(self.data_group, data_item)
-            if data_item in container.data_items:
-                container.remove_data_item(data_item)
-
-        def __get_data_group(self):
-            return self.__data_group
-        def __set_data_group(self, data_group):
-            if data_group != self.__data_group:
-                if self.__data_group:
-                    # no longer watch for changes
-                    self.__data_group.remove_listener(self)
-                    # remove existing items
-                    data_items = self.__data_group.data_items
-                    for index in reversed(range(len(data_items))):
-                        self.data_item_removed(self.__data_group, data_items[index], index, False)
-                self.__data_group = data_group
-                if self.__data_group:
-                    # add new items
-                    for index, child_data_item in enumerate(self.__data_group.data_items):
-                        self.data_item_inserted(self.__data_group, child_data_item, index, False)
-                    # watch fo changes
-                    self.__data_group.add_listener(self)
-        data_group = property(__get_data_group, __set_data_group)
-
-        def get_data_item_index(self, data_item):
-            data_items_flat = self.__get_data_items_flat()
-            index = data_items_flat.index(data_item) if data_item in data_items_flat else -1
-            return index
-
-        def item_drop_mime_data(self, mime_data, action, row, parent_row):
-            if mime_data.has_file_paths:
-                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, row, parent_row):
-                    return self.list_model_controller.COPY
-            if mime_data.has_format("text/data_item_uuid") and parent_row < 0:
-                data_group = self.data_group
-                # don't allow copying of items in smart groups
-                if data_group and isinstance(data_group, DataGroup.DataGroup):
-                    data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-                    data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-                    if data_item:
-                        data_item_copy = copy.deepcopy(data_item)
-                        self.document_controller.document_model.append_data_item(data_item_copy)
-                        if row >= 0:
-                            data_group.insert_data_item(row, data_item_copy)
-                        else:
-                            data_group.append_data_item(data_item_copy)
-                        return action
-            return self.list_model_controller.NONE
-
-        def item_mime_data(self, row):
-            data_item = self.get_data_item_by_index(row)
-            if data_item:
-                mime_data = self.ui.create_mime_data()
-                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-                mime_data.set_data_as_string("text/ref_data_group_uuid", str(self.data_group.uuid))
-                return mime_data
-            return None
-
-        # message is generated by the ui control. remove these items from the model.
-        def remove_rows(self, row, count):
-            data_group = self.data_group
-            # don't allow removal of rows in smart groups
-            if data_group and isinstance(data_group, DataGroup.DataGroup):
-                assert count == 1  # until implemented
-                data_item = self.get_data_item_by_index(row)
-                if data_item:
-                    data_group.remove_data_item(data_item)
-            return True
-
-        # this message comes from the styled item delegate
-        def paint(self, ctx, options):
-            rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
-            index = options["index"]["row"]
-            data_item = self.get_data_item_by_index(index)
             thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
             data = self._get_model_data(index)
             level = data["level"]
@@ -1047,7 +828,7 @@ class DataPanel(Panel.Panel):
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
-        self.data_item_model_controller = DataPanel.DataItemModelController2(document_controller)
+        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
 
         def data_item_model_receive_files(file_paths, row, parent_row):
             data_group = self.__selection.data_group
