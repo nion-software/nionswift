@@ -381,7 +381,7 @@ class DataPanel(Panel.Panel):
         def __init__(self, document_controller):
             self.ui = document_controller.ui
             self.__task_queue = Process.TaskQueue()
-            self.__binding = DataItemsBinding.DataItemsInContainerBinding()
+            self.__binding = document_controller.data_items_binding
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
             def data_item_removed(data_item, index):
@@ -401,14 +401,11 @@ class DataPanel(Panel.Panel):
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
-            self.__binding.close()
-            self.__binding = None
             self.list_model_controller.close()
             self.list_model_controller = None
 
         def periodic(self):
             self.__task_queue.perform_tasks()
-            self.__binding.periodic()
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
@@ -831,7 +828,7 @@ class DataPanel(Panel.Panel):
         # update the data group that the data item model is tracking
         self.data_item_model_controller.set_data_group_or_filter(data_group, filter_id)
         # update the data item selection
-        self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
+        #self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         self.__selection = data_panel_selection
         # save the users selection

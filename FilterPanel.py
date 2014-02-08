@@ -71,17 +71,15 @@ class DateModelController(object):
         self.__date_binding.tree_node.child_inserted = lambda parent_tree_node, index, tree_node: self.__insert_child(parent_tree_node, index, tree_node)
         self.__date_binding.tree_node.child_removed = lambda parent_tree_node, index: self.__remove_child(parent_tree_node, index)
         self.__date_binding.tree_node.tree_node_updated = lambda tree_node: self.__update_tree_node(tree_node)
-        self.__binding = DataItemsBinding.DataItemsInContainerBinding()
+        self.__binding = document_controller.data_items_binding
         self.__binding.inserters[id(self)] = lambda data_item, before_index: self.__date_binding.data_item_inserted(data_item, before_index)
         self.__binding.removers[id(self)] = lambda data_item, index: self.__date_binding.data_item_removed(data_item, index)
         self.__mapping = dict()
         self.__mapping[id(self.__date_binding.tree_node)] = self.item_model_controller.root
-        self.__binding.container = document_controller.document_model
 
     def close(self):
         del self.__binding.inserters[id(self)]
         del self.__binding.removers[id(self)]
-        self.__binding.close()
         self.__date_binding.close()
         for item_controller in self.__item_controllers:
             item_controller.close()
@@ -90,7 +88,6 @@ class DateModelController(object):
         self.item_model_controller = None
 
     def periodic(self):
-        self.__binding.periodic()
         self.__date_binding.periodic()
         for item_controller in self.__item_controllers:
             item_controller.periodic()

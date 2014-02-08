@@ -14,6 +14,7 @@ import numpy
 # local libraries
 from nion.swift import DataGroup
 from nion.swift import DataItem
+from nion.swift import DataItemsBinding
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import Image
@@ -48,6 +49,7 @@ class DocumentController(Observable.Broadcaster):
         self.weak_data_panel = None
         self.__cursor_weak_listeners = []
         self.__periodic_queue = Process.TaskQueue()
+        self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -66,6 +68,8 @@ class DocumentController(Observable.Broadcaster):
         self.document_model.remove_ref()
         self.document_model = None
         self.window_menu.on_about_to_show = None
+        self.__data_items_binding.close()
+        self.__data_items_binding = None
         self.notify_listeners("document_controller_did_close", self)
 
     def about_to_show(self):
@@ -198,6 +202,12 @@ class DocumentController(Observable.Broadcaster):
         # workspace
         if self.workspace:
             self.workspace.periodic()
+        if self.__data_items_binding:
+            self.__data_items_binding.periodic()
+
+    def __get_data_items_binding(self):
+        return self.__data_items_binding
+    data_items_binding = property(__get_data_items_binding)
 
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)
