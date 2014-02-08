@@ -162,7 +162,7 @@ class CalibrationsInspector(InspectorSection):
             self.add_widget_to_content(intensity_row)
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
-        self.display_calibrations_checkbox = self.ui.create_check_box_button_widget(_("Displayed"))
+        self.display_calibrations_checkbox = self.ui.create_check_box_widget(_("Displayed"))
         self.display_calibrations_checkbox.bind_check_state(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=UserInterfaceUtility.CheckedToCheckStateConverter()))
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
