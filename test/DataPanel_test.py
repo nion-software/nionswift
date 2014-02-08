@@ -9,6 +9,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DataGroup
 from nion.swift import DataItem
+from nion.swift import DataItemsBinding
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import DocumentModel
@@ -275,7 +276,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
@@ -298,7 +299,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         binding.close()
@@ -319,7 +320,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.container = data_group
         binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)

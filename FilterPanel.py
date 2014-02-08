@@ -10,6 +10,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift import DataItemsBinding
 from nion.swift import DataPanel
 from nion.swift import Panel
 from nion.swift import Utility
@@ -70,7 +71,7 @@ class DateModelController(object):
         self.__date_binding.tree_node.child_inserted = lambda parent_tree_node, index, tree_node: self.__insert_child(parent_tree_node, index, tree_node)
         self.__date_binding.tree_node.child_removed = lambda parent_tree_node, index: self.__remove_child(parent_tree_node, index)
         self.__date_binding.tree_node.tree_node_updated = lambda tree_node: self.__update_tree_node(tree_node)
-        self.__binding = DataPanel.DataPanel.DataItemsInContainerBinding()
+        self.__binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__binding.inserter_async = lambda data_item, before_index: self.__date_binding.data_item_inserted(data_item, before_index)
         self.__binding.remover_async = lambda data_item, index: self.__date_binding.data_item_removed(data_item, index)
         self.__mapping = dict()
