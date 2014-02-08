@@ -81,6 +81,7 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = []
+        self.filter_row.close()
 
     def periodic(self):
         # for each of the panels too
@@ -91,6 +92,7 @@ class Workspace(object):
             elapsed = time.time() - start
             if elapsed > 0.05:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
+        self.filter_row.periodic()
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
