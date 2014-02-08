@@ -133,16 +133,12 @@ class FilterPanel(object):
         self.document_controller = document_controller
 
         def toggle_filter(check_state):
-            data_panel_dock_widget = self.document_controller.workspace.find_dock_widget("data-panel")
-            if data_panel_dock_widget:
-                data_panel = data_panel_dock_widget.panel
-                def g_filter(data_item):
-                    return data_item.title.startswith("G")
-                logging.debug("data panel %s %s", data_panel, check_state)
-                if check_state == "unchecked":
-                    data_panel.display_filter = None
-                else:
-                    data_panel.display_filter = g_filter
+            def g_filter(data_item):
+                return data_item.title.startswith("G")
+            if check_state == "unchecked":
+                self.document_controller.display_filter = None
+            else:
+                self.document_controller.display_filter = g_filter
 
         filter_row = self.ui.create_column_widget()
         filter_column = self.ui.create_row_widget()

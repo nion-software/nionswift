@@ -460,7 +460,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 3)
-        data_panel.display_filter = lambda data_item: data_item.title == "Y"
+        document_controller.display_filter = lambda data_item: data_item.title == "Y"
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 1)
 
 if __name__ == '__main__':

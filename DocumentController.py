@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import datetime
 import gettext
 import logging
 import Queue
@@ -22,6 +23,7 @@ from nion.swift import ImportExportManager
 from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Task
+from nion.swift import Utility
 from nion.swift import Workspace
 from nion.ui import Process
 from nion.ui import Observable
@@ -50,6 +52,7 @@ class DocumentController(Observable.Broadcaster):
         self.__cursor_weak_listeners = []
         self.__periodic_queue = Process.TaskQueue()
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
+        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -68,6 +71,8 @@ class DocumentController(Observable.Broadcaster):
         self.document_model.remove_ref()
         self.document_model = None
         self.window_menu.on_about_to_show = None
+        self.__filtered_data_items_binding.close()
+        self.__filtered_data_items_binding = None
         self.__data_items_binding.close()
         self.__data_items_binding = None
         self.notify_listeners("document_controller_did_close", self)
@@ -204,10 +209,44 @@ class DocumentController(Observable.Broadcaster):
             self.workspace.periodic()
         if self.__data_items_binding:
             self.__data_items_binding.periodic()
+        if self.__filtered_data_items_binding:
+            self.__filtered_data_items_binding.periodic()
 
     def __get_data_items_binding(self):
         return self.__data_items_binding
     data_items_binding = property(__get_data_items_binding)
+
+    def __get_filtered_data_items_binding(self):
+        return self.__filtered_data_items_binding
+    filtered_data_items_binding = property(__get_filtered_data_items_binding)
+
+    def set_data_group_or_filter(self, data_group, filter_id):
+        if data_group:
+            self.__data_items_binding.container = data_group
+            self.__data_items_binding.filter = None
+            self.__data_items_binding.sort = DataItemsBinding.sort_natural
+        else:
+            self.__data_items_binding.container = self.document_model
+            if filter_id == "latest-session":
+                def latest_session_filter(data_item):
+                    return data_item.session_id == self.document_model.session.session_id
+                self.__data_items_binding.filter = latest_session_filter
+                self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+            elif filter_id == "recent":
+                def recent_filter(data_item):
+                    date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                self.__data_items_binding.filter = recent_filter
+                self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+            else:
+                self.__data_items_binding.filter = None
+                self.__data_items_binding.sort = DataItemsBinding.sort_natural
+
+    def __get_display_filter(self):
+        return self.__filtered_data_items_binding.filter
+    def __set_display_filter(self, display_filter):
+        self.__filtered_data_items_binding.filter = display_filter
+    display_filter = property(__get_display_filter, __set_display_filter)
 
     def register_image_panel(self, image_panel):
         weak_image_panel = weakref.ref(image_panel)

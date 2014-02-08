@@ -10,6 +10,7 @@ import threading
 
 # local libraries
 from nion.swift import DataGroup
+from nion.swift import Utility
 from nion.ui import UserInterfaceUtility
 
 
@@ -125,9 +126,16 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
 
 class DataItemsFilterBinding(DataItemsBinding):
 
-    def __init__(self):
+    def __init__(self, data_items_binding):
         super(DataItemsFilterBinding, self).__init__()
         self.__master_data_items = list()
+        self.__data_items_binding = data_items_binding
+        self.__data_items_binding.inserters[id(self)] = lambda data_item, before_index: self.data_item_inserted(data_item, before_index)
+        self.__data_items_binding.removers[id(self)] = lambda data_item, index: self.data_item_removed(data_item, index)
+
+    def close(self):
+        del self.__data_items_binding.inserters[id(self)]
+        del self.__data_items_binding.removers[id(self)]
 
     # thread safe.
     def data_item_inserted(self, data_item, before_index):
@@ -199,3 +207,17 @@ class DataItemsInContainerBinding(DataItemsBinding):
     # thread safe
     def _get_master_data_items(self):
         return self.__counted_data_items
+
+
+def sort_natural(container):
+    flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(container))
+    def sort_key(data_item):
+        return flat_data_items.index(data_item)
+    return sort_key, False
+
+
+def sort_by_date_desc(container):
+    def sort_key(data_item):
+        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+        return date_item_datetime
+    return sort_key, True

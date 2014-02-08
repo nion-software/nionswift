@@ -59,20 +59,6 @@ class DataPanelSelection(object):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
 
-def sort_natural(container):
-    flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(container))
-    def sort_key(data_item):
-        return flat_data_items.index(data_item)
-    return sort_key, False
-
-
-def sort_by_date_desc(container):
-    def sort_key(data_item):
-        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
-        return date_item_datetime
-    return sort_key, True
-
-
 class DataPanel(Panel.Panel):
 
     class LibraryItemController(object):
@@ -97,16 +83,16 @@ class DataPanel(Panel.Panel):
                 def latest_session_filter(data_item):
                     return data_item.session_id == container.session.session_id
                 self.__binding.filter = latest_session_filter
-                self.__binding.sort = sort_by_date_desc
+                self.__binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "recent":
                 def recent_filter(data_item):
                     date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
                     return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
                 self.__binding.filter = recent_filter
-                self.__binding.sort = sort_by_date_desc
+                self.__binding.sort = DataItemsBinding.sort_by_date_desc
             else:
                 self.__binding.filter = None
-                self.__binding.sort = sort_natural
+                self.__binding.sort = DataItemsBinding.sort_natural
 
         def close(self):
             del self.__binding.inserters[id(self)]
@@ -381,7 +367,7 @@ class DataPanel(Panel.Panel):
         def __init__(self, document_controller):
             self.ui = document_controller.ui
             self.__task_queue = Process.TaskQueue()
-            self.__binding = document_controller.data_items_binding
+            self.__binding = document_controller.filtered_data_items_binding
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
             def data_item_removed(data_item, index):
@@ -423,41 +409,13 @@ class DataPanel(Panel.Panel):
         def queue_task(self, task):
             self.__task_queue.put(task)
 
-        def __get_filter(self):
-            return self.__binding.filter
-        def __set_filter(self, filter):
-            self.__binding.filter = filter
-        filter = property(__get_filter, __set_filter)
-
         def __get_document_controller(self):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
 
-        def set_data_group_or_filter(self, data_group, filter_id):
-            if data_group:
-                self.__binding.container = data_group
-                self.__binding.filter = None
-                self.__binding.sort = sort_natural
-            else:
-                self.__binding.container = self.document_controller.document_model
-                if filter_id == "latest-session":
-                    def latest_session_filter(data_item):
-                        return data_item.session_id == self.document_controller.document_model.session.session_id
-                    self.__binding.filter = latest_session_filter
-                    self.__binding.sort = sort_by_date_desc
-                elif filter_id == "recent":
-                    def recent_filter(data_item):
-                        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
-                        return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                    self.__binding.filter = recent_filter
-                    self.__binding.sort = sort_by_date_desc
-                else:
-                    self.__binding.filter = None
-                    self.__binding.sort = sort_natural
-
         # container is either a data group or a document model
         def __get_container(self):
-            return self.__binding.container
+            return self.document_controller.data_items_binding.container
         container = property(__get_container)
 
         def __get_data_items(self):
@@ -788,12 +746,6 @@ class DataPanel(Panel.Panel):
             self.document_controller.set_selected_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)
 
-    def __get_display_filter(self):
-        return self.data_item_model_controller.filter
-    def __set_display_filter(self, display_filter):
-        self.data_item_model_controller.filter = display_filter
-    display_filter = property(__get_display_filter, __set_display_filter)
-
     def __get_data_item(self):
         return self.__selection.data_item
     data_item = property(__get_data_item)
@@ -826,7 +778,7 @@ class DataPanel(Panel.Panel):
             else:
                 self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking
-        self.data_item_model_controller.set_data_group_or_filter(data_group, filter_id)
+        self.document_controller.set_data_group_or_filter(data_group, filter_id)
         # update the data item selection
         #self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
