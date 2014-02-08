@@ -18,6 +18,7 @@ from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import DocumentModel
+from nion.swift import FilterPanel
 from nion.swift import HardwareSource
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
@@ -64,6 +65,7 @@ class Application(object):
         workspace_manager.register_panel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 320})
         workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.register_panel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
+        workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
         PlugInManager.loadPlugIns()

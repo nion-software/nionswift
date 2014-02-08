@@ -151,6 +151,7 @@ class DocumentController(Observable.Broadcaster):
         #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
         #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
         #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
+        self.layout_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
@@ -444,6 +445,9 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_convert_to_scalar(self, select=True):
         return self.add_processing_operation_by_id("convert-to-scalar-operation", suffix=_(" Gray"), select=select)
+
+    def toggle_filter(self):
+        self.workspace.filter_row.visible = not self.workspace.filter_row.visible
 
     def prepare_data_item_script(self):
         def find_var():

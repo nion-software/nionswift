@@ -930,6 +930,12 @@ class DataPanel(Panel.Panel):
         library_label_row.add(library_label)
         library_label_row.add_stretch()
 
+        collections_label_row = ui.create_row_widget()
+        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
+        collections_label_row.add_spacing(8)
+        collections_label_row.add(collections_label)
+        collections_label_row.add_stretch()
+
         def create_list_item_widget(ui, item):
             properties = {"stylesheet": "color: white; background-color: #3875D6;"} if item != "All" else None
             column = ui.create_column_widget(properties=properties)
@@ -952,19 +958,19 @@ class DataPanel(Panel.Panel):
         #library_list_widget = ui.create_new_list_widget(lambda item: create_list_item_widget(self.ui, item))
         #library_list_widget.bind_items(string_list_binding_type)
 
-        collections_label_row = ui.create_row_widget()
-        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
-        collections_label_row.add_spacing(8)
-        collections_label_row.add(collections_label)
-        collections_label_row.add_stretch()
+        library_section_widget = ui.create_column_widget()
+        library_section_widget.add_spacing(4)
+        library_section_widget.add(library_label_row)
+        library_section_widget.add(self.library_widget)
+
+        collections_section_widget = ui.create_column_widget()
+        collections_section_widget.add_spacing(4)
+        collections_section_widget.add(collections_label_row)
+        collections_section_widget.add(self.data_group_widget)
 
         self.master_widget = ui.create_column_widget()
-        self.master_widget.add_spacing(4)
-        self.master_widget.add(library_label_row)
-        self.master_widget.add(self.library_widget)
-        self.master_widget.add_spacing(4)
-        self.master_widget.add(collections_label_row)
-        self.master_widget.add(self.data_group_widget)
+        self.master_widget.add(library_section_widget)
+        self.master_widget.add(collections_section_widget)
         self.master_widget.add_stretch()
 
         self.splitter = ui.create_splitter_widget("vertical", properties)

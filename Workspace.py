@@ -48,8 +48,13 @@ class Workspace(object):
 
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
+        self.content_row = self.ui.create_column_widget()
+        self.filter_row = self.workspace_manager.create_filter_panel(document_controller).widget
         self.image_row = self.ui.create_column_widget()
-        root_widget.add(self.image_row)
+        self.content_row.add(self.filter_row)
+        self.content_row.add(self.image_row, fill=True)
+        self.filter_row.visible = False
+        root_widget.add(self.content_row)
 
         # configure the document window (central widget)
         document_controller.document_window.attach(root_widget)
@@ -358,6 +363,12 @@ class WorkspaceManager(object):
                 traceback.print_exc()
                 print "Exception creating panel '" + panel_id + "': " + str(e)
         return None
+
+    def register_filter_panel(self, filter_panel_class):
+        self.__filter_panel_class = filter_panel_class
+
+    def create_filter_panel(self, document_controller):
+        return self.__filter_panel_class(document_controller)
 
     def get_panel_info(self, panel_id):
         assert panel_id in self.__panel_tuples
