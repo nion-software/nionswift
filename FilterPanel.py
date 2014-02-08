@@ -72,15 +72,17 @@ class DateModelController(object):
         self.__date_binding.tree_node.child_removed = lambda parent_tree_node, index: self.__remove_child(parent_tree_node, index)
         self.__date_binding.tree_node.tree_node_updated = lambda tree_node: self.__update_tree_node(tree_node)
         self.__binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__binding.inserter_async = lambda data_item, before_index: self.__date_binding.data_item_inserted(data_item, before_index)
-        self.__binding.remover_async = lambda data_item, index: self.__date_binding.data_item_removed(data_item, index)
+        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.__date_binding.data_item_inserted(data_item, before_index)
+        self.__binding.removers[id(self)] = lambda data_item, index: self.__date_binding.data_item_removed(data_item, index)
         self.__mapping = dict()
         self.__mapping[id(self.__date_binding.tree_node)] = self.item_model_controller.root
         self.__binding.container = document_controller.document_model
 
     def close(self):
-        self.__date_binding.close()
+        del self.__binding.inserters[id(self)]
+        del self.__binding.removers[id(self)]
         self.__binding.close()
+        self.__date_binding.close()
         for item_controller in self.__item_controllers:
             item_controller.close()
         self.__item_controllers = None

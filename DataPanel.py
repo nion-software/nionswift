@@ -20,6 +20,7 @@ from nion.swift import Panel
 from nion.swift import Storage
 from nion.swift import Utility
 from nion.ui import Geometry
+from nion.ui import Process
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
@@ -77,19 +78,20 @@ class DataPanel(Panel.Panel):
     class LibraryItemController(object):
 
         def __init__(self, container, filter_id=None):
+            self.__task_queue = Process.TaskQueue()
             self.__binding = DataItemsBinding.DataItemsInContainerBinding()
             self.__count = 0
             self.title_updater = None
-            def increment_count():
+            def data_item_inserted(data_item, before_index):
                 self.__count += 1
                 if self.title_updater:
                     self.title_updater(self.__count)
-            def decrement_count():
+            def data_item_removed(data_item, index):
                 self.__count -= 1
                 if self.title_updater:
                     self.title_updater(self.__count)
-            self.__binding.inserter = lambda data_item, before_index: increment_count()
-            self.__binding.remover = lambda data_item, index: decrement_count()
+            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
             self.__binding.container = container
             if filter_id == "latest-session":
                 def latest_session_filter(data_item):
@@ -107,11 +109,18 @@ class DataPanel(Panel.Panel):
                 self.__binding.sort = sort_natural
 
         def close(self):
+            del self.__binding.inserters[id(self)]
+            del self.__binding.removers[id(self)]
             self.__binding.close()
             self.__binding = None
 
         def periodic(self):
+            self.__task_queue.perform_tasks()
             self.__binding.periodic()
+
+        # thread safe
+        def queue_task(self, task):
+            self.__task_queue.put(task)
 
 
     class LibraryModelController(object):
@@ -364,20 +373,21 @@ class DataPanel(Panel.Panel):
     class DataItemModelController(object):
 
         """
-            There are three levels of bindings:
+            There are two levels of bindings:
                 __binding binds to the document model or data group and generates a list of data items
-                __filter_binding is used by the data panel to implement latest session, recent, and similar collections
-                __user_binding is used by the filter panel to further filter the data items. this is the one that's displayed
+                __filter_binding is used by the filter panel to further filter the data items. this is the one that's displayed
         """
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
-            self.__filter_binding = DataItemsBinding.DataItemsFilterBinding()
-            self.__filter_binding.inserter = lambda data_item, before_index: self.__data_item_inserted(data_item, before_index)
-            self.__filter_binding.remover = lambda data_item, index: self.__data_item_removed(data_item, index)
+            self.__task_queue = Process.TaskQueue()
             self.__binding = DataItemsBinding.DataItemsInContainerBinding()
-            self.__binding.inserter_async = lambda data_item, before_index: self.__filter_binding.data_item_inserted(data_item, before_index)
-            self.__binding.remover_async = lambda data_item, index: self.__filter_binding.data_item_removed(data_item, index)
+            def data_item_inserted(data_item, before_index):
+                self.__data_item_inserted(data_item, before_index)
+            def data_item_removed(data_item, index):
+                self.__data_item_removed(data_item, index)
+            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
@@ -389,21 +399,21 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items_mutex = threading.RLock()
 
         def close(self):
+            del self.__binding.inserters[id(self)]
+            del self.__binding.removers[id(self)]
             self.__binding.close()
             self.__binding = None
-            self.__filter_binding.close()
-            self.__filter_binding = None
             self.list_model_controller.close()
             self.list_model_controller = None
 
         def periodic(self):
+            self.__task_queue.perform_tasks()
             self.__binding.periodic()
-            self.__filter_binding.periodic()
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
                 self.__changed_data_items = set()
-            data_items = copy.copy(self.__filter_binding.data_items)
+            data_items = copy.copy(self.__binding.data_items)
             # we might be receiving this message for an item that is no longer in the list
             # if the item updates and the user switches panels. check and skip it if so.
             for data_item in changed_data_items:
@@ -412,10 +422,14 @@ class DataPanel(Panel.Panel):
                     properties = self.list_model_controller.model[index]
                     self.list_model_controller.data_changed()
 
+        # thread safe
+        def queue_task(self, task):
+            self.__task_queue.put(task)
+
         def __get_filter(self):
-            return self.__filter_binding.filter
+            return self.__binding.filter
         def __set_filter(self, filter):
-            self.__filter_binding.filter = filter
+            self.__binding.filter = filter
         filter = property(__get_filter, __set_filter)
 
         def __get_document_controller(self):
@@ -450,11 +464,11 @@ class DataPanel(Panel.Panel):
         container = property(__get_container)
 
         def __get_data_items(self):
-            return self.__filter_binding.data_items
+            return self.__binding.data_items
         data_items = property(__get_data_items)
 
         def get_data_item_by_index(self, index):
-            data_items = self.__filter_binding.data_items
+            data_items = self.__binding.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
         # return a dict with key value pairs. these methods are here for testing only.
@@ -469,7 +483,7 @@ class DataPanel(Panel.Panel):
                 container.remove_data_item(data_item)
 
         def get_data_item_index(self, data_item):
-            data_items = self.__filter_binding.data_items
+            data_items = self.__binding.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
         # data_item_content_changed is received from data items tracked in this model.

@@ -19,10 +19,8 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         super(DataItemsBinding, self).__init__(None)
         self.__data_items = list()
         self._update_mutex = threading.RLock()
-        self.inserter = None
-        self.remover = None
-        self.inserter_async = None
-        self.remover_async = None
+        self.inserters = dict()
+        self.removers = dict()
         self.__filter = None
         self.__sort = None
 
@@ -30,7 +28,8 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
     def __get_sort(self):
         return self.__sort
     def __set_sort(self, sort):
-        self.__sort = sort
+        with self._update_mutex:
+            self.__sort = sort
         self._update_data_items()
     sort = property(__get_sort, __set_sort)
 
@@ -38,7 +37,8 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
     def __get_filter(self):
         return self.__filter
     def __set_filter(self, filter):
-        self.__filter = filter
+        with self._update_mutex:
+            self.__filter = filter
         self._update_data_items()
     filter = property(__get_filter, __set_filter)
 
@@ -47,20 +47,6 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         with self._update_mutex:
             return copy.copy(self.__data_items)
     data_items = property(__get_data_items)
-
-    # not thread safe. private method.
-    # this method gets called on the main thread and then
-    # calls the inserter function, typically on the target.
-    def __insert_item(self, item, before_index):
-        if self.inserter:
-            self.inserter(item, before_index)
-
-    # not thread safe. private method.
-    # this method gets called on the main thread and then
-    # calls the remover function, typically on the target.
-    def __remove_item(self, item, index):
-        if self.remover:
-            self.remover(item, index)
 
     # thread safe
     def _get_master_data_items(self):
@@ -98,48 +84,43 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
                 # if old data item at current index isn't in new list, remove it
                 if index < len(old_data_items) and old_data_items[index] not in data_items:
                     data_item_to_remove = old_data_items[index]
-                    self.queue_task(functools.partial(DataItemsBinding.__remove_item, self, data_item_to_remove, index))
                     assert data_item_to_remove in self.__data_items
                     del old_data_items[index]
                     del self.__data_items[index]
-                    if self.remover_async:
-                        self.remover_async(data_item_to_remove, index)
+                    for remover in self.removers.values():
+                        remover(data_item_to_remove, index)
                 # otherwise, if new data item at current index is in old list, remove it, then re-insert
                 if data_item in old_data_items:
                     old_index = old_data_items.index(data_item)
                     assert index <= old_index
                     # remove, re-insert, unless old and new position are the same
                     if index < old_index:
-                        self.queue_task(functools.partial(DataItemsBinding.__remove_item, self, data_item, old_index))
                         assert data_item in self.__data_items
                         del old_data_items[old_index]
                         del self.__data_items[old_index]
-                        if self.remover_async:
-                            self.remover_async(data_item, old_index)
-                        self.queue_task(functools.partial(DataItemsBinding.__insert_item, self, data_item, index))
+                        for remover in self.removers.values():
+                            remover(data_item, old_index)
                         assert data_item not in self.__data_items
                         old_data_items.insert(index, data_item)
                         self.__data_items.insert(index, data_item)
-                        if self.inserter_async:
-                            self.inserter_async(data_item, index)
+                        for inserter in self.inserters.values():
+                            inserter(data_item, index)
                 # else new data item at current index is not in old list, insert it
                 else:
-                    self.queue_task(functools.partial(DataItemsBinding.__insert_item, self, data_item, index))
                     assert data_item not in self.__data_items
                     old_data_items.insert(index, data_item)
                     self.__data_items.insert(index, data_item)
-                    if self.inserter_async:
-                        self.inserter_async(data_item, index)
+                    for inserter in self.inserters.values():
+                        inserter(data_item, index)
                 index += 1
             # finally anything left in the old list can be removed
             while index < len(old_data_items):
                 data_item_to_remove = old_data_items[index]
-                self.queue_task(functools.partial(DataItemsBinding.__remove_item, self, data_item_to_remove, index))
                 assert data_item_to_remove in self.__data_items
                 del old_data_items[index]
                 del self.__data_items[index]
-                if self.remover_async:
-                    self.remover_async(data_item_to_remove, index)
+                for remover in self.removers.values():
+                    remover(data_item_to_remove, index)
 
 
 class DataItemsFilterBinding(DataItemsBinding):
