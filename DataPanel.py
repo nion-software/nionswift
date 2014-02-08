@@ -677,6 +677,12 @@ class DataPanel(Panel.Panel):
                     properties = self.list_model_controller.model[index]
                     self.list_model_controller.data_changed()
 
+        def __get_filter(self):
+            return self.__filter_binding.filter
+        def __set_filter(self, filter):
+            self.__filter_binding.filter = filter
+        filter = property(__get_filter, __set_filter)
+
         def __get_document_controller(self):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
@@ -1029,6 +1035,12 @@ class DataPanel(Panel.Panel):
         if not self.__closing:
             self.document_controller.set_selected_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)
+
+    def __get_display_filter(self):
+        return self.data_item_model_controller.filter
+    def __set_display_filter(self, display_filter):
+        self.data_item_model_controller.filter = display_filter
+    display_filter = property(__get_display_filter, __set_display_filter)
 
     def __get_data_item(self):
         return self.__selection.data_item

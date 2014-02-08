@@ -456,6 +456,19 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.library_widget.on_selection_changed([(1, -1, 0)])
         data_panel.library_widget.on_selection_changed([(0, -1, 0)])
 
+    def test_display_filter_filters_data(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        for i in xrange(3):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item.title = "X" if i != 1 else "Y"
+            document_model.append_data_item(data_item)
+        data_panel = DataPanel.DataPanel(document_controller, "data-panel", {})
+        self.assertEqual(len(data_panel.data_item_model_controller.data_items), 3)
+        data_panel.display_filter = lambda data_item: data_item.title == "Y"
+        self.assertEqual(len(data_panel.data_item_model_controller.data_items), 1)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
