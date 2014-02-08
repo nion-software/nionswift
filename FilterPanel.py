@@ -146,8 +146,37 @@ class FilterPanel(object):
 
         self.date_model_controller = DateModelController(document_controller)
 
+        def date_browser_selection_changed(selected_indexes):
+            keys_list = list()
+            for index, parent_row, parent_id in selected_indexes:
+                item_model_controller = self.date_model_controller.item_model_controller
+                tree_node = item_model_controller.item_value("tree_node", index, parent_id)
+                keys = list()
+                while tree_node is not None and tree_node.key is not None:
+                    keys.insert(0, tree_node.key)
+                    tree_node = tree_node.parent
+                keys_list.append(keys)
+            def date_filter(data_item):
+                data_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                def matches(match_keys):
+                    for index, key in enumerate(match_keys):
+                        if indexes[index] != key:
+                            return False
+                    return True
+                for keys in keys_list:
+                    if matches(keys):
+                        return True
+                return False
+            if len(keys_list) > 0:
+                self.document_controller.display_filter = date_filter
+            else:
+                self.document_controller.display_filter = None
+
         date_browser = self.ui.create_tree_widget()
+        date_browser.selection_mode = "extended"
         date_browser.item_model_controller = self.date_model_controller.item_model_controller
+        date_browser.on_selection_changed = date_browser_selection_changed
 
         filter_check_box = self.ui.create_check_box_widget(_("Check Me"))
         filter_check_box.on_check_state_changed = toggle_filter
@@ -175,6 +204,7 @@ class TreeNode(object):
     def __init__(self, key=None, children=None, values=None):
         self.key = key
         self.count = 0
+        self.__weak_parent = None
         self.children = children if children is not None else list()
         self.values = values if values is not None else list()
         self.__value_reverse_mapping = dict()
@@ -197,6 +227,11 @@ class TreeNode(object):
         return self.key.__hash__()
     def __repr__(self):
         return "{0}/{1}:{2}{3}".format(self.key, self.count, " {0}".format(self.children) if self.children else str(), " <{0}>".format(len(self.values)) if self.values else str())
+    def __get_parent(self):
+        return self.__weak_parent() if self.__weak_parent else None
+    parent = property(__get_parent)
+    def __set_parent(self, parent):
+        self.__weak_parent = weakref.ref(parent) if parent else None
     def insert_value(self, keys, value):
         self.count += 1
         if not self.key:
@@ -211,6 +246,7 @@ class TreeNode(object):
                 new_tree_node.child_inserted = self.child_inserted
                 new_tree_node.child_removed = self.child_removed
                 new_tree_node.tree_node_updated = self.tree_node_updated
+                new_tree_node.__set_parent(self)
                 self.children.insert(index, new_tree_node)
                 if self.child_inserted:
                     self.child_inserted(self, index, new_tree_node)
