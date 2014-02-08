@@ -1,6 +1,7 @@
 # standard libraries
 import bisect
 import collections
+import datetime
 import gettext
 import logging
 import threading
@@ -34,7 +35,7 @@ class DataItemDateTreeBinding(UserInterfaceUtility.Binding):
 
     def __init__(self):
         super(DataItemDateTreeBinding, self).__init__(None)
-        self.__data_item_tree = TreeNode()
+        self.__data_item_tree = TreeNode(reversed=True)
         self.__master_data_items = list()
         self.__update_mutex = threading.RLock()
 
@@ -96,12 +97,24 @@ class DateModelController(object):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
+    def __display_for_tree_node(self, tree_node):
+        keys = tree_node.keys
+        if len(keys) == 1:
+            return "{0} ({1})".format(tree_node.keys[-1], tree_node.count)
+        elif len(keys) == 2:
+            months = (_("January"), _("February"), _("March"), _("April"), _("May"), _("June"), _("July"), _("August"), _("September"), _("October"), _("November"), _("December"))
+            return "{0} ({1})".format(months[max(min(tree_node.keys[1]-1,11), 0)], tree_node.count)
+        else:
+            weekdays = (_("Monday"), _("Tuesday"), _("Wednesday"), _("Thursday"), _("Friday"), _("Saturday"), _("Sunday"))
+            date = datetime.date(tree_node.keys[0], tree_node.keys[1], tree_node.keys[2])
+            return "{0} - {1} ({2})".format(tree_node.keys[2], weekdays[date.weekday()], tree_node.count)
+
     def __insert_child(self, parent_tree_node, index, tree_node):
         # manage the item model
         parent_item = self.__mapping[id(parent_tree_node)]
         self.item_model_controller.begin_insert(index, index, parent_item.row, parent_item.id)
         properties = {
-            "display": "{0} ({1})".format(tree_node.key, tree_node.count),
+            "display": self.__display_for_tree_node(tree_node),
             "tree_node": tree_node
         }
         item = self.item_model_controller.create_item(properties)
@@ -121,7 +134,7 @@ class DateModelController(object):
 
     def __update_tree_node(self, tree_node):
         item = self.__mapping[id(tree_node)]
-        item.data["display"] = "{0} ({1})".format(tree_node.key, tree_node.count)
+        item.data["display"] = self.__display_for_tree_node(tree_node)
         self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
 
 
@@ -132,18 +145,6 @@ class FilterPanel(object):
         self.ui = document_controller.ui
         self.document_controller = document_controller
 
-        def toggle_filter(check_state):
-            def g_filter(data_item):
-                return data_item.title.startswith("G")
-            if check_state == "unchecked":
-                self.document_controller.display_filter = None
-            else:
-                self.document_controller.display_filter = g_filter
-
-        filter_row = self.ui.create_column_widget()
-        filter_column = self.ui.create_row_widget()
-        filter_column.add_spacing(12)
-
         self.date_model_controller = DateModelController(document_controller)
 
         def date_browser_selection_changed(selected_indexes):
@@ -151,11 +152,7 @@ class FilterPanel(object):
             for index, parent_row, parent_id in selected_indexes:
                 item_model_controller = self.date_model_controller.item_model_controller
                 tree_node = item_model_controller.item_value("tree_node", index, parent_id)
-                keys = list()
-                while tree_node is not None and tree_node.key is not None:
-                    keys.insert(0, tree_node.key)
-                    tree_node = tree_node.parent
-                keys_list.append(keys)
+                keys_list.append(tree_node.keys)
             def date_filter(data_item):
                 data_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
                 indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
@@ -173,22 +170,22 @@ class FilterPanel(object):
             else:
                 self.document_controller.display_filter = None
 
-        date_browser = self.ui.create_tree_widget()
-        date_browser.selection_mode = "extended"
-        date_browser.item_model_controller = self.date_model_controller.item_model_controller
-        date_browser.on_selection_changed = date_browser_selection_changed
+        date_browser_tree_widget = self.ui.create_tree_widget()
+        date_browser_tree_widget.selection_mode = "extended"
+        date_browser_tree_widget.item_model_controller = self.date_model_controller.item_model_controller
+        date_browser_tree_widget.on_selection_changed = date_browser_selection_changed
 
-        filter_check_box = self.ui.create_check_box_widget(_("Check Me"))
-        filter_check_box.on_check_state_changed = toggle_filter
-        filter_column.add(filter_check_box)
-        filter_column.add(date_browser)
-        filter_column.add_stretch()
+        date_browser = self.ui.create_column_widget()
+        date_browser.add(self.ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
+        date_browser.add(date_browser_tree_widget)
+        date_browser.add_stretch()
 
         self.header_widget_controller = Panel.HeaderWidgetController(self.ui, _("Filter"))
 
+        filter_row = self.ui.create_column_widget(properties={"height": 200})
         filter_row.add(self.header_widget_controller.canvas_widget)
         filter_row.add_spacing(4)
-        filter_row.add(filter_column)
+        filter_row.add(date_browser)
         filter_row.add_spacing(4)
 
         self.widget = filter_row
@@ -201,9 +198,10 @@ class FilterPanel(object):
 
 
 class TreeNode(object):
-    def __init__(self, key=None, children=None, values=None):
+    def __init__(self, key=None, children=None, values=None, reversed=False):
         self.key = key
         self.count = 0
+        self.reversed = reversed
         self.__weak_parent = None
         self.children = children if children is not None else list()
         self.values = values if values is not None else list()
@@ -212,17 +210,17 @@ class TreeNode(object):
         self.child_removed = None
         self.tree_node_updated = None
     def __lt__(self, other):
-        return self.key < other.key
+        return self.key < other.key if not self.reversed else other.key < self.key
     def __le__(self, other):
-        return self.key <= other.key
+        return self.key <= other.key if not self.reversed else other.key <= self.key
     def __eq__(self, other):
         return self.key == other.key
     def __ne__(self, other):
         return self.key != other.key
     def __gt__(self, other):
-        return self.key > other.key
+        return self.key > other.key if not self.reversed else other.key > self.key
     def __ge__(self, other):
-        return self.key >= other.key
+        return self.key >= other.key if not self.reversed else other.key >= self.key
     def __hash__(self):
         return self.key.__hash__()
     def __repr__(self):
@@ -232,6 +230,14 @@ class TreeNode(object):
     parent = property(__get_parent)
     def __set_parent(self, parent):
         self.__weak_parent = weakref.ref(parent) if parent else None
+    def __get_keys(self):
+        keys = list()
+        tree_node = self
+        while tree_node is not None and tree_node.key is not None:
+            keys.insert(0, tree_node.key)
+            tree_node = tree_node.parent
+        return keys
+    keys = property(__get_keys)
     def insert_value(self, keys, value):
         self.count += 1
         if not self.key:
@@ -240,9 +246,9 @@ class TreeNode(object):
             self.values.append(value)
         else:
             key = keys[0]
-            index = bisect.bisect_left(self.children, TreeNode(key))
+            index = bisect.bisect_left(self.children, TreeNode(key, reversed=self.reversed))
             if index == len(self.children) or self.children[index].key != key:
-                new_tree_node = TreeNode(key, list())
+                new_tree_node = TreeNode(key, list(), reversed=self.reversed)
                 new_tree_node.child_inserted = self.child_inserted
                 new_tree_node.child_removed = self.child_removed
                 new_tree_node.tree_node_updated = self.tree_node_updated
@@ -263,7 +269,7 @@ class TreeNode(object):
             self.values.remove(value)
         else:
             key = keys[0]
-            index = bisect.bisect_left(self.children, TreeNode(key))
+            index = bisect.bisect_left(self.children, TreeNode(key, reversed=self.reversed))
             assert index != len(self.children) and self.children[index].key == key
             self.children[index].remove_value(keys[1:], value)
             if self.tree_node_updated:
