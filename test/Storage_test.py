@@ -425,5 +425,24 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_model.remove_ref()
 
+    def test_data_item_should_store_modifications_within_transactions(self):
+        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        with document_model.ref():
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            with data_item.transaction():
+                data_item.datetime_original = reference_date
+            storage_str = datastore.to_string()
+        # make sure it reloads
+        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        with document_model.ref():
+            self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
+
 if __name__ == '__main__':
     unittest.main()

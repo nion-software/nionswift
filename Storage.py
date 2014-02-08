@@ -380,13 +380,13 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     # implement observer/notification mechanism
 
     def notify_set_property(self, key, value):
-        if self.datastore and self.__transaction_count == 0:
+        if self.datastore:  # properties are not affected by transactions
             self.datastore.set_property(self, key, value)
         super(StorageBase, self).notify_set_property(key, value)
 
     def notify_set_item(self, key, item):
         assert item is not None
-        if self.datastore and self.__transaction_count == 0:
+        if self.datastore:  # items are not affected by transactions
             item.datastore = self.datastore
             self.datastore.set_item(self, key, item)
         if self.storage_cache:
@@ -399,7 +399,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         item = self.get_storage_item(key)
         if item:
             if self.datastore:
-                assert self.__transaction_count == 0
+                # items are not affected by transactions
                 self.datastore.clear_item(self, key)
                 item.datastore = None
             if self.storage_cache:
@@ -418,7 +418,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
 
     def notify_insert_item(self, key, value, before_index):
         assert value is not None
-        if self.datastore and self.__transaction_count == 0:
+        if self.datastore:  # items are not affected by transactions
             value.datastore = self.datastore
             self.datastore.insert_item(self, key, value, before_index)
         if self.storage_cache:
@@ -429,7 +429,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     def notify_remove_item(self, key, value, index):
         assert value is not None
         if self.datastore:
-            assert self.__transaction_count == 0
+            # items are not affected by transactions
             self.datastore.remove_item(self, key, index)
             value.datastore = None
         if self.storage_cache:
