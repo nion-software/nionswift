@@ -8,6 +8,7 @@ import Queue
 import os
 import sqlite3
 import StringIO
+import sys
 import threading
 import time
 import uuid
@@ -960,7 +961,7 @@ class DbDatastore(object):
         logging.debug("items: %s", c.fetchone()[0])
 
     def set_root(self, root):
-        self.__make_node(root.uuid)
+        self.__make_node(root.uuid, root.storage_type)
 
     def create(self):
         if not self.disconnected:
@@ -985,14 +986,14 @@ class DbDatastore(object):
         node = c.fetchone()
         return node
 
-    def __make_node(self, uuid):
+    def __make_node(self, uuid, type):
         c = self.conn.cursor()
         self.execute(c, "SELECT * FROM nodes WHERE uuid = ?", (str(uuid), ))
         node = c.fetchone()
         if node:
             return node
         else:
-            self.execute(c, "INSERT INTO nodes (uuid, type, refcount) VALUES (?, NULL, 0)", (str(uuid), ))
+            self.execute(c, "INSERT INTO nodes (uuid, type, refcount) VALUES (?, ?, 0)", (str(uuid), str(type) ))
             self.execute(c, "SELECT * FROM nodes WHERE uuid = ?", (str(uuid), ))
             node = c.fetchone()
             return node
@@ -1027,6 +1028,25 @@ class DbDatastore(object):
             if not ignore_refcount:
                 self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(uuid_), ))
 
+    # remove this item from all other tables. used for db cleanup after corruption.
+    def __destroy_node_ref(self, uuid_):
+        c = self.conn.cursor()
+        self.execute(c, "DELETE FROM data_references WHERE uuid=?", (str(uuid_), ))
+        self.execute(c, "DELETE FROM items WHERE item_uuid=?", (str(uuid_), ))
+        self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
+        for row in c.fetchall():
+            item_uuid = row[0]
+            self.__destroy_node_ref(uuid.UUID(item_uuid))
+        self.execute(c, "DELETE FROM items WHERE parent_uuid=?", (str(uuid_), ))
+        self.execute(c, "DELETE FROM nodes WHERE uuid=?", (str(uuid_), ))
+        self.execute(c, "DELETE FROM properties WHERE uuid=?", (str(uuid_), ))
+        self.execute(c, "DELETE FROM relationships WHERE item_uuid=?", (str(uuid_), ))
+        self.execute(c, "SELECT item_uuid FROM relationships WHERE parent_uuid=?", (str(uuid_), ))
+        for row in c.fetchall():
+            item_uuid = row[0]
+            self.__destroy_node_ref(uuid.UUID(item_uuid))
+        self.execute(c, "DELETE FROM relationships WHERE parent_uuid=?", (str(uuid_), ))
+
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
 
@@ -1050,7 +1070,7 @@ class DbDatastore(object):
         if not self.disconnected:
             c = self.conn.cursor()
             if not self.find_node_or_none(item):
-                node = self.__make_node(item.uuid)
+                node = self.__make_node(item.uuid, item.storage_type)
                 item.write()
             self.execute(c, "INSERT OR REPLACE INTO items (parent_uuid, key, item_uuid) VALUES (?, ?, ?)", (str(parent.uuid), key, str(item.uuid), ))
             self.__add_node_ref(item.uuid)
@@ -1077,7 +1097,7 @@ class DbDatastore(object):
         if not self.disconnected:
             c = self.conn.cursor()
             if not self.find_node_or_none(item):
-                node = self.__make_node(item.uuid)
+                node = self.__make_node(item.uuid, item.storage_type)
                 item.write()
             # 1 2 3 ^ 4 5 6 => 1 2 3 -5 -6 -7 => 1 2 3 5 6 7 => 1 2 3 4 5 6 7
             self.execute(c, "UPDATE relationships SET item_index = -(item_index + 1) WHERE parent_uuid=? AND key=? AND item_index >= ?", (str(parent.uuid), key, before, ))
@@ -1205,6 +1225,26 @@ class DbDatastore(object):
             logging.debug("Duplicate item in relationship from %s to %s (%s[%s]) x%s", row[0], row[3], row[1], row[2], row[4])
             if raise_exception:
                 raise ValueError()
+        # find dead nodes where the type is NULL and cannot be built. destroy them.
+        c.execute("SELECT uuid FROM nodes WHERE type IS Null")
+        for row in c.fetchall():
+            uuid_str = row[0]
+            logging.debug("Removing malformed item %s", uuid_str)
+            self.__destroy_node_ref(uuid.UUID(uuid_str))
+        # find relationships where the relationship indexes are messed up. fix 'em.
+        c.execute("SELECT parent_uuid, key, COUNT(*) FROM relationships GROUP BY parent_uuid, key HAVING COUNT(*) != MAX(item_index)+1")
+        for row in c.fetchall():
+            uuid_str = row[0]
+            key = row[1]
+            count = row[2]
+            logging.debug("Fixing indexes %s %s", uuid_str, key)
+            self.execute(c, "SELECT item_index FROM relationships WHERE parent_uuid=? AND key=? ORDER BY item_index", (uuid_str, key))
+            index = 0
+            for subrow in c.fetchall():
+                item_index = subrow[0]
+                self.execute(c, "UPDATE relationships SET item_index=? WHERE parent_uuid=? AND key=? AND item_index=?", (index, uuid_str, key, item_index))
+                index += 1
+        self.conn.commit()
 
     def get_items(self, parent_node, key):
         c = self.conn.cursor()
