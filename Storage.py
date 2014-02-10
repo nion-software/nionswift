@@ -1162,7 +1162,7 @@ class DbDatastore(object):
             if item:
                 self.__item_map[uuid_] = item
             else:
-                logging.debug("Unable to build %s", type)
+                logging.debug("Unable to build %s (%s)", type, uuid_)
         else:
             item = self.__item_map[uuid_]
         return item
