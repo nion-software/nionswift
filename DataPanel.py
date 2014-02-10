@@ -797,8 +797,8 @@ class DataPanel(Panel.Panel):
                 break
 
     # this message comes from the data group model, which is why it is named the way it is
-    def data_group_model_receive_files(self, file_paths, data_group, index):
-        data_items = self.document_controller.receive_files(file_paths, data_group, index)
+    def data_group_model_receive_files(self, file_paths, data_group, index, external=True):
+        data_items = self.document_controller.receive_files(file_paths, data_group, index, external)
         if len(data_items) > 0:
             # select the first item/group
             self.update_data_panel_selection(DataPanelSelection(data_group, data_items[0]))

@@ -248,13 +248,15 @@ class DataReferenceHandler(object):
                 return pickle.load(open(absolute_file_path, "rb"))
         elif reference_type == "external_file":
             data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.ui, reference)
-            return data_elements[0]["data"]
+            # assume bad data here
+            if data_elements is not None and len(data_elements) > 0 and "data" in data_elements[0]:
+                return data_elements[0]["data"]
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         #logging.debug("write data reference %s %s", reference_type, reference)
-        assert data is not None
         if reference_type == "relative_file":
+            assert data is not None
             data_file_path = reference
             data_file_datetime = file_datetime
             data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")

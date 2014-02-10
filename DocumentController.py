@@ -320,7 +320,7 @@ class DocumentController(Observable.Broadcaster):
         paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         for path in paths:
-            data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, path)
+            data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, path, external=True)
             for data_item in data_items:
                 self.document_model.append_data_item(data_item)
 
@@ -517,11 +517,11 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1):
+    def receive_files(self, file_paths, data_group=None, index=-1, external=True):
         received_data_items = list()
         for file_path in file_paths:
             try:
-                data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
+                data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path, external=external)
                 if data_group and isinstance(data_group, DataGroup.DataGroup):
                     for data_item in data_items:
                         self.document_model.append_data_item(data_item)

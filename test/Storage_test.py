@@ -18,6 +18,7 @@ from nion.swift import DocumentController
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImagePanel
+from nion.swift import ImportExportManager
 from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Utility
@@ -464,7 +465,7 @@ class TestStorageClass(unittest.TestCase):
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 document_model.append_data_item(data_item)
-                reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+                data, data_shape, data_dtype, reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
                 self.assertEqual(reference_type, "relative_file")
                 data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
                 self.assertTrue(os.path.exists(data_file_path))
@@ -484,6 +485,31 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_writing_empty_data_item_returns_expected_values(self):
+        db_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+            self.assertIsNone(data)
+            self.assertIsNone(data_shape)
+            self.assertIsNone(data_dtype)
+            self.assertIsNone(reference_type)
+            self.assertIsNone(reference)
+            self.assertIsNone(file_datetime)
+            document_model.remove_ref()
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_data_writes_to_file_after_transaction(self):
         db_name = ":memory:"
         current_working_directory = os.getcwd()
@@ -497,12 +523,12 @@ class TestStorageClass(unittest.TestCase):
             document_model.add_ref()
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
-            reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
-            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
             # write data with transaction
             with data_item.transaction():
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+                data, data_shape, data_dtype, reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
                 # make sure it does NOT exist during the transaction
                 self.assertFalse(os.path.exists(data_file_path))
             # make sure it DOES exist after the transaction
@@ -527,11 +553,11 @@ class TestStorageClass(unittest.TestCase):
             document_model.add_ref()
             data_item = DataItem.DataItem()
             data_item.datetime_original = reference_date
-            document_model.append_data_item(data_item)
-            reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
-            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
             with data_item.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            document_model.append_data_item(data_item)
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
             # make sure it get written to disk
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
@@ -545,6 +571,30 @@ class TestStorageClass(unittest.TestCase):
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
+
+    def test_data_item_loads_data_from_external_file(self):
+        db_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(self.app.ui, workspace_dir)
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            data_item = DataItem.DataItem()
+            data_file_path = os.path.join(current_working_directory, "Graphics/scroll_gem.png")
+            data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.app.ui, data_file_path)
+            data_item.set_external_master_data(data_file_path, data_elements[0]["data"].shape, data_elements[0]["data"].dtype)
+            document_model.append_data_item(data_item)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
+            document_model.remove_ref()
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

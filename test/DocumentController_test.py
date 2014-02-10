@@ -112,7 +112,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"])
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], external=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
 
     def test_receive_files_should_put_files_into_document_model_at_index(self):
@@ -128,7 +128,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], index=2)
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], index=2, external=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
 
     def test_receive_files_should_put_files_into_data_group_at_index(self):
@@ -149,7 +149,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2)
+        new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, external=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
         self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
 

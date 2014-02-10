@@ -345,6 +345,9 @@ class DataItem(Storage.StorageBase):
         self.__master_data = None
         self.__master_data_shape = None
         self.__master_data_dtype = None
+        self.__master_data_reference_type = None  # used for temporary storage
+        self.__master_data_reference = None  # used for temporary storage
+        self.__master_data_file_datetime = None  # used for temporary storage
         self.__has_master_data = False
         self.__data_source = None
         self.__data_ref_count = 0
@@ -881,17 +884,20 @@ class DataItem(Storage.StorageBase):
             file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
             # tell the database about it
             if self.__master_data is not None:
+                # save these here so that if the data isn't immediately written out, these values can be returned
+                # from _get_master_data_data_reference when the data is written.
+                self.__master_data_reference_type = "relative_file"
+                self.__master_data_reference = data_file_path
+                self.__master_data_file_datetime = file_datetime
                 self.notify_set_data_reference("master_data", self.__master_data, self.__master_data.shape, self.__master_data.dtype, "relative_file", data_file_path, file_datetime)
             self.notify_data_item_content_changed(set([DATA]))
-    # hidden accessor for storage subsystem.
-    def _get_master_data(self):
-        return self.__get_master_data()
-    # used for testing only
+
+    # accessor for storage subsystem.
     def _get_master_data_data_reference(self):
-        reference_type = "relative_file"
-        reference = DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
-        file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
-        return reference_type, reference, file_datetime
+        reference_type = self.__master_data_reference_type # if self.__master_data_reference_type else "relative_file"
+        reference = self.__master_data_reference # if self.__master_data_reference else DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
+        file_datetime = self.__master_data_file_datetime # if self.__master_data_file_datetime else Utility.get_datetime_from_datetime_element(self.datetime_original)
+        return self.__master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
 
     def set_external_master_data(self, data_file_path, data_shape, data_dtype):
         with self.__data_mutex:
@@ -902,7 +908,13 @@ class DataItem(Storage.StorageBase):
             self.__has_master_data = True
             spatial_ndim = len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
             self.sync_intrinsic_calibrations(spatial_ndim)
-        self.notify_set_data_reference("master_data", None, data_shape, data_dtype, "relative_file", data_file_path, file_datetime)
+            file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(data_file_path))
+        # save these here so that if the data isn't immediately written out, these values can be returned
+        # from _get_master_data_data_reference when the data is written.
+        self.__master_data_reference_type = "external_file"
+        self.__master_data_reference = data_file_path
+        self.__master_data_file_datetime = file_datetime
+        self.notify_set_data_reference("master_data", None, data_shape, data_dtype, "external_file", data_file_path, file_datetime)
         self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):
@@ -913,7 +925,8 @@ class DataItem(Storage.StorageBase):
             self.__master_data = self.datastore.load_data_reference("master_data", reference_type, reference)
 
     def __unload_master_data(self):
-        # unload data if it can be reloaded from datastore
+        # unload data if it can be reloaded from datastore.
+        # data cannot be unloaded if transaction count > 0 or if there is no datastore.
         if self.transaction_count == 0 and self.has_master_data and self.datastore:
             self.__master_data = None
             #logging.debug("unloading %s (%s)", self, self.uuid)

@@ -320,29 +320,16 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         raise NotImplementedError()
 
     def get_storage_data_reference(self, key):
-        data = []
-        if hasattr(self, key):
-            data.append(getattr(self, key))
-        elif hasattr(self, "get_" + key):
-            data.append(getattr(self, "get_" + key)())
-        elif hasattr(self, "_get_" + key):
-            data.append(getattr(self, "_get_" + key)())
-        if len(data) != 1:
-            logging.debug("get_storage_data: %s missing %s", self, key)
+        if hasattr(self, key + "_data_reference"):
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, key + "_data_reference")
+        elif hasattr(self, "get_" + key + "_data_reference"):
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, "get_" + key + "_data_reference")()
+        elif hasattr(self, "_get_" + key + "_data_reference"):
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, "_get_" + key + "_data_reference")()
+        else:
+            logging.debug("get_storage_data: %s missing %s", self, key + "_data_reference")
             raise NotImplementedError()
-        reference_type = None
-        reference = None
-        if data is not None:
-            if hasattr(self, key + "_data_reference"):
-                reference_type, reference, file_datetime = getattr(self, key + "_data_reference")
-            elif hasattr(self, "get_" + key + "_data_reference"):
-                reference_type, reference, file_datetime = getattr(self, "get_" + key + "_data_reference")()
-            elif hasattr(self, "_get_" + key + "_data_reference"):
-                reference_type, reference, file_datetime = getattr(self, "_get_" + key + "_data_reference")()
-            if reference_type is None or reference is None:
-                logging.debug("get_storage_data: %s missing %s", self, key + "_data_reference")
-                raise NotImplementedError()
-        return data[0], reference_type, reference, file_datetime
+        return data, data_shape, data_dtype, reference_type, reference, file_datetime
 
     def get_storage_relationship_count(self, key):
         relationship = self.get_storage_relationship(key)
@@ -468,11 +455,12 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     def write_data(self):
         assert self.datastore is not None
         for data_key in self.storage_data_keys:
-            data, reference_type, reference, file_datetime = self.get_storage_data_reference(data_key)
-            if data is not None:
-                resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
+            data, data_shape, data_dtype, reference_type, reference, file_datetime = self.get_storage_data_reference(data_key)
+            resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
+            if data is not None:  # data may be None for external references
                 self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
-                self.datastore.set_data_reference(self, resolved_data_key, data, data.shape, data.dtype, reference_type, reference)
+            if reference_type:
+                self.datastore.set_data_reference(self, resolved_data_key, data, data_shape, data_dtype, reference_type, reference)
 
     def rewrite_data(self):
         assert self.datastore is not None
@@ -720,6 +708,8 @@ class DictDatastore(object):
     def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
         if self.disconnected:
             return
+        if data is None:
+            return
         # get the parent node
         parent_node = self.find_node(parent)
         # insert new node in parent
@@ -891,7 +881,7 @@ class TestDataReferenceHandler(object):
 
     def remove_data_reference(self, reference_type, reference):
         #logging.debug("remove data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
+        if reference_type == "relative_file" and reference in self.data:
             del self.data[reference]
 
 
