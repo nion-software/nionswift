@@ -475,6 +475,9 @@ class TestStorageClass(unittest.TestCase):
             with document_model.ref():
                 with document_model.data_items[0].data_ref() as data_ref:
                     self.assertIsNotNone(data_ref.data)
+                # and then make sure the data file gets removed on disk when removed
+                document_model.remove_data_item(document_model.data_items[0])
+                self.assertFalse(os.path.exists(data_file_path))
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
