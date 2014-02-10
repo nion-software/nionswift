@@ -222,6 +222,7 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
                 line_graphic.end_arrow_enabled = True
                 data_item.graphics.append(line_graphic)
 
+
 class StandardImportExportHandler(ImportExportHandler):
 
     def __init__(self, name, extensions):
