@@ -160,8 +160,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
 
     def __del__(self):
         # There should not be listeners or references at this point.
-        assert len(self.__weak_parents) == 0, 'StorageBase still has parents'
-        assert self.__ref_count == 0, 'StorageBase still has references'
+        assert len(self.__weak_parents) == 0, '{0} still has parents'.format(self.__class__.__name__)
+        assert self.__ref_count == 0, '{0} still has references'.format(self.__class__.__name__)
 
     # Give subclasses a chance to clean up. This gets called when reference
     # count goes to 0, but before deletion.
