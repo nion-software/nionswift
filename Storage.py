@@ -849,14 +849,15 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
     args.append(key)
     args.append(sqlite3.Binary(pickle.dumps(data.shape, pickle.HIGHEST_PROTOCOL)))
     args.append(sqlite3.Binary(pickle.dumps(data.dtype, pickle.HIGHEST_PROTOCOL)))
+    args.append("relative_file")
     args.append(data_file_path)
-    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, shape, dtype, relative_file) VALUES (?, ?, ?, ?, ?)".format(data_table), args)
+    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)".format(data_table), args)
 
 # utility function to read data from external file.
 def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
     assert workspace_dir
     assert parent_uuid
-    c.execute("SELECT relative_file FROM data WHERE uuid=? AND key=?", (str(parent_uuid), key))
+    c.execute("SELECT reference FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
     if data_row:
         data_file_path = data_row[0]
@@ -870,7 +871,7 @@ def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
 # utility function to read data shape and dtype from external file.
 def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
     assert workspace_dir
-    c.execute("SELECT shape, dtype FROM data WHERE uuid=? AND key=?", (str(parent_uuid), key))
+    c.execute("SELECT shape, dtype FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
     if data_row:
         data_shape = pickle.loads(str(data_row[0]))
@@ -915,23 +916,6 @@ class DbDatastore(object):
         self.conn.commit()
         self.conn.row_factory = sqlite3.Row
 
-    def print_counts(self):
-        c = self.conn.cursor()
-        if False:
-            c.execute("SELECT * FROM nodes")
-            for row in c.fetchall():
-                logging.debug(str(row))
-                for key in row.keys():
-                    logging.debug("%s: %s", key, row[key])
-        c.execute("SELECT COUNT(*) FROM nodes")
-        logging.debug("nodes: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM properties")
-        logging.debug("properties: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM data")
-        logging.debug("data: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM relationships")
-        logging.debug("relationships: %s", c.fetchone()[0])
-
     def execute(self, c, stmt, args=None, log=False):
         if args:
             c.execute(stmt, args)
@@ -957,8 +941,8 @@ class DbDatastore(object):
         logging.debug("nodes: %s", c.fetchone()[0])
         c.execute("SELECT COUNT(*) FROM properties")
         logging.debug("properties: %s", c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM data")
-        logging.debug("data: %s", c.fetchone()[0])
+        c.execute("SELECT COUNT(*) FROM data_references")
+        logging.debug("data_references: %s", c.fetchone()[0])
         c.execute("SELECT COUNT(*) FROM relationships")
         logging.debug("relationships: %s", c.fetchone()[0])
         c.execute("SELECT COUNT(*) FROM items")
@@ -973,13 +957,13 @@ class DbDatastore(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
             if self.workspace_dir:  # may be None for testing
-                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
+                self.execute(c, "CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, shape BLOB, dtype BLOB, reference_type STRING, reference STRING, PRIMARY KEY(uuid, key))")
             else:  # testing (data stored in memory)
-                self.execute(c, "CREATE TABLE IF NOT EXISTS data(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
+                self.execute(c, "CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
-            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (3, ))
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (4, ))
             self.conn.commit()
 
     # keep. used for testing
@@ -1040,7 +1024,7 @@ class DbDatastore(object):
 
     def __erase_data(self, c, uuid_):
         if self.workspace_dir:  # may be None for testing
-            self.execute(c, "SELECT relative_file FROM data WHERE uuid=?", (str(uuid_), ))
+            self.execute(c, "SELECT reference FROM data_references WHERE uuid=?", (str(uuid_), ))
             for row in c.fetchall():
                 data_file_path = row[0]
                 data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
@@ -1048,9 +1032,9 @@ class DbDatastore(object):
                 #logging.debug("DELETE data file %s", absolute_file_path)
                 if os.path.isfile(absolute_file_path):
                     os.remove(absolute_file_path)
-            self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
+            self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
         else:  # testing
-            self.execute(c, "DELETE FROM data WHERE uuid = ?", (str(uuid_), ))
+            self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
 
     def erase_data(self, object):
         c = self.conn.cursor()
@@ -1126,11 +1110,11 @@ class DbDatastore(object):
         if not self.disconnected:
             if self.workspace_dir:  # may be None for testing
                 c = self.conn.cursor()
-                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, data_file_datetime, "data")
+                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, data_file_datetime, "data_references")
                 self.conn.commit()
             else:  # testing
                 c = self.conn.cursor()
-                self.execute(c, "INSERT OR REPLACE INTO data (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
+                self.execute(c, "INSERT OR REPLACE INTO data_references (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
 
     # NOTE: parent_nodes are uuid strings for this class
 
@@ -1186,7 +1170,7 @@ class DbDatastore(object):
 
     def has_data(self, parent_node, key):
         c = self.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM data WHERE uuid=? AND key=?", (str(parent_node), key, ))
+        c.execute("SELECT COUNT(*) FROM data_references WHERE uuid=? AND key=?", (str(parent_node), key, ))
         return c.fetchone()[0] > 0
 
     def has_item(self, parent_node, key):
@@ -1251,7 +1235,7 @@ class DbDatastore(object):
         if self.workspace_dir:  # may be None for testing
             return db_get_data(c, self.workspace_dir, parent_node, key, default_value)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
             if data_row:
                 return pickle.loads(str(data_row[0]))
@@ -1263,7 +1247,7 @@ class DbDatastore(object):
         if self.workspace_dir:  # may be None for testing
             return db_get_data_shape_and_dtype(c, self.workspace_dir, parent_node, key)
         else:  # testing
-            c.execute("SELECT data FROM data WHERE uuid=? AND key=?", (parent_node, key, ))
+            c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
             data_row = c.fetchone()
             if data_row:
                 data = pickle.loads(str(data_row[0]))

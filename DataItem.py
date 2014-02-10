@@ -887,28 +887,32 @@ class DataItem(Storage.StorageBase):
     def _get_master_data_data_file_datetime(self):
         return Utility.get_datetime_from_datetime_element(self.datetime_original)
 
+    def __load_master_data(self):
+        # load data from datastore if not present
+        if self.has_master_data and self.datastore and self.__master_data is None:
+            #logging.debug("loading %s (%s)", self, self.uuid)
+            master_data = self.datastore.get_data(self.datastore.find_parent_node(self), "master_data")
+            self.__master_data = master_data
+
+    def __unload_master_data(self):
+        # unload data if it can be reloaded from datastore
+        if self.has_master_data and self.datastore:
+            self.__master_data = None
+            #logging.debug("unloading %s (%s)", self, self.uuid)
+
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
         if initial_count == 0:
-            # load data from datastore if not present
-            if self.has_master_data and self.datastore and self.__master_data is None:
-                #logging.debug("loading %s (%s)", self, self.uuid)
-                master_data = self.datastore.get_data(self.datastore.find_parent_node(self), "master_data")
-                self.__master_data = master_data
-                #import traceback
-                #traceback.print_stack()
+            self.__load_master_data()
         return initial_count+1
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
         if final_count == 0:
-            # unload data if it can be reloaded from datastore
-            if self.has_master_data and self.datastore:
-                self.__master_data = None
-                #logging.debug("unloading %s (%s)", self, self.uuid)
+            self.__unload_master_data()
         return final_count
 
     def __get_has_master_data(self):

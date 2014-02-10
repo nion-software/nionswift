@@ -179,7 +179,16 @@ class Application(object):
                         index += 1
                 c.execute("UPDATE version SET version = ?", (3, ))
                 version = 3
-            if version > 3:
+            if version == 3:
+                logging.debug("Updating database from version 3 to version 4.")
+                c.execute("CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, shape BLOB, dtype BLOB, reference_type STRING, reference STRING, PRIMARY KEY(uuid, key))")
+                c.execute("INSERT INTO data_references (uuid, key, shape, dtype, reference_type, reference) SELECT uuid, key, shape, dtype, 'relative_file', relative_file FROM data")
+                c.execute("DROP TABLE data")
+                c.execute("UPDATE version SET version = ?", (4, ))
+                datastore.conn.commit()
+                c.execute("VACUUM")
+                version = 4
+            if version > 4:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()
