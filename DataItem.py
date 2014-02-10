@@ -891,7 +891,15 @@ class DataItem(Storage.StorageBase):
         # load data from datastore if not present
         if self.has_master_data and self.datastore and self.__master_data is None:
             #logging.debug("loading %s (%s)", self, self.uuid)
-            master_data = self.datastore.get_data(self.datastore.find_parent_node(self), "master_data")
+            reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self), "master_data")
+            if reference_type == "relative_file":
+                data_file_path = reference
+                absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
+                #logging.debug("READ data file %s for %s", absolute_file_path, key)
+                if os.path.isfile(absolute_file_path):
+                    master_data = pickle.load(open(absolute_file_path, "rb"))
+            elif reference_type == "embedded":
+                master_data = self.datastore.get_data_direct(reference, "master_data")
             self.__master_data = master_data
 
     def __unload_master_data(self):

@@ -805,7 +805,10 @@ class DictDatastore(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, key, default_value=None):
+    def get_data_reference(self, parent_node, key):
+        return "embedded", parent_node
+
+    def get_data_direct(self, parent_node, key):
         data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
         if key in data_items:
             data = data_items[key]
@@ -854,19 +857,14 @@ def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data
     c.execute("INSERT OR REPLACE INTO {0} (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)".format(data_table), args)
 
 # utility function to read data from external file.
-def db_get_data(c, workspace_dir, parent_uuid, key, default_value=None):
+def db_get_data_reference(c, workspace_dir, parent_uuid, key):
     assert workspace_dir
     assert parent_uuid
-    c.execute("SELECT reference FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
+    c.execute("SELECT reference_type, reference FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
     if data_row:
-        data_file_path = data_row[0]
-        absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
-        #logging.debug("READ data file %s for %s", absolute_file_path, key)
-        if os.path.isfile(absolute_file_path):
-            data = pickle.load(open(absolute_file_path, "rb"))
-            return data if data is not None else default_value
-    return default_value
+        return data_row[0], data_row[1]
+    return "invalid", None
 
 # utility function to read data shape and dtype from external file.
 def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
@@ -1230,17 +1228,22 @@ class DbDatastore(object):
         else:
             return default_value
 
-    def get_data(self, parent_node, key, default_value=None):
+    def get_data_reference(self, parent_node, key):
         c = self.conn.cursor()
         if self.workspace_dir:  # may be None for testing
-            return db_get_data(c, self.workspace_dir, parent_node, key, default_value)
+            return db_get_data_reference(c, self.workspace_dir, parent_node, key)
         else:  # testing
-            c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
-            data_row = c.fetchone()
-            if data_row:
-                return pickle.loads(str(data_row[0]))
-            else:
-                return default_value
+            return "embedded", parent_node
+
+    # for testing
+    def get_data_direct(self, parent_node, key):
+        c = self.conn.cursor()
+        c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
+        data_row = c.fetchone()
+        if data_row:
+            return pickle.loads(str(data_row[0]))
+        else:
+            return None
 
     def get_data_shape_and_dtype(self, parent_node, key):
         c = self.conn.cursor()
@@ -1421,9 +1424,13 @@ class DbDatastoreProxy(object):
         self.__queue.join()
         return self.__datastore.get_property(parent_node, key, default_value)
 
-    def get_data(self, parent_node, key, default_value=None):
+    def get_data_reference(self, parent_node, key):
         self.__queue.join()
-        return self.__datastore.get_data(parent_node, key, default_value)
+        return self.__datastore.get_data_reference(parent_node, key)
+
+    def get_data_direct(self, parent_node, key):
+        self.__queue.join()
+        return self.__datastore.get_data_direct(parent_node, key)
 
     def get_data_shape_and_dtype(self, parent_node, key):
         self.__queue.join()
