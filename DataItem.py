@@ -879,11 +879,8 @@ class DataItem(Storage.StorageBase):
                 self.sync_intrinsic_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
             file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
-            # write the data but only if datastore and workspace_dir exist and also only if data itself exists. used for testing.
-            if self.datastore and data is not None:
-                self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
             # tell the database about it
-            self.notify_set_data_reference("master_data", self.__master_data, "relative_file", data_file_path)
+            self.notify_set_data_reference("master_data", self.__master_data, "relative_file", data_file_path, file_datetime)
             self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem.
     def _get_master_data(self):
@@ -903,7 +900,7 @@ class DataItem(Storage.StorageBase):
 
     def __unload_master_data(self):
         # unload data if it can be reloaded from datastore
-        if self.has_master_data and self.datastore:
+        if self.transaction_count == 0 and self.has_master_data and self.datastore:
             self.__master_data = None
             #logging.debug("unloading %s (%s)", self, self.uuid)
 

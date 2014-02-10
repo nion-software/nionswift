@@ -483,6 +483,33 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_data_writes_to_file_after_transaction(self):
+        db_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
+            with data_item.transaction():
+                with data_item.data_ref() as data_ref:
+                    data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+                # make sure it does NOT exist during the transaction
+                self.assertFalse(os.path.exists(data_file_path))
+            document_model.remove_ref()
+            self.assertTrue(os.path.exists(data_file_path))
+            self.assertTrue(os.path.isfile(data_file_path))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

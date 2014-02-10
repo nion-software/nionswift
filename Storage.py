@@ -397,9 +397,11 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             item.remove_parent(self)
             super(StorageBase, self).notify_clear_item(key)
 
-    def notify_set_data_reference(self, key, data, reference_type, reference):
+    def notify_set_data_reference(self, key, data, reference_type, reference, file_datetime):
         if self.datastore and self.__transaction_count == 0:
             self.datastore.set_data_reference(self, key, data, reference_type, reference)
+            if data is not None:
+                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
         for observer in self.observers:
             if observer and getattr(observer, "data_set", None):
                 observer.data_set(self, key, data)
