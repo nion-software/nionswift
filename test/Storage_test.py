@@ -123,7 +123,7 @@ class TestStorageClass(unittest.TestCase):
         data_item0_uuid = document_controller.document_model.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.data_items[1].data_items)
         if include_rewrite:
-            document_controller.document_model.data_items[0].rewrite()
+            document_controller.document_model.data_items[0]._rewrite()
         document_controller.close()
         datastore.close()
         # read it back
@@ -462,7 +462,9 @@ class TestStorageClass(unittest.TestCase):
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 document_model.append_data_item(data_item)
-                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", data_item._get_master_data_data_file_path())
+                reference_type, reference = data_item._get_master_data_data_reference()
+                self.assertEqual(reference_type, "relative_file")
+                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
                 storage_str = datastore.to_string()

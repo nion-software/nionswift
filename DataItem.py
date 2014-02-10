@@ -1,4 +1,5 @@
 # standard libraries
+import calendar
 import collections
 import copy
 import datetime
@@ -7,6 +8,7 @@ import logging
 import os
 import cPickle as pickle
 import threading
+import time
 import types
 import weakref
 
@@ -877,16 +879,36 @@ class DataItem(Storage.StorageBase):
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_intrinsic_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
-            data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
-            self.notify_set_data("master_data", self.__master_data, data_file_path, data_file_datetime)
+            # write the data but only if datastore and workspace_dir exist and also only if data itself exists. used for testing.
+            if self.datastore and self.datastore.workspace_dir and data is not None:
+                self._write_master_data(data, "relative_file", data_file_path)
+            # tell the database about it
+            self.notify_set_data_reference("master_data", self.__master_data, "relative_file", data_file_path)
             self.notify_data_item_content_changed(set([DATA]))
-    # hidden accessor for storage subsystem. temporary.
+    # hidden accessor for storage subsystem.
     def _get_master_data(self):
         return self.__get_master_data()
-    def _get_master_data_data_file_path(self):
-        return DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
-    def _get_master_data_data_file_datetime(self):
-        return Utility.get_datetime_from_datetime_element(self.datetime_original)
+    def _get_master_data_data_reference(self):
+        reference_type = "relative_file"
+        reference = DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
+        return reference_type, reference
+    def _write_master_data(self, data, reference_type, reference):
+        assert data is not None
+        workspace_dir = self.datastore.workspace_dir
+        if reference_type == "relative_file":
+            data_file_path = reference
+            data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
+            data_directory = os.path.join(workspace_dir, "Nion Swift Data")
+            absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
+            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+            pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
+            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            os.utime(absolute_file_path, (time.time(), timestamp))
+        else:
+            logging.debug("Cannot write master data %s %s", reference_type, reference)
+            raise NotImplementedError()
 
     def __load_master_data(self):
         # load data from datastore if not present

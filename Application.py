@@ -99,34 +99,8 @@ class Application(object):
             logging.debug("Database at version %s.", version)
             c = datastore.conn.cursor()
             if version == 0:
-                logging.debug("Updating database from version 0 to version 1.")
-                c.execute("CREATE TABLE IF NOT EXISTS new_data(uuid STRING, key STRING, shape BLOB, dtype BLOB, relative_file STRING, PRIMARY KEY(uuid, key))")
-                c.execute("SELECT uuid, key, data FROM data")
-                datetime_current = Utility.get_current_datetime_element()
-                for row in c.fetchall():
-                    data_uuid = row[0]
-                    data_key = row[1]
-                    data = pickle.loads(str(row[2]))
-                    datetime_original = datastore.get_property(data_uuid, "datetime_original")
-                    if not datetime_original:
-                        datetime_original = datetime_current
-                        datastore.set_property(collections.namedtuple("Migration_0_1_Item", ["uuid"])(data_uuid), "datetime_original", datetime_original)
-                    data_file_path = DataItem.DataItem._get_data_file_path(uuid.UUID(data_uuid), datetime_original)
-                    data_file_date = Utility.get_datetime_from_datetime_element(datetime_original)
-                    if not data_file_date:
-                        logging.debug("datetime_original was %s", datetime_original)
-                        data_file_data = Utility.get_datetime_from_datetime_element(datetime_current)
-                    Storage.db_write_data(c, workspace_dir, data_uuid, data_key, data, data_file_path, data_file_date, "new_data")
-                    logging.debug("Writing data item %s %s %s", data_uuid, data_file_path, data_file_date)
-                c.execute("DROP TABLE data")
-                c.execute("ALTER TABLE new_data RENAME TO data")
-                c.execute("INSERT OR REPLACE INTO version (version) VALUES (?)", (1, ))
-                logging.debug("Preparing to commit")
-                datastore.conn.commit()
-                logging.debug("Committed")
-                c.execute("VACUUM")
-                logging.debug("Vacuumed")
-                version = 1
+                logging.debug("Database too old, version %s", version)
+                sys.exit()
             if version == 1:
                 # apply a backwards compatible change
                 c.execute("SELECT uuid FROM nodes WHERE type='data-item'")

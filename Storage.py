@@ -1,9 +1,7 @@
 # standard libraries
-import calendar
 import collections
 import copy
 import cPickle as pickle
-import datetime
 import functools
 import logging
 import Queue
@@ -321,7 +319,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         logging.debug("get_storage_item: %s missing %s", self, key)
         raise NotImplementedError()
 
-    def get_storage_data(self, key):
+    def get_storage_data_reference(self, key):
         data = []
         if hasattr(self, key):
             data.append(getattr(self, key))
@@ -332,27 +330,29 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         if len(data) != 1:
             logging.debug("get_storage_data: %s missing %s", self, key)
             raise NotImplementedError()
-        data_file_path = None
+        reference_type = None
+        reference = None
         if data is not None:
-            if hasattr(self, key + "_data_file_path"):
-                data_file_path = getattr(self, key + "_data_file_path")
-            elif hasattr(self, "get_" + key + "_data_file_path"):
-                data_file_path = getattr(self, "get_" + key + "_data_file_path")()
-            elif hasattr(self, "_get_" + key + "_data_file_path"):
-                data_file_path = getattr(self, "_get_" + key + "_data_file_path")()
-            if data_file_path is None:
-                logging.debug("get_storage_data: %s missing %s", self, key + "_data_file_path")
+            if hasattr(self, key + "_data_reference"):
+                reference_type, reference = getattr(self, key + "_data_reference")
+            elif hasattr(self, "get_" + key + "_data_reference"):
+                reference_type, reference = getattr(self, "get_" + key + "_data_reference")()
+            elif hasattr(self, "_get_" + key + "_data_reference"):
+                reference_type, reference = getattr(self, "_get_" + key + "_data_reference")()
+            if reference_type is None or reference is None:
+                logging.debug("get_storage_data: %s missing %s", self, key + "_data_reference")
                 raise NotImplementedError()
-            if hasattr(self, key + "_data_file_datetime"):
-                data_file_datetime = getattr(self, key + "_data_file_datetime")
-            elif hasattr(self, "get_" + key + "_data_file_datetime"):
-                data_file_datetime = getattr(self, "get_" + key + "_data_file_datetime")()
-            elif hasattr(self, "_get_" + key + "_data_file_datetime"):
-                data_file_datetime = getattr(self, "_get_" + key + "_data_file_datetime")()
-            if data_file_datetime is None:
-                logging.debug("get_storage_data: %s missing %s", self, key + "_data_file_datetime")
-                raise NotImplementedError()
-        return data[0], data_file_path, data_file_datetime
+        return data[0], reference_type, reference
+
+    # this requests the object to write the data file
+    def write_data_reference(self, key, data, reference_type, reference):
+        if hasattr(self, "write_" + key):
+            getattr(self, "write_" + key)(data, reference_type, reference)
+        elif hasattr(self, "_write_" + key):
+            getattr(self, "_write_" + key)(data, reference_type, reference)
+        else:
+            logging.debug("write_data_reference: %s missing %s", self, "write_" + key)
+            raise NotImplementedError()
 
     def get_storage_relationship_count(self, key):
         relationship = self.get_storage_relationship(key)
@@ -407,9 +407,9 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             item.remove_parent(self)
             super(StorageBase, self).notify_clear_item(key)
 
-    def notify_set_data(self, key, data, data_file_path, data_file_datetime):
+    def notify_set_data_reference(self, key, data, reference_type, reference):
         if self.datastore and self.__transaction_count == 0:
-            self.datastore.set_data(self, key, data, data_file_path, data_file_datetime)
+            self.datastore.set_data_reference(self, key, data, reference_type, reference)
         for observer in self.observers:
             if observer and getattr(observer, "data_set", None):
                 observer.data_set(self, key, data)
@@ -437,7 +437,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         value.remove_parent(self)
         super(StorageBase, self).notify_remove_item(key, value, index)
 
-    def rewrite(self):
+    # only used for testing
+    def _rewrite(self):
         assert self.datastore is not None
         assert self.__transaction_count == 0
         self.datastore.erase_object(self)
@@ -459,11 +460,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
                 item.storage_cache = self.storage_cache
                 resolved_item_key = self.__reverse_aliases.get(item_key, item_key)
                 self.datastore.set_item(self, resolved_item_key, item)
-        for data_key in self.storage_data_keys:
-            data, data_file_path, data_file_datetime = self.get_storage_data(data_key)
-            if data is not None:
-                resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
-                self.datastore.set_data(self, resolved_data_key, data, data_file_path, data_file_datetime)
         for relationship_key in self.storage_relationships:
             count = self.get_storage_relationship_count(relationship_key)
             for index in range(count):
@@ -473,15 +469,19 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
                 item.storage_cache = self.storage_cache
                 resolved_relationship_key = self.__reverse_aliases.get(relationship_key, relationship_key)
                 self.datastore.insert_item(self, resolved_relationship_key, item, index)
+        self.write_data()
         if self.datastore:
             self.datastore.set_type(self, self.storage_type)
 
     def write_data(self):
         assert self.datastore is not None
         for data_key in self.storage_data_keys:
-            data, data_file_path, data_file_datetime = self.get_storage_data(data_key)
+            data, reference_type, reference = self.get_storage_data_reference(data_key)
             if data is not None:
-                self.datastore.set_data(self, data_key, data, data_file_path, data_file_datetime)
+                resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
+                if self.datastore.workspace_dir:  # otherwise db will handle it internally. ugh.
+                    self.write_data_reference(resolved_data_key, data, reference_type, reference)
+                self.datastore.set_data_reference(self, resolved_data_key, data, reference_type, reference)
 
     def rewrite_data(self):
         assert self.datastore is not None
@@ -586,6 +586,7 @@ class DictDatastore(object):
     def __init__(self, node_map=None):
         self.__node_map = node_map if node_map else {}
         # item map is used during item construction.
+        self.workspace_dir = None  # for testing only
         self.__item_map = {}
         self.initialized = node_map is not None
         self.disconnected = False
@@ -726,7 +727,7 @@ class DictDatastore(object):
         properties = item_node.setdefault("properties", {})
         properties[key] = value
 
-    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
+    def set_data_reference(self, parent, key, data, reference_type, reference):
         if self.disconnected:
             return
         # get the parent node
@@ -836,25 +837,16 @@ def db_make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 # utility function for db migration
-def db_write_data(c, workspace_dir, parent_uuid, key, data, data_file_path, data_file_datetime, data_table):
-    assert workspace_dir
+def db_write_data_reference(c, parent_uuid, key, data, reference_type, reference):
     assert data is not None
-    data_directory = os.path.join(workspace_dir, "Nion Swift Data")
-    absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
-    #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-    db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-    pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
-    # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-    timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-    os.utime(absolute_file_path, (time.time(), timestamp))
     args = list()
     args.append(str(parent_uuid))
     args.append(key)
     args.append(sqlite3.Binary(pickle.dumps(data.shape, pickle.HIGHEST_PROTOCOL)))
     args.append(sqlite3.Binary(pickle.dumps(data.dtype, pickle.HIGHEST_PROTOCOL)))
-    args.append("relative_file")
-    args.append(data_file_path)
-    c.execute("INSERT OR REPLACE INTO {0} (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)".format(data_table), args)
+    args.append(reference_type)
+    args.append(reference)
+    c.execute("INSERT OR REPLACE INTO data_references (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)", args)
 
 # utility function to read data from external file.
 def db_get_data_reference(c, workspace_dir, parent_uuid, key):
@@ -1104,11 +1096,11 @@ class DbDatastore(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
-    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
+    def set_data_reference(self, parent, key, data, reference_type, reference):
         if not self.disconnected:
             if self.workspace_dir:  # may be None for testing
                 c = self.conn.cursor()
-                db_write_data(c, self.workspace_dir, parent.uuid, key, data, data_file_path, data_file_datetime, "data_references")
+                db_write_data_reference(c, parent.uuid, key, data, reference_type, reference)
                 self.conn.commit()
             else:  # testing
                 c = self.conn.cursor()
@@ -1373,9 +1365,9 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.set_property, self.__datastore, item, key, value), event, "set_property"))
         #event.wait()
 
-    def set_data(self, parent, key, data, data_file_path, data_file_datetime):
+    def set_data_reference(self, parent, key, data, reference_type, reference):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_data, self.__datastore, parent, key, data, data_file_path, data_file_datetime), event, "set_data"))
+        self.__queue.put((functools.partial(DbDatastore.set_data_reference, self.__datastore, parent, key, data, reference_type, reference), event, "set_data_reference"))
         #event.wait()
 
     # these methods read data. they must wait for the queue to finish.
