@@ -334,25 +334,15 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
         reference = None
         if data is not None:
             if hasattr(self, key + "_data_reference"):
-                reference_type, reference = getattr(self, key + "_data_reference")
+                reference_type, reference, file_datetime = getattr(self, key + "_data_reference")
             elif hasattr(self, "get_" + key + "_data_reference"):
-                reference_type, reference = getattr(self, "get_" + key + "_data_reference")()
+                reference_type, reference, file_datetime = getattr(self, "get_" + key + "_data_reference")()
             elif hasattr(self, "_get_" + key + "_data_reference"):
-                reference_type, reference = getattr(self, "_get_" + key + "_data_reference")()
+                reference_type, reference, file_datetime = getattr(self, "_get_" + key + "_data_reference")()
             if reference_type is None or reference is None:
                 logging.debug("get_storage_data: %s missing %s", self, key + "_data_reference")
                 raise NotImplementedError()
-        return data[0], reference_type, reference
-
-    # this requests the object to write the data file
-    def write_data_reference(self, key, data, reference_type, reference):
-        if hasattr(self, "write_" + key):
-            getattr(self, "write_" + key)(data, reference_type, reference)
-        elif hasattr(self, "_write_" + key):
-            getattr(self, "_write_" + key)(data, reference_type, reference)
-        else:
-            logging.debug("write_data_reference: %s missing %s", self, "write_" + key)
-            raise NotImplementedError()
+        return data[0], reference_type, reference, file_datetime
 
     def get_storage_relationship_count(self, key):
         relationship = self.get_storage_relationship(key)
@@ -476,11 +466,10 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     def write_data(self):
         assert self.datastore is not None
         for data_key in self.storage_data_keys:
-            data, reference_type, reference = self.get_storage_data_reference(data_key)
+            data, reference_type, reference, file_datetime = self.get_storage_data_reference(data_key)
             if data is not None:
                 resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
-                if self.datastore.workspace_dir:  # otherwise db will handle it internally. ugh.
-                    self.write_data_reference(resolved_data_key, data, reference_type, reference)
+                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
                 self.datastore.set_data_reference(self, resolved_data_key, data, reference_type, reference)
 
     def rewrite_data(self):
@@ -586,7 +575,6 @@ class DictDatastore(object):
     def __init__(self, node_map=None):
         self.__node_map = node_map if node_map else {}
         # item map is used during item construction.
-        self.workspace_dir = None  # for testing only
         self.__item_map = {}
         self.initialized = node_map is not None
         self.disconnected = False
@@ -736,6 +724,9 @@ class DictDatastore(object):
         data_arrays = parent_node.setdefault("data_arrays", {})
         data_arrays[key] = data
 
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        pass
+
     # NOTE: parent_nodes are dicts for this class
 
     def find_root_node(self, type):
@@ -809,6 +800,9 @@ class DictDatastore(object):
     def get_data_reference(self, parent_node, key):
         return "embedded", parent_node
 
+    def load_data_reference(self, key, reference_type, reference):
+        return self.get_data_direct(reference, key)
+
     def get_data_direct(self, parent_node, key):
         data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
         if key in data_items:
@@ -849,8 +843,7 @@ def db_write_data_reference(c, parent_uuid, key, data, reference_type, reference
     c.execute("INSERT OR REPLACE INTO data_references (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)", args)
 
 # utility function to read data from external file.
-def db_get_data_reference(c, workspace_dir, parent_uuid, key):
-    assert workspace_dir
+def db_get_data_reference(c, parent_uuid, key):
     assert parent_uuid
     c.execute("SELECT reference_type, reference FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
@@ -859,8 +852,7 @@ def db_get_data_reference(c, workspace_dir, parent_uuid, key):
     return "invalid", None
 
 # utility function to read data shape and dtype from external file.
-def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
-    assert workspace_dir
+def db_get_data_shape_and_dtype(c, parent_uuid, key):
     c.execute("SELECT shape, dtype FROM data_references WHERE uuid=? AND key=?", (str(parent_uuid), key))
     data_row = c.fetchone()
     if data_row:
@@ -870,12 +862,45 @@ def db_get_data_shape_and_dtype(c, workspace_dir, parent_uuid, key):
     return None
 
 
+class TestDataReferenceHandler(object):
+
+    def __init__(self):
+        self.data = dict()
+
+    def to_data(self):
+        return copy.copy(self.data)
+
+    def from_data(self, data):
+        self.data = copy.copy(data)
+
+    def load_data_reference(self, reference_type, reference):
+        #logging.debug("load data reference %s %s", reference_type, reference)
+        if reference_type == "relative_file":
+            return self.data[reference]
+        return None
+
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        #logging.debug("write data reference %s %s", reference_type, reference)
+        assert data is not None
+        if reference_type == "relative_file":
+            self.data[reference] = data
+        else:
+            logging.debug("Cannot write master data %s %s", reference_type, reference)
+            raise NotImplementedError()
+
+    def remove_data_reference(self, reference_type, reference):
+        #logging.debug("remove data reference %s %s", reference_type, reference)
+        if reference_type == "relative_file":
+            del self.data[reference]
+
 
 class DbDatastore(object):
 
-    def __init__(self, workspace_dir, db_filename, create=True, db_data_str=None):
+    def __init__(self, data_reference_handler, db_filename, create=True, storage_data=None):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
-        self.workspace_dir = workspace_dir  # may be None for testing only
+        if not data_reference_handler:
+            data_reference_handler = TestDataReferenceHandler()
+        self.data_reference_handler = data_reference_handler  # may be None for testing only
         # item map is used during item construction.
         self.__item_map = {}
         self.disconnected = False
@@ -884,8 +909,8 @@ class DbDatastore(object):
         # integrity in the case of OS crash or power loss. this has no effect on
         # application crashes.
         self.conn.execute("PRAGMA synchronous = OFF")
-        if db_data_str:
-            self.from_string(db_data_str)
+        if storage_data:
+            self.from_data(storage_data)
         elif create:
             self.create()
 
@@ -901,11 +926,6 @@ class DbDatastore(object):
     def set_disconnected(self, disconnected):
         self.disconnected = disconnected
 
-    def from_string(self, str):
-        self.conn.cursor().executescript(str)
-        self.conn.commit()
-        self.conn.row_factory = sqlite3.Row
-
     def execute(self, c, stmt, args=None, log=False):
         if args:
             c.execute(stmt, args)
@@ -916,14 +936,24 @@ class DbDatastore(object):
             if log:
                 logging.debug("%s", stmt)
 
-    def to_string(self):
+    # used for testing
+    def to_data(self):
         # save out to string
         string_file = StringIO.StringIO()
         for line in self.conn.iterdump():
             string_file.write('%s\n' % line)
         string_file.seek(0)
-        self.last_to_string = string_file.read()
-        return self.last_to_string
+        db_data = string_file.read()
+        data_data = self.data_reference_handler.to_data() if hasattr(self.data_reference_handler, "to_data") else None
+        return { "db": db_data, "data": data_data }
+
+    # used for testing
+    def from_data(self, d):
+        self.conn.cursor().executescript(d["db"])
+        self.conn.commit()
+        self.conn.row_factory = sqlite3.Row
+        if hasattr(self.data_reference_handler, "from_data"):
+            self.data_reference_handler.from_data(d["data"])
 
     def print_counts(self):
         c = self.conn.cursor()
@@ -946,10 +976,7 @@ class DbDatastore(object):
             c = self.conn.cursor()
             self.execute(c, "CREATE TABLE IF NOT EXISTS nodes(uuid STRING, type STRING, refcount INTEGER, PRIMARY KEY(uuid))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS properties(uuid STRING, key STRING, value BLOB, PRIMARY KEY(uuid, key))")
-            if self.workspace_dir:  # may be None for testing
-                self.execute(c, "CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, shape BLOB, dtype BLOB, reference_type STRING, reference STRING, PRIMARY KEY(uuid, key))")
-            else:  # testing (data stored in memory)
-                self.execute(c, "CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, data BLOB, PRIMARY KEY(uuid, key))")
+            self.execute(c, "CREATE TABLE IF NOT EXISTS data_references(uuid STRING, key STRING, shape BLOB, dtype BLOB, reference_type STRING, reference STRING, PRIMARY KEY(uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
@@ -993,7 +1020,7 @@ class DbDatastore(object):
             # remove properties
             self.execute(c, "DELETE FROM properties WHERE uuid = ?", (str(uuid_), ))
             # remove data
-            self.__erase_data(c, uuid_)
+            self.__erase_data_reference(c, uuid_)
             # remove single items
             self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
             for row in c.fetchall():
@@ -1012,23 +1039,15 @@ class DbDatastore(object):
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
 
-    def __erase_data(self, c, uuid_):
-        if self.workspace_dir:  # may be None for testing
-            self.execute(c, "SELECT reference FROM data_references WHERE uuid=?", (str(uuid_), ))
-            for row in c.fetchall():
-                data_file_path = row[0]
-                data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
-                absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-                #logging.debug("DELETE data file %s", absolute_file_path)
-                if os.path.isfile(absolute_file_path):
-                    os.remove(absolute_file_path)
-            self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
-        else:  # testing
-            self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
+    def __erase_data_reference(self, c, uuid_):
+        self.execute(c, "SELECT reference_type, reference FROM data_references WHERE uuid=?", (str(uuid_), ))
+        for row in c.fetchall():
+            self.data_reference_handler.remove_data_reference(row[0], row[1])
+        self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
 
     def erase_data(self, object):
         c = self.conn.cursor()
-        self.__erase_data(c, object.uuid)
+        self.__erase_data_reference(c, object.uuid)
 
     def set_type(self, item, type):
         if not self.disconnected:
@@ -1098,13 +1117,12 @@ class DbDatastore(object):
 
     def set_data_reference(self, parent, key, data, reference_type, reference):
         if not self.disconnected:
-            if self.workspace_dir:  # may be None for testing
-                c = self.conn.cursor()
-                db_write_data_reference(c, parent.uuid, key, data, reference_type, reference)
-                self.conn.commit()
-            else:  # testing
-                c = self.conn.cursor()
-                self.execute(c, "INSERT OR REPLACE INTO data_references (uuid, key, data) VALUES (?, ?, ?)", (str(parent.uuid), key, sqlite3.Binary(pickle.dumps(data, pickle.HIGHEST_PROTOCOL)), ))
+            c = self.conn.cursor()
+            db_write_data_reference(c, parent.uuid, key, data, reference_type, reference)
+            self.conn.commit()
+
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        self.data_reference_handler.write_data_reference(data, reference_type, reference, file_datetime)
 
     # NOTE: parent_nodes are uuid strings for this class
 
@@ -1222,10 +1240,10 @@ class DbDatastore(object):
 
     def get_data_reference(self, parent_node, key):
         c = self.conn.cursor()
-        if self.workspace_dir:  # may be None for testing
-            return db_get_data_reference(c, self.workspace_dir, parent_node, key)
-        else:  # testing
-            return "embedded", parent_node
+        return db_get_data_reference(c, parent_node, key)
+
+    def load_data_reference(self, key, reference_type, reference):
+        return self.data_reference_handler.load_data_reference(reference_type, reference)
 
     # for testing
     def get_data_direct(self, parent_node, key):
@@ -1239,25 +1257,16 @@ class DbDatastore(object):
 
     def get_data_shape_and_dtype(self, parent_node, key):
         c = self.conn.cursor()
-        if self.workspace_dir:  # may be None for testing
-            return db_get_data_shape_and_dtype(c, self.workspace_dir, parent_node, key)
-        else:  # testing
-            c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
-            data_row = c.fetchone()
-            if data_row:
-                data = pickle.loads(str(data_row[0]))
-                return data.shape, data.dtype
-            else:
-                return None
+        return db_get_data_shape_and_dtype(c, parent_node, key)
 
 
 class DbDatastoreProxy(object):
 
-    def __init__(self, workspace_dir, db_filename, create=True, db_data_str=None):
+    def __init__(self, data_reference_handler, db_filename, create=True, storage_data=None):
         self.__datastore = None
         self.__queue = Queue.Queue()
         self.__started_event = threading.Event()
-        self.__thread = threading.Thread(target=self.__run, args=[workspace_dir, db_filename, create, db_data_str])
+        self.__thread = threading.Thread(target=self.__run, args=[data_reference_handler, db_filename, create, storage_data])
         self.__thread.daemon = True
         self._throttling = 0  # for testing to slow down db operations, in seconds
         self.__thread.start()
@@ -1283,8 +1292,8 @@ class DbDatastoreProxy(object):
         event.wait()
     disconnected = property(__get_disconnected, __set_disconnected)
 
-    def __run(self, workspace_dir, db_filename, create, db_data_str):
-        self.__datastore = DbDatastore(workspace_dir, db_filename, create=create, db_data_str=db_data_str)
+    def __run(self, data_reference_handler, db_filename, create, storage_data):
+        self.__datastore = DbDatastore(data_reference_handler, db_filename, create=create, storage_data=storage_data)
         self.__started_event.set()
         while True:
             action = self.__queue.get()
@@ -1307,13 +1316,9 @@ class DbDatastoreProxy(object):
             if not item:
                 break
 
-    def to_string(self):
-        event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.to_string, self.__datastore), event, "to_string"))
-        event.wait()
-        str = self.__datastore.last_to_string
-        self.__datastore.last_to_string = None
-        return str
+    def to_data(self):
+        self.__queue.join()
+        return self.__datastore.to_data()
 
     def create(self):
         event = threading.Event()
@@ -1370,6 +1375,10 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.set_data_reference, self.__datastore, parent, key, data, reference_type, reference), event, "set_data_reference"))
         #event.wait()
 
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        # immediately
+        self.__datastore.write_data_reference(data, reference_type, reference, file_datetime)
+
     # these methods read data. they must wait for the queue to finish.
 
     def find_root_node(self, type):
@@ -1419,6 +1428,10 @@ class DbDatastoreProxy(object):
     def get_data_reference(self, parent_node, key):
         self.__queue.join()
         return self.__datastore.get_data_reference(parent_node, key)
+
+    def load_data_reference(self, key, reference_type, reference):
+        self.__queue.join()
+        return self.__datastore.load_data_reference(key, reference_type, reference)
 
     def get_data_direct(self, parent_node, key):
         self.__queue.join()

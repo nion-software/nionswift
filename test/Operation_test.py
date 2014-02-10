@@ -282,11 +282,11 @@ class TestOperationClass(unittest.TestCase):
         dummy_operation = Operation.Operation("dummy-operation")
         data_item.operations.append(dummy_operation)
         dummy_operation.set_property("param", 5)
-        storage_str = document_model.datastore.to_string()
+        storage_data = document_model.datastore.to_data()
         document_controller.close()
         # unregister and read it back
         Operation.OperationManager().unregister_operation_behavior("dummy-operation")
-        datastore = Storage.DbDatastore(None, db_name, db_data_str=storage_str)
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

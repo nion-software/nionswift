@@ -1,6 +1,8 @@
 # standard libraries
+import calendar
 import collections
 import copy
+import datetime
 import gettext
 import importlib
 import logging
@@ -8,6 +10,7 @@ import os
 import cPickle as pickle
 import sqlite3
 import sys
+import time
 import uuid
 
 # third party libraries
@@ -85,16 +88,17 @@ class Application(object):
             db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
             cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
             create_new_document = not os.path.exists(db_filename)
+        data_reference_handler = DataReferenceHandler(workspace_dir)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
-            datastore = Storage.DbDatastoreProxy(workspace_dir, db_filename)
+            datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename)
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
             document_model.create_default_data_groups()
             document_model.create_test_images()
         else:
             logging.debug("Using existing document %s", db_filename)
-            datastore = Storage.DbDatastoreProxy(workspace_dir, db_filename, create=False)
+            datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename, create=False)
             version = datastore.get_version()
             logging.debug("Database at version %s.", version)
             c = datastore.conn.cursor()
@@ -224,6 +228,51 @@ class Application(object):
 
     def run_all_tests(self):
         Test.run_all_tests()
+
+
+class DataReferenceHandler(object):
+
+    def __init__(self, workspace_dir):
+        self.workspace_dir = workspace_dir
+
+    def load_data_reference(self, reference_type, reference):
+        #logging.debug("load data reference %s %s", reference_type, reference)
+        if reference_type == "relative_file":
+            assert self.workspace_dir
+            data_file_path = reference
+            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+            #logging.debug("READ data file %s for %s", absolute_file_path, key)
+            if os.path.isfile(absolute_file_path):
+                return pickle.load(open(absolute_file_path, "rb"))
+        return None
+
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        #logging.debug("write data reference %s %s", reference_type, reference)
+        assert data is not None
+        if reference_type == "relative_file":
+            data_file_path = reference
+            data_file_datetime = file_datetime
+            data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
+            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+            pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
+            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            os.utime(absolute_file_path, (time.time(), timestamp))
+        else:
+            logging.debug("Cannot write master data %s %s", reference_type, reference)
+            raise NotImplementedError()
+
+    def remove_data_reference(self, reference_type, reference):
+        #logging.debug("remove data reference %s %s", reference_type, reference)
+        if reference_type == "relative_file":
+            data_file_path = reference
+            data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
+            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+            #logging.debug("DELETE data file %s", absolute_file_path)
+            if os.path.isfile(absolute_file_path):
+                os.remove(absolute_file_path)
 
 
 def print_stack_all():

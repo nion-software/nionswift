@@ -1,5 +1,4 @@
 # standard libraries
-import calendar
 import collections
 import copy
 import datetime
@@ -879,9 +878,10 @@ class DataItem(Storage.StorageBase):
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_intrinsic_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
+            file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
             # write the data but only if datastore and workspace_dir exist and also only if data itself exists. used for testing.
-            if self.datastore and self.datastore.workspace_dir and data is not None:
-                self._write_master_data(data, "relative_file", data_file_path)
+            if self.datastore and data is not None:
+                self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
             # tell the database about it
             self.notify_set_data_reference("master_data", self.__master_data, "relative_file", data_file_path)
             self.notify_data_item_content_changed(set([DATA]))
@@ -891,40 +891,15 @@ class DataItem(Storage.StorageBase):
     def _get_master_data_data_reference(self):
         reference_type = "relative_file"
         reference = DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
-        return reference_type, reference
-    def _write_master_data(self, data, reference_type, reference):
-        assert data is not None
-        workspace_dir = self.datastore.workspace_dir
-        if reference_type == "relative_file":
-            data_file_path = reference
-            data_file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
-            data_directory = os.path.join(workspace_dir, "Nion Swift Data")
-            absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-            pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
-            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-            os.utime(absolute_file_path, (time.time(), timestamp))
-        else:
-            logging.debug("Cannot write master data %s %s", reference_type, reference)
-            raise NotImplementedError()
+        file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
+        return reference_type, reference, file_datetime
 
     def __load_master_data(self):
         # load data from datastore if not present
         if self.has_master_data and self.datastore and self.__master_data is None:
             #logging.debug("loading %s (%s)", self, self.uuid)
             reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self), "master_data")
-            if reference_type == "relative_file":
-                assert self.datastore.workspace_dir
-                data_file_path = reference
-                absolute_file_path = os.path.join(self.datastore.workspace_dir, "Nion Swift Data", data_file_path)
-                #logging.debug("READ data file %s for %s", absolute_file_path, key)
-                if os.path.isfile(absolute_file_path):
-                    master_data = pickle.load(open(absolute_file_path, "rb"))
-            elif reference_type == "embedded":
-                master_data = self.datastore.get_data_direct(reference, "master_data")
-            self.__master_data = master_data
+            self.__master_data = self.datastore.load_data_reference("master_data", reference_type, reference)
 
     def __unload_master_data(self):
         # unload data if it can be reloaded from datastore
