@@ -20,6 +20,7 @@ from nion.swift import Graphics
 from nion.swift import ImagePanel
 from nion.swift import Operation
 from nion.swift import Storage
+from nion.swift import Utility
 from nion.ui import Test
 
 
@@ -498,14 +499,49 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
             data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
+            # write data with transaction
             with data_item.transaction():
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 # make sure it does NOT exist during the transaction
                 self.assertFalse(os.path.exists(data_file_path))
-            document_model.remove_ref()
+            # make sure it DOES exist after the transaction
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
+            document_model.remove_ref()
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
+    def test_data_removes_file_after_original_date_and_session_change(self):
+        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        db_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            data_item = DataItem.DataItem()
+            data_item.datetime_original = reference_date
+            document_model.append_data_item(data_item)
+            reference_type, reference, file_datetime = data_item._get_master_data_data_reference()
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference)
+            with data_item.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            # make sure it get written to disk
+            self.assertTrue(os.path.exists(data_file_path))
+            self.assertTrue(os.path.isfile(data_file_path))
+            # change the original date
+            data_item.datetime_original = Utility.get_current_datetime_element()
+            data_item.session_id = "20000531-000000"
+            document_model.remove_data_item(data_item)
+            # make sure it get removed from disk
+            self.assertFalse(os.path.exists(data_file_path))
+            document_model.remove_ref()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
