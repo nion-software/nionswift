@@ -1378,8 +1378,9 @@ class DbDatastoreProxy(object):
         #event.wait()
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
-        # immediately
-        self.__datastore.write_data_reference(data, reference_type, reference, file_datetime)
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.write_data_reference, self.__datastore, data, reference_type, reference, file_datetime), event, "write_data_reference"))
+        #event.wait()
 
     # these methods read data. they must wait for the queue to finish.
 
