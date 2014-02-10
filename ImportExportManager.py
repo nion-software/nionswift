@@ -108,6 +108,16 @@ class ImportExportManager(object):
                     return io_handler.read_data_items(ui, extension, path)
         return None
 
+    # read file, return data elements
+    def read_data_elements(self, ui, path):
+        root, extension = os.path.splitext(path)
+        if extension:
+            extension = extension[1:]  # remove the leading "."
+            for io_handler in self.__io_handlers:
+                if extension in io_handler.extensions:
+                    return io_handler.read_data_elements(ui, extension, path)
+        return None
+
     def write_data_items(self, ui, data_item, path):
         root, extension = os.path.splitext(path)
         if extension:

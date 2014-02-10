@@ -397,9 +397,9 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             item.remove_parent(self)
             super(StorageBase, self).notify_clear_item(key)
 
-    def notify_set_data_reference(self, key, data, reference_type, reference, file_datetime):
+    def notify_set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference, file_datetime):
         if self.datastore and self.__transaction_count == 0:
-            self.datastore.set_data_reference(self, key, data, reference_type, reference)
+            self.datastore.set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference)
             if data is not None:
                 self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
         for observer in self.observers:
@@ -472,7 +472,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             if data is not None:
                 resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
                 self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
-                self.datastore.set_data_reference(self, resolved_data_key, data, reference_type, reference)
+                self.datastore.set_data_reference(self, resolved_data_key, data, data.shape, data.dtype, reference_type, reference)
 
     def rewrite_data(self):
         assert self.datastore is not None
@@ -717,7 +717,7 @@ class DictDatastore(object):
         properties = item_node.setdefault("properties", {})
         properties[key] = value
 
-    def set_data_reference(self, parent, key, data, reference_type, reference):
+    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
         if self.disconnected:
             return
         # get the parent node
@@ -833,13 +833,12 @@ def db_make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 # utility function for db migration
-def db_write_data_reference(c, parent_uuid, key, data, reference_type, reference):
-    assert data is not None
+def db_write_data_reference(c, parent_uuid, key, data_shape, data_dtype, reference_type, reference):
     args = list()
     args.append(str(parent_uuid))
     args.append(key)
-    args.append(sqlite3.Binary(pickle.dumps(data.shape, pickle.HIGHEST_PROTOCOL)))
-    args.append(sqlite3.Binary(pickle.dumps(data.dtype, pickle.HIGHEST_PROTOCOL)))
+    args.append(sqlite3.Binary(pickle.dumps(data_shape, pickle.HIGHEST_PROTOCOL)))
+    args.append(sqlite3.Binary(pickle.dumps(data_dtype, pickle.HIGHEST_PROTOCOL)))
     args.append(reference_type)
     args.append(reference)
     c.execute("INSERT OR REPLACE INTO data_references (uuid, key, shape, dtype, reference_type, reference) VALUES (?, ?, ?, ?, ?, ?)", args)
@@ -1117,10 +1116,10 @@ class DbDatastore(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
 
-    def set_data_reference(self, parent, key, data, reference_type, reference):
+    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
         if not self.disconnected:
             c = self.conn.cursor()
-            db_write_data_reference(c, parent.uuid, key, data, reference_type, reference)
+            db_write_data_reference(c, parent.uuid, key, data_shape, data_dtype, reference_type, reference)
             self.conn.commit()
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
@@ -1372,9 +1371,9 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.set_property, self.__datastore, item, key, value), event, "set_property"))
         #event.wait()
 
-    def set_data_reference(self, parent, key, data, reference_type, reference):
+    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_data_reference, self.__datastore, parent, key, data, reference_type, reference), event, "set_data_reference"))
+        self.__queue.put((functools.partial(DbDatastore.set_data_reference, self.__datastore, parent, key, data, data_shape, data_dtype, reference_type, reference), event, "set_data_reference"))
         #event.wait()
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):

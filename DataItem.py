@@ -880,16 +880,30 @@ class DataItem(Storage.StorageBase):
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
             file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
             # tell the database about it
-            self.notify_set_data_reference("master_data", self.__master_data, "relative_file", data_file_path, file_datetime)
+            if self.__master_data is not None:
+                self.notify_set_data_reference("master_data", self.__master_data, self.__master_data.shape, self.__master_data.dtype, "relative_file", data_file_path, file_datetime)
             self.notify_data_item_content_changed(set([DATA]))
     # hidden accessor for storage subsystem.
     def _get_master_data(self):
         return self.__get_master_data()
+    # used for testing only
     def _get_master_data_data_reference(self):
         reference_type = "relative_file"
         reference = DataItem._get_data_file_path(self.uuid, self.datetime_original, self.session_id)
         file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
         return reference_type, reference, file_datetime
+
+    def set_external_master_data(self, data_file_path, data_shape, data_dtype):
+        with self.__data_mutex:
+            self.set_cached_value("master_data_shape", data_shape)
+            self.set_cached_value("master_data_dtype", data_dtype)
+            self.__master_data_shape = data_shape
+            self.__master_data_dtype = data_dtype
+            self.__has_master_data = True
+            spatial_ndim = len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
+            self.sync_intrinsic_calibrations(spatial_ndim)
+        self.notify_set_data_reference("master_data", None, data_shape, data_dtype, "relative_file", data_file_path, file_datetime)
+        self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):
         # load data from datastore if not present

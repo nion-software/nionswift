@@ -25,6 +25,7 @@ from nion.swift import FilterPanel
 from nion.swift import HardwareSource
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
+from nion.swift import ImportExportManager
 from nion.swift import Inspector
 from nion.swift import Panel
 from nion.swift import PlugInManager
@@ -88,7 +89,7 @@ class Application(object):
             db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
             cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
             create_new_document = not os.path.exists(db_filename)
-        data_reference_handler = DataReferenceHandler(workspace_dir)
+        data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
             datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename)
@@ -232,7 +233,8 @@ class Application(object):
 
 class DataReferenceHandler(object):
 
-    def __init__(self, workspace_dir):
+    def __init__(self, ui, workspace_dir):
+        self.ui = ui
         self.workspace_dir = workspace_dir
 
     def load_data_reference(self, reference_type, reference):
@@ -244,6 +246,9 @@ class DataReferenceHandler(object):
             #logging.debug("READ data file %s for %s", absolute_file_path, key)
             if os.path.isfile(absolute_file_path):
                 return pickle.load(open(absolute_file_path, "rb"))
+        elif reference_type == "external_file":
+            data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.ui, reference)
+            return data_elements[0]["data"]
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
@@ -260,6 +265,8 @@ class DataReferenceHandler(object):
             # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
             timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
             os.utime(absolute_file_path, (time.time(), timestamp))
+        elif reference_type == "external_file":
+            pass
         else:
             logging.debug("Cannot write master data %s %s", reference_type, reference)
             raise NotImplementedError()
@@ -273,6 +280,11 @@ class DataReferenceHandler(object):
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
+        elif reference_type == "external_file":
+            pass
+        else:
+            logging.debug("Cannot remove master data %s %s", reference_type, reference)
+            raise NotImplementedError()
 
 
 def print_stack_all():
