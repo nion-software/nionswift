@@ -5,6 +5,7 @@ import datetime
 import gettext
 import logging
 import os
+import cPickle as pickle
 import threading
 import types
 import weakref
@@ -893,8 +894,9 @@ class DataItem(Storage.StorageBase):
             #logging.debug("loading %s (%s)", self, self.uuid)
             reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self), "master_data")
             if reference_type == "relative_file":
+                assert self.datastore.workspace_dir
                 data_file_path = reference
-                absolute_file_path = os.path.join(workspace_dir, "Nion Swift Data", data_file_path)
+                absolute_file_path = os.path.join(self.datastore.workspace_dir, "Nion Swift Data", data_file_path)
                 #logging.debug("READ data file %s for %s", absolute_file_path, key)
                 if os.path.isfile(absolute_file_path):
                     master_data = pickle.load(open(absolute_file_path, "rb"))

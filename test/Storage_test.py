@@ -1,6 +1,8 @@
 # standard libraries
 import copy
 import logging
+import os
+import shutil
 import threading
 import unittest
 
@@ -443,6 +445,37 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         with document_model.ref():
             self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
+
+    def test_data_writes_to_and_reloads_from_file(self):
+        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        db_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        try:
+            datastore = Storage.DbDatastore(workspace_dir, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            with document_model.ref():
+                data_item = DataItem.DataItem()
+                data_item.datetime_original = reference_date
+                with data_item.data_ref() as data_ref:
+                    data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+                document_model.append_data_item(data_item)
+                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", data_item._get_master_data_data_file_path())
+                self.assertTrue(os.path.exists(data_file_path))
+                self.assertTrue(os.path.isfile(data_file_path))
+                storage_str = datastore.to_string()
+            # make sure the data reloads
+            datastore = Storage.DbDatastore(workspace_dir, db_name, db_data_str=storage_str)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            with document_model.ref():
+                with document_model.data_items[0].data_ref() as data_ref:
+                    self.assertIsNotNone(data_ref.data)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
 
 if __name__ == '__main__':
     unittest.main()
