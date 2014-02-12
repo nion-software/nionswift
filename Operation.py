@@ -311,7 +311,7 @@ class GaussianBlurOperationBehavior(OperationBehavior):
         description = [
             { "name": _("Radius"), "property": "sigma", "type": "scalar", "default": 0.3 }
         ]
-        super(GaussianBlurOperationBehavior, self).__init__(_("FFT"), "fft-operation", description)
+        super(GaussianBlurOperationBehavior, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
 
     def process_data_in_place(self, data_copy):
         return scipy.ndimage.gaussian_filter(data_copy, sigma=10*self.get_property("sigma"))
@@ -321,9 +321,6 @@ class Crop2dOperationBehavior(OperationBehavior):
 
     def __init__(self):
         super(Crop2dOperationBehavior, self).__init__(_("Crop"), "crop-operation", None)
-
-    def process_data_in_place(self, data_copy):
-        return scipy.ndimage.gaussian_filter(data_copy, sigma=10 * self.get_property("sigma"))
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
