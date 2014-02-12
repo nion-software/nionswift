@@ -104,9 +104,9 @@ class Calibration(Storage.StorageBase):
     def convert_to_calibrated_value_str(self, value, include_units=True):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if isinstance(value, types.IntType) or isinstance(value, types.LongType):
-            result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
-        elif isinstance(value, types.FloatType) or isinstance(value, types.ComplexType):
-            result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
+            result = u"{0:d}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
+        elif isinstance(value, types.FloatType) or isinstance(value, types.ComplexType) or isinstance(value, numpy.float32) or isinstance(value, numpy.complex64):
+            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
         elif isinstance(value, numpy.ndarray) and numpy.ndim(value) == 1 and value.shape[0] in (3, 4) and value.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in value])
         else:
@@ -115,9 +115,9 @@ class Calibration(Storage.StorageBase):
     def convert_to_calibrated_size_str(self, size, include_units=True):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if isinstance(size, types.IntType) or isinstance(size, types.LongType):
-            result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
-        elif isinstance(size, types.FloatType) or isinstance(size, types.ComplexType):
-            result = u"{0:.1f}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
+            result = u"{0:d}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
+        elif isinstance(size, types.FloatType) or isinstance(size, types.ComplexType) or isinstance(size, numpy.float32) or isinstance(size, numpy.complex64):
+            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
         elif isinstance(size, numpy.ndarray) and numpy.ndim(size) == 1 and size.shape[0] in (3, 4) and size.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in size])
         else:
