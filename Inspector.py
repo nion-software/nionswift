@@ -283,10 +283,6 @@ class PropertyEditorController(object):
         with self.__updated_properties_mutex:
             self.__updated_properties.add(property)
 
-    def update(self):
-        for controller in self.__controllers.values():
-            controller.update()
-
 
 class ProcessingPanel(Panel.Panel):
 
@@ -420,26 +416,28 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
-        scroll_area = self.ui.create_scroll_area_widget(properties)
-        scroll_area.set_scrollbar_policies("off", "needed")
-        self.column = self.ui.create_column_widget()
-
         self.__data_item = None
-        self.__pec = None
+        self.__data_item_inspector = None
 
-        self.__update_data_item = False
+        # these fields facilitate a changing data item from a thread.
+        self.__update_data_item_changed = False
         self.__update_data_item_data_item = None
         self.__update_data_item_mutex = threading.RLock()
 
-        self.data_item_binding = document_controller.create_selected_data_item_binding()
-        self.data_item = None
-
+        # bind to the selected data item.
         # connect self as listener. this will result in calls to data_item_binding_data_item_changed
         # and data_item_binding_data_item_content_changed
+        self.data_item_binding = document_controller.create_selected_data_item_binding()
+        self.data_item = None
         self.data_item_binding.add_listener(self)
 
+        # top level widget in this inspector is a scroll area.
+        # content of the scroll area is the column, to which inspectors
+        # can be added.
+        scroll_area = self.ui.create_scroll_area_widget(properties)
+        scroll_area.set_scrollbar_policies("off", "needed")
+        self.column = self.ui.create_column_widget()
         scroll_area.content = self.column
-
         self.widget = scroll_area
 
     def close(self):
@@ -447,6 +445,9 @@ class InspectorPanel(Panel.Panel):
         self.data_item_binding_data_item_changed(None)
         # disconnect self as listener
         self.data_item_binding.remove_listener(self)
+        # close the data item inspector
+        if self.__data_item_inspector:
+            self.__data_item_inspector.close()
         # close the property controller
         self.data_item_binding.close()
         self.data_item = None
@@ -455,38 +456,46 @@ class InspectorPanel(Panel.Panel):
 
     def periodic(self):
         super(InspectorPanel, self).periodic()
-        if self.__pec:
-            self.__pec.periodic()
+        if self.__data_item_inspector:
+            self.__data_item_inspector.periodic()
+        # watch for changes to the data item. changes will be requested by
+        # flagging update_data_item_changed. if this happens, set the data_item
+        # to the new value.
         with self.__update_data_item_mutex:
-            update_data_item = self.__update_data_item
+            update_data_item_changed = self.__update_data_item_changed
             data_item = self.__update_data_item_data_item
-            self.__update_data_item = False
+            self.__update_data_item_changed = False
             self.__update_data_item_data_item = None
-        if update_data_item:
+        if update_data_item_changed:
             if self.data_item != data_item:
                 self.data_item = data_item
 
-    def __update_property_editor_controller(self):
-        if self.__pec:
-            self.column.remove(self.__pec.widget)
-            self.__pec.close()
-            self.__pec = None
+    # close the old data item inspector, and create a new one
+    # not thread safe.
+    def __update_data_item_inspector(self):
+        if self.__data_item_inspector:
+            self.column.remove(self.__data_item_inspector.widget)
+            self.__data_item_inspector.close()
+            self.__data_item_inspector = None
         if self.__data_item:
-            self.__pec = PropertyEditorController(self.ui, self.__data_item)
-            self.column.add(self.__pec.widget)
+            self.__data_item_inspector = DataItemInspector.DataItemInspector(self.ui, self.__data_item)
+            self.column.add(self.__data_item_inspector.widget)
 
     def __get_data_item(self):
         return self.__data_item
+    # not thread safe.
     def __set_data_item(self, data_item):
         if self.__data_item != data_item:
             self.__data_item = data_item
-            self.__update_property_editor_controller()
-            self.image_canvas_zoom = 1.0
+            self.__update_data_item_inspector()
     data_item = property(__get_data_item, __set_data_item)
 
     # this message is received from the data item binding.
-    # it is established using add_listener
+    # it is established using add_listener. when it is called
+    # mark the data item as needing updating. the actual update
+    # will happen in periodic.
+    # thread safe.
     def data_item_binding_data_item_changed(self, data_item):
         with self.__update_data_item_mutex:
-            self.__update_data_item = True
+            self.__update_data_item_changed = True
             self.__update_data_item_data_item = data_item
