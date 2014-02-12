@@ -21,6 +21,7 @@ from nion.swift import Image
 from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Storage
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -447,6 +448,35 @@ class ConvertToScalarOperationBehavior(OperationBehavior):
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)
         return data_shape, data_dtype
+
+
+class OperationPropertyBinding(UserInterfaceUtility.Binding):
+
+    """
+        Binds to a property of an operation object.
+
+        This object records the 'values' property of the operation. Then it
+        watches for changes to 'values' which match the watched property.
+    """
+
+    def __init__(self, source, property_name, converter=None):
+        super(OperationPropertyBinding, self).__init__(source,  converter)
+        self.__property_name = property_name
+        self.source_setter = lambda value: self.source.set_property(self.__property_name, value)
+        self.source_getter = lambda: self.source.get_property(self.__property_name)
+        # use this to know when a specific property changes
+        self.__values = copy.copy(source.values)
+
+    # thread safe
+    def property_changed(self, sender, property, property_value):
+        if sender == self.source and property == "values":
+            values = property_value
+            new_value = values.get(self.__property_name)
+            old_value = self.__values.get(self.__property_name)
+            if new_value != old_value:
+                # perform on the main thread
+                self.add_task("update_target", lambda: self.update_target(new_value))
+                self.__values = copy.copy(self.source.values)
 
 
 class OperationManager(object):

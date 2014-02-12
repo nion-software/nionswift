@@ -488,6 +488,8 @@ class DataItemInspector(object):
         for inspector in self.__inspectors:
             content_widget.add(inspector.widget)
 
+        content_widget.add_stretch()
+
         self.widget = content_widget
 
     def close(self):
