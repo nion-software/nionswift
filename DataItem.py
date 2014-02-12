@@ -40,11 +40,6 @@ class Calibration(Storage.StorageBase):
         # TODO: add optional saving for these items
         self.storage_properties += ["origin", "scale", "units"]
         self.storage_type = "calibration"
-        self.description = [
-            {"name": _("Origin"), "property": "origin", "type": "float-field"},
-            {"name": _("Scale"), "property": "scale", "type": "float-field"},
-            {"name": _("Units"), "property": "units", "type": "string-field"}
-        ]
         self.__origin = float(origin) if origin else None
         self.__scale = float(scale) if scale else None
         self.__units = unicode(units) if units else None
@@ -323,7 +318,6 @@ class DataItem(Storage.StorageBase):
         self.register_dependent_key("data_range", "display_range")
         self.register_dependent_key("display_limits", "display_range")
         self.register_key_alias("intrinsic_calibrations", "calibrations")
-        self.description = []
         self.closed = False
         self.__title = None
         self.__param = 0.5
