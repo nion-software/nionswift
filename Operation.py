@@ -42,8 +42,6 @@ class Operation(Storage.StorageBase):
         # then it will simply provide null data according to the saved parameters. if there
         # are no saved parameters, defaults are used.
         self.operation_behavior = OperationManager().build_operation_behavior(operation_id)
-        if self.operation_behavior:
-            self.operation_behavior.operation = self
 
         self.name = self.operation_behavior.name if self.operation_behavior else _("Unavailable Operation")
         self.__enabled = True
@@ -102,6 +100,8 @@ class Operation(Storage.StorageBase):
     # set a property.
     def set_property(self, property_id, value):
         self.values[property_id] = value
+        if self.operation_behavior:
+            setattr(self.operation_behavior, property_id, value)
         self.notify_set_property("values", self.values)
 
     # update the default value for this operation.
@@ -111,6 +111,8 @@ class Operation(Storage.StorageBase):
                 description_entry["default"] = default_value
                 if property_id not in self.values or self.values[property_id] is None:
                     self.values[property_id] = default_value
+                    if self.operation_behavior:
+                        setattr(self.operation_behavior, property_id, default_value)
 
     # clients call this to perform processing
     def process_data(self, data):
@@ -193,10 +195,18 @@ class Operation(Storage.StorageBase):
 
     def __sync_graphic(self):
         for description_entry in self.description:
-            if description_entry["type"] == "line" and isinstance(self.graphic, Graphics.LineGraphic):
-                self.values[description_entry["property"]] = self.graphic.start, self.graphic.end
-            elif description_entry["type"] == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
-                self.values[description_entry["property"]] = self.graphic.bounds
+            type = description_entry["type"]
+            property_id = description_entry["property"]
+            if type == "line" and isinstance(self.graphic, Graphics.LineGraphic):
+                value = self.graphic.start, self.graphic.end
+                self.values[property_id] = value
+                if self.operation_behavior:
+                    setattr(self.operation_behavior, property_id, value)
+            elif type == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
+                value = self.graphic.bounds
+                self.values[property_id] = value
+                if self.operation_behavior:
+                    setattr(self.operation_behavior, property_id, value)
 
     # watch for changes to graphic item and try to associate with the description. hacky.
     def property_changed(self, object, key, value):
@@ -208,21 +218,13 @@ class Operation(Storage.StorageBase):
 class OperationBehavior(object):
 
     def __init__(self, name, operation_id, description=None):
-        self.__weak_operation = None
         self.name = name
         self.operation_id = operation_id
         self.description = description if description else []
 
-    # this needs to be set externally
-    def __get_operation(self):
-        return self.__weak_operation()
-    def __set_operation(self, operation):
-        self.__weak_operation = weakref.ref(operation)
-    operation = property(__get_operation, __set_operation)
-
     # handle properties from the description of the operation.
     def get_property(self, property_id, default_value=None):
-        return self.operation.get_property(property_id, default_value)
+        return getattr(self, property_id) if hasattr(self, property_id) else default_value
 
     # subclasses can override this method to perform processing on a copy of the original data
     # this method should return either the copy itself or a new data set
@@ -318,6 +320,7 @@ class GaussianBlurOperationBehavior(OperationBehavior):
             { "name": _("Radius"), "property": "sigma", "type": "scalar", "default": 0.3 }
         ]
         super(GaussianBlurOperationBehavior, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
+        self.sigma = 0.3
 
     def process_data_in_place(self, data_copy):
         return scipy.ndimage.gaussian_filter(data_copy, sigma=10*self.get_property("sigma"))
@@ -330,6 +333,7 @@ class Crop2dOperationBehavior(OperationBehavior):
             { "name": _("Bounds"), "property": "bounds", "type": "rectangle", "default": ((0.0, 0.0), (1.0, 1.0)) }
         ]
         super(Crop2dOperationBehavior, self).__init__(_("Crop"), "crop-operation", description)
+        self.bounds = (0.0, 0.0), (1.0, 1.0)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
@@ -355,6 +359,8 @@ class Resample2dOperationBehavior(OperationBehavior):
             {"name": _("Height"), "property": "height", "type": "integer-field", "default": None},
         ]
         super(Resample2dOperationBehavior, self).__init__(_("Resample"), "resample-operation", description)
+        self.width = 0
+        self.height = 0
 
     def process_data_copy(self, data_copy):
         height = self.get_property("height", data_copy.shape[0])
@@ -409,6 +415,7 @@ class LineProfileOperationBehavior(OperationBehavior):
             { "name": _("Vector"), "property": "vector", "type": "line", "default": ((0.25, 0.25), (0.75, 0.75)) }
         ]
         super(LineProfileOperationBehavior, self).__init__(_("Line Profile"), "line-profile-operation", description)
+        self.vector = (0.25, 0.25), (0.75, 0.75)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         start, end = self.get_property("vector")
