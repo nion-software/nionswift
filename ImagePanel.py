@@ -13,15 +13,14 @@ import weakref
 import numpy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import Decorators
 from nion.swift import HistogramPanel
-from nion.swift import Image
 from nion.swift import Inspector
 from nion.swift import LineGraphCanvasItem
-from nion.swift import Operation
 from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Geometry

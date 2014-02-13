@@ -13,14 +13,14 @@ import weakref
 import numpy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataItemsBinding
 from nion.swift import DocumentModel
 from nion.swift import Graphics
-from nion.swift import Image
 from nion.swift import ImportExportManager
-from nion.swift import Operation
+from nion.swift import OperationItem
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Utility
@@ -410,7 +410,7 @@ class DocumentController(Observable.Broadcaster):
             self.workspace.display_data_item(data_item, source_data_item)
 
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
-        operation = Operation.OperationItem(operation_id)
+        operation = OperationItem.OperationItem(operation_id)
         assert operation is not None
         self.add_processing_operation(operation, prefix, suffix, in_place, select)
 
@@ -449,7 +449,7 @@ class DocumentController(Observable.Broadcaster):
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            operation = Operation.OperationItem("crop-operation")
+            operation = OperationItem.OperationItem("crop-operation")
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)
@@ -459,7 +459,7 @@ class DocumentController(Observable.Broadcaster):
     def processing_line_profile(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            operation = Operation.OperationItem("line-profile-operation")
+            operation = OperationItem.OperationItem("line-profile-operation")
             graphic = Graphics.LineGraphic()
             graphic.start = (0.25,0.25)
             graphic.end = (0.75,0.75)

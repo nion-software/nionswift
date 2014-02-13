@@ -11,9 +11,9 @@ import weakref
 import scipy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
-from nion.swift import Image
 from nion.swift import Session
 from nion.swift import Storage
 

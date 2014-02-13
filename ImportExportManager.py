@@ -8,10 +8,10 @@ import time
 import numpy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import Graphics
-from nion.swift import Image
 from nion.swift import Utility
 
 

@@ -15,8 +15,8 @@ import weakref
 import numpy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift.Decorators import ProcessingThread
-from nion.swift import Image
 from nion.swift import LineGraphCanvasItem
 from nion.swift import Storage
 from nion.swift import Utility

@@ -7,14 +7,13 @@ import numpy
 import scipy
 
 # local libraries
+from nion.imaging import Image
 from nion.swift import Application
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import DocumentModel
-from nion.swift import Image
 from nion.swift import ImagePanel
-from nion.swift import Operation
 from nion.swift import Storage
 from nion.ui import Test
 from nion.ui import UserInterface
