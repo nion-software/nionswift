@@ -189,10 +189,19 @@ class Operation(Storage.StorageBase):
                 graphic.add_observer(self)
                 graphic.add_ref()
                 self.notify_set_item("graphic", graphic)
+                self.__sync_graphic()
 
+    def __sync_graphic(self):
+        for description_entry in self.description:
+            if description_entry["type"] == "line" and isinstance(self.graphic, Graphics.LineGraphic):
+                self.values[description_entry["property"]] = self.graphic.start, self.graphic.end
+            elif description_entry["type"] == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
+                self.values[description_entry["property"]] = self.graphic.bounds
+
+    # watch for changes to graphic item and try to associate with the description. hacky.
     def property_changed(self, object, key, value):
         if object is not None and object == self.graphic:
-            # TODO: check for specific key, such as 'bounds' for rectangle?
+            self.__sync_graphic()
             self.notify_listeners("operation_changed", self)
 
 
@@ -214,10 +223,6 @@ class OperationBehavior(object):
     # handle properties from the description of the operation.
     def get_property(self, property_id, default_value=None):
         return self.operation.get_property(property_id, default_value)
-
-    # handle graphic
-    def get_graphic(self, graphic_id):
-        return self.operation.get_graphic(graphic_id)
 
     # subclasses can override this method to perform processing on a copy of the original data
     # this method should return either the copy itself or a new data set
@@ -321,12 +326,14 @@ class GaussianBlurOperationBehavior(OperationBehavior):
 class Crop2dOperationBehavior(OperationBehavior):
 
     def __init__(self):
-        super(Crop2dOperationBehavior, self).__init__(_("Crop"), "crop-operation", None)
+        description = [
+            { "name": _("Bounds"), "property": "bounds", "type": "rectangle", "default": ((0.0, 0.0), (1.0, 1.0)) }
+        ]
+        super(Crop2dOperationBehavior, self).__init__(_("Crop"), "crop-operation", description)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
-        graphic = self.get_graphic("graphic")
-        bounds = graphic.bounds if graphic else ((0, 0), (1, 1))
+        bounds = self.get_property("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
@@ -334,11 +341,8 @@ class Crop2dOperationBehavior(OperationBehavior):
             return bounds_int[1], data_dtype
 
     def process_data_in_place(self, data):
-        graphic = self.get_graphic("graphic")
-        if graphic:
-            assert isinstance(graphic, Graphics.RectangleGraphic)
         shape = data.shape
-        bounds = graphic.bounds if graphic else ((0, 0), (1, 1))
+        bounds = self.get_property("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
@@ -401,12 +405,13 @@ class HistogramOperationBehavior(OperationBehavior):
 class LineProfileOperationBehavior(OperationBehavior):
 
     def __init__(self):
-        super(LineProfileOperationBehavior, self).__init__(_("Line Profile"), "line-profile-operation", None)
+        description = [
+            { "name": _("Vector"), "property": "vector", "type": "line", "default": ((0.25, 0.25), (0.75, 0.75)) }
+        ]
+        super(LineProfileOperationBehavior, self).__init__(_("Line Profile"), "line-profile-operation", description)
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        graphic = self.get_graphic("graphic")
-        start = graphic.start if graphic else (0.25, 0.25)
-        end = graphic.end if graphic else (0.75, 0.75)
+        start, end = self.get_property("vector")
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -420,11 +425,7 @@ class LineProfileOperationBehavior(OperationBehavior):
         return [DataItem.Calibration(0.0, source_calibrations[0].scale, source_calibrations[0].units)]
 
     def process_data_in_place(self, data):
-        graphic = self.get_graphic("graphic")
-        if graphic:
-            assert isinstance(graphic, Graphics.LineGraphic)
-        start = graphic.start if graphic else (0.25, 0.25)
-        end = graphic.end if graphic else (0.75, 0.75)
+        start, end = self.get_property("vector")
         shape = data.shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))

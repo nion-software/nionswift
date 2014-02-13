@@ -237,7 +237,7 @@ class TestOperationClass(unittest.TestCase):
 
         data_item_complex.remove_ref()
 
-    def test_crop_2d(self):
+    def test_crop_2d_operation_returns_correct_spatial_shape_and_data_shape(self):
         data_item_real = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         data_item_real.add_ref()
         graphic = Graphics.RectangleGraphic()
