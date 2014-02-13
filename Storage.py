@@ -742,7 +742,7 @@ class DictDatastore(object):
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "calibration": DataItem.Calibration,
+                "calibration": DataItem.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
@@ -1166,7 +1166,7 @@ class DbDatastore(object):
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "calibration": DataItem.Calibration,
+                "calibration": DataItem.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,

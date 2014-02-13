@@ -39,7 +39,7 @@ def load_tests():
 
     base_local_path = os.path.dirname(os.path.realpath(__file__))
     base_local_path = os.path.join(base_local_path, "..")
-    for subdir in ["swift", "ui"]:
+    for subdir in ["imaging", "swift", "ui"]:
         localpath = os.path.join(base_local_path, subdir)
         for file in os.listdir(os.path.join(localpath, "test")):
             if file.endswith("_test.py"):

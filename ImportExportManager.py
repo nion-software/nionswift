@@ -168,7 +168,7 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
                     scale = float(dimension_calibration[1])
                     units = unicode(dimension_calibration[2])
                     if scale != 0.0:
-                        data_item.set_calibration(dimension, DataItem.Calibration(origin, scale, units))
+                        data_item.set_calibration(dimension, DataItem.CalibrationItem(origin, scale, units))
         # properties (general tags)
         if "properties" in data_element:
             with data_item.property_changes() as context:

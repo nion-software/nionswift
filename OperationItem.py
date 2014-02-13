@@ -124,15 +124,17 @@ class OperationItem(Storage.StorageBase):
 
     # calibrations
 
-    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
+    def get_processed_calibration_items(self, data_shape, data_dtype, source_calibration_items):
         if self.operation:
-            return self.operation.get_processed_calibrations(data_shape, data_dtype, source_calibrations)
+            calibrations = [calibration_item.calibration for calibration_item in source_calibration_items]
+            calibrations = self.operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
+            return [DataItem.CalibrationItem(calibration=calibration) for calibration in calibrations]
         else:
-            return source_calibrations
+            return source_calibration_items
 
-    def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
+    def get_processed_intensity_calibration_item(self, data_shape, data_dtype, intensity_calibration_item):
         if self.operation:
-            return self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
+            return DataItem.CalibrationItem(calibration=self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration_item.calibration))
         else:
             return source_calibrations
 

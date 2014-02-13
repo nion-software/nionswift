@@ -48,7 +48,7 @@ class TestStorageClass(unittest.TestCase):
         data[8, 8] = 2020
         data_item = DataItem.DataItem(data)
         data_item.display_limits = (500, 1000)
-        data_item.intrinsic_intensity_calibration = DataItem.Calibration(1.0, 2.0, "three")
+        data_item.intrinsic_intensity_calibration = DataItem.CalibrationItem(1.0, 2.0, "three")
         with data_item.property_changes() as context:
             context.properties["one"] = 1
         document_controller.document_model.append_data_item(data_item)

@@ -15,6 +15,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.imaging import Calibration
 from nion.imaging import Image
 from nion.swift.Decorators import ProcessingThread
 from nion.swift import LineGraphCanvasItem
@@ -26,106 +27,81 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
-# Calibration notes:
+# CalibrationItem notes:
 #   The user wants calibrations to persist during pixel-by-pixel processing
 #   The user expects operations to handle calibrations and perhaps other metadata
 #   The user expects that calibrating a processed item adjust source calibration
 
+
 # origin: the calibrated value at the origin
 # scale: the calibrated value at location 1.0
 # units: the units of the calibrated value
-class Calibration(Storage.StorageBase):
-    def __init__(self, origin=None, scale=None, units=None):
-        super(Calibration, self).__init__()
+class CalibrationItem(Storage.StorageBase):
+    def __init__(self, origin=None, scale=None, units=None, calibration=None):
+        super(CalibrationItem, self).__init__()
         # TODO: add optional saving for these items
         self.storage_properties += ["origin", "scale", "units"]
         self.storage_type = "calibration"
-        self.__origin = float(origin) if origin else None
-        self.__scale = float(scale) if scale else None
-        self.__units = unicode(units) if units else None
+        self.calibration = copy.copy(calibration) if calibration else Calibration.Calibration(origin, scale, units)
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         origin = datastore.get_property(item_node, "origin", None)
         scale = datastore.get_property(item_node, "scale", None)
         units = datastore.get_property(item_node, "units", None)
-        return cls(origin, scale, units)
+        calibration = Calibration.Calibration(origin, scale, units)
+        return cls(calibration=calibration)
+
+    def __deepcopy__(self, memo):
+        calibration_item = CalibrationItem(calibration=self.calibration)
+        memo[id(self)] = calibration_item
+        return calibration_item
 
     def __str__(self):
         return "{0:s} origin:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.origin, self.scale, self.units)
 
-    def __deepcopy__(self, memo):
-        calibration = Calibration(origin=self.__origin, scale=self.__scale, units=self.__units)
-        memo[id(self)] = calibration
-        return calibration
-
     def __get_is_calibrated(self):
-        return self.__origin is not None or self.__scale is not None or self.__units is not None
+        return self.calibration.is_calibrated
     is_calibrated = property(__get_is_calibrated)
 
     def clear(self):
-        self.__origin = None
-        self.__scale = None
-        self.__units = None
+        self.calibration.clear()
 
     def __get_origin(self):
-        return self.__origin if self.__origin else 0.0
+        return self.calibration.origin
     def __set_origin(self, value):
-        value = float(value) if value else None
-        if self.__origin != value:
-            self.__origin = value
-            self.notify_set_property("origin", value)
+        self.calibration.origin = value
+        self.notify_set_property("origin", value)
     origin = property(__get_origin, __set_origin)
 
     def __get_scale(self):
-        return self.__scale if self.__scale else 1.0
+        return self.calibration.scale
     def __set_scale(self, value):
-        value = float(value) if value else None
-        if self.__scale != value:
-            self.__scale = value
-            self.notify_set_property("scale", value)
+        self.calibration.scale = value
+        self.notify_set_property("scale", value)
     scale = property(__get_scale, __set_scale)
 
     def __get_units(self):
-        return self.__units if self.__units else unicode()
+        return self.calibration.units
     def __set_units(self, value):
-        value = unicode(value) if value else None
-        if self.units != value:
-            self.__units = value
-            self.notify_set_property("units", value)
+        self.calibration.units = value
+        self.notify_set_property("units", value)
     units = property(__get_units, __set_units)
 
+    # pass these through to calibration object
     def convert_to_calibrated_value(self, value):
-        return self.origin + value * self.scale
+        return self.calibration.convert_to_calibrated_value(value)
     def convert_to_calibrated_size(self, size):
-        return size * self.scale
+        return self.calibration.convert_to_calibrated_size(size)
     def convert_from_calibrated_value(self, value):
-        return (value - self.origin) / self.scale
+        return self.calibration.convert_from_calibrated_value(value)
     def convert_to_calibrated_value_str(self, value, include_units=True):
-        units_str = (" " + self.units) if include_units and self.__units else ""
-        if isinstance(value, types.IntType) or isinstance(value, types.LongType):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
-        elif isinstance(value, types.FloatType) or isinstance(value, types.ComplexType) or isinstance(value, numpy.float32) or isinstance(value, numpy.complex64):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
-        elif isinstance(value, numpy.ndarray) and numpy.ndim(value) == 1 and value.shape[0] in (3, 4) and value.dtype == numpy.uint8:
-            result = u", ".join([u"{0:d}".format(v) for v in value])
-        else:
-            result = None
-        return result
+        return self.calibration.convert_to_calibrated_value_str(value, include_units)
     def convert_to_calibrated_size_str(self, size, include_units=True):
-        units_str = (" " + self.units) if include_units and self.__units else ""
-        if isinstance(size, types.IntType) or isinstance(size, types.LongType):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
-        elif isinstance(size, types.FloatType) or isinstance(size, types.ComplexType) or isinstance(size, numpy.float32) or isinstance(size, numpy.complex64):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
-        elif isinstance(size, numpy.ndarray) and numpy.ndim(size) == 1 and size.shape[0] in (3, 4) and size.dtype == numpy.uint8:
-            result = u", ".join([u"{0:d}".format(v) for v in size])
-        else:
-            result = None
-        return result
+        return self.calibration.convert_to_calibrated_size_str(size, include_units)
 
     def notify_set_property(self, key, value):
-        super(Calibration, self).notify_set_property(key, value)
+        super(CalibrationItem, self).notify_set_property(key, value)
         self.notify_listeners("calibration_changed", self)
 
 
@@ -414,7 +390,7 @@ class DataItem(Storage.StorageBase):
         data_item.intrinsic_calibrations.extend(intrinsic_calibrations)
         # if we have master data, we should have intensity calibration
         if has_master_data and intrinsic_intensity_calibration is None:
-            intrinsic_intensity_calibration = Calibration()
+            intrinsic_intensity_calibration = CalibrationItem()
         data_item.intrinsic_intensity_calibration = intrinsic_intensity_calibration
         if display_calibrated_values is not None:
             data_item.display_calibrated_values = display_calibrated_values
@@ -602,36 +578,36 @@ class DataItem(Storage.StorageBase):
     intrinsic_intensity_calibration = property(__get_intrinsic_intensity_calibration, __set_intrinsic_intensity_calibration)
 
     def __get_calculated_intensity_calibration(self):
-        intensity_calibration = None
+        intensity_calibration_item = None
         # if intrinsic_calibrations are set on this item, use it, giving it precedence
         if self.intrinsic_intensity_calibration:
             if self.display_calibrated_values:
                 # use actual intrinsic_calibrations
-                intensity_calibration = self.intrinsic_intensity_calibration
+                intensity_calibration_item = self.intrinsic_intensity_calibration
             else:
                 # construct empty calibration to display unitless
-                intensity_calibration = Calibration()
+                intensity_calibration_item = CalibrationItem()
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
-        if intensity_calibration is None and self.data_source:
-            intensity_calibration = self.data_source.calculated_intensity_calibration
+        if intensity_calibration_item is None and self.data_source:
+            intensity_calibration_item = self.data_source.calculated_intensity_calibration
         data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
         if data_shape is not None and data_dtype is not None:
             for operation in self.operations:
                 if operation.enabled:
-                    intensity_calibration = operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
+                    intensity_calibration_item = operation.get_processed_intensity_calibration_item(data_shape, data_dtype, intensity_calibration_item)
                     data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return intensity_calibration
+        return intensity_calibration_item
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
 
     # call this when data changes. this makes sure that the right number
     # of intrinsic_calibrations exist in this object.
     def sync_intrinsic_calibrations(self, ndim):
         while len(self.intrinsic_calibrations) < ndim:
-            self.intrinsic_calibrations.append(Calibration())
+            self.intrinsic_calibrations.append(CalibrationItem())
         while len(self.intrinsic_calibrations) > ndim:
             self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
         if self.has_master_data and self.intrinsic_intensity_calibration is None:
-            self.intrinsic_intensity_calibration = Calibration()
+            self.intrinsic_intensity_calibration = CalibrationItem()
         if not self.has_master_data and self.intrinsic_intensity_calibration is not None:
             self.intrinsic_intensity_calibration = None
 
@@ -639,27 +615,27 @@ class DataItem(Storage.StorageBase):
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
-        calibrations = None
+        calibration_items = None
         # if intrinsic_calibrations are set on this item, use it, giving it precedence
         if self.intrinsic_calibrations:
             if self.display_calibrated_values:
                 # use actual intrinsic_calibrations
-                calibrations = self.intrinsic_calibrations
+                calibration_items = self.intrinsic_calibrations
             else:
                 # construct empty calibrations to display pixels
-                calibrations = list()
+                calibration_items = list()
                 for _ in xrange(0, len(self.spatial_shape)):
-                    calibrations.append(Calibration())
+                    calibration_items.append(CalibrationItem())
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
-        if calibrations is None and self.data_source:
-            calibrations = self.data_source.calculated_calibrations
+        if calibration_items is None and self.data_source:
+            calibration_items = self.data_source.calculated_calibrations
         data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
         if data_shape is not None and data_dtype is not None:
-            for operation in self.operations:
-                if operation.enabled:
-                    calibrations = operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
-                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return calibrations
+            for operation_item in self.operations:
+                if operation_item.enabled:
+                    calibration_items = operation_item.get_processed_calibration_items(data_shape, data_dtype, calibration_items)
+                    data_shape, data_dtype = operation_item.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        return calibration_items
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times

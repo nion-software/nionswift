@@ -21,7 +21,7 @@ from nion.ui import Test
 class TestCalibrationClass(unittest.TestCase):
 
     def test_conversion(self):
-        calibration = DataItem.Calibration(3.0, 2.0, "x")
+        calibration = DataItem.CalibrationItem(3.0, 2.0, "x")
         calibration.add_ref()
         self.assertEqual(calibration.convert_to_calibrated_value_str(5.0), u"13 x")
         calibration.remove_ref()
@@ -30,7 +30,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.add_ref()
         self.assertEqual(len(data_item.intrinsic_calibrations), 0)
-        data_item.intrinsic_calibrations.append(DataItem.Calibration(3.0, 2.0, "x"))
+        data_item.intrinsic_calibrations.append(DataItem.CalibrationItem(3.0, 2.0, "x"))
         self.assertEqual(len(data_item.intrinsic_calibrations), 1)
         self.assertIsNotNone(data_item.intrinsic_calibrations[0])
         data_item.remove_ref()
@@ -91,14 +91,14 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_calibration_should_work_for_complex_data(self):
-        calibration = DataItem.Calibration(1.0, 2.0, "c")
+        calibration = DataItem.CalibrationItem(1.0, 2.0, "c")
         value_array = numpy.zeros((1, ), dtype=numpy.complex128)
         value_array[0] = 3 + 4j
         self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7+8j c")
         self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6+8j c")
 
     def test_calibration_should_work_for_rgb_data(self):
-        calibration = DataItem.Calibration(1.0, 2.0, "c")
+        calibration = DataItem.CalibrationItem(1.0, 2.0, "c")
         value = numpy.zeros((4, ), dtype=numpy.uint8)
         self.assertEqual(calibration.convert_to_calibrated_value_str(value), "0, 0, 0, 0")
         self.assertEqual(calibration.convert_to_calibrated_size_str(value), "0, 0, 0, 0")
