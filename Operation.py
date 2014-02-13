@@ -105,7 +105,7 @@ class Operation(Storage.StorageBase):
         self.notify_set_property("values", self.values)
 
     # update the default value for this operation.
-    def set_property_default(self, property_id, default_value):
+    def __set_property_default(self, property_id, default_value):
         for description_entry in self.description:
             if description_entry["property"] == property_id:
                 description_entry["default"] = default_value
@@ -142,7 +142,9 @@ class Operation(Storage.StorageBase):
     # default value handling.
     def update_data_shape_and_dtype(self, data_shape, data_dtype):
         if self.operation_behavior:
-            self.operation_behavior.update_data_shape_and_dtype(data_shape, data_dtype)
+            default_values = self.operation_behavior.property_defaults_for_data_shape_and_dtype(data_shape, data_dtype)
+            for property, default_value in default_values.iteritems():
+                self.__set_property_default(property, default_value)
 
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
@@ -213,9 +215,6 @@ class OperationBehavior(object):
     def get_property(self, property_id, default_value=None):
         return self.operation.get_property(property_id, default_value)
 
-    def set_property_default(self, property_id, default_value):
-        self.operation.set_property_default(property_id, default_value)
-
     # handle graphic
     def get_graphic(self, graphic_id):
         return self.operation.get_graphic(graphic_id)
@@ -240,9 +239,10 @@ class OperationBehavior(object):
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape, data_dtype
 
-    # default value handling.
-    def update_data_shape_and_dtype(self, data_shape, data_dtype):
-        pass
+    # default value handling. this gives the operation a chance to update default
+    # values when the data shape or dtype changes.
+    def property_defaults_for_data_shape_and_dtype(self, data_shape, data_dtype):
+        return dict()
 
 
 class FFTOperationBehavior(OperationBehavior):
@@ -376,9 +376,12 @@ class Resample2dOperationBehavior(OperationBehavior):
         else:
             return (height, width), data_dtype
 
-    def update_data_shape_and_dtype(self, data_shape, data_dtype):
-        self.set_property_default("height", data_shape[0])
-        self.set_property_default("width", data_shape[1])
+    def property_defaults_for_data_shape_and_dtype(self, data_shape, data_dtype):
+        property_defaults = {
+            "height": data_shape[0],
+            "width": data_shape[1],
+        }
+        return property_defaults
 
 
 class HistogramOperationBehavior(OperationBehavior):
