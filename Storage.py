@@ -746,7 +746,7 @@ class DictDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": Operation.Operation,
+                "operation": Operation.OperationItem,
             }
             type = node["type"]
             if type in build_map:
@@ -1170,7 +1170,7 @@ class DbDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": Operation.Operation,
+                "operation": Operation.OperationItem,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))

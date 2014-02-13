@@ -23,7 +23,7 @@ class TestCalibrationClass(unittest.TestCase):
     def test_conversion(self):
         calibration = DataItem.Calibration(3.0, 2.0, "x")
         calibration.add_ref()
-        self.assertEqual(calibration.convert_to_calibrated_value_str(5), u"13.0 x")
+        self.assertEqual(calibration.convert_to_calibrated_value_str(5.0), u"13 x")
         calibration.remove_ref()
 
     def test_calibration_relationship(self):
@@ -46,7 +46,7 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.intrinsic_calibrations[1].units = "x"
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
-        data_item_copy.operations.append(Operation.Operation("invert-operation"))
+        data_item_copy.operations.append(Operation.OperationItem("invert-operation"))
         data_item.data_items.append(data_item_copy)
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(len(calculated_calibrations), 2)
@@ -56,7 +56,7 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(int(calculated_calibrations[1].origin), 3)
         self.assertEqual(int(calculated_calibrations[1].scale), 2)
         self.assertEqual(calculated_calibrations[1].units, "x")
-        data_item_copy.operations.append(Operation.Operation("fft-operation"))
+        data_item_copy.operations.append(Operation.OperationItem("fft-operation"))
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(int(calculated_calibrations[0].origin), 0)
         self.assertEqual(calculated_calibrations[0].units, "1/x")
@@ -69,13 +69,13 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.add_ref()
         data_item2 = DataItem.DataItem()
         data_item2.add_ref()
-        operation2 = Operation.Operation("resample-operation")
+        operation2 = Operation.OperationItem("resample-operation")
         data_item2.operations.append(operation2)
         data_item.data_items.append(data_item2)
         data_item2.remove_ref()
         data_item3 = DataItem.DataItem()
         data_item3.add_ref()
-        operation3 = Operation.Operation("resample-operation")
+        operation3 = Operation.OperationItem("resample-operation")
         data_item3.operations.append(operation3)
         data_item2.data_items.append(data_item3)
         data_item3.calculated_calibrations
@@ -94,8 +94,8 @@ class TestCalibrationClass(unittest.TestCase):
         calibration = DataItem.Calibration(1.0, 2.0, "c")
         value_array = numpy.zeros((1, ), dtype=numpy.complex128)
         value_array[0] = 3 + 4j
-        self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7.0+8.0j c")
-        self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6.0+8.0j c")
+        self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7+8j c")
+        self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6+8j c")
 
     def test_calibration_should_work_for_rgb_data(self):
         calibration = DataItem.Calibration(1.0, 2.0, "c")
@@ -131,7 +131,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
                 data_ref.master_data_updated()
             data_item.display_limits = (100, 900)
-            data_item.operations.append(Operation.Operation("invert-operation"))
+            data_item.operations.append(Operation.OperationItem("invert-operation"))
             data_item.graphics.append(Graphics.RectangleGraphic())
             data_item2 = DataItem.DataItem()
             data_item2.title = "data_item2"
@@ -181,7 +181,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_graphic = Graphics.RectangleGraphic()
             crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(crop_graphic)
-            crop_operation = Operation.Operation("crop-operation")
+            crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_graphic("graphic", crop_graphic)
             data_item.operations.append(crop_operation)
             data_item_copy = copy.deepcopy(data_item)
@@ -265,10 +265,10 @@ class TestDataItemClass(unittest.TestCase):
         data_item_graphic = Graphics.LineGraphic()
         data_item.graphics.append(data_item_graphic)
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.Operation("fft-operation"))
+        data_item2.operations.append(Operation.OperationItem("fft-operation"))
         data_item.data_items.append(data_item2)
         data_item3 = DataItem.DataItem()
-        data_item3.operations.append(Operation.Operation("inverse-fft-operation"))
+        data_item3.operations.append(Operation.OperationItem("inverse-fft-operation"))
         data_item2.data_items.append(data_item3)
         # establish listeners
         class Listener(object):
@@ -327,7 +327,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # add/remove an operation. should change primary and dependent data and display
         map(Listener.reset, listeners)
-        invert_operation = Operation.Operation("invert-operation")
+        invert_operation = Operation.OperationItem("invert-operation")
         data_item.operations.append(invert_operation)
         self.assertTrue(listener.data_changed and listener.display_changed)
         self.assertTrue(listener2.data_changed and listener2.display_changed)
@@ -350,7 +350,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener2.data_changed and not listener2.display_changed)
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # modify an operation. make sure data and dependent data gets updated.
-        blur_operation = Operation.Operation("gaussian-blur-operation")
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
         data_item.operations.append(blur_operation)
         map(Listener.reset, listeners)
         blur_operation.set_property("sigma", 0.1)
@@ -362,7 +362,7 @@ class TestDataItemClass(unittest.TestCase):
         crop_graphic = Graphics.RectangleGraphic()
         crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
         data_item.graphics.append(crop_graphic)
-        crop_operation = Operation.Operation("crop-operation")
+        crop_operation = Operation.OperationItem("crop-operation")
         crop_operation.set_graphic("graphic", crop_graphic)
         data_item.operations.append(crop_operation)
         map(Listener.reset, listeners)
@@ -404,7 +404,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_graphic = Graphics.RectangleGraphic()
             crop_graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(crop_graphic)
-            crop_operation = Operation.Operation("crop-operation")
+            crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_graphic("graphic", crop_graphic)
             crop_data_item.operations.append(crop_operation)
             data_item.data_items.append(crop_data_item)

@@ -37,7 +37,7 @@ class TestOperationClass(unittest.TestCase):
 
     # make sure we can remove a single operation
     def test_remove_operation(self):
-        operation = Operation.Operation("invert-operation")
+        operation = Operation.OperationItem("invert-operation")
         self.data_item.operations.append(operation)
         self.assertEqual(len(self.data_item.operations), 1)
         self.document_controller.remove_operation(operation)
@@ -45,10 +45,10 @@ class TestOperationClass(unittest.TestCase):
 
     # make sure we can remove the second operation
     def test_multi_remove_operation(self):
-        operation = Operation.Operation("invert-operation")
+        operation = Operation.OperationItem("invert-operation")
         self.data_item.operations.append(operation)
         self.assertEqual(len(self.data_item.operations), 1)
-        operation2 = Operation.Operation("resample-operation")
+        operation2 = Operation.OperationItem("resample-operation")
         self.data_item.operations.append(operation2)
         self.assertEqual(len(self.data_item.operations), 2)
         self.document_controller.remove_operation(operation2)
@@ -57,14 +57,14 @@ class TestOperationClass(unittest.TestCase):
     # make sure defaults get propogated when adding data item to document
     def test_default_propogation(self):
         # first make sure data and calibrations come out OK
-        operation = Operation.Operation("resample-operation")
+        operation = Operation.OperationItem("resample-operation")
         self.data_item.operations.append(operation)
         with self.data_item.data_ref() as data_ref:
             data_ref.data  # just calculate it
         self.data_item.calculated_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
-        operation2 = Operation.Operation("resample-operation")
+        operation2 = Operation.OperationItem("resample-operation")
         data_item.operations.append(operation2)
         self.data_item.data_items.append(data_item)
         self.assertIsNotNone(operation2.description[0]["default"])
@@ -72,7 +72,7 @@ class TestOperationClass(unittest.TestCase):
 
     # make sure crop gets disconnected when deleting
     def test_crop_disconnect(self):
-        operation = Operation.Operation("crop-operation")
+        operation = Operation.OperationItem("crop-operation")
         operation.add_ref()
         graphic = Graphics.RectangleGraphic()
         operation.set_graphic("graphic", graphic)
@@ -80,7 +80,7 @@ class TestOperationClass(unittest.TestCase):
 
     # make sure profile gets disconnected when deleting
     def test_line_profile_disconnect(self):
-        operation = Operation.Operation("line-profile-operation")
+        operation = Operation.OperationItem("line-profile-operation")
         operation.add_ref()
         graphic = Graphics.LineGraphic()
         operation.set_graphic("graphic", graphic)
@@ -95,12 +95,12 @@ class TestOperationClass(unittest.TestCase):
         data_item_complex.add_ref()
 
         operation_list = []
-        operation_list.append((data_item_real, Operation.Operation("fft-operation")))
-        operation_list.append((data_item_complex, Operation.Operation("inverse-fft-operation")))
-        operation_list.append((data_item_real, Operation.Operation("invert-operation")))
-        operation_list.append((data_item_real, Operation.Operation("gaussian-blur-operation")))
-        operation_list.append((data_item_real, Operation.Operation("histogram-operation")))
-        operation_list.append((data_item_real, Operation.Operation("convert-to-scale_operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("fft-operation")))
+        operation_list.append((data_item_complex, Operation.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("invert-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("gaussian-blur-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("histogram-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("convert-to-scale_operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -122,21 +122,21 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.add_ref()
 
         operation_list = []
-        operation_list.append((data_item_real, Operation.Operation("fft-operation")))
-        operation_list.append((data_item_real, Operation.Operation("invert-operation")))
-        operation_list.append((data_item_real, Operation.Operation("gaussian-blur-operation")))
-        crop_2d_operation = Operation.Operation("crop-operation")
+        operation_list.append((data_item_real, Operation.OperationItem("fft-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("invert-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("gaussian-blur-operation")))
+        crop_2d_operation = Operation.OperationItem("crop-operation")
         crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
         operation_list.append((data_item_real, crop_2d_operation))
-        resample_2d_operation = Operation.Operation("resample-operation")
+        resample_2d_operation = Operation.OperationItem("resample-operation")
         resample_2d_operation.width = 128
         resample_2d_operation.height = 128
         operation_list.append((data_item_real, resample_2d_operation))
-        operation_list.append((data_item_real, Operation.Operation("histogram-operation")))
-        line_profile_operation = Operation.Operation("line-profile-operation")
+        operation_list.append((data_item_real, Operation.OperationItem("histogram-operation")))
+        line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
         operation_list.append((data_item_real, line_profile_operation))
-        operation_list.append((data_item_real, Operation.Operation("convert-to-scale_operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("convert-to-scale_operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -157,20 +157,20 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgb.add_ref()
 
         operation_list = []
-        operation_list.append((data_item_rgb, Operation.Operation("invert-operation")))
-        operation_list.append((data_item_rgb, Operation.Operation("gaussian-blur-operation")))
-        crop_2d_operation = Operation.Operation("crop-operation")
+        operation_list.append((data_item_rgb, Operation.OperationItem("invert-operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("gaussian-blur-operation")))
+        crop_2d_operation = Operation.OperationItem("crop-operation")
         crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
         operation_list.append((data_item_rgb, crop_2d_operation))
-        resample_2d_operation = Operation.Operation("resample-operation")
+        resample_2d_operation = Operation.OperationItem("resample-operation")
         resample_2d_operation.width = 128
         resample_2d_operation.height = 128
         operation_list.append((data_item_rgb, resample_2d_operation))
-        operation_list.append((data_item_rgb, Operation.Operation("histogram-operation")))
-        line_profile_operation = Operation.Operation("line-profile-operation")
+        operation_list.append((data_item_rgb, Operation.OperationItem("histogram-operation")))
+        line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
         operation_list.append((data_item_rgb, line_profile_operation))
-        operation_list.append((data_item_rgb, Operation.Operation("convert-to-scale_operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scale_operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -191,20 +191,20 @@ class TestOperationClass(unittest.TestCase):
         with data_item_rgb.ref():
 
             operation_list = []
-            operation_list.append((data_item_rgb, Operation.Operation("invert-operation")))
-            operation_list.append((data_item_rgb, Operation.Operation("gaussian-blur-operation")))
-            crop_2d_operation = Operation.Operation("crop-operation")
+            operation_list.append((data_item_rgb, Operation.OperationItem("invert-operation")))
+            operation_list.append((data_item_rgb, Operation.OperationItem("gaussian-blur-operation")))
+            crop_2d_operation = Operation.OperationItem("crop-operation")
             crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
             operation_list.append((data_item_rgb, crop_2d_operation))
-            resample_2d_operation = Operation.Operation("resample-operation")
+            resample_2d_operation = Operation.OperationItem("resample-operation")
             resample_2d_operation.width = 128
             resample_2d_operation.height = 128
             operation_list.append((data_item_rgb, resample_2d_operation))
-            operation_list.append((data_item_rgb, Operation.Operation("histogram-operation")))
-            line_profile_operation = Operation.Operation("line-profile-operation")
+            operation_list.append((data_item_rgb, Operation.OperationItem("histogram-operation")))
+            line_profile_operation = Operation.OperationItem("line-profile-operation")
             line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
             operation_list.append((data_item_rgb, line_profile_operation))
-            operation_list.append((data_item_rgb, Operation.Operation("convert-to-scale_operation")))
+            operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scale_operation")))
 
             for source_data_item, operation in operation_list:
                 data_item = DataItem.DataItem()
@@ -222,7 +222,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_complex.add_ref()
 
         operation_list = []
-        operation_list.append((data_item_complex, Operation.Operation("inverse-fft-operation")))
+        operation_list.append((data_item_complex, Operation.OperationItem("inverse-fft-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -242,7 +242,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.add_ref()
         graphic = Graphics.RectangleGraphic()
         graphic.bounds = ((0.2, 0.3), (0.5, 0.5))
-        operation = Operation.Operation("crop-operation")
+        operation = Operation.OperationItem("crop-operation")
         operation.set_graphic("graphic", graphic)
         data_item_real.operations.append(operation)
         # make sure we get the right shape
@@ -256,17 +256,17 @@ class TestOperationClass(unittest.TestCase):
         data_item.add_ref()
 
         fft_data_item = DataItem.DataItem()
-        fft_data_item.operations.append(Operation.Operation("fft-operation"))
+        fft_data_item.operations.append(Operation.OperationItem("fft-operation"))
         data_item.data_items.append(fft_data_item)
 
         with fft_data_item.data_ref() as fft_data_ref:
             self.assertEqual(fft_data_ref.data.shape, (512, 512))
             self.assertEqual(fft_data_ref.data.dtype, numpy.complex128)
 
-    class DummyOperationBehavior(Operation.OperationBehavior):
+    class DummyOperation(Operation.Operation):
         def __init__(self):
             description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
-            super(TestOperationClass.DummyOperationBehavior, self).__init__("Dummy", "dummy-operation", description)
+            super(TestOperationClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
         def process_data_copy(self, data_copy):
             return numpy.zeros((16, 16))
 
@@ -278,14 +278,14 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        Operation.OperationManager().register_operation_behavior("dummy-operation", lambda: TestOperationClass.DummyOperationBehavior())
-        dummy_operation = Operation.Operation("dummy-operation")
+        Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
+        dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.operations.append(dummy_operation)
         dummy_operation.set_property("param", 5)
         storage_data = document_model.datastore.to_data()
         document_controller.close()
         # unregister and read it back
-        Operation.OperationManager().unregister_operation_behavior("dummy-operation")
+        Operation.OperationManager().unregister_operation("dummy-operation")
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
@@ -297,7 +297,7 @@ class TestOperationClass(unittest.TestCase):
         with data_item_rgba.ref():
             with data_item_rgba.data_ref() as data_ref:
                 data_ref.master_data[:] = (20,40,60,100)
-            data_item_rgba.operations.append(Operation.Operation("invert-operation"))
+            data_item_rgba.operations.append(Operation.OperationItem("invert-operation"))
             with data_item_rgba.data_ref() as data_ref:
                 pixel = data_ref.data[0,0,...]
                 self.assertEqual(pixel[0], 255 - 20)
@@ -314,7 +314,7 @@ class TestOperationClass(unittest.TestCase):
                 graphic1 = Graphics.RectangleGraphic()
                 graphic1.bounds = ((0.25, 0.25), (0.5, 0.5))
                 data_item_rgba.graphics.append(graphic1)
-                operation = Operation.Operation("crop-operation")
+                operation = Operation.OperationItem("crop-operation")
                 operation.set_graphic("graphic", graphic1)
                 data_item_rgba2.operations.append(operation)
                 data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
@@ -330,7 +330,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
         self.document_model.append_data_item(data_item_rgba)
         data_item_rgba2 = DataItem.DataItem()
-        data_item_rgba2.operations.append(Operation.Operation("invert-operation"))
+        data_item_rgba2.operations.append(Operation.OperationItem("invert-operation"))
         data_item_rgba.data_items.append(data_item_rgba2)
         self.image_panel.data_item = data_item_rgba2
         self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
@@ -340,7 +340,7 @@ class TestOperationClass(unittest.TestCase):
 
     def test_snapshot_of_operation_should_result_in_new_master_data(self):
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.Operation("invert-operation"))
+        data_item2.operations.append(Operation.OperationItem("invert-operation"))
         self.data_item.data_items.append(data_item2)
         self.image_panel.data_item = self.data_item
         self.assertEqual(self.document_controller.selected_data_item, self.data_item)
@@ -361,7 +361,7 @@ class TestOperationClass(unittest.TestCase):
         self.data_item.intrinsic_intensity_calibration.origin = 7.5
         self.data_item.intrinsic_intensity_calibration.units = u"ll"
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.Operation("invert-operation"))
+        data_item2.operations.append(Operation.OperationItem("invert-operation"))
         self.data_item.data_items.append(data_item2)
         # make sure our assumptions are correct
         self.assertEqual(len(self.data_item.calculated_calibrations), 2)
