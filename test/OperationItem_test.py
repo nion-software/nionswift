@@ -268,7 +268,7 @@ class TestOperationClass(unittest.TestCase):
         def __init__(self):
             description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
             super(TestOperationClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
-        def process_data_copy(self, data_copy):
+        def process(self, data):
             return numpy.zeros((16, 16))
 
     # test to ensure that no duplicate relationships are created

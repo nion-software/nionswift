@@ -118,7 +118,7 @@ class OperationItem(Storage.StorageBase):
     # clients call this to perform processing
     def process_data(self, data):
         if self.operation:
-            return self.operation.process_data_in_place(data)
+            return self.operation.get_processed_data(data)
         else:
             return data.copy()
 
@@ -127,7 +127,7 @@ class OperationItem(Storage.StorageBase):
     def get_processed_calibration_items(self, data_shape, data_dtype, source_calibration_items):
         if self.operation:
             calibrations = [calibration_item.calibration for calibration_item in source_calibration_items]
-            calibrations = self.operation.get_processed_calibrations(data_shape, data_dtype, calibrations)
+            calibrations = self.operation.get_processed_spatial_calibrations(data_shape, data_dtype, calibrations)
             return [DataItem.CalibrationItem(calibration=calibration) for calibration in calibrations]
         else:
             return source_calibration_items
