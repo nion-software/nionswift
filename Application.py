@@ -33,6 +33,7 @@ from nion.swift import Session
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Test
+from nion.swift import ToolbarPanel
 from nion.swift import Utility
 from nion.swift import Workspace
 
@@ -69,6 +70,7 @@ class Application(object):
         workspace_manager.register_panel(Inspector.ProcessingPanel, "processing-panel", _("Processing Panel"), ["left", "right"], "right", {"width": 320})
         workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.register_panel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
+        workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top")
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):

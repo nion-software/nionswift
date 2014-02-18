@@ -61,7 +61,7 @@ class Workspace(object):
 
         visible_panels = []
         if self.workspace_id == "library":
-            visible_panels = ["image-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "output-panel"]
+            visible_panels = ["image-panel", "toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "output-panel"]
 
         self.create_panels(visible_panels)
 
