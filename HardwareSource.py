@@ -208,13 +208,15 @@ class HardwareSource(Observable.Broadcaster):
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
-        self.__session = None
+        self.__session = None  # the session when last started.
         self.frame_index = 0
         self.__mode = None
         self.__mode_data = dict()
         self.__mode_lock = threading.RLock()
 
     def close(self):
+        for data_item in self.last_channel_to_data_item_dict.values():
+            data_item.remove_ref()
         if self.__data_buffer:
             self.__data_buffer.remove_listener(self)
             self.__data_buffer = None
@@ -369,7 +371,7 @@ class HardwareSource(Observable.Broadcaster):
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
             self.__session.did_stop_playing(self)
-            self.__session = None
+            # self.__session = None  # Do not clear the session here.
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -537,7 +539,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
 
     # must be called on the UI thread
     def start(self, mode=None):
-        logging.debug("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        # logging.debug("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is None:
             self.hardware_port = self.hardware_source.create_port(mode)
             self.hardware_port.on_new_data_elements = self.on_new_data_elements
@@ -545,7 +547,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
 
     # must be called on the UI thread
     def stop(self):
-        logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        # logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
             self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()

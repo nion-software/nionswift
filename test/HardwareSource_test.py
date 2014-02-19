@@ -3,18 +3,22 @@ import time
 
 import numpy as np
 
+from nion.swift import DocumentModel
 from nion.swift import HardwareSource
+from nion.swift import Session
+from nion.swift import Storage
 
 
 class SimpleHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self):
+    def __init__(self, sleep=0.2):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
         self.properties = None
+        self.sleep = sleep
 
     def acquire_data_elements(self):
         SimpleHardwareSource.image += 1.0
-        time.sleep(0.2)
+        time.sleep(self.sleep)
         data_element = { "data": SimpleHardwareSource.image }
         return [data_element]
 
@@ -79,6 +83,23 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertTrue(3.0 < tl_pixel < 7.0)
         p.close()
         hardware_source_manager.unregister_hardware_source(source)
+
+    def test_setting_current_snapshot_succeeds_and_does_not_leak_memory(self):
+        # stopping acquisition should not clear session
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_model.add_ref()
+        session = Session.Session(document_model)
+        source = SimpleHardwareSource(0.01)
+        self.assertEqual(source.frame_index, 0)
+        source.start_playing(session)
+        while source.frame_index < 3:
+            time.sleep(0.01)
+        source.abort_playing()
+        source.data_buffer.current_snapshot = 0
+        session.periodic()
+        source.close()
+        document_model.remove_ref()
 
 if __name__ == '__main__':
     unittest.main()
