@@ -489,7 +489,7 @@ class DataItem(Storage.StorageBase):
                 self.set_cached_value_dirty("histogram_data")
             self.__preview = None
             # but only clear the data cache if the data changed
-            if not DISPLAY in changes:
+            if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 
@@ -906,15 +906,26 @@ class DataItem(Storage.StorageBase):
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
         if initial_count == 0:
-            self.__load_master_data()
+            if self.__data_source:
+                self.__data_source.increment_data_ref_count()
+            else:
+                self.__load_master_data()
         return initial_count+1
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
         if final_count == 0:
-            self.__unload_master_data()
+            if self.__data_source:
+                self.__data_source.decrement_data_ref_count()
+            else:
+                self.__unload_master_data()
         return final_count
+
+    # used for testing
+    def __is_data_loaded(self):
+        return self.has_master_data and self.__master_data is not None
+    is_data_loaded = property(__is_data_loaded)
 
     def __get_has_master_data(self):
         return self.__has_master_data
@@ -1003,6 +1014,7 @@ class DataItem(Storage.StorageBase):
                 finally:
                     self.__data_mutex.acquire()
                 self.__cached_data = data
+                self.__cached_data_dirty = False
             return self.__cached_data
 
     def __get_data_shape_and_dtype(self):

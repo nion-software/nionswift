@@ -11,10 +11,13 @@ import numpy
 
 # local libraries
 from nion.imaging import Image
+from nion.imaging import Operation
 from nion.swift import Application
 from nion.swift import DataItem
+from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import OperationItem
+from nion.swift import Storage
 from nion.ui import Test
 
 
@@ -410,6 +413,71 @@ class TestDataItemClass(unittest.TestCase):
             data_item.data_items.append(crop_data_item)
             data_item.session_id = "20131231-235959"
             self.assertEqual(crop_data_item.session_id, data_item.session_id)
+
+    def test_adding_ref_to_dependent_data_causes_source_data_to_load(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model.add_ref()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.operations.append(OperationItem.OperationItem("invert-operation"))
+        data_item.data_items.append(data_item_inverted)
+        document_model.append_data_item(data_item)
+        # begin checks
+        with data_item.data_ref():
+            pass
+        self.assertFalse(data_item.is_data_loaded)
+        with data_item_inverted.data_ref() as d:
+            self.assertTrue(data_item.is_data_loaded)
+        self.assertFalse(data_item.is_data_loaded)
+        # clean up
+        document_model.remove_ref()
+
+    class DummyOperation(Operation.Operation):
+        def __init__(self):
+            description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
+            super(TestDataItemClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
+            self.count = 0
+        def process(self, data):
+            self.count += 1
+            return numpy.zeros((16, 16))
+
+    def test_operation_data_gets_cached(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_dummy = DataItem.DataItem()
+        dummy_operation = TestDataItemClass.DummyOperation()
+        Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
+        dummy_operation_item = OperationItem.OperationItem("dummy-operation")
+        data_item_dummy.operations.append(dummy_operation_item)
+        data_item.data_items.append(data_item_dummy)
+        data_item.add_ref()
+        data_item.remove_ref()
+        with data_item_dummy.data_ref() as d:
+            start_count = dummy_operation.count
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
+
+    def test_updating_thumbnail_does_not_cause_cached_data_to_be_cleared(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_dummy = DataItem.DataItem()
+        dummy_operation = TestDataItemClass.DummyOperation()
+        Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
+        dummy_operation_item = OperationItem.OperationItem("dummy-operation")
+        data_item_dummy.operations.append(dummy_operation_item)
+        data_item.data_items.append(data_item_dummy)
+        data_item.add_ref()
+        data_item.remove_ref()
+        with data_item_dummy.data_ref() as d:
+            start_count = dummy_operation.count
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
+            data_item_dummy.notify_data_item_content_changed([DataItem.THUMBNAIL])
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
 
 
 if __name__ == '__main__':
