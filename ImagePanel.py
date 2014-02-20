@@ -1449,6 +1449,9 @@ class InfoPanel(Panel.Panel):
         self.__pending_info = None
         self.__pending_info_mutex = threading.RLock()
 
+        # used to maintain the display when cursor is not moving
+        self.__last_source = None
+
         position_label = ui.create_label_widget(_("Position:"))
         self.position_text = ui.create_label_widget()
         value_label = ui.create_label_widget(_("Value:"))
@@ -1533,5 +1536,7 @@ class InfoPanel(Panel.Panel):
             if len(selected_graphics) == 1:
                 graphic = selected_graphics[0]
                 graphic_text = graphic.calibrated_description(data_size, calibrations)
-        with self.__pending_info_mutex:
-            self.__pending_info = (position_text, value_text, graphic_text)
+            self.__last_source = source
+        if self.__last_source == source:
+            with self.__pending_info_mutex:
+                self.__pending_info = (position_text, value_text, graphic_text)
