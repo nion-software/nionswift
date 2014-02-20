@@ -120,6 +120,9 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_controller.document_model.counted_data_items), 4)
         self.assertEqual(len(data_group.counted_data_items), 2)
 
+    def get_data_item_container_should_find_children_of_children(self):
+        pass  # placeholder
+
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
 
 if __name__ == '__main__':

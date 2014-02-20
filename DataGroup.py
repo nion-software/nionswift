@@ -280,12 +280,12 @@ def get_data_item_container(container, query_data_item):
         return container
     if hasattr(container, "data_groups"):
         for data_group in container.data_groups:
-            container = get_data_item_container(data_group, query_data_item)
-            if container:
-                return container
+            check_container = get_data_item_container(data_group, query_data_item)
+            if check_container:
+                return check_container
     if hasattr(container, "data_items"):
         for data_item in container.data_items:
-            container = get_data_item_container(data_item, query_data_item)
-            if container:
-                return container
+            check_container = get_data_item_container(data_item, query_data_item)
+            if check_container:
+                return check_container
     return None
