@@ -136,7 +136,7 @@ class OperationItem(Storage.StorageBase):
         if self.operation:
             return DataItem.CalibrationItem(calibration=self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration_item.calibration))
         else:
-            return source_calibrations
+            return intensity_calibration_item
 
     # data shape and type
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
