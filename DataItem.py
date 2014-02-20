@@ -95,6 +95,8 @@ class CalibrationItem(Storage.StorageBase):
         return self.calibration.convert_to_calibrated_size(size)
     def convert_from_calibrated_value(self, value):
         return self.calibration.convert_from_calibrated_value(value)
+    def convert_from_calibrated_size(self, size):
+        return self.calibration.convert_from_calibrated_size(size)
     def convert_to_calibrated_value_str(self, value, include_units=True):
         return self.calibration.convert_to_calibrated_value_str(value, include_units)
     def convert_to_calibrated_size_str(self, size, include_units=True):

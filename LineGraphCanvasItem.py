@@ -92,15 +92,18 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
-            data_min = numpy.amin(self.data)
-            data_max = numpy.amax(self.data)
+            raw_data_min = numpy.amin(self.data)
+            raw_data_max = numpy.amax(self.data)
             if self.intensity_calibration is not None:
-                data_min = self.intensity_calibration.convert_to_calibrated_value(data_min)
-                data_max = self.intensity_calibration.convert_to_calibrated_value(data_max)
-                if data_min > data_max:
-                    temp = data_min
-                    data_min = data_max
-                    data_max = temp
+                calibrated_data_min = self.intensity_calibration.convert_to_calibrated_value(raw_data_min)
+                calibrated_data_max = self.intensity_calibration.convert_to_calibrated_value(raw_data_max)
+                if calibrated_data_min > calibrated_data_max:
+                    temp = calibrated_data_min
+                    calibrated_data_min = calibrated_data_max
+                    calibrated_data_max = temp
+            else:
+                calibrated_data_min = raw_data_min
+                calibrated_data_max = raw_data_max
             data_len = self.data.shape[0]
             # draw the background
             drawing_context.begin_path()
@@ -109,10 +112,16 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
             # draw the intensity scale
             vertical_tick_count = 4
-            data_max = Geometry.make_pretty(data_max, round_up=True)
-            data_min = Geometry.make_pretty(data_min, round_up=True)
-            data_min = data_min if data_min < 0 else 0.0
-            data_range = data_max - data_min
+            pretty_calibrated_data_max = Geometry.make_pretty(calibrated_data_max, round_up=True)
+            pretty_calibrated_data_min = Geometry.make_pretty(calibrated_data_min, round_up=True)
+            pretty_calibrated_data_min = calibrated_data_min if calibrated_data_min < 0 else 0.0
+            if self.intensity_calibration:
+                drawn_data_min = self.intensity_calibration.convert_from_calibrated_value(pretty_calibrated_data_min)
+                drawn_data_max = self.intensity_calibration.convert_from_calibrated_value(pretty_calibrated_data_max)
+            else:
+                drawn_data_min = pretty_calibrated_data_min
+                drawn_data_max = pretty_calibrated_data_max
+            drawn_data_range = drawn_data_max - drawn_data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
             drawing_context.save()
             if self.draw_captions:
@@ -138,11 +147,11 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.stroke_style = '#888'
                 drawing_context.stroke()
                 if self.draw_captions:
-                    value = data_min + data_range * float(i) / vertical_tick_count
+                    value = drawn_data_min + drawn_data_range * float(i) / vertical_tick_count
                     value_str = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
+                    drawing_context.text_align = "right"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(value_str, intensity_rect[0][1] + 8, y)
-                #logging.debug("i %s %s", i, data_max * float(i) / vertical_tick_count)
+                    drawing_context.fill_text(value_str, intensity_rect[0][1] + intensity_rect[1][1] - 8, y)
             if self.draw_captions and self.intensity_calibration and self.intensity_calibration.units:
                 drawing_context.text_align = "center"
                 drawing_context.text_baseline = "bottom"
@@ -207,17 +216,19 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # draw the line plot itself
             drawing_context.save()
             drawing_context.begin_path()
-            if data_range != 0.0:
-                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - data_min) / data_range)
+            if drawn_data_range != 0.0:
+                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - drawn_data_min) / drawn_data_range)
                 drawing_context.move_to(plot_origin_x, baseline)
                 for i in xrange(0, plot_width, 2):
                     px = plot_origin_x + i
-                    py = plot_origin_y + plot_height - (plot_height * float(self.data[int(data_len*float(i)/plot_width)] - data_min) / data_range)
+                    data_index = int(data_len*float(i)/plot_width)
+                    py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
                     drawing_context.line_to(px, py)
                     drawing_context.line_to(px + 2, py)
                 # finish off last line
                 px = plot_origin_x + plot_width
-                py = plot_origin_y + plot_height - (plot_height * float(self.data[data_len-1] - data_min) / data_range)
+                data_index = data_len - 1
+                py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
                 drawing_context.line_to(plot_origin_x + plot_width, baseline)
             else:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
