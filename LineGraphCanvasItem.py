@@ -127,16 +127,21 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             if self.draw_captions:
                 drawing_context.text_baseline = "middle"
                 drawing_context.font = "{0:d}px".format(self.font_size)
+            # calculate yticks
+            yticks = list()
             for i in range(vertical_tick_count+1):
-                drawing_context.begin_path()
                 y = int(intensity_rect[0][0] + intensity_rect[1][0] - tick_size * i)
-                w = 3
                 if i == 0:
                     y = plot_origin_y + plot_height  # match it with the plot_rect
-                    w = 6
                 elif i == vertical_tick_count:
                     y = plot_origin_y  # match it with the plot_rect
-                    w = 6
+                value = drawn_data_min + drawn_data_range * float(i) / vertical_tick_count
+                label = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
+                yticks.append((y, label))
+            # draw the yticks and labels
+            for y, label in yticks:
+                w = 4
+                drawing_context.begin_path()
                 if self.draw_grid:
                     drawing_context.move_to(plot_origin_x, y)
                     drawing_context.line_to(plot_origin_x + plot_width, y)
@@ -147,11 +152,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.stroke_style = '#888'
                 drawing_context.stroke()
                 if self.draw_captions:
-                    value = drawn_data_min + drawn_data_range * float(i) / vertical_tick_count
-                    value_str = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
                     drawing_context.text_align = "right"
                     drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(value_str, intensity_rect[0][1] + intensity_rect[1][1] - 8, y)
+                    drawing_context.fill_text(label, intensity_rect[0][1] + intensity_rect[1][1] - 8, y)
             if self.draw_captions and self.intensity_calibration and self.intensity_calibration.units:
                 drawing_context.text_align = "center"
                 drawing_context.text_baseline = "bottom"
