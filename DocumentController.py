@@ -140,6 +140,7 @@ class DocumentController(Observable.Broadcaster):
 
         self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
+        self.processing_menu.add_menu_item(_("Double Gaussian Filter"), lambda: self.processing_double_gaussian_filter())
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
         self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
@@ -437,6 +438,9 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_ifft(self, select=True):
         return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
+
+    def processing_double_gaussian_filter(self, select=True):
+        return self.add_processing_operation_by_id("double-gaussian-filter-operation", prefix=_("Double Gaussian Filter of "), select=select)
 
     def processing_gaussian_blur(self, select=True):
         return self.add_processing_operation_by_id("gaussian-blur-operation", prefix=_("Gaussian Blur of "), select=select)
