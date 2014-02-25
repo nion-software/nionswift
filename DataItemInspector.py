@@ -275,13 +275,13 @@ class GraphicsInspector(InspectorSection):
         super(GraphicsInspector, self).__init__(ui, _("Graphics"))
         self.__image_size = data_item_binding_source.spatial_shape
         self.__calibrations = data_item_binding_source.calculated_calibrations
-        self.__graphics = data_item_binding_source.graphics
+        self.__graphics = data_item_binding_source.drawn_graphics
         self.__data_item_binding_source = data_item_binding_source
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "graphics"))
+        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "drawn_graphics"))
         self.add_widget_to_content(list_widget)
 
     def __create_header_widget(self):

@@ -23,6 +23,7 @@ from nion.swift import Storage
 from nion.swift import Utility
 from nion.ui import CanvasItem
 from nion.ui import Observable
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -307,6 +308,7 @@ class DataItem(Storage.StorageBase):
         self.__display_calibrated_values = True
         self.__intrinsic_intensity_calibration = None
         self.graphics = Storage.MutableRelationship(self, "graphics")
+        self.__drawn_graphics = UserInterfaceUtility.ListModel("drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.__properties = dict()
@@ -718,14 +720,18 @@ class DataItem(Storage.StorageBase):
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
         elif key == "data_items":
-            self.notify_listeners("data_item_inserted", self, value, before_index, False)  # see note about smart groups
+            self.notify_listeners("data_item_inserted", self, value, before_index, False)
             value.data_source = self
             self.notify_data_item_content_changed(set([CHILDREN]))
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
+            for operation_index, operation_item in enumerate(value.operations):
+                self.item_inserted(value, "operations", operation_item, operation_index)
+            value.add_observer(self)
         elif key == "intrinsic_calibrations":
             value.add_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
+            self.__drawn_graphics.insert(before_index, value)
             value.add_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
 
@@ -736,16 +742,54 @@ class DataItem(Storage.StorageBase):
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
         elif key == "data_items":
+            value.remove_observer(self)
+            for operation_index, operation_item in enumerate(reversed(value.operations)):
+                self.item_removed(value, "operations", operation_item, operation_index)
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            self.notify_listeners("data_item_removed", self, value, index, False)  # see note about smart groups
+            self.notify_listeners("data_item_removed", self, value, index, False)
             value.data_source = None
             self.notify_data_item_content_changed(set([CHILDREN]))
         elif key == "intrinsic_calibrations":
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "graphics":
+            del self.__drawn_graphics[index]
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
+
+    # this message is received when an item being listened to (child data items)
+    # has something inserted.
+    def item_inserted(self, parent, key, object, before_index):
+        # watch for operations being inserted into child data items
+        # notice: parent is a data item
+        if parent in self.data_items and key == "operations":
+            # we might be inserting drawn graphics, so find the index at which
+            # we'll insert. first count the graphics intrinsic to this object.
+            index = len(self.graphics)
+            # now cycle through each data item.
+            for data_item in self.data_items:
+                # and each operation within that data item.
+                for operation_item in data_item.operations:
+                    operation_graphics = operation_item.graphics
+                    # if this is the match operation, do the insert
+                    if data_item == parent and operation_item == object:
+                        for operation_graphic in reversed(operation_graphics):
+                            operation_graphic.add_listener(self)
+                            self.__drawn_graphics.insert(index, operation_graphic)
+                            return  # done
+                    # otherwise count up the graphics and continue
+                    index += len(operation_graphics)
+
+    # this message is received when an item being listened to (child data items)
+    # has something removed.
+    def item_removed(self, parent, key, item, index):
+        # watch for operations being removed from child data items
+        # notice: parent is a data item and has already been removed from self.data_items
+        if key == "operations":
+            # removal is easier since we don't need an insert point
+            for operation_graphic in item.graphics:
+                operation_graphic.remove_listener(self)
+                self.__drawn_graphics.remove(operation_graphic)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -778,16 +822,8 @@ class DataItem(Storage.StorageBase):
 
     # drawn graphics and the regular graphic items, plus those derived from the operation classes
     def __get_drawn_graphics(self):
-        return list(self.graphics) + list(self.operation_graphics)
+        return self.__drawn_graphics
     drawn_graphics = property(__get_drawn_graphics)
-
-    def __get_operation_graphics(self):
-        operation_graphics = list()
-        for data_item in self.data_items:
-            for operation_item in data_item.operations:
-                operation_graphics.extend(operation_item.graphics)
-        return operation_graphics
-    operation_graphics = property(__get_operation_graphics)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):

@@ -468,6 +468,48 @@ class TestDataItemClass(unittest.TestCase):
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
 
+    def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = OperationItem.OperationItem("crop-operation")
+        data_item_crop.operations.append(crop_operation_item)
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+        data_item.data_items.append(data_item_crop)
+        self.assertEqual(len(data_item.drawn_graphics), 1)
+        data_item.data_items.remove(data_item_crop)
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+
+    def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_crop = DataItem.DataItem()
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+        data_item.data_items.append(data_item_crop)
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+        crop_operation_item = OperationItem.OperationItem("crop-operation")
+        data_item_crop.operations.append(crop_operation_item)
+        self.assertEqual(len(data_item.drawn_graphics), 1)
+        data_item_crop.operations.remove(crop_operation_item)
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+
+    def test_updating_operation_graphic_property_notifies_data_item(self):
+        # data_item_content_changed
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self.display_changed = False
+            def data_item_content_changed(self, data_item, changes):
+                self.display_changed = self.display_changed or DataItem.DISPLAY in changes
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        listener = Listener()
+        data_item.add_listener(listener)
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = OperationItem.OperationItem("crop-operation")
+        data_item_crop.operations.append(crop_operation_item)
+        data_item.data_items.append(data_item_crop)
+        listener.reset()
+        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        self.assertTrue(listener.display_changed)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
