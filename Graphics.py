@@ -1,4 +1,5 @@
 # standard libraries
+import gettext
 import logging
 import math
 import numpy  # for arange
@@ -9,6 +10,8 @@ import uuid
 
 # local libraries
 from nion.swift import Storage
+
+_ = gettext.gettext
 
 
 def adjust_rectangle_like(mapping, original, current, part, modifiers):
@@ -195,21 +198,22 @@ class Graphic(Storage.StorageBase):
         raise NotImplementedError()
 
 
-class RectangleGraphic(Graphic):
-    def __init__(self):
-        super(RectangleGraphic, self).__init__()
+class RectangleTypeGraphic(Graphic):
+    def __init__(self, storage_type, title):
+        super(RectangleTypeGraphic, self).__init__()
+        self.storage_type = storage_type
         self.storage_properties += ["bounds"]
-        self.storage_type = "rect-graphic"
         self.register_dependent_key("bounds", "center")
         self.register_dependent_key("bounds", "size")
+        self.title = title
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
     def deepcopy_from(self, graphic, memo):
-        super(RectangleGraphic, self).deepcopy_from(graphic, memo)
+        super(RectangleTypeGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
     @classmethod
     def build(cls, datastore, item_node, uuid_):
-        graphic = super(RectangleGraphic, cls).build(datastore, item_node, uuid_)
+        graphic = super(RectangleTypeGraphic, cls).build(datastore, item_node, uuid_)
         bounds = datastore.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
         graphic.bounds = bounds
         return graphic
@@ -274,7 +278,7 @@ class RectangleGraphic(Graphic):
         origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
         size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
         size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
-        return "Rectangle\n  Center ({0}, {1})\n  Size ({2} x {3})".format(origin_x_str, origin_y_str, size_x_str, size_y_str)
+        return "{0}\n  Center ({1}, {2})\n  Size ({3} x {4})".format(self.title, origin_x_str, origin_y_str, size_x_str, size_y_str)
     def begin_drag(self):
         return (self.bounds, )
     def end_drag(self, part_data):
@@ -288,6 +292,13 @@ class RectangleGraphic(Graphic):
         original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
+    def draw(self, ctx, mapping, is_selected=False):
+        raise NotImplementedError()
+
+
+class RectangleGraphic(RectangleTypeGraphic):
+    def __init__(self):
+        super(RectangleGraphic, self).__init__("rect-graphic", _("Rectangle"))
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -332,98 +343,9 @@ class RectangleGraphic(Graphic):
                 ctx.restore()
 
 
-class EllipseGraphic(Graphic):
+class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
-        super(EllipseGraphic, self).__init__()
-        self.storage_properties += ["bounds"]
-        self.storage_type = "ellipse-graphic"
-        self.register_dependent_key("bounds", "center")
-        self.register_dependent_key("bounds", "size")
-        # start and end points are stored in image normalized coordinates
-        self.__bounds = ((0.0, 0.0), (1.0, 1.0))
-    def deepcopy_from(self, graphic, memo):
-        super(EllipseGraphic, self).deepcopy_from(graphic, memo)
-        self.bounds = graphic.bounds
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        graphic = super(EllipseGraphic, cls).build(datastore, item_node, uuid_)
-        bounds = datastore.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
-        graphic.bounds = bounds
-        return graphic
-    # accessors
-    def __get_bounds(self):
-        return self.__bounds
-    def __set_bounds(self, bounds):
-        # normalize
-        if bounds[1][0] < 0:  # height is negative
-            bounds = ((bounds[0][0] + bounds[1][0], bounds[0][1]), (-bounds[1][0], bounds[1][1]))
-        if bounds[1][1] < 0:  # width is negative
-            bounds = ((bounds[0][0], bounds[0][1] + bounds[1][1]), (bounds[1][0], -bounds[1][1]))
-        # set it
-        self.__bounds = bounds
-        # notify
-        self.notify_set_property("bounds", self.__bounds)
-    bounds = property(__get_bounds, __set_bounds)
-    # dependent property center
-    def __get_center(self):
-        return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
-    def __set_center(self, center):
-        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
-    center = property(__get_center, __set_center)
-    # dependent property size
-    def __get_size(self):
-        return self.bounds[1]
-    def __set_size(self, size):
-        # keep center the same
-        old_origin = self.bounds[0]
-        old_size = self.bounds[1]
-        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
-        self.bounds = (origin, size)
-    size = property(__get_size, __set_size)
-    def test(self, mapping, test_point, move_only):
-        # first convert to widget coordinates since test distances
-        # are specified in widget coordinates
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        # top left
-        if not move_only and self.test_point(origin, test_point, 4):
-            return "top-left"
-        # top right
-        if not move_only and self.test_point((origin[0], origin[1] + size[1]), test_point, 4):
-            return "top-right"
-        # bottom right
-        if not move_only and self.test_point((origin[0] + size[0], origin[1] + size[1]), test_point, 4):
-            return "bottom-right"
-        # bottom left
-        if not move_only and self.test_point((origin[0] + size[0], origin[1]), test_point, 4):
-            return "bottom-left"
-        # center
-        if self.test_inside_bounds((origin, size), test_point, 4):
-            return "all"
-        # didn't find anything
-        return None
-    def calibrated_description(self, image_size, calibrations):
-        size_image = (image_size[0] * self.bounds[1][0], image_size[1] * self.bounds[1][1])
-        origin_image = (size_image[0] * 0.5 + image_size[0] * self.bounds[0][0] - 0.5 * image_size[0],
-                        size_image[1] * 0.5 + image_size[1] * self.bounds[0][1] - 0.5 * image_size[1])
-        origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
-        origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
-        size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
-        size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
-        return "Ellipse\n  Center ({0}, {1})\n  Size ({2} x {3})".format(origin_x_str, origin_y_str, size_x_str, size_y_str)
-    def begin_drag(self):
-        return (self.bounds, )
-    def end_drag(self, part_data):
-        pass
-    # ellipse
-    def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
-    def nudge(self, mapping, delta):
-        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
-        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
-        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
-        current = (original[0] + delta[0], original[1] + delta[1])
-        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
+        super(EllipseGraphic, self).__init__("ellipse-graphic", _("Ellipse"))
     def draw(self, ctx, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -462,23 +384,24 @@ class EllipseGraphic(Graphic):
                 ctx.restore()
 
 
-class LineGraphic(Graphic):
-    def __init__(self):
-        super(LineGraphic, self).__init__()
+class LineTypeGraphic(Graphic):
+    def __init__(self, storage_type, title):
+        super(LineTypeGraphic, self).__init__()
         self.storage_properties += ["start", "end", "start_arrow_enabled", "end_arrow_enabled"]
-        self.storage_type = "line-graphic"
+        self.storage_type = storage_type
+        self.title = title
         # start and end points are stored in image normalized coordinates
         self.__start = (0.0, 0.0)
         self.__end = (1.0, 1.0)
         self.__start_arrow_enabled = False
         self.__end_arrow_enabled = False
     def deepcopy_from(self, line_graphic, memo):
-        super(LineGraphic, self).deepcopy_from(line_graphic, memo)
+        super(LineTypeGraphic, self).deepcopy_from(line_graphic, memo)
         self.start = line_graphic.start
         self.end = line_graphic.end
     @classmethod
     def build(cls, datastore, item_node, uuid_):
-        graphic = super(LineGraphic, cls).build(datastore, item_node, uuid_)
+        graphic = super(LineTypeGraphic, cls).build(datastore, item_node, uuid_)
         start = datastore.get_property(item_node, "start", (0.0, 0.0))
         end = datastore.get_property(item_node, "end", (1.0, 1.0))
         start_arrow_enabled = datastore.get_property(item_node, "start_arrow_enabled", False)
@@ -538,7 +461,7 @@ class LineGraphic(Graphic):
         start_y_str = calibrations[0].convert_to_calibrated_value_str(start_image[0])
         end_x_str = calibrations[1].convert_to_calibrated_value_str(end_image[1])
         end_y_str = calibrations[0].convert_to_calibrated_value_str(end_image[0])
-        return "Line\n  Start ({0}, {1})\n  End ({2}, {3})".format(start_x_str, start_y_str, end_x_str, end_y_str)
+        return "{0}\n  Start ({1}, {2})\n  End ({3}, {4})".format(self.title, start_x_str, start_y_str, end_x_str, end_y_str)
     def begin_drag(self):
         return (self.start, self.end)
     def end_drag(self, part_data):
@@ -609,15 +532,22 @@ class LineGraphic(Graphic):
         ctx.move_to(p2[1], p2[0])
         ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
     def draw(self, ctx, mapping, is_selected=False):
+        raise NotImplementedError()
+
+
+class LineGraphic(LineTypeGraphic):
+    def __init__(self):
+        super(LineGraphic, self).__init__("line-graphic", _("Line"))
+    def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         ctx.save()
         ctx.begin_path()
         ctx.move_to(p1[1], p1[0])
         ctx.line_to(p2[1], p2[0])
-        if self.__start_arrow_enabled:
+        if self.start_arrow_enabled:
             self.draw_arrow(ctx, p2, p1)
-        if self.__end_arrow_enabled:
+        if self.end_arrow_enabled:
             self.draw_arrow(ctx, p1, p2)
         ctx.line_width = 1
         ctx.stroke_style = self.color
