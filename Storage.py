@@ -24,80 +24,61 @@ from nion.ui import Observable
 
 class MutableRelationship(collections.MutableSequence):
 
+    """
+        An observable list that integrates into the storage system.
+
+        Items in the list are recursively observed.
+
+        Items in the list are reference counted using add_ref and remove_ref.
+    """
+
     def __init__(self, parent, relationship_name):
-        self.store = list()
+        """
+            parent is notified when items are inserted or removed.
+            relationship_name is passed to parent when notifying.
+        """
+        self.__list = list()
         self.relationship_name = relationship_name
         self.parent_weak_ref = weakref.ref(parent)
 
     def __copy__(self):
-        return copy.copy(self.store)
+        return copy.copy(self.__list)
 
     def __len__(self):
-        return len(self.store)
+        return len(self.__list)
 
     def __getitem__(self, index):
-        return self.store[index]
+        return self.__list[index]
 
     def __setitem__(self, index, value):
         raise IndexError()
 
     def __delitem__(self, index):
         # get value
-        value = self.store[index]
+        value = self.__list[index]
         # unobserve
         value.remove_observer(self.parent_weak_ref())
         # do actual removal
-        del self.store[index]
+        del self.__list[index]
         # keep storage up-to-date
         self.parent_weak_ref().notify_remove_item(self.relationship_name, value, index)
         # ref count
         value.remove_ref()
 
     def __iter__(self):
-        return iter(self.store)
+        return iter(self.__list)
 
     def insert(self, index, value):
-        assert value not in self.store
-        assert index <= len(self.store) and index >= 0
+        assert value not in self.__list
+        assert index <= len(self.__list) and index >= 0
         # ref count
         value.add_ref()
         # insert in internal list
-        self.store.insert(index, value)
+        self.__list.insert(index, value)
         # observe
         value.add_observer(self.parent_weak_ref())
         # keep storage up-to-date
         self.parent_weak_ref().notify_insert_item(self.relationship_name, value, index)
-
-
-class MutableMapping(collections.MutableMapping):
-
-    def __init__(self, parent, property_name):
-        self.mapping = dict()
-        self.property_name = property_name
-        self.parent_weak_ref = weakref.ref(parent) if parent else None
-
-    def __copy__(self):
-        return copy.copy(self.mapping)
-
-    def __len__(self):
-        return len(self.mapping)
-
-    def __iter__(self):
-        return iter(self.mapping)
-
-    def __contains__(self, item):
-        return item in self.mapping
-
-    def __getitem__(self, key):
-        return self.mapping[key]
-
-    def __setitem__(self, key, value):
-        self.mapping[key] = value
-        print("set %s = %s" % (key, value))
-
-    def __delitem__(self, key):
-        del self.mapping[key]
-        print("del %s" % key)
 
 
 #
