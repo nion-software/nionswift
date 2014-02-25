@@ -1,4 +1,5 @@
 # standard libraries
+import logging
 import unittest
 import weakref
 
@@ -151,6 +152,55 @@ class TestDocumentControllerClass(unittest.TestCase):
         new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, external=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
         self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
+
+    def test_remove_graphic_removes_it_from_data_item(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = document_controller.selected_image_panel
+        image_panel.data_item = data_item
+        line_graphic = document_controller.add_line_graphic()
+        # make sure assumptions are correct
+        self.assertEqual(len(image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in image_panel.graphic_selection.indexes)
+        self.assertEqual(len(data_item.graphics), 1)
+        self.assertEqual(data_item.graphics[0], line_graphic)
+        # remove the graphic and make sure things are as expected
+        document_controller.remove_graphic()
+        self.assertEqual(len(image_panel.graphic_selection.indexes), 0)
+        self.assertEqual(len(data_item.graphics), 0)
+        # clean up
+        image_panel.close()
+
+    def test_remove_line_profile_removes_associated_child_data_item(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = document_controller.selected_image_panel
+        line_profile_data_item = document_controller.processing_line_profile()
+        line_profile_operation = line_profile_data_item.operations[0]
+        image_panel.data_item = data_item
+        image_panel.graphic_selection.clear()
+        image_panel.graphic_selection.add(0)
+        # make sure assumptions are correct
+        self.assertEqual(len(data_item.data_items), 1)
+        self.assertTrue(line_profile_operation.graphics[0] in data_item.drawn_graphics)
+        # remove the graphic and make sure things are as expected
+        document_controller.remove_graphic()
+        # self.assertEqual(len(image_panel.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.data_items), 0)
+        # clean up
+        image_panel.close()
+
+    def test_remove_line_profile_updates_graphic_selection(self):
+        # TODO: enable line in test_remove_line_profile_removes_associated_child_data_item
+        self.assertTrue(False)
+
 
 if __name__ == '__main__':
     unittest.main()

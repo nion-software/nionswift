@@ -917,6 +917,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if len(graphics):
             if key.is_delete:
                 self.document_controller.remove_graphic()
+                return True
             elif key.is_arrow:
                 widget_mapping = self.__get_mouse_mapping()
                 amount = 10.0 if key.modifiers.shift else 1.0

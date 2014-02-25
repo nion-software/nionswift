@@ -231,7 +231,13 @@ class HistogramThread(ProcessingThread):
 
 # thumbnail: a small representation of this data item
 
-# graphic items: regions of interest
+# graphics: graphic items drawn on the data
+
+# graphics are currently only used on images.
+
+# TODO: associated graphics with a new 'display' object instead of directly with data item.
+
+# drawn graphics: graphic items drawn on the data, including synthesized items used for ROIs from operations of children
 
 # intrinsic_calibrations: calibration for each dimension
 # display_calibrated_values: whether calibrated units are displayed
@@ -307,7 +313,7 @@ class DataItem(Storage.StorageBase):
         self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
         self.__display_calibrated_values = True
         self.__intrinsic_intensity_calibration = None
-        self.graphics = Storage.MutableRelationship(self, "graphics")
+        self.__graphics = Storage.MutableRelationship(self, "graphics")
         self.__drawn_graphics = UserInterfaceUtility.ListModel("drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
@@ -404,7 +410,7 @@ class DataItem(Storage.StorageBase):
             data_item.datetime_modified = datetime_modified
         if datetime_original is not None:
             data_item.datetime_original = datetime_original
-        data_item.graphics.extend(graphics)
+        data_item.extend_graphics(graphics)
         return data_item
 
     # This gets called when reference count goes to 0, but before deletion.
@@ -424,7 +430,7 @@ class DataItem(Storage.StorageBase):
             self.intrinsic_calibrations.remove(calibration)
         self.intrinsic_intensity_calibration = None
         for graphic in copy.copy(self.graphics):
-            self.graphics.remove(graphic)
+            self.remove_graphic(graphic)
         for operation in copy.copy(self.operations):
             self.operations.remove(operation)
         super(DataItem, self).about_to_delete()
@@ -820,10 +826,45 @@ class DataItem(Storage.StorageBase):
             self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
+    def __get_graphics(self):
+        """ A copy of the graphics """
+        return copy.copy(self.__graphics)
+    graphics = property(__get_graphics)
+
+    def insert_graphic(self, index, graphic):
+        """ Insert a graphic before the index """
+        self.__graphics.insert(index, graphic)
+
+    def append_graphic(self, graphic):
+        """ Append a graphic """
+        self.__graphics.append(graphic)
+
+    def remove_graphic(self, graphic):
+        """ Remove a graphic """
+        self.__graphics.remove(graphic)
+
+    def extend_graphics(self, graphics):
+        """ Extend the graphics array with the list of graphics """
+        self.__graphics.extend(graphics)
+
     # drawn graphics and the regular graphic items, plus those derived from the operation classes
     def __get_drawn_graphics(self):
+        """ List of drawn graphics """
         return self.__drawn_graphics
     drawn_graphics = property(__get_drawn_graphics)
+
+    def remove_drawn_graphic(self, drawn_graphic):
+        """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
+        if drawn_graphic in self.__graphics:
+            self.__graphics.remove(drawn_graphic)
+        else:  # a synthesized graphic
+            # cycle through each data item.
+            for data_item in self.data_items:
+                # and each operation within that data item.
+                for operation_item in data_item.operations:
+                    operation_graphics = operation_item.graphics
+                    if drawn_graphic in operation_graphics:
+                        self.data_items.remove(data_item)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
@@ -1296,7 +1337,7 @@ class DataItem(Storage.StorageBase):
         # graphic must be copied before operation, since operations can
         # depend on graphics.
         for graphic in self.graphics:
-            data_item_copy.graphics.append(copy.deepcopy(graphic, memo))
+            data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
         for operation in self.operations:
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
         for data_item in self.data_items:
@@ -1327,7 +1368,7 @@ class DataItem(Storage.StorageBase):
         # graphic must be copied before operation, since operations can
         # depend on graphics.
         for graphic in self.graphics:
-            data_item_copy.graphics.append(copy.deepcopy(graphic))
+            data_item_copy.append_graphic(copy.deepcopy(graphic))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item))
         with self.data_ref() as data_ref:

@@ -377,10 +377,10 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
         graphic = Graphics.RectangleGraphic()
         graphic.bounds = ((0.5,0.5), (0.25,0.25))
-        self.data_item.graphics.insert(0, graphic)
+        self.data_item.insert_graphic(0, graphic)
         self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
         self.assertTrue(1 in self.image_panel.graphic_selection.indexes)
-        del self.data_item.graphics[0]
+        self.data_item.remove_graphic(self.data_item.graphics[0])
         self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
 

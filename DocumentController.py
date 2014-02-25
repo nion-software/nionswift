@@ -168,7 +168,6 @@ class DocumentController(Observable.Broadcaster):
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
         self.graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
         self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
-        self.graphic_menu.add_menu_item(_("Remove Graphic"), lambda: self.remove_graphic())
 
         self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
         self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
@@ -366,8 +365,10 @@ class DocumentController(Observable.Broadcaster):
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2,0.2)
             graphic.end = (0.8,0.8)
-            data_item.graphics.append(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.graphics.index(graphic))
+            data_item.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            return graphic
+        return None
 
     def add_rectangle_graphic(self):
         data_item = self.selected_data_item
@@ -375,8 +376,10 @@ class DocumentController(Observable.Broadcaster):
             assert isinstance(data_item, DataItem.DataItem)
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            data_item.graphics.append(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.graphics.index(graphic))
+            data_item.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            return graphic
+        return None
 
     def add_ellipse_graphic(self):
         data_item = self.selected_data_item
@@ -384,15 +387,17 @@ class DocumentController(Observable.Broadcaster):
             assert isinstance(data_item, DataItem.DataItem)
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            data_item.graphics.append(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.graphics.index(graphic))
+            data_item.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            return graphic
+        return None
 
     def remove_graphic(self):
         data_item = self.selected_data_item
         if data_item and self.selected_image_panel.graphic_selection.has_selection():
-            graphics = [data_item.graphics[index] for index in self.selected_image_panel.graphic_selection.indexes]
+            graphics = [data_item.drawn_graphics[index] for index in self.selected_image_panel.graphic_selection.indexes]
             for graphic in graphics:
-                data_item.graphics.remove(graphic)
+                data_item.remove_drawn_graphic(graphic)
 
     def remove_operation(self, operation):
         data_item = self.selected_data_item
