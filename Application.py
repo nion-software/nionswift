@@ -169,7 +169,38 @@ class Application(object):
                 datastore.conn.commit()
                 c.execute("VACUUM")
                 version = 4
-            if version > 4:
+            if version == 4:
+                logging.debug("Updating database from version 4 to version 5.")
+                c.execute("SELECT nodes.uuid, items.item_uuid FROM nodes, items WHERE nodes.type='operation' AND nodes.uuid = items.parent_uuid")
+                operation_item_and_graphic_item_uuids = []
+                for row in c.fetchall():
+                    operation_item_and_graphic_item_uuids.append((row[0], row[1]))
+                for operation_item_uuid, graphic_item_uuid in operation_item_and_graphic_item_uuids:
+                    c.execute("SELECT value FROM properties WHERE uuid = ? and key = 'bounds'", (graphic_item_uuid, ))
+                    result = c.fetchone()
+                    bounds = pickle.loads(str(result[0])) if result else None
+                    c.execute("SELECT value FROM properties WHERE uuid = ? and key = 'start'", (graphic_item_uuid, ))
+                    result = c.fetchone()
+                    start = pickle.loads(str(result[0])) if result else None
+                    c.execute("SELECT value FROM properties WHERE uuid = ? and key = 'end'", (graphic_item_uuid, ))
+                    result = c.fetchone()
+                    end = pickle.loads(str(result[0])) if result else None
+                    c.execute("SELECT value FROM properties WHERE uuid = ? and key = 'values'", (operation_item_uuid, ))
+                    result = c.fetchone()
+                    values = pickle.loads(str(result[0])) if result else dict()
+                    if start is not None:
+                        values["start"] = start
+                    if end is not None:
+                        values["end"] = end
+                    if bounds is not None:
+                        values["bounds"] = bounds
+                    values_data = sqlite3.Binary(pickle.dumps(values, pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'values', ?)", (operation_item_uuid, values_data))
+                    datastore.destroy_node_ref(graphic_item_uuid)
+                c.execute("UPDATE version SET version = ?", (5, ))
+                datastore.conn.commit()
+                version = 5
+            if version > 5:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()

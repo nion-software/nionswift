@@ -953,7 +953,7 @@ class DbDatastore(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
-            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (4, ))
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (5, ))
             self.conn.commit()
 
     # keep. used for testing
@@ -1009,15 +1009,15 @@ class DbDatastore(object):
             if not ignore_refcount:
                 self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(uuid_), ))
 
-    # remove this item from all other tables. used for db cleanup after corruption.
-    def __destroy_node_ref(self, uuid_):
+    # remove this item from all other tables. used for db migration and cleanup after corruption.
+    def destroy_node_ref(self, uuid_):
         c = self.conn.cursor()
         self.execute(c, "DELETE FROM data_references WHERE uuid=?", (str(uuid_), ))
         self.execute(c, "DELETE FROM items WHERE item_uuid=?", (str(uuid_), ))
         self.execute(c, "SELECT item_uuid FROM items WHERE parent_uuid=?", (str(uuid_), ))
         for row in c.fetchall():
             item_uuid = row[0]
-            self.__destroy_node_ref(uuid.UUID(item_uuid))
+            self.destroy_node_ref(uuid.UUID(item_uuid))
         self.execute(c, "DELETE FROM items WHERE parent_uuid=?", (str(uuid_), ))
         self.execute(c, "DELETE FROM nodes WHERE uuid=?", (str(uuid_), ))
         self.execute(c, "DELETE FROM properties WHERE uuid=?", (str(uuid_), ))
@@ -1025,7 +1025,7 @@ class DbDatastore(object):
         self.execute(c, "SELECT item_uuid FROM relationships WHERE parent_uuid=?", (str(uuid_), ))
         for row in c.fetchall():
             item_uuid = row[0]
-            self.__destroy_node_ref(uuid.UUID(item_uuid))
+            self.destroy_node_ref(uuid.UUID(item_uuid))
         self.execute(c, "DELETE FROM relationships WHERE parent_uuid=?", (str(uuid_), ))
 
     def erase_object(self, object):
@@ -1211,7 +1211,7 @@ class DbDatastore(object):
         for row in c.fetchall():
             uuid_str = row[0]
             logging.debug("Removing malformed item %s", uuid_str)
-            self.__destroy_node_ref(uuid.UUID(uuid_str))
+            self.destroy_node_ref(uuid.UUID(uuid_str))
         # find relationships where the relationship indexes are messed up. fix 'em.
         c.execute("SELECT parent_uuid, key, COUNT(*) FROM relationships GROUP BY parent_uuid, key HAVING COUNT(*) != MAX(item_index)+1")
         for row in c.fetchall():
@@ -1390,6 +1390,11 @@ class DbDatastoreProxy(object):
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         event = threading.Event()
         self.__queue.put((functools.partial(DbDatastore.write_data_reference, self.__datastore, data, reference_type, reference, file_datetime), event, "write_data_reference"))
+        #event.wait()
+
+    def destroy_node_ref(self, uuid_):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.destroy_node_ref, self.__datastore, uuid_), event, "destroy_node_ref"))
         #event.wait()
 
     # these methods read data. they must wait for the queue to finish.
