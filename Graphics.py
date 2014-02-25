@@ -200,7 +200,7 @@ class RectangleGraphic(Graphic):
         super(RectangleGraphic, self).__init__()
         self.storage_properties += ["bounds"]
         self.storage_type = "rect-graphic"
-        self.register_dependent_key("bounds", "origin")
+        self.register_dependent_key("bounds", "center")
         self.register_dependent_key("bounds", "size")
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
@@ -227,17 +227,21 @@ class RectangleGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
-    # dependent property origin
-    def __get_origin(self):
+    # dependent property center
+    def __get_center(self):
         return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
-    def __set_origin(self, origin):
-        self.bounds = ((origin[0] - self.size[0] * 0.5, origin[1] - self.size[1] * 0.5), self.size)
-    origin = property(__get_origin, __set_origin)
+    def __set_center(self, center):
+        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+    center = property(__get_center, __set_center)
     # dependent property size
     def __get_size(self):
         return self.bounds[1]
     def __set_size(self, size):
-        self.bounds = (self.bounds[0], size)
+        # keep center the same
+        old_origin = self.bounds[0]
+        old_size = self.bounds[1]
+        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
+        self.bounds = (origin, size)
     size = property(__get_size, __set_size)
     # test point hit
     def test(self, mapping, test_point, move_only):
@@ -333,7 +337,7 @@ class EllipseGraphic(Graphic):
         super(EllipseGraphic, self).__init__()
         self.storage_properties += ["bounds"]
         self.storage_type = "ellipse-graphic"
-        self.register_dependent_key("bounds", "origin")
+        self.register_dependent_key("bounds", "center")
         self.register_dependent_key("bounds", "size")
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
@@ -360,17 +364,21 @@ class EllipseGraphic(Graphic):
         # notify
         self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
-    # dependent property origin
-    def __get_origin(self):
+    # dependent property center
+    def __get_center(self):
         return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
-    def __set_origin(self, origin):
-        self.bounds = ((origin[0] - self.size[0] * 0.5, origin[1] - self.size[1] * 0.5), self.size)
-    origin = property(__get_origin, __set_origin)
+    def __set_center(self, center):
+        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+    center = property(__get_center, __set_center)
     # dependent property size
     def __get_size(self):
         return self.bounds[1]
     def __set_size(self, size):
-        self.bounds = (self.bounds[0], size)
+        # keep center the same
+        old_origin = self.bounds[0]
+        old_size = self.bounds[1]
+        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
+        self.bounds = (origin, size)
     size = property(__get_size, __set_size)
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances

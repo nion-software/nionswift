@@ -172,9 +172,9 @@ class CalibrationsInspector(InspectorSection):
     def __create_header_widget(self):
         header_row = self.ui.create_row_widget()
         axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
-        origin_header_label = self.ui.create_label_widget("Origin", properties={"width": 60})
-        scale_header_label = self.ui.create_label_widget("Scale", properties={"width": 60})
-        units_header_label = self.ui.create_label_widget("Units", properties={"width": 60})
+        origin_header_label = self.ui.create_label_widget(_("Origin"), properties={"width": 60})
+        scale_header_label = self.ui.create_label_widget(_("Scale"), properties={"width": 60})
+        units_header_label = self.ui.create_label_widget(_("Units"), properties={"width": 60})
         header_row.add(axis_header_label)
         header_row.add_spacing(12)
         header_row.add(origin_header_label)
@@ -265,6 +265,42 @@ class DisplayLimitsInspector(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
 
 
+# combine the display calibrated values binding with the calibration values themselves.
+# this allows the text to reflect calibrated or uncalibrated data.
+# display_calibrated_values_binding should have a target value type of boolean.
+class CalibratedValueBinding(UserInterfaceUtility.Binding):
+    def __init__(self, value_binding, display_calibrated_values_binding, converter):
+        super(CalibratedValueBinding, self).__init__(None, converter)
+        self.__value_binding = value_binding
+        self.__display_calibrated_values_binding = display_calibrated_values_binding
+        def update_target(value):
+            self.update_target_direct(self.get_target_value())
+        self.__value_binding.target_setter = update_target
+        self.__display_calibrated_values_binding.target_setter = update_target
+    def close(self):
+        self.__value_binding.close()
+        self.__display_calibrated_values_binding.close()
+        super(CalibratedValueBinding, self).close()
+    def periodic(self):
+        super(CalibratedValueBinding, self).periodic()
+        self.__display_calibrated_values_binding.periodic()
+        self.__value_binding.periodic()
+    # set the model value from the target ui element text.
+    def update_source(self, target_value):
+        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
+        if display_calibrated_values:
+            converted_value = self.converter.convert_back(target_value)
+        else:
+            converted_value = float(target_value)
+        self.__value_binding.update_source(converted_value)
+    # get the value from the model and return it as a string suitable for the target ui element.
+    # in this binding, it combines the two source bindings into one.
+    def get_target_value(self):
+        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
+        value = self.__value_binding.get_target_value()
+        return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
+
+
 class GraphicsInspector(InspectorSection):
 
     """
@@ -303,40 +339,6 @@ class GraphicsInspector(InspectorSection):
         graphic_title_row.add(graphic_title_type_label)
         graphic_title_row.add_stretch()
         graphic_widget.add(graphic_title_row)
-        # combine the display calibrated values binding with the calibration values themselves.
-        # this allows the text to reflect calibrated or uncalibrated data.
-        # display_calibrated_values_binding should have a target value type of boolean.
-        class CalibratedValueBinding(UserInterfaceUtility.Binding):
-            def __init__(self, value_binding, display_calibrated_values_binding, converter):
-                super(CalibratedValueBinding, self).__init__(None, converter)
-                self.__value_binding = value_binding
-                self.__display_calibrated_values_binding = display_calibrated_values_binding
-                def update_target(value):
-                    self.update_target_direct(self.get_target_value())
-                self.__value_binding.target_setter = update_target
-                self.__display_calibrated_values_binding.target_setter = update_target
-            def close(self):
-                self.__value_binding.close()
-                self.__display_calibrated_values_binding.close()
-                super(CalibratedValueBinding, self).close()
-            def periodic(self):
-                super(CalibratedValueBinding, self).periodic()
-                self.__display_calibrated_values_binding.periodic()
-                self.__value_binding.periodic()
-            # set the model value from the target ui element text.
-            def update_source(self, target_value):
-                display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
-                if display_calibrated_values:
-                    converted_value = self.converter.convert_back(target_value)
-                else:
-                    converted_value = float(target_value)
-                self.__value_binding.update_source(converted_value)
-            # get the value from the model and return it as a string suitable for the target ui element.
-            # in this binding, it combines the two source bindings into one.
-            def get_target_value(self):
-                display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
-                value = self.__value_binding.get_target_value()
-                return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
         def new_display_calibrated_values_binding():
             return UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
         if isinstance(graphic, Graphics.LineGraphic):
@@ -382,23 +384,23 @@ class GraphicsInspector(InspectorSection):
             y_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
             width_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
             height_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
-            origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
-            origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
+            center_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
+            center_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
             size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
             size_height_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
             # create the ui
             graphic_title_type_label.text = _("Rectangle")
-            graphic_origin_row = self.ui.create_row_widget()
-            graphic_origin_row.add_spacing(20)
-            graphic_origin_row.add(self.ui.create_label_widget(_("Origin"), properties={"width": 40}))
-            graphic_origin_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
-            graphic_origin_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
-            graphic_origin_x_line_edit.bind_text(origin_x_binding)
-            graphic_origin_y_line_edit.bind_text(origin_y_binding)
-            graphic_origin_row.add(graphic_origin_x_line_edit)
-            graphic_origin_row.add_spacing(8)
-            graphic_origin_row.add(graphic_origin_y_line_edit)
-            graphic_origin_row.add_stretch()
+            graphic_center_row = self.ui.create_row_widget()
+            graphic_center_row.add_spacing(20)
+            graphic_center_row.add(self.ui.create_label_widget(_("Center"), properties={"width": 40}))
+            graphic_center_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_center_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_center_x_line_edit.bind_text(center_x_binding)
+            graphic_center_y_line_edit.bind_text(center_y_binding)
+            graphic_center_row.add(graphic_center_x_line_edit)
+            graphic_center_row.add_spacing(8)
+            graphic_center_row.add(graphic_center_y_line_edit)
+            graphic_center_row.add_stretch()
             graphic_size_row = self.ui.create_row_widget()
             graphic_size_row.add_spacing(20)
             graphic_size_row.add(self.ui.create_label_widget(_("Size"), properties={"width": 40}))
@@ -411,7 +413,7 @@ class GraphicsInspector(InspectorSection):
             graphic_size_row.add(graphic_size_height_line_edit)
             graphic_size_row.add_stretch()
             graphic_widget.add_spacing(4)
-            graphic_widget.add(graphic_origin_row)
+            graphic_widget.add(graphic_center_row)
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_size_row)
             graphic_widget.add_spacing(4)
@@ -421,23 +423,23 @@ class GraphicsInspector(InspectorSection):
             y_converter = DataItem.CalibratedValueFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
             width_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 1, image_size[1])
             height_converter = DataItem.CalibratedSizeFloatToStringConverter(self.__data_item_binding_source, 0, image_size[0])
-            origin_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 1), new_display_calibrated_values_binding(), x_converter)
-            origin_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "origin", 0), new_display_calibrated_values_binding(), y_converter)
+            center_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
+            center_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
             size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
             size_height_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
             # create the ui
             graphic_title_type_label.text = _("Ellipse")
-            graphic_origin_row = self.ui.create_row_widget()
-            graphic_origin_row.add_spacing(20)
-            graphic_origin_row.add(self.ui.create_label_widget(_("Origin"), properties={"width": 40}))
-            graphic_origin_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
-            graphic_origin_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
-            graphic_origin_x_line_edit.bind_text(origin_x_binding)
-            graphic_origin_y_line_edit.bind_text(origin_y_binding)
-            graphic_origin_row.add(graphic_origin_x_line_edit)
-            graphic_origin_row.add_spacing(8)
-            graphic_origin_row.add(graphic_origin_y_line_edit)
-            graphic_origin_row.add_stretch()
+            graphic_center_row = self.ui.create_row_widget()
+            graphic_center_row.add_spacing(20)
+            graphic_center_row.add(self.ui.create_label_widget(_("Center"), properties={"width": 40}))
+            graphic_center_x_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_center_y_line_edit = self.ui.create_line_edit_widget(properties={"width": 80})
+            graphic_center_x_line_edit.bind_text(center_x_binding)
+            graphic_center_y_line_edit.bind_text(center_y_binding)
+            graphic_center_row.add(graphic_center_x_line_edit)
+            graphic_center_row.add_spacing(8)
+            graphic_center_row.add(graphic_center_y_line_edit)
+            graphic_center_row.add_stretch()
             graphic_size_row = self.ui.create_row_widget()
             graphic_size_row.add_spacing(20)
             graphic_size_row.add(self.ui.create_label_widget(_("Size"), properties={"width": 40}))
@@ -450,7 +452,7 @@ class GraphicsInspector(InspectorSection):
             graphic_size_row.add(graphic_size_height_line_edit)
             graphic_size_row.add_stretch()
             graphic_widget.add_spacing(4)
-            graphic_widget.add(graphic_origin_row)
+            graphic_widget.add(graphic_center_row)
             graphic_widget.add_spacing(4)
             graphic_widget.add(graphic_size_row)
             graphic_widget.add_spacing(4)
