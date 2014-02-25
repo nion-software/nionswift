@@ -27,6 +27,55 @@ from nion.ui import UserInterfaceUtility
 _ = gettext.gettext
 
 
+class LineProfileGraphic(Graphics.LineTypeGraphic):
+    def __init__(self):
+        super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
+        self.storage_properties += ["width"]
+        self.__width = 1.0
+    # accessors
+    def __get_width(self):
+        return self.__width
+    def __set_width(self, width):
+        self.__width = width
+        self.notify_set_property("width", self.__width)
+    width = property(__get_width, __set_width)
+    def draw(self, ctx, mapping, is_selected=False):
+        p1 = mapping.map_point_image_norm_to_widget(self.start)
+        p2 = mapping.map_point_image_norm_to_widget(self.end)
+        ctx.save()
+        ctx.begin_path()
+        ctx.move_to(p1[1], p1[0])
+        ctx.line_to(p2[1], p2[0])
+        if self.start_arrow_enabled:
+            self.draw_arrow(ctx, p2, p1)
+        if self.end_arrow_enabled:
+            self.draw_arrow(ctx, p1, p2)
+        ctx.line_width = 1
+        ctx.stroke_style = self.color
+        ctx.stroke()
+        if self.width > 1.0:
+            half_width = self.width * 0.5
+            length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
+            dy = (p2[0] - p1[0]) / length
+            dx = (p2[1] - p1[1]) / length
+            ctx.save()
+            ctx.begin_path()
+            ctx.move_to(p1[1] + dy * half_width, p1[0] - dx * half_width)
+            ctx.line_to(p2[1] + dy * half_width, p2[0] - dx * half_width)
+            ctx.line_to(p2[1] - dy * half_width, p2[0] + dx * half_width)
+            ctx.line_to(p1[1] - dy * half_width, p1[0] + dx * half_width)
+            ctx.close_path()
+            ctx.line_width = 1
+            ctx.line_dash = 2
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            ctx.restore()
+        ctx.restore()
+        if is_selected:
+            self.draw_marker(ctx, p1)
+            self.draw_marker(ctx, p2)
+
+
 class OperationItem(Storage.StorageBase):
     """
         OperationItem represents an operation on numpy data array.
@@ -60,12 +109,13 @@ class OperationItem(Storage.StorageBase):
         self.__graphics = list()
         self.__bindings = list()
         if self.operation_id == "line-profile-operation":
-            graphic = Graphics.LineGraphic()
+            graphic = LineProfileGraphic()
             graphic.color = "#FF0"
             graphic.end_arrow_enabled = True
             self.__graphics.append(graphic)
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "start", graphic, "start"))
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "end", graphic, "end"))
+            self.__bindings.append(OperationPropertyToGraphicBinding(self, "integration_width", graphic, "width"))
         elif self.operation_id == "crop-operation":
             graphic = Graphics.RectangleGraphic()
             graphic.color = "#FF0"
@@ -232,6 +282,7 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
         self.__graphic = graphic
         self.__graphic.add_observer(self)
         self.__graphic_property_name = graphic_property_name
+        self.__operation_property_name = operation_property_name
         self.target_setter = lambda value: setattr(self.__graphic, graphic_property_name, value)
 
     def close(self):
@@ -246,7 +297,7 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
     def property_changed(self, sender, property_name, property_value):
         super(OperationPropertyToGraphicBinding, self).property_changed(sender, property_name, property_value)
         if sender == self.__graphic and property_name == self.__graphic_property_name:
-            old_property_value = self.source.get_property(property_name)
+            old_property_value = self.source.get_property(self.__operation_property_name)
             # to prevent message loops, check to make sure it changed
             if property_value != old_property_value:
                 self.update_source(property_value)
