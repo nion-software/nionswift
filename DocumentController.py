@@ -455,8 +455,8 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item:
             operation = OperationItem.OperationItem("crop-operation")
+            operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
             graphic = Graphics.RectangleGraphic()
-            graphic.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.graphics.append(graphic)
             operation.set_graphic("graphic", graphic)
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
@@ -465,9 +465,9 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item:
             operation = OperationItem.OperationItem("line-profile-operation")
+            operation.set_property("start", (0.25,0.25))
+            operation.set_property("end", (0.75,0.75))
             graphic = Graphics.LineGraphic()
-            graphic.start = (0.25,0.25)
-            graphic.end = (0.75,0.75)
             graphic.end_arrow_enabled = True
             data_item.graphics.append(graphic)
             operation.set_graphic("graphic", graphic)

@@ -69,12 +69,13 @@ class OperationItem(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         operation_id = datastore.get_property(item_node, "operation_id")
-        operation = cls(operation_id)
-        operation.enabled = datastore.get_property(item_node, "enabled", True)
-        operation.values = datastore.get_property(item_node, "values", dict())
+        operation_item = cls(operation_id)
+        operation_item.enabled = datastore.get_property(item_node, "enabled", True)
+        operation_item.values = datastore.get_property(item_node, "values", dict())
         graphic = datastore.get_item(item_node, "graphic")
-        operation.set_graphic("graphic", graphic)
-        return operation
+        operation_item.set_graphic("graphic", graphic)
+        operation_item.__sync_values_to_operation()
+        return operation_item
 
     def create_editor(self, ui):
         return None
@@ -111,9 +112,13 @@ class OperationItem(Storage.StorageBase):
             if description_entry["property"] == property_id:
                 description_entry["default"] = default_value
                 if property_id not in self.values or self.values[property_id] is None:
-                    self.values[property_id] = default_value
-                    if self.operation:
-                        setattr(self.operation, property_id, default_value)
+                    self.set_property(property_id, default_value)
+
+    # call this to sync the values in this class with the values in the operation.
+    def __sync_values_to_operation(self):
+        for property_id in self.values.keys():
+            if self.operation:
+                setattr(self.operation, property_id, self.values[property_id])
 
     # clients call this to perform processing
     def process_data(self, data):
@@ -153,22 +158,23 @@ class OperationItem(Storage.StorageBase):
 
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
-        operation = self.__class__(self.operation_id)
-        operation.deepcopy_from(self, memo)
-        memo[id(self)] = operation
-        return operation
+        operation_item = self.__class__(self.operation_id)
+        operation_item.deepcopy_from(self, memo)
+        memo[id(self)] = operation_item
+        return operation_item
 
-    def deepcopy_from(self, operation, memo):
-        values = copy.deepcopy(operation.values)
+    def deepcopy_from(self, operation_item, memo):
+        values = copy.deepcopy(operation_item.values)
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.values[key] = values[key]
         # TODO: Check use of memo here.
-        if operation.graphic:
-            self.set_graphic("graphic", operation.graphic)
+        if operation_item.graphic:
+            self.set_graphic("graphic", operation_item.graphic)
         else:
             self.set_graphic("graphic", None)
-        self.__enabled = operation.enabled
+        self.__enabled = operation_item.enabled
+        self.__sync_values_to_operation()
 
     def notify_set_property(self, key, value):
         super(OperationItem, self).notify_set_property(key, value)
@@ -194,9 +200,21 @@ class OperationItem(Storage.StorageBase):
                 graphic.add_observer(self)
                 graphic.add_ref()
                 self.notify_set_item("graphic", graphic)
-                self.__sync_graphic()
+                self.__sync_operation_to_graphic()
 
-    def __sync_graphic(self):
+    def __sync_operation_to_graphic(self):
+        for description_entry in self.description:
+            type = description_entry["type"]
+            property_id = description_entry["property"]
+            if type == "line" and isinstance(self.graphic, Graphics.LineGraphic):
+                start, end = self.get_property(property_id)
+                self.graphic.start = start
+                self.graphic.end = end
+            elif type == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
+                bounds = self.get_property(property_id)
+                self.graphic.bounds = bounds
+
+    def __sync_graphic_to_operation(self):
         for description_entry in self.description:
             type = description_entry["type"]
             property_id = description_entry["property"]
@@ -214,7 +232,7 @@ class OperationItem(Storage.StorageBase):
     # watch for changes to graphic item and try to associate with the description. hacky.
     def property_changed(self, object, key, value):
         if object is not None and object == self.graphic:
-            self.__sync_graphic()
+            self.__sync_graphic_to_operation()
             self.notify_listeners("operation_changed", self)
 
 

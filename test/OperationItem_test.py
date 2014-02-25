@@ -242,8 +242,8 @@ class TestOperationClass(unittest.TestCase):
         data_item_real = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         data_item_real.add_ref()
         graphic = Graphics.RectangleGraphic()
-        graphic.bounds = ((0.2, 0.3), (0.5, 0.5))
         operation = OperationItem.OperationItem("crop-operation")
+        operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         operation.set_graphic("graphic", graphic)
         data_item_real.operations.append(operation)
         # make sure we get the right shape
@@ -268,8 +268,11 @@ class TestOperationClass(unittest.TestCase):
         def __init__(self):
             description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
             super(TestOperationClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
+            self.param = 0.0
         def process(self, data):
-            return numpy.zeros((16, 16))
+            d = numpy.zeros((16, 16))
+            d[:] = self.get_property("param")
+            return d
 
     # test to ensure that no duplicate relationships are created
     def test_missing_operations_should_preserve_properties_when_saved(self):
@@ -293,6 +296,27 @@ class TestOperationClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5)
 
+    def test_operation_should_reload_properties_when_saved(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
+        dummy_operation = OperationItem.OperationItem("dummy-operation")
+        data_item.operations.append(dummy_operation)
+        dummy_operation.set_property("param", 5.2)
+        storage_data = document_model.datastore.to_data()
+        document_controller.close()
+        # read it back then make sure parameter was actually updated
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with document_model.data_items[0].data_ref() as d:
+            self.assertEqual(d.data[0, 0], 5.2)
+
     def test_rgba_invert_operation_should_retain_alpha(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
         with data_item_rgba.ref():
@@ -313,9 +337,9 @@ class TestOperationClass(unittest.TestCase):
             with data_item_rgba2.ref():
                 data_item_rgba2.data_source = data_item_rgba
                 graphic1 = Graphics.RectangleGraphic()
-                graphic1.bounds = ((0.25, 0.25), (0.5, 0.5))
                 data_item_rgba.graphics.append(graphic1)
                 operation = OperationItem.OperationItem("crop-operation")
+                operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
                 operation.set_graphic("graphic", graphic1)
                 data_item_rgba2.operations.append(operation)
                 data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
@@ -386,6 +410,9 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.scale, 2.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.origin, 7.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
+
+    def test_updating_crop_operation_bounds_updates_graphic(self):
+        pass
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
