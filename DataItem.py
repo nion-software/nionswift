@@ -445,7 +445,9 @@ class DataItem(Storage.StorageBase):
 
     def __get_live_status_as_string(self):
         if self.is_live:
-            return "{0:s} {1:s}".format(_("Live"), str(self.__properties.get("frame_index", str())))
+            frame_index_str = str(self.__properties.get("frame_index", str()))
+            partial_str = "{0:d}/{0:d}".format(self.__properties.get("valid_rows"), self.spatial_shape[-1]) if "valid_rows" in self.__properties else str()
+            return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
     live_status_as_string = property(__get_live_status_as_string)
 
