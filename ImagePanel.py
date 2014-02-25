@@ -25,6 +25,7 @@ from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -1071,25 +1072,23 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphics_canvas_item.update()
         self.repaint_if_needed()
 
-    # watch for changes to the graphic item list
-    def item_inserted(self, object, key, value, before_index):
-        if object == self.data_item and key == "graphics":
-            # selection is 5,6,7
-            # if inserted at 4, new selection is 6,7,8
-            # if inserted at 6, new selection is 5,7,8
-            # indexes greater or equal to new index are incremented
-            self.graphic_selection.insert_index(before_index)
-            self.graphics_canvas_item.update()
-            self.graphics_canvas_item.repaint_if_needed()
-    def item_removed(self, object, key, value, index):
-        if object == self.data_item and key == "graphics":
-            # selection is 5,6,7
-            # if 4 is removed, new selection is 4,5,6
-            # if 6 is removed, new selection is 5,6
-            # the index is removed; and remaining indexes greater than removed one are decremented
-            self.graphic_selection.remove_index(index)
-            self.graphics_canvas_item.update()
-            self.graphics_canvas_item.repaint_if_needed()
+    # watch for changes to the graphic item list. these are called from the image panel.
+    def graphic_inserted(self, graphic, before_index):
+        # selection is 5,6,7
+        # if inserted at 4, new selection is 6,7,8
+        # if inserted at 6, new selection is 5,7,8
+        # indexes greater or equal to new index are incremented
+        self.graphic_selection.insert_index(before_index)
+        self.graphics_canvas_item.update()
+        self.graphics_canvas_item.repaint_if_needed()
+    def graphic_removed(self, index):
+        # selection is 5,6,7
+        # if 4 is removed, new selection is 4,5,6
+        # if 6 is removed, new selection is 5,6
+        # the index is removed; and remaining indexes greater than removed one are decremented
+        self.graphic_selection.remove_index(index)
+        self.graphics_canvas_item.update()
+        self.graphics_canvas_item.repaint_if_needed()
 
     def __get_image_size(self):
         data_item = self.data_item
@@ -1231,6 +1230,7 @@ class ImagePanel(Panel.Panel):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
         self.__data_item = None
+        self.__drawn_graphics_binding = None
 
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
@@ -1325,7 +1325,8 @@ class ImagePanel(Panel.Panel):
         # track data item in this class to report changes
         if self.__data_item:
             self.__data_item.decrement_data_ref_count()  # don't keep data in memory anymore
-            self.__data_item.remove_observer(self)
+            self.__drawn_graphics_binding.close()
+            self.__drawn_graphics_binding = None
             self.__data_item.remove_listener(self)
             self.__data_item.remove_ref()
         self.__data_item = data_item
@@ -1337,17 +1338,13 @@ class ImagePanel(Panel.Panel):
         if self.__data_item:
             self.__data_item.add_ref()
             self.__data_item.add_listener(self)
-            self.__data_item.add_observer(self)  # watch for graphics being added/removed
+            self.__drawn_graphics_binding = UserInterfaceUtility.ListBinding(self.__data_item.drawn_graphics, "drawn_graphics", threaded=False)
+            self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
+            self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
             # note: data_ref_count has already been incremented above.
         # let the image panel manager know the data item changed
         ImagePanelManager().data_item_changed(self)
     data_item = property(__get_data_item, __set_data_item)
-
-    # watch for changes to the graphic item list
-    def item_inserted(self, object, key, value, before_index):
-        self.image_canvas_item.item_inserted(object, key, value, before_index)
-    def item_removed(self, object, key, value, index):
-        self.image_canvas_item.item_removed(object, key, value, index)
 
     def data_item_deleted(self, data_item):
         # if our item gets deleted, clear the selection

@@ -400,7 +400,7 @@ class GraphicsInspector(InspectorSection):
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "drawn_graphics"))
+        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source.drawn_graphics, "drawn_graphics"))
         self.add_widget_to_content(list_widget)
 
     def __create_header_widget(self):

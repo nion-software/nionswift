@@ -45,6 +45,7 @@ class TestDataItemInspectorClass(unittest.TestCase):
         size_width_binding.periodic()
         self.assertEqual(center, rect_graphic.center)
 
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

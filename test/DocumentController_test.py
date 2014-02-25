@@ -191,7 +191,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertTrue(line_profile_operation.graphics[0] in data_item.drawn_graphics)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
-        # self.assertEqual(len(image_panel.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+        self.assertEqual(len(image_panel.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertEqual(len(data_item.drawn_graphics), 0)
         self.assertEqual(len(data_item.data_items), 0)
         # clean up
