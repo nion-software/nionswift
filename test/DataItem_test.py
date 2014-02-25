@@ -511,6 +511,28 @@ class TestDataItemClass(unittest.TestCase):
         data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         self.assertTrue(listener.display_changed)
 
+    # necessary to make inspector display updated values properly
+    def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
+        # data_item_content_changed
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self.display_changed = False
+            def data_item_content_changed(self, data_item, changes):
+                self.display_changed = self.display_changed or DataItem.DISPLAY in changes
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        listener = Listener()
+        data_item.add_listener(listener)
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = OperationItem.OperationItem("crop-operation")
+        data_item_crop.operations.append(crop_operation_item)
+        data_item.data_items.append(data_item_crop)
+        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        listener.reset()
+        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        self.assertTrue(listener.display_changed)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

@@ -222,11 +222,10 @@ class RectangleGraphic(Graphic):
             bounds = ((bounds[0][0] + bounds[1][0], bounds[0][1]), (-bounds[1][0], bounds[1][1]))
         if bounds[1][1] < 0:  # width is negative
             bounds = ((bounds[0][0], bounds[0][1] + bounds[1][1]), (bounds[1][0], -bounds[1][1]))
-        if self.__bounds != bounds:
-            # set it
-            self.__bounds = bounds
-            # notify
-            self.notify_set_property("bounds", self.__bounds)
+        # set it
+        self.__bounds = bounds
+        # notify
+        self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
     # dependent property origin
     def __get_origin(self):
@@ -356,11 +355,10 @@ class EllipseGraphic(Graphic):
             bounds = ((bounds[0][0] + bounds[1][0], bounds[0][1]), (-bounds[1][0], bounds[1][1]))
         if bounds[1][1] < 0:  # width is negative
             bounds = ((bounds[0][0], bounds[0][1] + bounds[1][1]), (bounds[1][0], -bounds[1][1]))
-        if self.__bounds != bounds:
-            # set it
-            self.__bounds = bounds
-            # notify
-            self.notify_set_property("bounds", self.__bounds)
+        # set it
+        self.__bounds = bounds
+        # notify
+        self.notify_set_property("bounds", self.__bounds)
     bounds = property(__get_bounds, __set_bounds)
     # dependent property origin
     def __get_origin(self):
@@ -486,16 +484,14 @@ class LineGraphic(Graphic):
     def __get_start(self):
         return self.__start
     def __set_start(self, start):
-        if self.__start != start:
-            self.__start = start
-            self.notify_set_property("start", self.__start)
+        self.__start = start
+        self.notify_set_property("start", self.__start)
     start = property(__get_start, __set_start)
     def __get_end(self):
         return self.__end
     def __set_end(self, end):
-        if self.__end != end:
-            self.__end = end
-            self.notify_set_property("end", self.__end)
+        self.__end = end
+        self.notify_set_property("end", self.__end)
     end = property(__get_end, __set_end)
     # arrowhead accessors
     def __get_start_arrow_enabled(self):

@@ -243,7 +243,10 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
         self.update_target(new_value)
 
     # watch for property changes on the graphic.
-    def property_changed(self, sender, property, property_value):
-        super(OperationPropertyToGraphicBinding, self).property_changed(sender, property, property_value)
-        if sender == self.__graphic and property == self.__graphic_property_name:
-            self.update_source(property_value)
+    def property_changed(self, sender, property_name, property_value):
+        super(OperationPropertyToGraphicBinding, self).property_changed(sender, property_name, property_value)
+        if sender == self.__graphic and property_name == self.__graphic_property_name:
+            old_property_value = self.source.get_property(property_name)
+            # to prevent message loops, check to make sure it changed
+            if property_value != old_property_value:
+                self.update_source(property_value)

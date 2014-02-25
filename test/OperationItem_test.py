@@ -380,8 +380,16 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.origin, 7.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
 
-    def test_updating_crop_operation_bounds_updates_graphic(self):
-        pass
+    def test_operation_item_property_to_graphic_binding(self):
+        data_item = DataItem.DataItem()
+        operation = OperationItem.OperationItem("crop-operation")
+        data_item.operations.append(operation)
+        bounds1 = ((0.0, 0.0), (0.1, 0.1))
+        bounds2 = ((0.0, 0.0), (0.2, 0.2))
+        operation.set_property("bounds", bounds1)
+        self.assertEqual(operation.graphics[0].bounds, bounds1)
+        operation.graphics[0].bounds = bounds2
+        self.assertEqual(operation.get_property("bounds"), bounds2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
