@@ -294,36 +294,9 @@ class TestStorageClass(unittest.TestCase):
 
     def verify_and_test_set_item(self, document_controller):
         # check that the graphic associated with the operation was read back
-        graphic = document_controller.document_model.data_groups[0].data_items[0].graphics[3]
         crop_operation = document_controller.document_model.data_groups[0].data_items[0].data_items[3].operations[0]
         self.assertIsInstance(crop_operation, OperationItem.OperationItem)
         self.assertEqual(crop_operation.operation_id, "crop-operation")
-        self.assertEqual(graphic, crop_operation.get_graphic("graphic"))
-        # test setting original graphic to None. the graphic is still referenced by the data item
-        # so it should not be None
-        old_graphic = crop_operation.get_graphic("graphic")
-        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(old_graphic))
-        old_graphic.add_ref()
-        crop_operation.set_graphic("graphic", None)
-        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(old_graphic))
-        old_graphic.remove_ref()
-        # test replacing the graphic
-        graphic1 = Graphics.RectangleGraphic()
-        graphic1.add_ref()
-        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        crop_operation.set_graphic("graphic", graphic1)
-        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(graphic1))
-        graphic2 = Graphics.RectangleGraphic()
-        graphic2.add_ref()
-        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        crop_operation.set_graphic("graphic", graphic2)
-        self.assertIsNone(document_controller.document_model.datastore.find_node_or_none(graphic1))
-        self.assertIsNotNone(document_controller.document_model.datastore.find_node_or_none(graphic2))
-        crop_operation.set_graphic("graphic", None)
-        self.assertIsNone(document_controller.document_model.datastore.find_node_or_none(graphic2))
-        # finally test setting it to None
-        graphic1.remove_ref()
-        graphic2.remove_ref()
 
     def test_dict_storage_set_item(self):
         # write to storage

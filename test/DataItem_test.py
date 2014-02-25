@@ -181,18 +181,13 @@ class TestDataItemClass(unittest.TestCase):
     def test_copy_data_item_with_crop(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         with data_item.ref():
-            crop_graphic = Graphics.RectangleGraphic()
-            data_item.graphics.append(crop_graphic)
             crop_operation = OperationItem.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            crop_operation.set_graphic("graphic", crop_graphic)
             data_item.operations.append(crop_operation)
             data_item_copy = copy.deepcopy(data_item)
             with data_item_copy.ref():
-                self.assertEqual(len(data_item_copy.graphics), len(data_item.graphics))
-                self.assertEqual(data_item_copy.graphics[0].bounds, data_item.graphics[0].bounds)
-                self.assertNotEqual(data_item_copy.graphics[0], data_item.graphics[0])
                 self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
+                self.assertEqual(data_item_copy.operations[0].get_property("bounds"), data_item.operations[0].get_property("bounds"))
 
     def test_copy_data_item_with_transaction(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -362,11 +357,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener3.data_changed and listener3.display_changed)
         data_item.operations.remove(blur_operation)
         # modify an operation graphic. make sure data and dependent data gets updated.
-        crop_graphic = Graphics.RectangleGraphic()
-        data_item.graphics.append(crop_graphic)
         crop_operation = OperationItem.OperationItem("crop-operation")
         crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        crop_operation.set_graphic("graphic", crop_graphic)
         data_item.operations.append(crop_operation)
         map(Listener.reset, listeners)
         crop_operation.set_property("bounds", ((0,0), (0.5, 0.5)))
@@ -404,11 +396,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         with data_item.ref():
             crop_data_item = DataItem.DataItem()
-            crop_graphic = Graphics.RectangleGraphic()
-            data_item.graphics.append(crop_graphic)
             crop_operation = OperationItem.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            crop_operation.set_graphic("graphic", crop_graphic)
             crop_data_item.operations.append(crop_operation)
             data_item.data_items.append(crop_data_item)
             data_item.session_id = "20131231-235959"

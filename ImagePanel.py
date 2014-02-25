@@ -291,7 +291,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             widget_mapping = WidgetMapping(self.data_item.spatial_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
-            for graphic_index, graphic in enumerate(self.data_item.graphics):
+            for graphic_index, graphic in enumerate(self.data_item.drawn_graphics):
                 graphic.draw(drawing_context, widget_mapping, self.graphic_selection.contains(graphic_index))
             drawing_context.restore()
 
@@ -795,7 +795,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
         if self.data_item:
-            for graphic_index, graphic in enumerate(self.data_item.graphics):
+            drawn_graphics = self.data_item.drawn_graphics
+            for graphic_index, graphic in enumerate(drawn_graphics):
                 start_drag_pos = y, x
                 already_selected = self.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(self.graphic_selection.indexes) > 1
@@ -814,12 +815,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     self.graphic_drag_start_pos = start_drag_pos
                     self.graphic_drag_changed = False
                     # keep track of info for the specific item that was clicked
-                    self.graphic_drag_item = self.data_item.graphics[graphic_index]
+                    self.graphic_drag_item = drawn_graphics[graphic_index]
                     self.graphic_drag_part = part
                     # keep track of drag information for each item in the set
                     self.graphic_drag_indexes = self.graphic_selection.indexes
                     for index in self.graphic_drag_indexes:
-                        graphic = self.data_item.graphics[index]
+                        graphic = drawn_graphics[index]
                         self.graphic_drag_items.append(graphic)
                         self.graphic_part_data[index] = graphic.begin_drag()
                     break
@@ -833,11 +834,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
+        drawn_graphics = self.data_item.drawn_graphics
         for index in self.graphic_drag_indexes:
-            graphic = self.data_item.graphics[index]
+            graphic = drawn_graphics[index]
             graphic.end_drag(self.graphic_part_data[index])
         if self.graphic_drag_items and not self.graphic_drag_changed:
-            graphic_index = self.data_item.graphics.index(self.graphic_drag_item)
+            graphic_index = drawn_graphics.index(self.graphic_drag_item)
             # user didn't move graphic
             if not modifiers.shift:
                 # user clicked on a single graphic
@@ -880,7 +882,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_cursor_info()
         if self.graphic_drag_items:
             for graphic in self.graphic_drag_items:
-                index = self.data_item.graphics.index(graphic)
+                index = self.data_item.drawn_graphics.index(graphic)
                 part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
                 widget_mapping = self.__get_mouse_mapping()
                 graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
@@ -910,7 +912,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if not self.image_panel:
             return False
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
-        all_graphics = self.data_item.graphics if self.data_item else []
+        all_graphics = self.data_item.drawn_graphics if self.data_item else []
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
         if len(graphics):
             if key.is_delete:
@@ -1133,7 +1135,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 if image_size and len(image_size) > 1:
                     pos = self.map_widget_to_image(self.__last_mouse)
                 data_item = self.data_item
-                graphics = data_item.graphics if data_item else None
+                graphics = data_item.drawn_graphics if data_item else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
                 self.document_controller.cursor_changed(self, self.data_item, pos, selected_graphics, image_size)
             else:

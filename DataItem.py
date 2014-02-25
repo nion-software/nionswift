@@ -776,6 +776,19 @@ class DataItem(Storage.StorageBase):
             self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
 
+    # drawn graphics and the regular graphic items, plus those derived from the operation classes
+    def __get_drawn_graphics(self):
+        return list(self.graphics) + list(self.operation_graphics)
+    drawn_graphics = property(__get_drawn_graphics)
+
+    def __get_operation_graphics(self):
+        operation_graphics = list()
+        for data_item in self.data_items:
+            for operation_item in data_item.operations:
+                operation_graphics.extend(operation_item.graphics)
+        return operation_graphics
+    operation_graphics = property(__get_operation_graphics)
+
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)

@@ -71,22 +71,6 @@ class TestOperationClass(unittest.TestCase):
         self.assertIsNotNone(operation2.description[0]["default"])
         self.assertIsNotNone(operation2.get_property("width"))
 
-    # make sure crop gets disconnected when deleting
-    def test_crop_disconnect(self):
-        operation = OperationItem.OperationItem("crop-operation")
-        operation.add_ref()
-        graphic = Graphics.RectangleGraphic()
-        operation.set_graphic("graphic", graphic)
-        operation.remove_ref()
-
-    # make sure profile gets disconnected when deleting
-    def test_line_profile_disconnect(self):
-        operation = OperationItem.OperationItem("line-profile-operation")
-        operation.add_ref()
-        graphic = Graphics.LineGraphic()
-        operation.set_graphic("graphic", graphic)
-        operation.remove_ref()
-
     # test operations against 1d data. doesn't test for correctness of the operation.
     def test_operations_1d(self):
         data_item_real = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -127,7 +111,6 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, OperationItem.OperationItem("invert-operation")))
         operation_list.append((data_item_real, OperationItem.OperationItem("gaussian-blur-operation")))
         crop_2d_operation = OperationItem.OperationItem("crop-operation")
-        crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
         operation_list.append((data_item_real, crop_2d_operation))
         resample_2d_operation = OperationItem.OperationItem("resample-operation")
         resample_2d_operation.width = 128
@@ -135,7 +118,6 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, resample_2d_operation))
         operation_list.append((data_item_real, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
-        line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
         operation_list.append((data_item_real, line_profile_operation))
         operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale_operation")))
 
@@ -161,7 +143,6 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, OperationItem.OperationItem("invert-operation")))
         operation_list.append((data_item_rgb, OperationItem.OperationItem("gaussian-blur-operation")))
         crop_2d_operation = OperationItem.OperationItem("crop-operation")
-        crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
         operation_list.append((data_item_rgb, crop_2d_operation))
         resample_2d_operation = OperationItem.OperationItem("resample-operation")
         resample_2d_operation.width = 128
@@ -169,7 +150,6 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, resample_2d_operation))
         operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
-        line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
         operation_list.append((data_item_rgb, line_profile_operation))
         operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale_operation")))
 
@@ -195,7 +175,6 @@ class TestOperationClass(unittest.TestCase):
             operation_list.append((data_item_rgb, OperationItem.OperationItem("invert-operation")))
             operation_list.append((data_item_rgb, OperationItem.OperationItem("gaussian-blur-operation")))
             crop_2d_operation = OperationItem.OperationItem("crop-operation")
-            crop_2d_operation.set_graphic("graphic", Graphics.RectangleGraphic())
             operation_list.append((data_item_rgb, crop_2d_operation))
             resample_2d_operation = OperationItem.OperationItem("resample-operation")
             resample_2d_operation.width = 128
@@ -203,7 +182,6 @@ class TestOperationClass(unittest.TestCase):
             operation_list.append((data_item_rgb, resample_2d_operation))
             operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
             line_profile_operation = OperationItem.OperationItem("line-profile-operation")
-            line_profile_operation.set_graphic("graphic", Graphics.LineGraphic())
             operation_list.append((data_item_rgb, line_profile_operation))
             operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale_operation")))
 
@@ -241,10 +219,8 @@ class TestOperationClass(unittest.TestCase):
     def test_crop_2d_operation_returns_correct_spatial_shape_and_data_shape(self):
         data_item_real = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         data_item_real.add_ref()
-        graphic = Graphics.RectangleGraphic()
         operation = OperationItem.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
-        operation.set_graphic("graphic", graphic)
         data_item_real.operations.append(operation)
         # make sure we get the right shape
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
@@ -336,20 +312,13 @@ class TestOperationClass(unittest.TestCase):
             data_item_rgba2 = DataItem.DataItem()
             with data_item_rgba2.ref():
                 data_item_rgba2.data_source = data_item_rgba
-                graphic1 = Graphics.RectangleGraphic()
-                data_item_rgba.graphics.append(graphic1)
                 operation = OperationItem.OperationItem("crop-operation")
                 operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-                operation.set_graphic("graphic", graphic1)
                 data_item_rgba2.operations.append(operation)
                 data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
                 with data_item_rgba2_copy.ref():
                     # make sure the operation was copied
                     self.assertNotEqual(data_item_rgba2.operations[0], data_item_rgba2_copy.operations[0])
-                    # and that the two operations shared the same graphic
-                    self.assertEqual(data_item_rgba2.operations[0].graphic, data_item_rgba2_copy.operations[0].graphic)
-                    # and for safety that the graphic is what we expect it to be
-                    self.assertEqual(data_item_rgba.graphics[0], data_item_rgba2.operations[0].graphic)
 
     def test_snapshot_of_operation_should_copy_data_items(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))

@@ -38,6 +38,7 @@ class OperationItem(Storage.StorageBase):
         Storage.StorageBase.__init__(self)
 
         self.storage_type = "operation"
+        self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -56,25 +57,36 @@ class OperationItem(Storage.StorageBase):
         self.values = {}
 
         # manage graphics
-        self.graphic = None
+        self.__graphics = list()
+        self.__bindings = list()
+        if self.operation_id == "line-profile-operation":
+            graphic = Graphics.LineGraphic()
+            graphic.color = "#FF0"
+            graphic.end_arrow_enabled = True
+            self.__graphics.append(graphic)
+            self.__bindings.append(OperationPropertyToGraphicBinding(self, "start", graphic, "start"))
+            self.__bindings.append(OperationPropertyToGraphicBinding(self, "end", graphic, "end"))
+        elif self.operation_id == "crop-operation":
+            graphic = Graphics.RectangleGraphic()
+            graphic.color = "#FF0"
+            self.__graphics.append(graphic)
+            self.__bindings.append(OperationPropertyToGraphicBinding(self, "bounds", graphic, "bounds"))
 
-        self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
-        self.storage_items += ["graphic"]
-
-    # called when remove_ref causes ref_count to go to 0
     def about_to_delete(self):
-        self.set_graphic("graphic", None)
-        super(OperationItem, self).about_to_delete()
+        self.__graphics = None
+        for binding in self.__bindings:
+            binding.close()
+        self.__bindings = None
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         operation_id = datastore.get_property(item_node, "operation_id")
         operation_item = cls(operation_id)
         operation_item.enabled = datastore.get_property(item_node, "enabled", True)
-        operation_item.values = datastore.get_property(item_node, "values", dict())
-        graphic = datastore.get_item(item_node, "graphic")
-        operation_item.set_graphic("graphic", graphic)
-        operation_item.__sync_values_to_operation()
+        values = datastore.get_property(item_node, "values", dict())
+        # copy one by one to keep default values for missing keys
+        for key in values.keys():
+            operation_item.set_property(key, values[key])
         return operation_item
 
     def create_editor(self, ui):
@@ -114,18 +126,18 @@ class OperationItem(Storage.StorageBase):
                 if property_id not in self.values or self.values[property_id] is None:
                     self.set_property(property_id, default_value)
 
-    # call this to sync the values in this class with the values in the operation.
-    def __sync_values_to_operation(self):
-        for property_id in self.values.keys():
-            if self.operation:
-                setattr(self.operation, property_id, self.values[property_id])
-
     # clients call this to perform processing
     def process_data(self, data):
         if self.operation:
             return self.operation.get_processed_data(data)
         else:
             return data.copy()
+
+    # graphics
+
+    def __get_graphics(self):
+        return self.__graphics
+    graphics = property(__get_graphics)
 
     # calibrations
 
@@ -167,79 +179,19 @@ class OperationItem(Storage.StorageBase):
         values = copy.deepcopy(operation_item.values)
         # copy one by one to keep default values for missing keys
         for key in values.keys():
-            self.values[key] = values[key]
-        # TODO: Check use of memo here.
-        if operation_item.graphic:
-            self.set_graphic("graphic", operation_item.graphic)
-        else:
-            self.set_graphic("graphic", None)
+            self.set_property(key, values[key])
         self.__enabled = operation_item.enabled
-        self.__sync_values_to_operation()
 
+    # override and watch for changes to this object and notify listeners if it changes
     def notify_set_property(self, key, value):
         super(OperationItem, self).notify_set_property(key, value)
         self.notify_listeners("operation_changed", self)
-
-    def get_storage_item(self, key):
-        if key == "graphic":
-            return self.graphic
-        return super(OperationItem, self).get_storage_item(key)
-
-    def get_graphic(self, key):
-        return self.get_storage_item(key)
-
-    def set_graphic(self, key, graphic):
-        if key == "graphic":
-            if self.graphic:
-                self.notify_clear_item("graphic")
-                self.graphic.remove_observer(self)
-                self.graphic.remove_ref()
-                self.graphic = None
-            if graphic:
-                self.graphic = graphic
-                graphic.add_observer(self)
-                graphic.add_ref()
-                self.notify_set_item("graphic", graphic)
-                self.__sync_operation_to_graphic()
-
-    def __sync_operation_to_graphic(self):
-        for description_entry in self.description:
-            type = description_entry["type"]
-            property_id = description_entry["property"]
-            if type == "line" and isinstance(self.graphic, Graphics.LineGraphic):
-                start, end = self.get_property(property_id)
-                self.graphic.start = start
-                self.graphic.end = end
-            elif type == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
-                bounds = self.get_property(property_id)
-                self.graphic.bounds = bounds
-
-    def __sync_graphic_to_operation(self):
-        for description_entry in self.description:
-            type = description_entry["type"]
-            property_id = description_entry["property"]
-            if type == "line" and isinstance(self.graphic, Graphics.LineGraphic):
-                value = self.graphic.start, self.graphic.end
-                self.values[property_id] = value
-                if self.operation:
-                    setattr(self.operation, property_id, value)
-            elif type == "rectangle" and isinstance(self.graphic, Graphics.RectangleGraphic):
-                value = self.graphic.bounds
-                self.values[property_id] = value
-                if self.operation:
-                    setattr(self.operation, property_id, value)
-
-    # watch for changes to graphic item and try to associate with the description. hacky.
-    def property_changed(self, object, key, value):
-        if object is not None and object == self.graphic:
-            self.__sync_graphic_to_operation()
-            self.notify_listeners("operation_changed", self)
 
 
 class OperationPropertyBinding(UserInterfaceUtility.Binding):
 
     """
-        Binds to a property of an operation object.
+        Binds to a property of an operation item.
 
         This object records the 'values' property of the operation. Then it
         watches for changes to 'values' which match the watched property.
@@ -254,12 +206,44 @@ class OperationPropertyBinding(UserInterfaceUtility.Binding):
         self.__values = copy.copy(source.values)
 
     # thread safe
+    def queue_update_target(self, new_value):
+        # perform on the main thread
+        self.add_task("update_target", lambda: self.update_target(new_value))
+
+    # thread safe
     def property_changed(self, sender, property, property_value):
         if sender == self.source and property == "values":
             values = property_value
             new_value = values.get(self.__property_name)
             old_value = self.__values.get(self.__property_name)
             if new_value != old_value:
-                # perform on the main thread
-                self.add_task("update_target", lambda: self.update_target(new_value))
+                self.queue_update_target(new_value)
                 self.__values = copy.copy(self.source.values)
+
+
+class OperationPropertyToGraphicBinding(OperationPropertyBinding):
+
+    """
+        Binds a property of an operation item to a property of a graphic item.
+    """
+
+    def __init__(self, operation, operation_property_name, graphic, graphic_property_name):
+        super(OperationPropertyToGraphicBinding, self).__init__(operation, operation_property_name)
+        self.__graphic = graphic
+        self.__graphic.add_observer(self)
+        self.__graphic_property_name = graphic_property_name
+        self.target_setter = lambda value: setattr(self.__graphic, graphic_property_name, value)
+
+    def close(self):
+        self.__graphic.remove_observer(self)
+        self.__graphic = None
+
+    # thread safe. perform immediately for this binding. no queueing.
+    def queue_update_target(self, new_value):
+        self.update_target(new_value)
+
+    # watch for property changes on the graphic.
+    def property_changed(self, sender, property, property_value):
+        super(OperationPropertyToGraphicBinding, self).property_changed(sender, property, property_value)
+        if sender == self.__graphic and property == self.__graphic_property_name:
+            self.update_source(property_value)
