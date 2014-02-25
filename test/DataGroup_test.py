@@ -120,8 +120,17 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_controller.document_model.counted_data_items), 4)
         self.assertEqual(len(data_group.counted_data_items), 2)
 
-    def get_data_item_container_should_find_children_of_children(self):
-        pass  # placeholder
+    def test_get_data_item_container_should_find_children_of_children_in_document_model_with_data_groups(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        with document_model.ref():
+            data_group = DataGroup.DataGroup()
+            document_model.data_groups.append(data_group)
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item_child = DataItem.DataItem()
+            data_item.data_items.append(data_item_child)
+            document_model.append_data_item(data_item)
+            self.assertEqual(DataGroup.get_data_item_container(document_model, data_item_child), data_item)
 
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
 
