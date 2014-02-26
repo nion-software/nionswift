@@ -7,56 +7,13 @@ import threading
 # None
 
 # local libraries
-from nion.swift.Decorators import ProcessingThread
 from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
+from nion.ui import ThreadPool
 
 _ = gettext.gettext
-
-
-class HistogramThread(ProcessingThread):
-
-    def __init__(self, histogram_canvas_item):
-        super(HistogramThread, self).__init__(minimum_interval=0.2)
-        self.__histogram_canvas_item = histogram_canvas_item
-        self.__data_item = None
-        self.__mutex = threading.RLock()  # access to the data item
-        # mutex is needed to avoid case where grab data is called
-        # simultaneously to handle_data and data item would get
-        # released twice, once in handle data and once in the final
-        # call to release data.
-        # don't start until everything is initialized
-        self.start()
-
-    def close(self):
-        super(HistogramThread, self).close()
-        # protect against handle_data being called, but the data
-        # was never grabbed. this must go _after_ the super.close
-        with self.__mutex:
-            if self.__data_item:
-                self.__data_item.remove_ref()
-
-    def handle_data(self, data_item):
-        with self.__mutex:
-            if self.__data_item:
-                self.__data_item.remove_ref()
-            self.__data_item = data_item
-        if data_item:
-            data_item.add_ref()
-
-    def grab_data(self):
-        with self.__mutex:
-            data_item = self.__data_item
-            self.__data_item = None
-            return data_item
-
-    def process_data(self, data_item):
-        self.__histogram_canvas_item._set_data_item(data_item)
-
-    def release_data(self, data_item):
-        data_item.remove_ref()
 
 
 class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -185,7 +142,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # and data_item_binding_data_item_content_changed
         self.data_item_binding.add_listener(self)
 
-        self.__histogram_thread = HistogramThread(self)
+        self.__shared_thread_pool = ThreadPool.create_thread_queue()
 
         self.preferred_aspect_ratio = 1.618  # golden ratio
 
@@ -193,8 +150,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
-        self.__histogram_thread.close()
-        self.__histogram_thread = None
+        self.__shared_thread_pool.close()
+        self.__shared_thread_pool = None
         # first set the data item to None
         self.data_item_binding_data_item_changed(None)
         # disconnect self as listener
@@ -228,8 +185,10 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     # this message is received from the data item binding.
     # it is established using add_listener
     def data_item_binding_data_item_changed(self, data_item):
-        if self.__histogram_thread:
-            self.__histogram_thread.update_data(data_item)
+        if self.__shared_thread_pool and data_item:
+            def update_histogram_data_on_thread():
+                self._set_data_item(data_item)
+            self.__shared_thread_pool.add_task("update-histogram-data", data_item, lambda: update_histogram_data_on_thread())
 
     # this message is received from the data item binding.
     # it is established using add_listener
