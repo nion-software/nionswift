@@ -408,9 +408,8 @@ class DataItem(Storage.StorageBase):
             if not THUMBNAIL in changes and not HISTOGRAM in changes:
                 self.set_cached_value_dirty("thumbnail_data")
                 self.set_cached_value_dirty("histogram_data")
-            self.__preview = None
             # but only clear the data cache if the data changed
-            if DATA in changes or SOURCE in changes:
+            if DATA in changes or SOURCE in changes or DISPLAY in changes:
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 

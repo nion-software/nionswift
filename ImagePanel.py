@@ -24,7 +24,6 @@ from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
-from nion.ui import ThreadPool
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
@@ -333,6 +332,63 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
 
+# calculates the histogram data and the associated javascript to display
+class PaintThread(object):
+
+    def __init__(self, canvas_item, minimum_interval=0.05):
+        self.__canvas_item = canvas_item
+        self.__thread_break = False
+        self.__thread_ended_event = threading.Event()
+        self.__thread_event = threading.Event()
+        self.__thread_lock = threading.Lock()
+        self.__thread = threading.Thread(target=self.__process)
+        self.__thread.daemon = True
+        self.__minimum_interval = minimum_interval
+        self.__last_time = 0
+
+    def start(self):
+        self.__thread.start()
+
+    def close(self):
+        with self.__thread_lock:
+            self.__thread_break = True
+            self.__thread_event.set()
+        self.__thread_ended_event.wait()
+
+    def trigger(self):
+        with self.__thread_lock:
+            self.__thread_event.set()
+
+    def __process(self):
+        while True:
+            self.__thread_event.wait()
+            with self.__thread_lock:
+                self.__thread_event.clear()  # put this inside lock to avoid race condition
+            if self.__thread_break:
+                break
+            thread_event_set = False
+            while not self.__thread_break:
+                elapsed = time.time() - self.__last_time
+                if self.__minimum_interval and elapsed < self.__minimum_interval:
+                    if self.__thread_event.wait(self.__minimum_interval - elapsed):
+                        thread_event_set = True  # set this so that we know to set it after this loop
+                    self.__thread_event.clear()  # clear this so that it doesn't immediately trigger again
+                else:
+                    break
+            if thread_event_set:
+                self.__thread_event.set()
+            if self.__thread_break:
+                break
+            try:
+                self.__canvas_item.paint_data_item()
+            except Exception as e:
+                import traceback
+                logging.debug("Processing thread exception %s", e)
+                traceback.print_exc()
+            self.__last_time = time.time()
+        self.__thread_ended_event.set()
+
+
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item_binding, document_controller, image_panel):
@@ -371,8 +427,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 canvas_items[1].update_layout(canvas_origin, canvas_size)
         #self.layout = LinePlotLayout(self)
 
-        # a thread for updating
-        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        # thread for drawing
+        self.__repaint_data_item = None
+        self.__paint_thread = PaintThread(self)
+        self.__paint_thread.start()
+        self.__paint_thread.trigger()
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
         
@@ -383,8 +442,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
-        self.__shared_thread_pool.close()
-        self.__shared_thread_pool = None
+        self.__paint_thread.close()
         # disconnect self as listener
         self.data_item_binding.remove_listener(self)
         # call super
@@ -419,11 +477,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
-        if self.__data_item and self.__shared_thread_pool:
-            def update_data_item_on_thread():
-                self.__update_data_item(data_item)
-            self.__shared_thread_pool
-            self.__shared_thread_pool.add_task("process-data", data_item, lambda: update_data_item_on_thread())
+        if self.__data_item:
+            self.__repaint_data_item = data_item
+            self.__paint_thread.trigger()
         else:
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
@@ -434,32 +490,38 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
-    def __update_data_item(self, data_item):
+    def paint_data_item(self):
 
-        # make sure we have the correct data
-        assert data_item is not None
-        assert data_item.is_data_1d
+        data_item = self.__repaint_data_item
 
-        # grab the data values
-        with data_item.data_ref() as data_ref:
-            data = data_ref.data
-        assert data is not None
+        if data_item:
 
-        # make sure complex becomes scalar
-        data = Image.scalar_from_array(data)
-        assert data is not None
+            # make sure we have the correct data
+            assert data_item is not None
+            assert data_item.is_data_1d
 
-        # make sure RGB becomes scalar
-        data = Image.convert_to_grayscale(data)
-        assert data is not None
+            # grab the data values
+            with data_item.data_ref() as data_ref:
+                data = data_ref.data
+            assert data is not None
 
-        # update the line graph
-        self.line_graph_canvas_item.data = data
-        self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
-        self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if data_item.display_calibrated_values else None
-        self.line_graph_canvas_item.update()
+            # make sure complex becomes scalar
+            data = Image.scalar_from_array(data)
+            assert data is not None
 
-        self.repaint_if_needed()
+            # make sure RGB becomes scalar
+            data = Image.convert_to_grayscale(data)
+            assert data is not None
+
+            # update the line graph
+            self.line_graph_canvas_item.data = data
+            self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
+            self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if data_item.display_calibrated_values else None
+            self.line_graph_canvas_item.update()
+
+            self.repaint_if_needed()
+
+            self.__repaint_data_item = None
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -610,8 +672,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.info_overlay_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
-        # a thread for updating
-        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        # thread for drawing
+        self.__repaint_data_item = None
+        self.__paint_thread = PaintThread(self)
+        self.__paint_thread.start()
+        self.__paint_thread.trigger()
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -629,8 +694,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
-        self.__shared_thread_pool.close()
-        self.__shared_thread_pool = None
+        self.__paint_thread.close()
         self.__data_item = None
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
@@ -1012,11 +1076,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
         self.__update_cursor_info()
-        if self.__data_item and self.__shared_thread_pool:
-            def update_data_item_on_thread():
-                self.__update_data_item(data_item)
-            self.__shared_thread_pool
-            self.__shared_thread_pool.add_task("process-data", data_item, lambda: update_data_item_on_thread())
+        if self.__data_item:
+            self.__repaint_data_item = data_item
+            self.__paint_thread.trigger()
         else:
             self.bitmap_canvas_item.rgba_bitmap_data = None
             self.bitmap_canvas_item.update()
@@ -1103,25 +1165,31 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.document_controller.cursor_changed(self, None, None, list(), None)
 
     # this method will be invoked from the paint thread.
-    # data is calculated and then sent to the line graph canvas item.
-    def __update_data_item(self, data_item):
+    # data is calculated and then sent to the image canvas item.
+    def paint_data_item(self):
 
-        # make sure we have the correct data
-        assert data_item is not None
-        assert data_item.is_data_2d
+        data_item = self.__repaint_data_item
 
-        # grab the bitmap image
-        rgba_image = data_item.preview_2d
-        self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
-        self.bitmap_canvas_item.update()
+        if data_item:
 
-        self.graphics_canvas_item.data_item = data_item
-        self.graphics_canvas_item.update()
+            # make sure we have the correct data
+            assert data_item is not None
+            assert data_item.is_data_2d
 
-        self.info_overlay_canvas_item.data_item = data_item
-        self.info_overlay_canvas_item.update()
+            # grab the bitmap image
+            rgba_image = data_item.preview_2d
+            self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
+            self.bitmap_canvas_item.update()
 
-        self.repaint_if_needed()
+            self.graphics_canvas_item.data_item = data_item
+            self.graphics_canvas_item.update()
+
+            self.info_overlay_canvas_item.data_item = data_item
+            self.info_overlay_canvas_item.update()
+
+            self.repaint_if_needed()
+
+            self.__repaint_data_item = None
 
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
