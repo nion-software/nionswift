@@ -7,7 +7,6 @@ import threading
 # None
 
 # local libraries
-from nion.swift.Decorators import ProcessingThread
 from nion.swift import DataItem
 from nion.swift import DocumentController
 from nion.swift import Panel
