@@ -133,6 +133,7 @@ class ConsolePanel(Panel):
 
     def close(self):
         self.document_controller.unregister_console(self)
+        super(ConsolePanel, self).close()
 
     def insert_lines(self, lines):
         self.widget.insert_lines(lines)

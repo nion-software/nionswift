@@ -278,6 +278,7 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
     def close(self):
         self.__graphic.remove_observer(self)
         self.__graphic = None
+        super(OperationPropertyToGraphicBinding, self).close()
 
     # thread safe. perform immediately for this binding. no queueing.
     def queue_update_target(self, new_value):

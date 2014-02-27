@@ -136,6 +136,7 @@ class DataItemsFilterBinding(DataItemsBinding):
     def close(self):
         del self.__data_items_binding.inserters[id(self)]
         del self.__data_items_binding.removers[id(self)]
+        super(DataItemsFilterBinding, self).close()
 
     # thread safe.
     def data_item_inserted(self, data_item, before_index):
@@ -174,8 +175,8 @@ class DataItemsInContainerBinding(DataItemsBinding):
         self.__container = None
 
     def close(self):
-        super(DataItemsInContainerBinding, self).close()
         self.container = None
+        super(DataItemsInContainerBinding, self).close()
 
     # thread safe.
     def __get_container(self):
@@ -185,10 +186,12 @@ class DataItemsInContainerBinding(DataItemsBinding):
         if self.__container:
             self.__container.remove_listener(self)
             self.subtract_counted_data_items(self.__container.counted_data_items)
+            self.__container.remove_ref()
         self.__container = container
         if self.__container:
-            self.__container.add_listener(self)
+            self.__container.add_ref()
             self.update_counted_data_items(self.__container.counted_data_items)
+            self.__container.add_listener(self)
     container = property(__get_container, __set_container)
 
     # thread safe.
