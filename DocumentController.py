@@ -62,6 +62,11 @@ class DocumentController(Observable.Broadcaster):
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
+        # get rid of the bindings first to improve performance
+        self.__filtered_data_items_binding.close()
+        self.__filtered_data_items_binding = None
+        self.__data_items_binding.close()
+        self.__data_items_binding = None
         # close the workspace before closing the image panels, to save their position
         if self.workspace:
             self.workspace.close()
@@ -71,10 +76,6 @@ class DocumentController(Observable.Broadcaster):
         self.document_model.remove_ref()
         self.document_model = None
         self.window_menu.on_about_to_show = None
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
-        self.__data_items_binding.close()
-        self.__data_items_binding = None
         self.notify_listeners("document_controller_did_close", self)
 
     def about_to_show(self):
@@ -226,7 +227,7 @@ class DocumentController(Observable.Broadcaster):
             self.__data_items_binding.container = data_group
             self.__data_items_binding.filter = None
             self.__data_items_binding.sort = DataItemsBinding.sort_natural
-        else:
+        elif self.__data_items_binding is not None:  # may be closing down
             self.__data_items_binding.container = self.document_model
             if filter_id == "latest-session":
                 def latest_session_filter(data_item):

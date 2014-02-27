@@ -368,6 +368,7 @@ class DataPanel(Panel.Panel):
             self.ui = document_controller.ui
             self.__task_queue = Process.TaskQueue()
             self.__binding = document_controller.filtered_data_items_binding
+            self.__data_items = list()  # data items being listened to
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
             def data_item_removed(data_item, index):
@@ -385,6 +386,8 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items_mutex = threading.RLock()
 
         def close(self):
+            while len(self.__data_items) > 0:
+                self.__data_item_removed(self.__data_items[0], 0)
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
             self.list_model_controller.close()
@@ -458,6 +461,7 @@ class DataPanel(Panel.Panel):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.add_ref()
+            self.__data_items.append(data_item)
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
@@ -478,6 +482,7 @@ class DataPanel(Panel.Panel):
             # remove the listener.
             data_item.remove_listener(self)
             data_item.remove_ref()
+            self.__data_items.remove(data_item)
 
         def item_mime_data(self, row):
             data_item = self.get_data_item_by_index(row)
@@ -699,6 +704,7 @@ class DataPanel(Panel.Panel):
         # close the models
         self.data_item_model_controller.close()
         self.data_group_model_controller.close()
+        self.library_model_controller.close()
         # disconnect self as listener
         self.document_controller.weak_data_panel = None
         self.document_controller.remove_listener(self)
