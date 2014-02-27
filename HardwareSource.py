@@ -496,7 +496,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
         assert hardware_source
         self.hardware_source = hardware_source
         self.hardware_port = None
-        self.__snapshots = collections.deque(maxlen=30)
+        self.__snapshots = collections.deque(maxlen=1)
         self.__current_snapshot = 0
 
     def close(self):
