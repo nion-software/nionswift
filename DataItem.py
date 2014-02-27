@@ -409,7 +409,7 @@ class DataItem(Storage.StorageBase):
                 self.set_cached_value_dirty("thumbnail_data")
                 self.set_cached_value_dirty("histogram_data")
             # but only clear the data cache if the data changed
-            if DATA in changes or SOURCE in changes or DISPLAY in changes:
+            if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 
@@ -795,7 +795,6 @@ class DataItem(Storage.StorageBase):
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
-        self.__clear_cached_data()
         self.notify_data_item_content_changed(set([DATA]))
 
     # data_item_content_changed comes from data sources to indicate that data
@@ -804,7 +803,6 @@ class DataItem(Storage.StorageBase):
         assert data_source == self.data_source
         # we don't care about display changes to the data source; only data changes.
         if DATA in changes:
-            self.__clear_cached_data()
             # propogate to listeners
             self.notify_data_item_content_changed(changes)
 
