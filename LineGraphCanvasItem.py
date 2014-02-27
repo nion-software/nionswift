@@ -13,6 +13,38 @@ from nion.ui import Geometry
 _ = gettext.gettext
 
 
+
+def get_calibrated_data_limits(raw_data_min, raw_data_max, calibration=None):
+    """ Return the calibrated values of raw data limits, if calibration exists, otherwise return raw data limits. """
+    if calibration is not None:
+        calibrated_data_min = calibration.convert_to_calibrated_value(raw_data_min)
+        calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max)
+    else:
+        calibrated_data_min = raw_data_min
+        calibrated_data_max = raw_data_max
+    if calibrated_data_min > calibrated_data_max:
+        temp = calibrated_data_min
+        calibrated_data_min = calibrated_data_max
+        calibrated_data_max = temp
+    return calibrated_data_min, calibrated_data_max
+
+
+def get_drawn_data_limits(raw_data_min, raw_data_max, calibration=None):
+    """ Return drawn data limits after converting calibrated limits to pretty values. """
+    calibrated_data_min, calibrated_data_max = get_calibrated_data_limits(raw_data_min, raw_data_max, calibration)
+    calibrated_data_min = 0.0 if calibrated_data_min > 0 else calibrated_data_min
+    calibrated_data_max = 0.0 if calibrated_data_max < 0 else calibrated_data_max
+    pretty_calibrated_data_max = Geometry.make_pretty(calibrated_data_max, round_up=True)
+    pretty_calibrated_data_min = Geometry.make_pretty(calibrated_data_min, round_up=True)
+    if calibration:
+        drawn_data_min = calibration.convert_from_calibrated_value(pretty_calibrated_data_min)
+        drawn_data_max = calibration.convert_from_calibrated_value(pretty_calibrated_data_max)
+    else:
+        drawn_data_min = pretty_calibrated_data_min
+        drawn_data_max = pretty_calibrated_data_max
+    return drawn_data_min, drawn_data_max
+
+
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     golden_ratio = 1.618
@@ -92,41 +124,18 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
-            raw_data_min = numpy.amin(self.data)
-            raw_data_max = numpy.amax(self.data)
-            if self.intensity_calibration is not None:
-                calibrated_data_min = self.intensity_calibration.convert_to_calibrated_value(raw_data_min)
-                calibrated_data_max = self.intensity_calibration.convert_to_calibrated_value(raw_data_max)
-                if calibrated_data_min > calibrated_data_max:
-                    temp = calibrated_data_min
-                    calibrated_data_min = calibrated_data_max
-                    calibrated_data_max = temp
-            else:
-                calibrated_data_min = raw_data_min
-                calibrated_data_max = raw_data_max
-            data_len = self.data.shape[0]
             # draw the background
             drawing_context.begin_path()
             drawing_context.rect(int(rect[0][1]), int(rect[0][0]), int(rect[1][1]), int(rect[1][0]))
             drawing_context.fill_style = self.graph_background_color
             drawing_context.fill()
-            # draw the intensity scale
+            # calculate the intensity scale
             vertical_tick_count = 4
-            pretty_calibrated_data_max = Geometry.make_pretty(calibrated_data_max, round_up=True)
-            pretty_calibrated_data_min = Geometry.make_pretty(calibrated_data_min, round_up=True)
-            pretty_calibrated_data_min = calibrated_data_min if calibrated_data_min < 0 else 0.0
-            if self.intensity_calibration:
-                drawn_data_min = self.intensity_calibration.convert_from_calibrated_value(pretty_calibrated_data_min)
-                drawn_data_max = self.intensity_calibration.convert_from_calibrated_value(pretty_calibrated_data_max)
-            else:
-                drawn_data_min = pretty_calibrated_data_min
-                drawn_data_max = pretty_calibrated_data_max
+            raw_data_min = numpy.amin(self.data)
+            raw_data_max = numpy.amax(self.data)
+            drawn_data_min, drawn_data_max = get_drawn_data_limits(raw_data_min, raw_data_max, self.intensity_calibration)
             drawn_data_range = drawn_data_max - drawn_data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
-            drawing_context.save()
-            if self.draw_captions:
-                drawing_context.text_baseline = "middle"
-                drawing_context.font = "{0:d}px".format(self.font_size)
             # calculate yticks
             yticks = list()
             for i in range(vertical_tick_count+1):
@@ -139,6 +148,10 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 label = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
                 yticks.append((y, label))
             # draw the yticks and labels
+            drawing_context.save()
+            if self.draw_captions:
+                drawing_context.text_baseline = "middle"
+                drawing_context.font = "{0:d}px".format(self.font_size)
             for y, label in yticks:
                 w = 4
                 drawing_context.begin_path()
@@ -170,6 +183,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.translate(-x, -y)
             drawing_context.restore()
             # draw the horizontal axis
+            data_len = self.data.shape[0]
             drawing_context.save()
             if self.draw_captions:
                 # approximate tick count
