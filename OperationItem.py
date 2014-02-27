@@ -3,22 +3,12 @@ import copy
 import gettext
 import logging
 import math
-import sys
-import threading
-import uuid
-import weakref
 
 # third party libraries
-import numpy
-import scipy
-import scipy.fftpack
-import scipy.ndimage
+# None
 
 # local libraries
-from nion.imaging import Image
 from nion.imaging import Operation
-from nion.swift import Decorators
-from nion.swift.Decorators import timeit
 from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Storage
