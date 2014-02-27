@@ -965,16 +965,17 @@ class DataItem(Storage.StorageBase):
 
     # root data is data before operations have been applied.
     def __get_root_data(self):
-        with self.__data_mutex:
-            data = None
-            if self.has_master_data:
-                with self.data_ref() as data_ref:
-                    data = data_ref.master_data
-            if data is None:
-                if self.data_source:
-                    with self.data_source.data_ref() as data_ref:
-                        data = data_ref.data
-            return data
+        # this should NOT happen under the data mutex. it can take a long time.
+        data = None
+        if self.has_master_data:
+            with self.data_ref() as data_ref:
+                data = data_ref.master_data
+        if data is None:
+            if self.data_source:
+                with self.data_source.data_ref() as data_ref:
+                    # this can be a lengthy operation
+                    data = data_ref.data
+        return data
 
     # get the root data shape and dtype without causing calculation to occur if possible.
     def __get_root_data_shape_and_dtype(self):
@@ -999,23 +1000,23 @@ class DataItem(Storage.StorageBase):
             #import traceback
             #traceback.print_stack()
             pass
-        with self.__data_mutex:
-            if self.__cached_data_dirty or self.__cached_data is None:
-                self.__data_mutex.release()
-                try:
-                    data = self.__get_root_data()
-                    operations = self.operations
-                    if len(operations) and data is not None:
-                        # apply operations
-                            if data is not None:
-                                for operation in reversed(operations):
-                                    data = operation.process_data(data)
-                    self.__get_data_range_for_data(data)
-                finally:
-                    self.__data_mutex.acquire()
+        self.__data_mutex.acquire()
+        if self.__cached_data_dirty or self.__cached_data is None:
+            self.__data_mutex.release()
+            data = self.__get_root_data()
+            operations = self.operations
+            if len(operations) and data is not None:
+                # apply operations
+                    if data is not None:
+                        for operation in reversed(operations):
+                            data = operation.process_data(data)
+            self.__get_data_range_for_data(data)
+            with self.__data_mutex:
                 self.__cached_data = data
                 self.__cached_data_dirty = False
-            return self.__cached_data
+        else:
+            self.__data_mutex.release()
+        return self.__cached_data
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:

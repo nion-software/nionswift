@@ -335,7 +335,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 # calculates the histogram data and the associated javascript to display
 class PaintThread(object):
 
-    def __init__(self, canvas_item, minimum_interval=0.05):
+    def __init__(self, canvas_item, minimum_interval=0.1):
         self.__canvas_item = canvas_item
         self.__thread_break = False
         self.__thread_ended_event = threading.Event()
