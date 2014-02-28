@@ -373,7 +373,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__repaint_data_item = None
         self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
-        self.__paint_thread.trigger()
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
         
@@ -457,8 +456,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
             self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if data_item.display_calibrated_values else None
             self.line_graph_canvas_item.update()
-
-            self.__repaint_data_item = None
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -613,7 +610,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__repaint_data_item = None
         self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
-        self.__paint_thread.trigger()
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -1109,8 +1105,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
             self.info_overlay_canvas_item.data_item = data_item
             self.info_overlay_canvas_item.update()
-
-            self.__repaint_data_item = None
 
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
