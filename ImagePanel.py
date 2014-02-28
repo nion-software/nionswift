@@ -416,12 +416,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
-        if self.__data_item:
-            self.__repaint_data_item = data_item
-            self.__paint_thread.trigger()
-        else:
+        self.__repaint_data_item = data_item
+        if self.__data_item is None:
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
+        self.__paint_thread.trigger()
 
     def data_item_binding_data_item_content_changed(self, data_item, changes):
         self.data_item_binding_data_item_changed(data_item)
@@ -789,7 +788,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        drawn_graphics = self.data_item.drawn_graphics
+        drawn_graphics = self.data_item.drawn_graphics if self.data_item is not None else None
         for index in self.graphic_drag_indexes:
             graphic = drawn_graphics[index]
             graphic.end_drag(self.graphic_part_data[index])
@@ -998,17 +997,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def data_item_binding_data_item_changed(self, data_item):
         self.__data_item = data_item
+        self.__repaint_data_item = data_item
         self.__update_cursor_info()
-        if self.__data_item:
-            self.__repaint_data_item = data_item
-            self.__paint_thread.trigger()
-        else:
+        if self.__data_item is None:
             self.bitmap_canvas_item.rgba_bitmap_data = None
             self.bitmap_canvas_item.update()
             self.graphics_canvas_item.data_item = None
             self.graphics_canvas_item.update()
             self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.update()
+        self.__paint_thread.trigger()
 
     def data_item_binding_data_item_content_changed(self, data_item, changes):
         self.data_item_binding_data_item_changed(data_item)
@@ -1368,7 +1366,7 @@ class ImagePanelManager(Observable.Broadcaster):
     def key_pressed(self, image_panel, key):
         return self.notify_listeners("image_panel_key_pressed", image_panel, key)
     def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
-        return self.notify_listeners("image_panel_key_clicked", image_panel, data_item, image_position, modifiers)
+        return self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
     def data_item_changed(self, image_panel):
         self.notify_listeners("image_panel_manager_data_item_changed", image_panel)
 
