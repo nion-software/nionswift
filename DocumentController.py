@@ -1,19 +1,14 @@
 # standard libraries
-import copy
 import datetime
 import gettext
 import logging
-import Queue
-import os
 import random
-import threading
 import weakref
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataItemsBinding
@@ -228,21 +223,22 @@ class DocumentController(Observable.Broadcaster):
             self.__data_items_binding.filter = None
             self.__data_items_binding.sort = DataItemsBinding.sort_natural
         elif self.__data_items_binding is not None:  # may be closing down
-            self.__data_items_binding.container = self.document_model
-            if filter_id == "latest-session":
-                def latest_session_filter(data_item):
-                    return data_item.session_id == self.document_model.session.session_id
-                self.__data_items_binding.filter = latest_session_filter
-                self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-            elif filter_id == "recent":
-                def recent_filter(data_item):
-                    date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
-                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                self.__data_items_binding.filter = recent_filter
-                self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-            else:
-                self.__data_items_binding.filter = None
-                self.__data_items_binding.sort = DataItemsBinding.sort_natural
+            with self.__data_items_binding.changes():
+                self.__data_items_binding.container = self.document_model
+                if filter_id == "latest-session":
+                    def latest_session_filter(data_item):
+                        return data_item.session_id == self.document_model.session.session_id
+                    self.__data_items_binding.filter = latest_session_filter
+                    self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+                elif filter_id == "recent":
+                    def recent_filter(data_item):
+                        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                        return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                    self.__data_items_binding.filter = recent_filter
+                    self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+                else:
+                    self.__data_items_binding.filter = None
+                    self.__data_items_binding.sort = DataItemsBinding.sort_natural
 
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter

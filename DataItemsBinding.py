@@ -24,6 +24,26 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         self.removers = dict()
         self.__filter = None
         self.__sort = None
+        self.__change_level = 0
+
+    def begin_change(self):
+        self.__change_level += 1
+
+    def end_change(self):
+        self.__change_level -= 1
+        if self.__change_level == 0:
+            self._update_data_items()
+
+    def changes(self):
+        class ChangeTracker(object):
+            def __init__(self, binding):
+                self.__binding = binding
+            def __enter__(self):
+                self.__binding.begin_change()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__binding.end_change()
+        return ChangeTracker(self)
 
     # thread safe.
     def __get_sort(self):
@@ -55,6 +75,8 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
 
     # thread safe.
     def _update_data_items(self):
+        if self.__change_level > 0:
+            return
         with self._update_mutex:
             # first build the new data_items list, including data items with master data.
             old_data_items = copy.copy(self.__data_items)
