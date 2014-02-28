@@ -85,7 +85,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, OperationItem.OperationItem("invert-operation")))
         operation_list.append((data_item_real, OperationItem.OperationItem("gaussian-blur-operation")))
         operation_list.append((data_item_real, OperationItem.OperationItem("histogram-operation")))
-        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale_operation")))
+        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -119,7 +119,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
         operation_list.append((data_item_real, line_profile_operation))
-        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale_operation")))
+        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -151,7 +151,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
         operation_list.append((data_item_rgb, line_profile_operation))
-        operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale_operation")))
+        operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -183,7 +183,7 @@ class TestOperationClass(unittest.TestCase):
             operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
             line_profile_operation = OperationItem.OperationItem("line-profile-operation")
             operation_list.append((data_item_rgb, line_profile_operation))
-            operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale_operation")))
+            operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale-operation")))
 
             for source_data_item, operation in operation_list:
                 data_item = DataItem.DataItem()
