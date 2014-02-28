@@ -24,6 +24,7 @@ from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import ThreadPool
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
@@ -264,7 +265,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __set_image_canvas_size(self, image_canvas_size):
         self.__image_canvas_size = image_canvas_size
         self.update()
-        self.repaint_if_needed()
     image_canvas_size = property(__get_image_canvas_size, __set_image_canvas_size)
 
     def __get_image_canvas_origin(self):
@@ -272,7 +272,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __set_image_canvas_origin(self, image_canvas_origin):
         self.__image_canvas_origin = image_canvas_origin
         self.update()
-        self.repaint_if_needed()
     image_canvas_origin = property(__get_image_canvas_origin, __set_image_canvas_origin)
 
     def _repaint(self, drawing_context):
@@ -332,63 +331,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
 
-# calculates the histogram data and the associated javascript to display
-class PaintThread(object):
-
-    def __init__(self, canvas_item, minimum_interval=0.1):
-        self.__canvas_item = canvas_item
-        self.__thread_break = False
-        self.__thread_ended_event = threading.Event()
-        self.__thread_event = threading.Event()
-        self.__thread_lock = threading.Lock()
-        self.__thread = threading.Thread(target=self.__process)
-        self.__thread.daemon = True
-        self.__minimum_interval = minimum_interval
-        self.__last_time = 0
-
-    def start(self):
-        self.__thread.start()
-
-    def close(self):
-        with self.__thread_lock:
-            self.__thread_break = True
-            self.__thread_event.set()
-        self.__thread_ended_event.wait()
-
-    def trigger(self):
-        with self.__thread_lock:
-            self.__thread_event.set()
-
-    def __process(self):
-        while True:
-            self.__thread_event.wait()
-            with self.__thread_lock:
-                self.__thread_event.clear()  # put this inside lock to avoid race condition
-            if self.__thread_break:
-                break
-            thread_event_set = False
-            while not self.__thread_break:
-                elapsed = time.time() - self.__last_time
-                if self.__minimum_interval and elapsed < self.__minimum_interval:
-                    if self.__thread_event.wait(self.__minimum_interval - elapsed):
-                        thread_event_set = True  # set this so that we know to set it after this loop
-                    self.__thread_event.clear()  # clear this so that it doesn't immediately trigger again
-                else:
-                    break
-            if thread_event_set:
-                self.__thread_event.set()
-            if self.__thread_break:
-                break
-            try:
-                self.__canvas_item.paint_data_item()
-            except Exception as e:
-                import traceback
-                logging.debug("Processing thread exception %s", e)
-                traceback.print_exc()
-            self.__last_time = time.time()
-        self.__thread_ended_event.set()
-
-
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item_binding, document_controller, image_panel):
@@ -429,7 +371,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__repaint_data_item = None
-        self.__paint_thread = PaintThread(self)
+        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
         self.__paint_thread.trigger()
 
@@ -458,7 +400,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_focused(self, focused):
         self.focus_ring_canvas_item.focused = focused
         self.focus_ring_canvas_item.update()
-        self.repaint_if_needed()
     focused = property(__get_focused, __set_focused)
 
     def __get_selected(self):
@@ -466,7 +407,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_selected(self, selected):
         self.focus_ring_canvas_item.selected = selected
         self.focus_ring_canvas_item.update()
-        self.repaint_if_needed()
     selected = property(__get_selected, __set_selected)
 
     # when the data item changes, set the data using this property.
@@ -483,7 +423,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.update()
-            self.repaint_if_needed()
 
     def data_item_binding_data_item_content_changed(self, data_item, changes):
         self.data_item_binding_data_item_changed(data_item)
@@ -518,8 +457,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else None
             self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if data_item.display_calibrated_values else None
             self.line_graph_canvas_item.update()
-
-            self.repaint_if_needed()
 
             self.__repaint_data_item = None
 
@@ -674,7 +611,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__repaint_data_item = None
-        self.__paint_thread = PaintThread(self)
+        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
         self.__paint_thread.trigger()
 
@@ -794,7 +731,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if scroll_area_canvas_size is not None:
             self.scroll_area_canvas_item_updated_layout(scroll_area_canvas_size)
             self.composite_canvas_item.update()
-            self.scroll_area_canvas_item.repaint_if_needed()
 
     def mouse_clicked(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
@@ -915,7 +851,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
             self.update_image_canvas_position((-delta[0], -delta[1]))
             self.__last_drag_pos = (y, x)
-        self.graphics_canvas_item.repaint_if_needed()
         return True
 
     def wheel_changed(self, dx, dy, is_horizontal):
@@ -974,13 +909,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.remove_canvas_item(histogram_canvas_item)
                 histogram_canvas_item.close()
                 del self.accessories["histogram"]
-                self.repaint_if_needed()
             else:
                 histogram_canvas_item = HistogramPanel.HistogramCanvasItem(self.data_item_binding)
                 histogram_canvas_item.background_color = "#EEEEEE"
                 self.accessory_canvas_item.add_canvas_item(histogram_canvas_item)
                 self.accessories["histogram"] = histogram_canvas_item
-                self.repaint_if_needed()
             return True
         if key.text == "F":
             fft_canvas_item = self.accessories.get("fft")
@@ -988,7 +921,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.remove_canvas_item(fft_canvas_item)
                 fft_canvas_item.close()
                 del self.accessories["fft"]
-                self.repaint_if_needed()
             else:
                 data_item = None
                 for child_data_item in self.__data_item.data_items:
@@ -1000,7 +932,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 fft_canvas_item = ImageCanvasItem(data_item_binding, None, None)
                 self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
                 self.accessories["fft"] = fft_canvas_item
-                self.repaint_if_needed()
             return True
         if key.text == "P":
             line_profile_canvas_item = self.accessories.get("line_profile")
@@ -1008,7 +939,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.accessory_canvas_item.remove_canvas_item(line_profile_canvas_item)
                 line_profile_canvas_item.close()
                 del self.accessories["line_profile"]
-                self.repaint_if_needed()
             else:
                 data_item = None
                 for child_data_item in self.__data_item.data_items:
@@ -1020,7 +950,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 line_profile_canvas_item = LinePlotCanvasItem(data_item_binding, None, None)
                 self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
                 self.accessories["line_profile"] = line_profile_canvas_item
-                self.repaint_if_needed()
             return True
         if key.text == "-":
             self.zoom_out()
@@ -1056,7 +985,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_focused(self, focused):
         self.focus_ring_canvas_item.focused = focused
         self.focus_ring_canvas_item.update()
-        self.repaint_if_needed()
     focused = property(__get_focused, __set_focused)
 
     def __get_selected(self):
@@ -1064,7 +992,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_selected(self, selected):
         self.focus_ring_canvas_item.selected = selected
         self.focus_ring_canvas_item.update()
-        self.repaint_if_needed()
     selected = property(__get_selected, __set_selected)
 
     # when the data item changes, set the data using this property.
@@ -1086,14 +1013,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.graphics_canvas_item.update()
             self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.update()
-            self.repaint_if_needed()
 
     def data_item_binding_data_item_content_changed(self, data_item, changes):
         self.data_item_binding_data_item_changed(data_item)
 
     def selection_changed(self, graphic_selection):
         self.graphics_canvas_item.update()
-        self.repaint_if_needed()
 
     # watch for changes to the graphic item list. these are called from the image panel.
     def graphic_inserted(self, graphic, before_index):
@@ -1103,7 +1028,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # indexes greater or equal to new index are incremented
         self.graphic_selection.insert_index(before_index)
         self.graphics_canvas_item.update()
-        self.graphics_canvas_item.repaint_if_needed()
     def graphic_removed(self, index):
         # selection is 5,6,7
         # if 4 is removed, new selection is 4,5,6
@@ -1111,7 +1035,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # the index is removed; and remaining indexes greater than removed one are decremented
         self.graphic_selection.remove_index(index)
         self.graphics_canvas_item.update()
-        self.graphics_canvas_item.repaint_if_needed()
 
     def __get_image_size(self):
         data_item = self.data_item
@@ -1186,8 +1109,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
             self.info_overlay_canvas_item.data_item = data_item
             self.info_overlay_canvas_item.update()
-
-            self.repaint_if_needed()
 
             self.__repaint_data_item = None
 

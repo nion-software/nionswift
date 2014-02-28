@@ -38,6 +38,8 @@ class TestHistogramPanelClass(unittest.TestCase):
                 pass
             def draw(self):
                 pass
+            def _child_updated(self, child):
+                pass
         data_item_binding = DataItem.DataItemBinding()
         data_item_binding.notify_data_item_binding_data_item_changed(self.data_item)
         self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem(data_item_binding)

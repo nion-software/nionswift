@@ -180,7 +180,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
         self.simple_line_graph_canvas_item.data = histogram_data
         self.adornments_canvas_item.update()
-        self.repaint_if_needed()
 
     # this message is received from the data item binding.
     # it is established using add_listener
@@ -198,7 +197,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     def __set_display_limits(self, display_limits):
         self.adornments_canvas_item.display_limits = display_limits
         self.adornments_canvas_item.update()
-        self.repaint_if_needed()
 
     def mouse_double_clicked(self, x, y, modifiers):
         if super(HistogramCanvasItem, self).mouse_double_clicked(x, y, modifiers):
