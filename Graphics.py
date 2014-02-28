@@ -424,6 +424,13 @@ class LineTypeGraphic(Graphic):
         self.__end = end
         self.notify_set_property("end", self.__end)
     end = property(__get_end, __set_end)
+    def __get_vector(self):
+        return self.start, self.end
+    def __set_vector(self, vector):
+        self.__start, self.__end = vector
+        self.notify_set_property("start", self.__start)
+        self.notify_set_property("end", self.__end)
+    vector = property(__get_vector, __set_vector)
     # arrowhead accessors
     def __get_start_arrow_enabled(self):
         return self.__start_arrow_enabled
@@ -516,8 +523,9 @@ class LineTypeGraphic(Graphic):
         elif part[0] == "all":
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
-            self.start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
-            self.end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
+            start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
+            end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
+            self.vector = (start, end)
     def nudge(self, mapping, delta):
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
