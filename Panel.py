@@ -157,14 +157,21 @@ class ConsolePanel(Panel):
 
 class HeaderWidgetController(object):
 
-    def __init__(self, ui, title=None):
+    def __init__(self, ui, title=None, display_drag_control=False, display_sync_control=False):
         self.ui = ui
         self.__title = title if title else ""
+        self.__display_drag_control = display_drag_control
+        self.__display_sync_control = display_sync_control
         header_height = 20 if sys.platform == "win32" else 22
         self.canvas_widget = self.ui.create_canvas_widget(properties={"height": header_height})
         self.__layer = self.canvas_widget.create_layer()
         self.canvas_widget.on_size_changed = lambda width, height: self.__header_size_changed(width, height)
+        self.canvas_widget.on_mouse_pressed = lambda x, y, modifiers: self.__mouse_pressed(x, y, modifiers)
+        self.canvas_widget.on_mouse_released = lambda x, y, modifiers: self.__mouse_released(x, y, modifiers)
+        self.canvas_widget.on_mouse_position_changed = lambda x, y, modifiers: self.__mouse_position_changed(x, y, modifiers)
         self.__update_header()
+        self.on_drag_pressed = None
+        self.on_sync_clicked = None
 
     def __str__(self):
         return self.__title
@@ -176,6 +183,23 @@ class HeaderWidgetController(object):
             self.__title = title
             self.__update_header()
     title = property(__get_title, __set_title)
+
+    def __mouse_pressed(self, x, y, modifiers):
+        canvas = self.canvas_widget
+        if self.__display_drag_control:
+            if x > 4 and x < 18 and y > 2 and y < canvas.height - 2:
+                if self.on_drag_pressed:
+                    self.on_drag_pressed()
+
+    def __mouse_released(self, x, y, modifiers):
+        canvas = self.canvas_widget
+        if self.__display_sync_control:
+            if x > 22 and x < 36 and y > 2 and y < canvas.height - 2:
+                if self.on_sync_clicked:
+                    self.on_sync_clicked()
+
+    def __mouse_position_changed(self, x, y, modifiers):
+        pass
 
     def __update_header(self):
 
@@ -216,6 +240,34 @@ class HeaderWidgetController(object):
         ctx.stroke_style = '#b0b0b0'
         ctx.stroke()
         ctx.restore()
+
+        if self.__display_drag_control:
+            ctx.save()
+            ctx.begin_path()
+            ctx.move_to(6, canvas.height/2 - 4)
+            ctx.line_to(16, canvas.height/2 - 4)
+            ctx.move_to(6, canvas.height/2 - 1)
+            ctx.line_to(16, canvas.height/2 - 1)
+            ctx.move_to(6, canvas.height/2 + 2)
+            ctx.line_to(16, canvas.height/2 + 2)
+            ctx.move_to(6, canvas.height/2 + 5)
+            ctx.line_to(16, canvas.height/2 + 5)
+            ctx.stroke_style = '#444'
+            ctx.stroke()
+            ctx.restore()
+
+        if self.__display_sync_control:
+            ctx.save()
+            ctx.begin_path()
+            ctx.move_to(24, canvas.height/2 - 2)
+            ctx.line_to(34, canvas.height/2 - 2)
+            ctx.line_to(31, canvas.height/2 - 4)
+            ctx.move_to(34, canvas.height/2 + 1)
+            ctx.line_to(24, canvas.height/2 + 1)
+            ctx.line_to(27, canvas.height/2 + 3)
+            ctx.stroke_style = '#444'
+            ctx.stroke()
+            ctx.restore()
 
         ctx.save()
         ctx.font = 'normal 11px serif'

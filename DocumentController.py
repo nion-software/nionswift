@@ -12,6 +12,7 @@ import numpy
 from nion.swift import DataGroup
 from nion.swift import DataItem
 from nion.swift import DataItemsBinding
+from nion.swift import DataPanel
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImportExportManager
@@ -41,6 +42,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
         self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
+        self.replaced_data_item = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
@@ -218,27 +220,28 @@ class DocumentController(Observable.Broadcaster):
     filtered_data_items_binding = property(__get_filtered_data_items_binding)
 
     def set_data_group_or_filter(self, data_group, filter_id):
-        if data_group:
-            self.__data_items_binding.container = data_group
-            self.__data_items_binding.filter = None
-            self.__data_items_binding.sort = DataItemsBinding.sort_natural
-        elif self.__data_items_binding is not None:  # may be closing down
-            with self.__data_items_binding.changes():
-                self.__data_items_binding.container = self.document_model
-                if filter_id == "latest-session":
-                    def latest_session_filter(data_item):
-                        return data_item.session_id == self.document_model.session.session_id
-                    self.__data_items_binding.filter = latest_session_filter
-                    self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-                elif filter_id == "recent":
-                    def recent_filter(data_item):
-                        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
-                        return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                    self.__data_items_binding.filter = recent_filter
-                    self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-                else:
-                    self.__data_items_binding.filter = None
-                    self.__data_items_binding.sort = DataItemsBinding.sort_natural
+        if self.__data_items_binding is not None:
+            if data_group is not None:
+                self.__data_items_binding.container = data_group
+                self.__data_items_binding.filter = None
+                self.__data_items_binding.sort = DataItemsBinding.sort_natural
+            elif self.__data_items_binding is not None:  # may be closing down
+                with self.__data_items_binding.changes():
+                    self.__data_items_binding.container = self.document_model
+                    if filter_id == "latest-session":
+                        def latest_session_filter(data_item):
+                            return data_item.session_id == self.document_model.session.session_id
+                        self.__data_items_binding.filter = latest_session_filter
+                        self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+                    elif filter_id == "recent":
+                        def recent_filter(data_item):
+                            date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                            return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                        self.__data_items_binding.filter = recent_filter
+                        self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
+                    else:
+                        self.__data_items_binding.filter = None
+                        self.__data_items_binding.sort = DataItemsBinding.sort_natural
 
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter
@@ -279,6 +282,23 @@ class DocumentController(Observable.Broadcaster):
     # element gets focus or the data item is removed from the document.
     def set_selected_data_item(self, selected_data_item):
         self.notify_listeners("selected_data_item_changed", selected_data_item)
+
+    def sync_data_item(self, data_item):
+        """
+            Select the data item in the data panel. Use the existing group and existing
+            filter if data item appears. Otherwise, remove filter and see if it appears.
+            Otherwise switch to Library group.
+        """
+        data_panel = self.workspace.find_dock_widget("data-panel").panel
+        if data_panel is not None:
+            # first find the master data item if data item is not a master
+            master_data_item = data_item
+            while master_data_item.has_data_source:
+                master_data_item = master_data_item.data_source
+            if master_data_item in self.__data_items_binding.data_items:
+                data_panel.update_data_item_selection(data_item)
+            else:
+                data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
 
     # access the currently selected data item. read only.
     def __get_selected_data_item(self):

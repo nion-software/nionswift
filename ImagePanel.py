@@ -516,6 +516,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
             if self.image_panel:
+                self.document_controller.replaced_data_item = self.image_panel.data_item
                 self.image_panel.data_item = data_item
             return "copy"
         return "ignore"
@@ -1122,6 +1123,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
             if self.image_panel:
+                self.document_controller.replaced_data_item = self.image_panel.data_item
                 self.image_panel.data_item = data_item
             return "copy"
         return "ignore"
@@ -1180,7 +1182,9 @@ class ImagePanel(Panel.Panel):
         self.image_data_item_binding = DataItem.DataItemBinding()
         self.image_canvas_item = ImageCanvasItem(self.image_data_item_binding, document_controller, self)
         self.image_root_canvas_item.add_canvas_item(self.image_canvas_item)
-        self.image_header_controller = Panel.HeaderWidgetController(self.ui)
+        self.image_header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
+        self.image_header_controller.on_drag_pressed = lambda: self.__begin_drag()
+        self.image_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
         self.image_widget = self.ui.create_column_widget()
         self.image_widget.add(self.image_header_controller.canvas_widget)
         self.image_widget.add(self.image_root_canvas_item.canvas, fill=True)
@@ -1191,7 +1195,9 @@ class ImagePanel(Panel.Panel):
         self.line_plot_item_binding = DataItem.DataItemBinding()
         self.line_plot_canvas_item = LinePlotCanvasItem(self.line_plot_item_binding, document_controller, self)
         self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
-        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui)
+        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
+        self.line_plot_header_controller.on_drag_pressed = lambda: self.__begin_drag()
+        self.line_plot_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
         self.line_plot_widget = self.ui.create_column_widget()
         self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
         self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas, fill=True)
@@ -1292,6 +1298,21 @@ class ImagePanel(Panel.Panel):
         # if our item gets deleted, clear the selection
         if data_item == self.data_item:
             self.data_item = None
+
+    # this gets called when the user initiates a drag in the drag control to move the panel around
+    def __begin_drag(self):
+        data_item = self.data_item
+        if data_item is not None:
+            mime_data = self.ui.create_mime_data()
+            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            action = self.widget.drag(mime_data)
+            if action == "move" and self.document_controller.replaced_data_item is not None:
+                self.data_item = self.document_controller.replaced_data_item
+                self.document_controller.replaced_data_item = None
+
+    def __sync_data_item(self):
+        if self.data_item is not None:
+            self.document_controller.sync_data_item(self.data_item)
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_data_item via data_item.add_listener.

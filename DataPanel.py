@@ -489,7 +489,6 @@ class DataPanel(Panel.Panel):
             if data_item:
                 mime_data = self.ui.create_mime_data()
                 mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-                mime_data.set_data_as_string("text/ref_container_uuid", str(self.container.uuid))
                 return mime_data
             return None
 
@@ -758,11 +757,10 @@ class DataPanel(Panel.Panel):
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
-    # update cycles. this message is also received directly from the document_controller via
-    # add_listener.
+    # update cycles.
     # three areas where this method is used are when starting acquisition, when quitting and
     # restarting, and after adding an operation to a data item.
-    # not thread safe
+    # not thread safe.
     def update_data_panel_selection(self, data_panel_selection):
         # block. why? so we don't get infinite loops.
         saved_block1 = self.__block1
@@ -785,6 +783,7 @@ class DataPanel(Panel.Panel):
                 self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking
         self.document_controller.set_data_group_or_filter(data_group, filter_id)
+        self.periodic()  # ugh. sync the update so that it occurs before setting the index below.
         # update the data item selection
         #self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
         self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
@@ -797,10 +796,8 @@ class DataPanel(Panel.Panel):
     # not thread safe
     def update_data_item_selection(self, data_item, source_data_item=None):
         # never change the selected data group or filter. however, if the data item appears in the list, select it
-        for i_data_item in self.data_item_model_controller.data_items:
-            if data_item == i_data_item:
-                self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
-                break
+        if data_item in self.data_item_model_controller.data_items:
+            self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
     # this message comes from the data group model, which is why it is named the way it is
     def data_group_model_receive_files(self, file_paths, data_group, index, external=True):
