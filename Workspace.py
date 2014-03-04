@@ -65,6 +65,11 @@ class Workspace(object):
 
         self.create_panels(visible_panels)
 
+        self.__current_layout_id = None
+
+        self.__layout_stack = list()
+        self.__layout_stack_current = None
+
         layout_id = self.ui.get_persistent_string("Workspace/%s/Layout" % self.workspace_id)
 
         self.change_layout(layout_id)
@@ -114,6 +119,10 @@ class Workspace(object):
     def __get_document_controller(self):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
+
+    def __get_current_layout_id(self):
+        return self.__current_layout_id
+    current_layout_id = property(__get_current_layout_id)
 
     def find_dock_widget(self, panel_id):
         for dock_widget in self.dock_widgets:
@@ -165,13 +174,26 @@ class Workspace(object):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def change_layout(self, layout_id, preferred_data_items=None):
+    def change_layout(self, layout_id, preferred_data_items=None, adjust=None):
         # remember what's current being displayed
         old_selected_data_item = self.document_controller.selected_data_item
         old_displayed_data_items = []
         for image_panel in self.image_panels:
             if image_panel.data_item is not None:
                 old_displayed_data_items.append(image_panel.data_item)
+        # remember the current layout.
+        # 1321
+        # first store the existing layout in the current slot
+        if self.__layout_stack_current is not None:  # handle startup case
+            self.__layout_stack[self.__layout_stack_current] = (self.__current_layout_id, [weakref.ref(data_item) for data_item in old_displayed_data_items])
+        # now insert new layout placeholder
+        if adjust is not None:
+            self.__layout_stack_current += adjust
+            self.__layout_stack[self.__layout_stack_current] = None
+        else:
+            del self.__layout_stack[0:self.__layout_stack_current]
+            self.__layout_stack.insert(0, None)
+            self.__layout_stack_current = 0
         # remove existing layout
         for image_panel in copy.copy(self.image_panels):
             image_panel.close()
@@ -246,7 +268,7 @@ class Workspace(object):
         else:  # default 1x1
             image_panel = self.__create_image_panel("primary-image")
             self.image_row.add(image_panel.widget)
-            if self.document_controller.selected_image_panel is not None:
+            if adjust is None and self.document_controller.selected_image_panel is not None:
                 preferred_data_items = [old_selected_data_item]
             self.document_controller.selected_image_panel = image_panel
             layout_id = "1x1"  # set this in case it was something else
@@ -283,6 +305,22 @@ class Workspace(object):
         # fill in the missing items if possible
         # save the layout id
         self.__current_layout_id = layout_id
+
+    def debugit(self):
+        logging.debug("self.__layout_stack_current %s", self.__layout_stack_current)
+        logging.debug("self.__layout_stack %s", self.__layout_stack)
+
+    def change_to_previous_layout(self):
+        if self.__layout_stack_current is not None and self.__layout_stack_current + 1 < len(self.__layout_stack):
+            layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current + 1]
+            preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
+            self.change_layout(layout_id, preferred_data_items, adjust=1)
+
+    def change_to_next_layout(self):
+        if self.__layout_stack_current is not None and self.__layout_stack_current > 0:
+            layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current - 1]
+            preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
+            self.change_layout(layout_id, preferred_data_items, adjust=-1)
 
     # display the primary and secondary data item. if only primary is supplied, this
     # method will look for the first non-live slot and place the new data item there.

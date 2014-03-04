@@ -94,6 +94,48 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace.change_layout("1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].data_item, document_controller.document_model.data_items[1])
 
+    def test_change_layout_3x1_to_1x1_to_previous_should_remember_3x1(self):
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
+        derived_data_item = DataItem.DataItem()
+        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
+        document_controller.workspace.change_layout("3x1", preferred_data_items)
+        document_controller.workspace.change_layout("1x1")
+        document_controller.workspace.change_to_previous_layout()
+        self.assertEqual(document_controller.workspace.image_panels[0].data_item, preferred_data_items[0])
+        self.assertEqual(document_controller.workspace.image_panels[1].data_item, preferred_data_items[1])
+        self.assertEqual(document_controller.workspace.image_panels[2].data_item, preferred_data_items[2])
+
+    def test_change_layout_1x1_to_3x1_to_previous_to_next_should_remember_3x1(self):
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
+        derived_data_item = DataItem.DataItem()
+        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
+        document_controller.workspace.change_layout("1x1")
+        document_controller.workspace.change_layout("3x1", preferred_data_items)
+        document_controller.workspace.change_to_previous_layout()
+        self.assertEqual(document_controller.workspace.current_layout_id, "1x1")
+        document_controller.workspace.change_to_next_layout()
+        self.assertEqual(document_controller.workspace.current_layout_id, "3x1")
+        self.assertEqual(document_controller.workspace.image_panels[0].data_item, preferred_data_items[0])
+        self.assertEqual(document_controller.workspace.image_panels[1].data_item, preferred_data_items[1])
+        self.assertEqual(document_controller.workspace.image_panels[2].data_item, preferred_data_items[2])
+
+    def test_change_layout_3x1_to_1x1_to_previous_to_next_should_remember_1x1(self):
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
+        derived_data_item = DataItem.DataItem()
+        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
+        document_controller.workspace.change_layout("3x1", preferred_data_items)
+        document_controller.selected_image_panel = document_controller.workspace.image_panels[1]
+        document_controller.workspace.change_layout("1x1")
+        document_controller.workspace.change_to_previous_layout()
+        self.assertEqual(document_controller.workspace.current_layout_id, "3x1")
+        document_controller.workspace.change_to_next_layout()
+        self.assertEqual(document_controller.workspace.current_layout_id, "1x1")
+        self.assertEqual(document_controller.workspace.image_panels[0].data_item, document_controller.document_model.data_items[2])
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

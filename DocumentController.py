@@ -152,8 +152,8 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self.layout_menu.add_menu_item(_("Previous Layout"), lambda: self.no_operation(), key_sequence="Ctrl+[")
-        self.layout_menu.add_menu_item(_("Next Layout"), lambda: self.no_operation(), key_sequence="Ctrl+]")
+        self.layout_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
+        self.layout_menu.add_menu_item(_("Next Layout"), lambda: self.workspace.change_to_next_layout(), key_sequence="Ctrl+]")
         self.layout_menu.add_separator()
         self.layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1", self.recent_data_items), key_sequence="Ctrl+1")
         self.layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1", self.recent_data_items), key_sequence="Ctrl+2")
