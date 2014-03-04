@@ -434,7 +434,7 @@ class DataItem(Storage.StorageBase):
         if data is not None:
             if self.is_data_rgb_type:
                 data_range = (0, 255)
-            elif self.is_data_complex_type:
+            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
                 scalar_data = Image.scalar_from_array(data)
                 data_range = (scalar_data.min(), scalar_data.max())
             else:
@@ -445,6 +445,7 @@ class DataItem(Storage.StorageBase):
             self.set_cached_value("data_range", data_range)
         else:
             self.remove_cached_value("data_range")
+        return data_range
 
     def __get_data_range(self):
         with self.__data_mutex:
@@ -452,7 +453,7 @@ class DataItem(Storage.StorageBase):
         if not data_range or self.is_cached_value_dirty("data_range"):
             with self.data_ref() as data_ref:
                 data = data_ref.data
-                self.__get_data_range_for_data(data)
+                data_range = self.__get_data_range_for_data(data)
         return data_range
     data_range = property(__get_data_range)
 
