@@ -1290,8 +1290,6 @@ class ImagePanel(Panel.Panel):
             self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
             self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
             # note: data_ref_count has already been incremented above.
-        # let the image panel manager know the data item changed
-        ImagePanelManager().data_item_changed(self)
     data_item = property(__get_data_item, __set_data_item)
 
     def data_item_deleted(self, data_item):
@@ -1388,8 +1386,6 @@ class ImagePanelManager(Observable.Broadcaster):
         return self.notify_listeners("image_panel_key_pressed", image_panel, key)
     def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
         return self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
-    def data_item_changed(self, image_panel):
-        self.notify_listeners("image_panel_manager_data_item_changed", image_panel)
 
 
 class InfoPanel(Panel.Panel):
