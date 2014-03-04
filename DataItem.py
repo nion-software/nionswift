@@ -409,11 +409,14 @@ class DataItem(Storage.StorageBase):
                 changes = self.__data_item_changes
                 self.__data_item_changes = set()
         if data_item_change_count == 0:
-            # clear the preview and thumbnail
+            # clear the histogram and thumbnail
             if not THUMBNAIL in changes and not HISTOGRAM in changes:
                 self.set_cached_value_dirty("thumbnail_data")
                 self.set_cached_value_dirty("histogram_data")
-            # but only clear the data cache if the data changed
+            # clear the preview if the the display changed
+            if DISPLAY in changes:
+                self.__preview = None
+            # clear the data cache if the data changed
             if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
@@ -461,7 +464,7 @@ class DataItem(Storage.StorageBase):
         # at all.
         # TODO: use promises here?
         if self.is_cached_value_dirty("data_range"):
-            self.get_histogram_data()  # temporary way to trigger data range calculation in background
+            pass  # TODO: calculate data range in thread
         if not data_range:
             with self.data_ref() as data_ref:
                 data = data_ref.data
@@ -1003,7 +1006,6 @@ class DataItem(Storage.StorageBase):
         with self.__data_mutex:
             self.__cached_data_dirty = True
             self.set_cached_value_dirty("data_range")
-        self.__preview = None
 
     # data property. read only. this method should almost *never* be called on the main thread since
     # it takes an unpredictable amount of time.
@@ -1143,7 +1145,8 @@ class DataItem(Storage.StorageBase):
             if Image.is_data_2d(data_2d):
                 data_2d = Image.scalar_from_array(data_2d)
                 data_range = self.__get_data_range()
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=self.display_limits)
+                display_limits = self.display_limits
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
