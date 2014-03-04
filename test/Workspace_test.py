@@ -86,6 +86,13 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace.image_panels[1].data_item, document_controller.document_model.data_items[2])
         self.assertEqual(document_controller.workspace.image_panels[2].data_item, document_controller.document_model.data_items[1])
 
+    def test_change_layout_to_1x1_should_always_choose_selected_data(self):
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
+        document_controller.workspace.change_layout("3x1")
+        document_controller.selected_image_panel = document_controller.workspace.image_panels[1]
+        self.assertEqual(document_controller.selected_image_panel.data_item, document_controller.document_model.data_items[1])
+        document_controller.workspace.change_layout("1x1")
+        self.assertEqual(document_controller.workspace.image_panels[0].data_item, document_controller.document_model.data_items[1])
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

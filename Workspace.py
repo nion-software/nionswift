@@ -167,6 +167,7 @@ class Workspace(object):
 
     def change_layout(self, layout_id, preferred_data_items=None):
         # remember what's current being displayed
+        old_selected_data_item = self.document_controller.selected_data_item
         old_displayed_data_items = []
         for image_panel in self.image_panels:
             if image_panel.data_item is not None:
@@ -245,6 +246,8 @@ class Workspace(object):
         else:  # default 1x1
             image_panel = self.__create_image_panel("primary-image")
             self.image_row.add(image_panel.widget)
+            if self.document_controller.selected_image_panel is not None:
+                preferred_data_items = [old_selected_data_item]
             self.document_controller.selected_image_panel = image_panel
             layout_id = "1x1"  # set this in case it was something else
         # restore what was displayed

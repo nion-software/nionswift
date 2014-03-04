@@ -267,6 +267,7 @@ class DocumentController(Observable.Broadcaster):
     def __get_selected_image_panel(self):
         return self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
     def __set_selected_image_panel(self, selected_image_panel):
+        assert type(selected_image_panel).__name__ == "ImagePanel" if selected_image_panel else True  # avoid circular import
         if not selected_image_panel:
             selected_image_panel = self.workspace.primary_image_panel
         weak_selected_image_panel = weakref.ref(selected_image_panel) if selected_image_panel else None
@@ -278,7 +279,7 @@ class DocumentController(Observable.Broadcaster):
                 image_panel.set_selected(image_panel == self.selected_image_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            selected_data_item = selected_image_panel.data_item if selected_image_panel else None
+            selected_data_item = selected_image_panel.data_item if selected_image_panel is not None else None
             self.set_selected_data_item(selected_data_item)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
