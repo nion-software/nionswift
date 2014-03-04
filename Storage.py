@@ -784,7 +784,7 @@ class DictDatastore(object):
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
             return data
         else:
-            return default_value
+            return None
 
     def get_data_shape_and_dtype(self, parent_node, key):
         data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
