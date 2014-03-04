@@ -371,7 +371,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__repaint_data_item = None
-        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
+        self.__paint_thread = ThreadPool.ThreadIntervalDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
@@ -608,7 +608,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__repaint_data_item = None
-        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_data_item())
+        self.__paint_thread = ThreadPool.ThreadIntervalDispatcher(lambda: self.paint_data_item())
         self.__paint_thread.start()
 
         # used for dragging graphic items

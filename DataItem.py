@@ -234,6 +234,7 @@ class DataItem(Storage.StorageBase):
         self.operations = Storage.MutableRelationship(self, "operations")
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
+        self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
         self.__cached_data_dirty = True
         # master data shape and dtype are always valid if there is no data source.
@@ -253,6 +254,10 @@ class DataItem(Storage.StorageBase):
         self.__preview = None
         self.__counted_data_items = collections.Counter()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        self.__thumbnail_mutex = threading.RLock()
+        self.__thumbnail_in_progress = False
+        self.__histogram_mutex = threading.RLock()
+        self.__histogram_in_progress = False
         self.__set_master_data(data)
 
     def __str__(self):
@@ -450,7 +455,14 @@ class DataItem(Storage.StorageBase):
     def __get_data_range(self):
         with self.__data_mutex:
             data_range = self.get_cached_value("data_range")
-        if not data_range or self.is_cached_value_dirty("data_range"):
+        # this property may be access on the main thread (inspector)
+        # so it really needs to return quickly in most cases. don't
+        # recalculate in the main thread unless the value doesn't exist
+        # at all.
+        # TODO: use promises here?
+        if self.is_cached_value_dirty("data_range"):
+            self.get_histogram_data()  # temporary way to trigger data range calculation in background
+        if not data_range:
             with self.data_ref() as data_ref:
                 data = data_ref.data
                 data_range = self.__get_data_range_for_data(data)
@@ -1004,14 +1016,15 @@ class DataItem(Storage.StorageBase):
         self.__data_mutex.acquire()
         if self.__cached_data_dirty or self.__cached_data is None:
             self.__data_mutex.release()
-            data = self.__get_root_data()
-            operations = self.operations
-            if len(operations) and data is not None:
-                # apply operations
-                    if data is not None:
-                        for operation in reversed(operations):
-                            data = operation.process_data(data)
-            self.__get_data_range_for_data(data)
+            with self.__get_data_mutex:
+                data = self.__get_root_data()
+                operations = self.operations
+                if len(operations) and data is not None:
+                    # apply operations
+                        if data is not None:
+                            for operation in reversed(operations):
+                                data = operation.process_data(data)
+                self.__get_data_range_for_data(data)
             with self.__data_mutex:
                 self.__cached_data = data
                 self.__cached_data_dirty = False
@@ -1177,6 +1190,7 @@ class DataItem(Storage.StorageBase):
         if self.thumbnail_data_dirty:
             if not self.closed and (self.has_master_data or self.has_data_source):
                 def load_thumbnail_on_thread():
+                    time.sleep(0.2)
                     with self.data_ref() as data_ref:
                         data = data_ref.data
                     if data is not None:  # for data to load and make sure it has data
@@ -1191,7 +1205,12 @@ class DataItem(Storage.StorageBase):
                         self.notify_data_item_content_changed(set([THUMBNAIL]))
                     else:
                         self.remove_cached_value("thumbnail_data")
-                self.__shared_thread_pool.add_task("load-thumbnail", None, lambda: load_thumbnail_on_thread())
+                    with self.__thumbnail_mutex:
+                        self.__thumbnail_in_progress = False
+                with self.__thumbnail_mutex:
+                    if not self.__thumbnail_in_progress:
+                        self.__thumbnail_in_progress = True
+                        self.__shared_thread_pool.add_task("load-thumbnail", None, lambda: load_thumbnail_on_thread())
         thumbnail_data = self.get_cached_value("thumbnail_data")
         if thumbnail_data is not None:
             return thumbnail_data
@@ -1205,6 +1224,7 @@ class DataItem(Storage.StorageBase):
         if self.is_cached_value_dirty("histogram_data"):
             if not self.closed and (self.has_master_data or self.has_data_source):
                 def load_histogram_on_thread():
+                    time.sleep(0.2)
                     with self.data_ref() as data_ref:
                         data = data_ref.data
                     if data is not None:  # for data to load and make sure it has data
@@ -1217,7 +1237,12 @@ class DataItem(Storage.StorageBase):
                         self.notify_data_item_content_changed(set([HISTOGRAM]))
                     else:
                         self.remove_cached_value("histogram_data")
-                self.__shared_thread_pool.add_task("calculate-histogram", None, lambda: load_histogram_on_thread())
+                    with self.__histogram_mutex:
+                        self.__histogram_in_progress = False
+                with self.__histogram_mutex:
+                    if not self.__histogram_in_progress:
+                        self.__histogram_in_progress = True
+                        self.__shared_thread_pool.add_task("calculate-histogram", None, lambda: load_histogram_on_thread())
         histogram_data = self.get_cached_value("histogram_data")
         if histogram_data is not None:
             return histogram_data
