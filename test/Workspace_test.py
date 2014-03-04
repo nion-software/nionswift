@@ -135,6 +135,20 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace.current_layout_id, "1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].data_item, document_controller.document_model.data_items[2])
 
+    def test_add_processing_in_4x4_bottom_left_puts_processed_image_in_empty_bottom_right(self):
+        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
+        derived_data_item = DataItem.DataItem()
+        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        document_controller.workspace.change_layout("2x2")
+        document_controller.workspace.image_panels[3].data_item = None
+        document_controller.selected_image_panel = document_controller.workspace.image_panels[2]
+        source_data_item = document_controller.workspace.image_panels[2].data_item
+        derived_data_item2 = DataItem.DataItem()
+        source_data_item.data_items.append(derived_data_item2)
+        document_controller.workspace.display_data_item(derived_data_item2, source_data_item)
+        self.assertEqual(document_controller.workspace.image_panels[2].data_item, source_data_item)
+        self.assertEqual(document_controller.workspace.image_panels[3].data_item, derived_data_item2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

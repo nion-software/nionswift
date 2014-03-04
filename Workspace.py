@@ -175,6 +175,9 @@ class Workspace(object):
     primary_image_panel = property(__get_primary_image_panel)
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None):
+        if layout_id is not None and layout_id == self.__current_layout_id:  # check for None as special test case
+            # TODO: don't change layout if new layout not requested
+            pass  # return  ## tests don't pass with the check.
         # remember what's current being displayed
         old_selected_data_item = self.document_controller.selected_data_item
         old_displayed_data_items = []
@@ -219,30 +222,30 @@ class Workspace(object):
             self.document_controller.selected_image_panel = image_panel
         elif layout_id == "3x1":
             image_row = self.ui.create_splitter_widget("horizontal")
-            image_panel = self.__create_image_panel("primary-image")
-            image_row.add(image_panel.widget)
+            image_panel1 = self.__create_image_panel("primary-image")
             image_panel2 = self.__create_image_panel("secondary-image")
-            image_row.add(image_panel2.widget)
             image_panel3 = self.__create_image_panel("3rd-image")
+            image_row.add(image_panel1.widget)
+            image_row.add(image_panel2.widget)
             image_row.add(image_panel3.widget)
             self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel
+            self.document_controller.selected_image_panel = image_panel1
         elif layout_id == "2x2":
             image_row = self.ui.create_splitter_widget("horizontal")
             image_column1 = self.ui.create_splitter_widget("vertical")
             image_column2 = self.ui.create_splitter_widget("vertical")
             image_row.add(image_column1)
             image_row.add(image_column2)
-            image_panel = self.__create_image_panel("primary-image")
-            image_column1.add(image_panel.widget)
+            image_panel1 = self.__create_image_panel("primary-image")
             image_panel2 = self.__create_image_panel("secondary-image")
-            image_column1.add(image_panel2.widget)
             image_panel3 = self.__create_image_panel("3rd-image")
-            image_column2.add(image_panel3.widget)
             image_panel4 = self.__create_image_panel("4th-image")
+            image_column1.add(image_panel1.widget)
+            image_column1.add(image_panel3.widget)
+            image_column2.add(image_panel2.widget)
             image_column2.add(image_panel4.widget)
             self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel
+            self.document_controller.selected_image_panel = image_panel1
         elif layout_id == "3x2":
             image_row = self.ui.create_splitter_widget("horizontal")
             image_column1 = self.ui.create_splitter_widget("vertical")
@@ -251,20 +254,20 @@ class Workspace(object):
             image_row.add(image_column1)
             image_row.add(image_column2)
             image_row.add(image_column3)
-            image_panel = self.__create_image_panel("primary-image")
-            image_column1.add(image_panel.widget)
+            image_panel1 = self.__create_image_panel("primary-image")
             image_panel2 = self.__create_image_panel("secondary-image")
-            image_column1.add(image_panel2.widget)
             image_panel3 = self.__create_image_panel("3rd-image")
-            image_column2.add(image_panel3.widget)
             image_panel4 = self.__create_image_panel("4th-image")
-            image_column2.add(image_panel4.widget)
             image_panel5 = self.__create_image_panel("5th-image")
-            image_column3.add(image_panel5.widget)
             image_panel6 = self.__create_image_panel("6th-image")
+            image_column1.add(image_panel1.widget)
+            image_column1.add(image_panel4.widget)
+            image_column2.add(image_panel2.widget)
+            image_column2.add(image_panel5.widget)
+            image_column3.add(image_panel3.widget)
             image_column3.add(image_panel6.widget)
             self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel
+            self.document_controller.selected_image_panel = image_panel1
         else:  # default 1x1
             image_panel = self.__create_image_panel("primary-image")
             self.image_row.add(image_panel.widget)
@@ -334,13 +337,15 @@ class Workspace(object):
     def display_data_item(self, primary_data_item, source_data_item=None):
 
         def is_data_item_for_hardware_source(data_item):
+            if data_item is None:
+                return False
             if data_item.is_live:
                 return True
             if data_item.properties.get("hardware_source_id") and data_item.session_id == self.document_controller.document_model.session.session_id:
                 return True
             return False
 
-        if not source_data_item:
+        if source_data_item is None:
             # first look for exact match
             for image_panel in self.image_panels:
                 if image_panel.data_item == primary_data_item:
@@ -354,7 +359,7 @@ class Workspace(object):
             image_panel = self.image_panels[0]
             image_panel.set_data_item(primary_data_item)
             return image_panel
-        elif primary_data_item:
+        elif primary_data_item is not None:
             # first look for exact match
             for image_panel in self.image_panels:
                 if image_panel.data_item == primary_data_item:
@@ -365,14 +370,15 @@ class Workspace(object):
             matched = False
             # first search forward from primary
             for image_panel in self.image_panels:
-                if image_panel.data_item == source_data_item:
-                    matched = True
-                if image_panel.data_item and not is_data_item_for_hardware_source(image_panel.data_item):
+                will_match = image_panel.data_item == source_data_item
+                if not is_data_item_for_hardware_source(image_panel.data_item):
                     if matched:
                         image_panel.set_data_item(primary_data_item)
                         return image_panel
                     first_non_live = first_non_live if first_non_live else image_panel
-                    last_non_live_before_primary = last_non_live_before_primary if matched else image_panel
+                    last_non_live_before_primary = last_non_live_before_primary if will_match else image_panel
+                if image_panel.data_item == source_data_item:
+                    matched = True
             # use one before if available
             if last_non_live_before_primary:
                 image_panel = last_non_live_before_primary
