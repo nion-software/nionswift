@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import datetime
 import gettext
 import logging
@@ -43,6 +44,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
         self.replaced_data_item = None
+        self.__recent_weak_data_items = collections.deque(maxlen=16)
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
@@ -150,15 +152,18 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self.layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
-        self.layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
-        self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
-        self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
-        self.layout_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
-        self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
-        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
-        #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
-        #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
+        self.layout_menu.add_menu_item(_("Previous Layout"), lambda: self.no_operation(), key_sequence="Ctrl+[")
+        self.layout_menu.add_menu_item(_("Next Layout"), lambda: self.no_operation(), key_sequence="Ctrl+]")
+        self.layout_menu.add_separator()
+        self.layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1", self.recent_data_items), key_sequence="Ctrl+1")
+        self.layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1", self.recent_data_items), key_sequence="Ctrl+2")
+        self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1", self.recent_data_items), key_sequence="Ctrl+3")
+        self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2", self.recent_data_items), key_sequence="Ctrl+4")
+        self.layout_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2", self.recent_data_items), key_sequence="Ctrl+5")
+        self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2", self.recent_data_items), key_sequence="Ctrl+6")
+        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3", self.recent_data_items), key_sequence="Ctrl+7")
+        #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2", self.recent_data_items), key_sequence="Ctrl+8")
+        #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4", self.recent_data_items), key_sequence="Ctrl+9")
 
         self.toggle_filter_action = self.layout_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
 
@@ -299,6 +304,20 @@ class DocumentController(Observable.Broadcaster):
                 data_panel.update_data_item_selection(data_item)
             else:
                 data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
+
+    def note_new_recent_data_item(self, data_item):
+        """ Register a data item into the most recent used list. """
+        assert data_item is not None
+        assert isinstance(data_item, DataItem.DataItem)
+        weak_data_item = weakref.ref(data_item)
+        if weak_data_item in self.__recent_weak_data_items:
+            self.__recent_weak_data_items.remove(weak_data_item)
+        self.__recent_weak_data_items.appendleft(weak_data_item)
+
+    def __get_recent_data_items(self):
+        """ Return up to the 16 most recent data items that the user has placed in display panels. """
+        return [weak_data_item() for weak_data_item in self.__recent_weak_data_items]
+    recent_data_items = property(__get_recent_data_items)
 
     # access the currently selected data item. read only.
     def __get_selected_data_item(self):

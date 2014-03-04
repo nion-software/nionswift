@@ -1290,6 +1290,9 @@ class ImagePanel(Panel.Panel):
             self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
             self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
             # note: data_ref_count has already been incremented above.
+        # let the document controller update the recent data item list
+        if data_item is not None:
+            self.document_controller.note_new_recent_data_item(data_item)
     data_item = property(__get_data_item, __set_data_item)
 
     def data_item_deleted(self, data_item):

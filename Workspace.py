@@ -165,11 +165,12 @@ class Workspace(object):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def change_layout(self, layout_id):
+    def change_layout(self, layout_id, preferred_data_items=None):
         # remember what's current being displayed
         old_displayed_data_items = []
         for image_panel in self.image_panels:
-            old_displayed_data_items.append(image_panel.data_item)
+            if image_panel.data_item is not None:
+                old_displayed_data_items.append(image_panel.data_item)
         # remove existing layout
         for image_panel in copy.copy(self.image_panels):
             image_panel.close()
@@ -248,11 +249,19 @@ class Workspace(object):
             layout_id = "1x1"  # set this in case it was something else
         # restore what was displayed
         displayed_data_items = []
+        # use the preferred data items first
+        preferred_data_items = copy.copy(list(preferred_data_items)) if preferred_data_items is not None else list()
+        # then for each data item that was already displayed, use it if it's not already in the list
+        for old_displayed_data_item in old_displayed_data_items:
+            if old_displayed_data_item not in preferred_data_items:
+                preferred_data_items.append(old_displayed_data_item)
+        # last displayed data item is used to display derived data, if present
         last_displayed_data_item = None
         for index, image_panel in enumerate(self.image_panels):
             data_item_to_display = None
-            if len(old_displayed_data_items) > index and old_displayed_data_items[index]:
-                last_displayed_data_item = old_displayed_data_items[index]
+            if len(preferred_data_items) > index and preferred_data_items[index] is not None:
+                data_item_to_display = preferred_data_items[index]
+                last_displayed_data_item = data_item_to_display
             elif last_displayed_data_item:
                 # search for derived data items
                 for data_item in last_displayed_data_item.data_items:
@@ -267,6 +276,7 @@ class Workspace(object):
                         break
             # update the data item in the image panel to display it
             image_panel.data_item = data_item_to_display
+            displayed_data_items.append(data_item_to_display)
         # fill in the missing items if possible
         # save the layout id
         self.__current_layout_id = layout_id
