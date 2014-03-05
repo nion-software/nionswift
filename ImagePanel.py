@@ -749,38 +749,40 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_drag_item_was_selected = False
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
-        if self.data_item:
-            drawn_graphics = self.data_item.drawn_graphics
-            for graphic_index, graphic in enumerate(drawn_graphics):
-                start_drag_pos = y, x
-                already_selected = self.graphic_selection.contains(graphic_index)
-                multiple_items_selected = len(self.graphic_selection.indexes) > 1
-                move_only = not already_selected or multiple_items_selected
-                widget_mapping = self.__get_mouse_mapping()
-                part = graphic.test(widget_mapping, start_drag_pos, move_only)
-                if part:
-                    # select item and prepare for drag
-                    self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
-                    if not self.graphic_drag_item_was_selected:
-                        if modifiers.shift:
-                            self.graphic_selection.add(graphic_index)
-                        elif not already_selected:
-                            self.graphic_selection.set(graphic_index)
-                    # keep track of general drag information
-                    self.graphic_drag_start_pos = start_drag_pos
-                    self.graphic_drag_changed = False
-                    # keep track of info for the specific item that was clicked
-                    self.graphic_drag_item = drawn_graphics[graphic_index]
-                    self.graphic_drag_part = part
-                    # keep track of drag information for each item in the set
-                    self.graphic_drag_indexes = self.graphic_selection.indexes
-                    for index in self.graphic_drag_indexes:
-                        graphic = drawn_graphics[index]
-                        self.graphic_drag_items.append(graphic)
-                        self.graphic_part_data[index] = graphic.begin_drag()
-                    break
-        if not self.graphic_drag_items and not modifiers.shift:
-            self.graphic_selection.clear()
+        if self.document_controller.tool_mode == "pointer":
+            if self.data_item:
+                drawn_graphics = self.data_item.drawn_graphics
+                for graphic_index, graphic in enumerate(drawn_graphics):
+                    start_drag_pos = y, x
+                    already_selected = self.graphic_selection.contains(graphic_index)
+                    multiple_items_selected = len(self.graphic_selection.indexes) > 1
+                    move_only = not already_selected or multiple_items_selected
+                    widget_mapping = self.__get_mouse_mapping()
+                    part = graphic.test(widget_mapping, start_drag_pos, move_only)
+                    if part:
+                        # select item and prepare for drag
+                        self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
+                        if not self.graphic_drag_item_was_selected:
+                            if modifiers.shift:
+                                self.graphic_selection.add(graphic_index)
+                            elif not already_selected:
+                                self.graphic_selection.set(graphic_index)
+                        # keep track of general drag information
+                        self.graphic_drag_start_pos = start_drag_pos
+                        self.graphic_drag_changed = False
+                        # keep track of info for the specific item that was clicked
+                        self.graphic_drag_item = drawn_graphics[graphic_index]
+                        self.graphic_drag_part = part
+                        # keep track of drag information for each item in the set
+                        self.graphic_drag_indexes = self.graphic_selection.indexes
+                        for index in self.graphic_drag_indexes:
+                            graphic = drawn_graphics[index]
+                            self.graphic_drag_items.append(graphic)
+                            self.graphic_part_data[index] = graphic.begin_drag()
+                        break
+            if not self.graphic_drag_items and not modifiers.shift:
+                self.graphic_selection.clear()
+        elif self.document_controller.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
             self.__is_dragging = True

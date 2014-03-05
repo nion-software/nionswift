@@ -48,7 +48,7 @@ class DocumentController(Observable.Broadcaster):
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
-        self.__cursor_weak_listeners = []
+        self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
@@ -337,6 +337,18 @@ class DocumentController(Observable.Broadcaster):
     # in the data panel. this would typically be from the image or line plot canvas.
     def cursor_changed(self, source, data_item, pos, selected_graphics, image_size):
         self.notify_listeners("cursor_changed", source, data_item, pos, selected_graphics, image_size)
+
+    def __get_tool_mode(self):
+        return self.__tool_mode
+    def __set_tool_mode(self, tool_mode):
+        self.__tool_mode = tool_mode
+        if self.__tool_mode == "crop":  # hack until interactive crop tool is implemented
+            self.processing_crop()
+            self.__tool_mode = "pointer"
+        elif self.__tool_mode == "line-profile":  # hack until interactive crop tool is implemented
+            self.processing_line_profile()
+            self.__tool_mode = "pointer"
+    tool_mode = property(__get_tool_mode, __set_tool_mode)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
