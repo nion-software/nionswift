@@ -1107,6 +1107,11 @@ class DataItem(Storage.StorageBase):
         return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
     is_data_2d = property(__is_data_2d)
 
+    def __is_data_3d(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_3d(data_shape, data_dtype)
+    is_data_3d = property(__is_data_3d)
+
     def __is_data_rgb(self):
         data_shape, data_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_rgb(data_shape, data_dtype)
@@ -1136,14 +1141,24 @@ class DataItem(Storage.StorageBase):
             elif self.is_data_2d:
                 if self.__cached_data is not None:
                     return self.__cached_data[pos[0], pos[1]]
+            # TODO: fix me 3d
+            elif self.is_data_3d:
+                if self.__cached_data is not None:
+                    return self.__cached_data[pos[0], pos[1]]
         return None
 
     def __get_preview_2d(self):
         if self.__preview is None:
             with self.data_ref() as data_ref:
-                data_2d = data_ref.data
-            if Image.is_data_2d(data_2d):
-                data_2d = Image.scalar_from_array(data_2d)
+                data = data_ref.data
+            if Image.is_data_2d(data):
+                data_2d = Image.scalar_from_array(data)
+            # TODO: fix me 3d
+            elif Image.is_data_3d(data):
+                data_2d = Image.scalar_from_array(data.reshape(tuple([data.shape[0] * data.shape[1], ] + list(data.shape[2::]))))
+            else:
+                data_2d = None
+            if data_2d is not None:
                 data_range = self.__get_data_range()
                 display_limits = self.display_limits
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
@@ -1188,6 +1203,32 @@ class DataItem(Storage.StorageBase):
                 rgba[:,:,3] = 255
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
+    # TODO: fix me 3d
+    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
+        assert image is not None
+        assert image.ndim in (3,4)
+        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
+        logging.debug("%s -> %s", image.shape, new_shape)
+        image = Image.scalar_from_array(image.reshape(new_shape))
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
+        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        logging.debug(thumbnail_image.shape)
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
     # returns a 2D uint32 array interpreted as RGBA pixels
     def get_thumbnail_data(self, ui, height, width):
         if self.thumbnail_data_dirty:
@@ -1203,6 +1244,10 @@ class DataItem(Storage.StorageBase):
                         elif Image.is_data_2d(data):
                             data_range = self.__get_data_range()
                             self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(ui, data, height, width, data_range, self.display_limits))
+                        elif Image.is_data_3d(data):
+                            # TODO: fix me 3d
+                            data_range = self.__get_data_range()
+                            self.set_cached_value("thumbnail_data", self.__get_thumbnail_3d_data(ui, data, height, width, data_range, self.display_limits))
                         else:
                             self.remove_cached_value("thumbnail_data")
                         self.notify_data_item_content_changed(set([THUMBNAIL]))

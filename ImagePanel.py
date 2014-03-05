@@ -1092,7 +1092,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
             # make sure we have the correct data
             assert data_item is not None
-            assert data_item.is_data_2d
+            # TODO: fix me 3d
+            assert data_item.is_data_2d or data_item.is_data_3d
 
             # grab the bitmap image
             rgba_image = data_item.preview_2d
@@ -1331,7 +1332,8 @@ class ImagePanel(Panel.Panel):
                     self.line_plot_canvas_item.selected = selected
                     self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.image_canvas_item.selected = False
-                elif data_item.is_data_2d:
+                elif data_item.is_data_2d or data_item.is_data_3d:
+                    # TODO: fix me 3d
                     self.widget.current_index = 0
                     self.image_data_item_binding.notify_data_item_binding_data_item_changed(data_item)
                     self.image_canvas_item.selected = selected
@@ -1482,6 +1484,15 @@ class InfoPanel(Panel.Panel):
         if data_item and data_size:
             calibrations = data_item.calculated_calibrations
             intensity_calibration = data_item.calculated_intensity_calibration
+            if pos and len(pos) == 3:
+                # TODO: fix me 3d
+                # 3d image
+                # make sure the position is within the bounds of the image
+                if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1] and pos[2] >= 0 and pos[2] < data_size[2]:
+                    position_text = u"{0}, {1}, {2}".format(calibrations[2].convert_to_calibrated_value_str(pos[2] - 0.5 * data_size[2]),
+                                                            calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
+                                                            calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    value_text = get_value_text(data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 2:
                 # 2d image
                 # make sure the position is within the bounds of the image
