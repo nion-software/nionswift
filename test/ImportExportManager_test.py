@@ -1,6 +1,7 @@
 # standard libraries
 import datetime
 import logging
+import os
 import unittest
 
 # third party libraries
@@ -52,6 +53,23 @@ class TestImportExportManagerClass(unittest.TestCase):
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             self.assertEqual(data_item.spatial_shape, (8, 8))
             self.assertEqual(data_item.data_dtype, numpy.float)
+
+    def test_ndata_write_to_then_read_from_temp_file(self):
+        current_working_directory = os.getcwd()
+        file_path = os.path.join(current_working_directory, "__file.ndata")
+        handler = ImportExportManager.NDataImportExportHandler("ndata", ["ndata"])
+        data_item = DataItem.DataItem(numpy.zeros((16, 16), dtype=numpy.double))
+        with data_item.ref():
+            handler.write(None, data_item, file_path, "ndata")
+        self.assertTrue(os.path.exists(file_path))
+        try:
+            data_items = handler.read_data_items(None, "ndata", file_path, False)
+            self.assertEqual(len(data_items), 1)
+            data_item = data_items[0]
+            with data_item.ref():
+                pass
+        finally:
+            os.remove(file_path)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

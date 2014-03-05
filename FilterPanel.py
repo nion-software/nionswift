@@ -48,7 +48,7 @@ class DataItemDateTreeBinding(UserInterfaceUtility.Binding):
         with self.__update_mutex:
             assert data_item not in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
-            data_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
             indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
             self.__data_item_tree.insert_value(indexes, data_item)
 
@@ -57,7 +57,7 @@ class DataItemDateTreeBinding(UserInterfaceUtility.Binding):
         with self.__update_mutex:
             assert data_item in self.__master_data_items
             del self.__master_data_items[index]
-            data_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
             indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
             self.__data_item_tree.remove_value(indexes, data_item)
 
@@ -154,7 +154,7 @@ class FilterPanel(object):
                 tree_node = item_model_controller.item_value("tree_node", index, parent_id)
                 keys_list.append(tree_node.keys)
             def date_filter(data_item):
-                data_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
                 indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
                 def matches(match_keys):
                     for index, key in enumerate(match_keys):

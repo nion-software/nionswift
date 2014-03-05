@@ -223,7 +223,7 @@ class DataItem(Storage.StorageBase):
         self.__param = 0.5
         self.__display_limits = None  # auto
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__datetime_original = Utility.get_current_datetime_element()
+        self.__datetime_original = Utility.get_current_datetime_item()
         self.__datetime_modified = self.__datetime_original
         self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
         self.__display_calibrated_values = True
@@ -264,7 +264,7 @@ class DataItem(Storage.StorageBase):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
 
     @classmethod
-    def _get_data_file_path(cls, uuid_, datetime_element, session_id=None):
+    def _get_data_file_path(cls, uuid_, datetime_item, session_id=None):
         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -276,8 +276,8 @@ class DataItem(Storage.StorageBase):
                 result += alphabet[digit]
             return result
         encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        datetime_element = datetime_element if datetime_element else Utility.get_current_datetime_element()
-        datetime_ = Utility.get_datetime_from_datetime_element(datetime_element)
+        datetime_item = datetime_item if datetime_item else Utility.get_current_datetime_item()
+        datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
         datetime_ = datetime_ if datetime_ else datetime.datetime.now()
         path_components = datetime_.strftime("%Y-%m-%d").split('-')
         session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
@@ -373,8 +373,8 @@ class DataItem(Storage.StorageBase):
             session_id = self.data_source.session_id
         # if not, try the datetime
         if not session_id:
-            datetime_element = self.datetime_original if self.datetime_original else Utility.get_current_datetime_element()
-            datetime_ = Utility.get_datetime_from_datetime_element(datetime_element)
+            datetime_item = self.datetime_original if self.datetime_original else Utility.get_current_datetime_item()
+            datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
             datetime_ = datetime_ if datetime_ else datetime.datetime.now()
             session_id = datetime_.strftime("%Y%m%d-000000")
         return session_id
@@ -597,7 +597,7 @@ class DataItem(Storage.StorageBase):
     def __get_datetime_original_as_string(self):
         datetime_original = self.datetime_original
         if datetime_original:
-            datetime_ = Utility.get_datetime_from_datetime_element(datetime_original)
+            datetime_ = Utility.get_datetime_from_datetime_item(datetime_original)
             if datetime_:
                 return datetime_.strftime("%c")
         # fall through to here
@@ -867,7 +867,7 @@ class DataItem(Storage.StorageBase):
                 spatial_ndim = len(Image.spatial_shape_from_data(data)) if data is not None else 0
                 self.sync_intrinsic_calibrations(spatial_ndim)
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
-            file_datetime = Utility.get_datetime_from_datetime_element(self.datetime_original)
+            file_datetime = Utility.get_datetime_from_datetime_item(self.datetime_original)
             # tell the database about it
             if self.__master_data is not None:
                 # save these here so that if the data isn't immediately written out, these values can be returned
@@ -882,7 +882,7 @@ class DataItem(Storage.StorageBase):
     def _get_master_data_data_reference(self):
         reference_type = self.__master_data_reference_type # if self.__master_data_reference_type else "relative_file"
         reference = self.__master_data_reference # if self.__master_data_reference else DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
-        file_datetime = self.__master_data_file_datetime # if self.__master_data_file_datetime else Utility.get_datetime_from_datetime_element(self.datetime_original)
+        file_datetime = self.__master_data_file_datetime # if self.__master_data_file_datetime else Utility.get_datetime_from_datetime_item(self.datetime_original)
         return self.__master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
 
     def set_external_master_data(self, data_file_path, data_shape, data_dtype):
@@ -1290,7 +1290,7 @@ class DataItem(Storage.StorageBase):
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
         data_item_copy.display_limits = self.display_limits
-        data_item_copy.datetime_original = Utility.get_current_datetime_element()
+        data_item_copy.datetime_original = Utility.get_current_datetime_item()
         data_item_copy.datetime_modified = data_item_copy.datetime_original
         for calibration in self.calculated_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))

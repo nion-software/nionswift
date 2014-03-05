@@ -243,6 +243,6 @@ def sort_natural(container):
 
 def sort_by_date_desc(container):
     def sort_key(data_item):
-        date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+        date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         return date_item_datetime
     return sort_key, True

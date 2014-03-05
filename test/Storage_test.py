@@ -535,7 +535,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
             # change the original date
-            data_item.datetime_original = Utility.get_current_datetime_element()
+            data_item.datetime_original = Utility.get_current_datetime_item()
             data_item.session_id = "20000531-000000"
             document_model.remove_data_item(data_item)
             # make sure it get removed from disk

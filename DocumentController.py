@@ -240,7 +240,7 @@ class DocumentController(Observable.Broadcaster):
                         self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
                     elif filter_id == "recent":
                         def recent_filter(data_item):
-                            date_item_datetime = Utility.get_datetime_from_datetime_element(data_item.datetime_original)
+                            date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
                             return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
                         self.__data_items_binding.filter = recent_filter
                         self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc

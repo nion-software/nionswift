@@ -1,8 +1,13 @@
 # standard libraries
+import copy
+import cStringIO
 import datetime
+import json
 import logging
 import os
+import re
 import time
+import zipfile
 
 # third party libraries
 import numpy
@@ -160,15 +165,20 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
                 else:
                     data_ref.master_data = data
         # spatial calibrations
-        if "spatial_calibration" in data_element:
-            spatial_calibration = data_element.get("spatial_calibration")
-            if len(spatial_calibration) == len(data_item.spatial_shape):
-                for dimension, dimension_calibration in enumerate(spatial_calibration):
-                    origin = float(dimension_calibration[0])
-                    scale = float(dimension_calibration[1])
-                    units = unicode(dimension_calibration[2])
+        if "spatial_calibrations" in data_element:
+            spatial_calibrations = data_element.get("spatial_calibrations")
+            if len(spatial_calibrations) == len(data_item.spatial_shape):
+                for dimension, dimension_calibration in enumerate(spatial_calibrations):
+                    origin = float(dimension_calibration["origin"])
+                    scale = float(dimension_calibration["scale"])
+                    units = unicode(dimension_calibration["units"])
                     if scale != 0.0:
                         data_item.set_calibration(dimension, DataItem.CalibrationItem(origin, scale, units))
+        if "intensity_calibration" in data_element:
+            intensity_calibration = data_element.get("intensity_calibration")
+            origin = float(intensity_calibration["origin"])
+            scale = float(intensity_calibration["scale"])
+            units = unicode(intensity_calibration["units"])
         # properties (general tags)
         if "properties" in data_element:
             with data_item.property_changes() as context:
@@ -184,24 +194,25 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-        def parse_datetime_keys(root, default=None):
-            if root in data_element:
-                datetime_element = dict()
-                datetime_element["local_datetime"] = datetime.datetime.strptime(data_element[root], "%Y-%m-%dT%H:%M:%S.%f").isoformat()
-                if root + "_tz" in data_element:
-                    tz_match = re.compile("([-+])(\d{4})").match(data_element[root + "_tz"])
+        def parse_datetime_keys(key, default=None):
+            if key in data_element:
+                datetime_element = data_element[key]
+                datetime_item = dict()
+                datetime_item["local_datetime"] = datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f").isoformat()
+                if "tz" in datetime_element:
+                    tz_match = re.compile("([-+])(\d{4})").match(datetime_element["tz"])
                     if tz_match:
-                        datetime_element["tz"] = tz_match.group(0)
-                if root + "_dst" in data_element:
-                    dst_match = re.compile("([-+])(\d{2})").match(data_element[root + "_dst"])
+                        datetime_item["tz"] = tz_match.group(0)
+                if "dst" in datetime_element:
+                    dst_match = re.compile("([-+])(\d{2})").match(datetime_element["dst"])
                     if dst_match:
-                        datetime_element["dst"] = dst_match.group(0)
-                if "datetime_tzname" in data_element:
-                    datetime_element["tzname"] = data_element["datetime_tzname"]
-                return datetime_element
+                        datetime_item["dst"] = dst_match.group(0)
+                if "tzname" in datetime_element:
+                    datetime_item["tzname"] = datetime_element["tzname"]
+                return datetime_item
             return default
-        current_datetime_element = Utility.get_current_datetime_element()  # get this once to be consistent
-        data_item.datetime_modified = parse_datetime_keys("datetime_modified", current_datetime_element)
+        current_datetime_item = Utility.get_current_datetime_item()  # get this once to be consistent
+        data_item.datetime_modified = parse_datetime_keys("datetime_modified", current_datetime_item)
         data_item.datetime_original = parse_datetime_keys("datetime_original", data_item.datetime_modified)
         # author
         # sample
@@ -221,6 +232,36 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
                 line_graphic.end = (float(end[0]) / spatial_shape[0], float(end[1]) / spatial_shape[1])
                 line_graphic.end_arrow_enabled = True
                 data_item.append_graphic(line_graphic)
+
+
+def create_data_element_from_data_item(data_item, include_data=True):
+    data_element = dict()
+    data_element["version"] = 1
+    data_element["reader_version"] = 1
+    if include_data:
+        with data_item.data_ref() as d:
+            data_element["data"] = d.data
+    calculated_calibrations = data_item.calculated_calibrations
+    if calculated_calibrations is not None:
+        calibrations_element = list()
+        for calibration in calculated_calibrations:
+            calibration_element = { "origin": calibration.origin, "scale": calibration.scale, "units": calibration.units }
+            calibrations_element.append(calibration_element)
+        data_element["spatial_calibrations"] = calibration_element
+    intensity_calibration = data_item.calculated_intensity_calibration
+    if intensity_calibration is not None:
+        intensity_calibration_element = { "origin": intensity_calibration.origin, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
+        data_element["intensity_calibration"] = calibration_element
+    data_element["properties"] = copy.copy(data_item.properties)
+    data_element["title"] = copy.copy(data_item.title)
+    data_element["datetime_modified"] = copy.copy(data_item.datetime_modified)
+    data_element["datetime_original"] = copy.copy(data_item.datetime_original)
+    data_element["uuid"] = str(data_item.uuid)
+    if data_item.has_data_source:
+        data_element["data_source_uuid"] = str(data_item.data_source.uuid)
+    # operations
+    # graphics
+    return data_element
 
 
 class StandardImportExportHandler(ImportExportHandler):
@@ -272,7 +313,51 @@ class CSVImportExportHandler(ImportExportHandler):
             numpy.savetxt(path, data, delimiter=', ')
 
 
+class NDataImportExportHandler(ImportExportHandler):
+
+    def __init__(self, name, extensions):
+        super(NDataImportExportHandler, self).__init__(name, extensions)
+
+    def read_data_elements(self, ui, extension, path):
+        zip_file = zipfile.ZipFile(path, 'r')
+        namelist = zip_file.namelist()
+        if "metadata.json" in namelist and "data.npy" in namelist:
+            with zip_file.open("metadata.json") as fp:
+                metadata = json.load(fp)
+            with zip_file.open("data.npy") as fp:
+                data_buffer = cStringIO.StringIO(fp.read())
+                data = numpy.load(data_buffer)
+        if data is not None:
+            data_element = metadata
+            data_element["data"] = data
+            return [data_element]
+        return list()
+
+    def can_write(self, data_item, extension):
+        return True
+
+    def write(self, ui, data_item, path, extension):
+        data_element = create_data_element_from_data_item(data_item, include_data=False)
+        with data_item.data_ref() as data_ref:
+            data = data_ref.data
+        if data is not None:
+            root, ext = os.path.splitext(path)
+            metadata_path = root + "_metadata.json"
+            data_path = root + "_data.npy"
+            try:
+                with open(metadata_path, "w") as fp:
+                    json.dump(data_element, fp)
+                numpy.save(data_path, data)
+                zip_file = zipfile.ZipFile(path, 'w')
+                zip_file.write(metadata_path, "metadata.json")
+                zip_file.write(data_path, "data.npy")
+            finally:
+                os.remove(metadata_path)
+                os.remove(data_path)
+
+
 ImportExportManager().register_io_handler(StandardImportExportHandler("JPEG", ["jpg", "jpeg"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("PNG", ["png"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))
 ImportExportManager().register_io_handler(CSVImportExportHandler("CSV", ["csv"]))
+ImportExportManager().register_io_handler(NDataImportExportHandler("NData", ["ndata1"]))
