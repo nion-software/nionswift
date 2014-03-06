@@ -1330,14 +1330,14 @@ class ImagePanel(Panel.Panel):
             if data_item:
                 if data_item.is_data_1d:
                     self.widget.current_index = 1
-                    self.line_plot_item_binding.notify_data_item_binding_data_item_changed(data_item)
+                    self.line_plot_item_binding.notify_data_item_binding_data_item_content_changed(data_item, changes)
                     self.line_plot_canvas_item.selected = selected
                     self.image_data_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.image_canvas_item.selected = False
                 elif data_item.is_data_2d or data_item.is_data_3d:
                     # TODO: fix me 3d
                     self.widget.current_index = 0
-                    self.image_data_item_binding.notify_data_item_binding_data_item_changed(data_item)
+                    self.image_data_item_binding.notify_data_item_binding_data_item_content_changed(data_item, changes)
                     self.image_canvas_item.selected = selected
                     self.line_plot_item_binding.notify_data_item_binding_data_item_changed(None)
                     self.line_plot_canvas_item.selected = False

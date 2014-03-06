@@ -413,12 +413,10 @@ class DataItem(Storage.StorageBase):
             if not THUMBNAIL in changes and not HISTOGRAM in changes:
                 self.set_cached_value_dirty("thumbnail_data")
                 self.set_cached_value_dirty("histogram_data")
-            # clear the preview if the the display changed
-            if DISPLAY in changes:
-                self.__preview = None
-            # clear the data cache if the data changed
+            # clear the data cache and preview if the data changed
             if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
+                self.__preview = None
             self.notify_listeners("data_item_content_changed", self, changes)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
@@ -1023,9 +1021,9 @@ class DataItem(Storage.StorageBase):
                 operations = self.operations
                 if len(operations) and data is not None:
                     # apply operations
-                        if data is not None:
-                            for operation in reversed(operations):
-                                data = operation.process_data(data)
+                    if data is not None:
+                        for operation in reversed(operations):
+                            data = operation.process_data(data)
                 self.__get_data_range_for_data(data)
             with self.__data_mutex:
                 self.__cached_data = data
