@@ -27,7 +27,7 @@ suites = []
 suite_dict = {}
 alltests = None
 
-def appendTestSuites(suites):
+def append_test_suites(suites):
     suites.append(suites)
 
 # scan through directory and look for tests (files ending in test.py)
@@ -54,7 +54,7 @@ def load_tests():
                         suites.append(suite)
                         suite_dict[test_name] = suite
 
-    suites.extend(PlugInManager.testSuites())
+    suites.extend(PlugInManager.test_suites())
 
     alltests = unittest.TestSuite(suites)
 

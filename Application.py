@@ -74,7 +74,7 @@ class Application(object):
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
-        PlugInManager.loadPlugIns()
+        PlugInManager.load_plug_ins(self.ui)
         Test.load_tests()  # after plug-ins are loaded
 
     def start(self):
