@@ -4,6 +4,7 @@ import copy
 import gettext
 import logging
 import numbers
+import os.path
 import uuid
 import weakref
 
@@ -14,6 +15,8 @@ import scipy
 from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
+from nion.swift import ImportExportManager
+from nion.swift import PlugInManager
 from nion.swift import Session
 from nion.swift import Storage
 
@@ -81,28 +84,44 @@ class DocumentModel(Storage.StorageBase):
         # ensure there is at least one group
         if len(self.data_groups) < 1:
             data_group = DataGroup.DataGroup()
-            data_group.title = _("Library")
+            data_group.title = _("My Data")
             self.data_groups.append(data_group)
 
-    def create_test_images(self):
-        # for testing, add a checkerboard image data item
-        checkerboard_image_source = DataItem.DataItem()
-        checkerboard_image_source.title = "Checkerboard"
-        with checkerboard_image_source.data_ref() as data_ref:
-            data_ref.master_data = Image.create_checkerboard((512, 512))
-        self.append_data_item(checkerboard_image_source)
-        # for testing, add a color image data item
-        color_image_source = DataItem.DataItem()
-        color_image_source.title = "Green Color"
-        with color_image_source.data_ref() as data_ref:
-            data_ref.master_data = Image.create_color_image((512, 512), 128, 255, 128)
-        self.append_data_item(color_image_source)
-        # for testing, add a color image data item
-        lena_image_source = DataItem.DataItem()
-        lena_image_source.title = "Lena"
-        with lena_image_source.data_ref() as data_ref:
-            data_ref.master_data = scipy.misc.lena()
-        self.append_data_item(lena_image_source)
+    def create_sample_images(self, resources_path):
+        if True:
+            handler = ImportExportManager.NDataImportExportHandler(None, ["ndata1"])
+            root_dir = PlugInManager.get_root_dir()
+            samples_dir = os.path.join(root_dir, "SampleImages")
+            logging.debug("Looking in %s", samples_dir)
+            def is_ndata(file_path):
+                logging.debug("Checking %s", file_path)
+                _, extension = os.path.splitext(file_path)
+                return extension == ".ndata1"
+            sample_paths = [os.path.join(samples_dir, d) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
+            logging.debug("sample_paths %s", sample_paths)
+            for sample_path in sorted(sample_paths):
+                data_items = handler.read_data_items(None, "ndata1", sample_path, False)
+                for data_item in data_items:
+                    self.append_data_item(data_item)
+        else:
+            # for testing, add a checkerboard image data item
+            checkerboard_image_source = DataItem.DataItem()
+            checkerboard_image_source.title = "Checkerboard"
+            with checkerboard_image_source.data_ref() as data_ref:
+                data_ref.master_data = Image.create_checkerboard((512, 512))
+            self.append_data_item(checkerboard_image_source)
+            # for testing, add a color image data item
+            color_image_source = DataItem.DataItem()
+            color_image_source.title = "Green Color"
+            with color_image_source.data_ref() as data_ref:
+                data_ref.master_data = Image.create_color_image((512, 512), 128, 255, 128)
+            self.append_data_item(color_image_source)
+            # for testing, add a color image data item
+            lena_image_source = DataItem.DataItem()
+            lena_image_source.title = "Lena"
+            with lena_image_source.data_ref() as data_ref:
+                data_ref.master_data = scipy.misc.lena()
+            self.append_data_item(lena_image_source)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items

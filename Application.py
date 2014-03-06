@@ -44,10 +44,11 @@ app = None
 
 # facilitate bootstrapping the application
 class Application(object):
-    def __init__(self, ui, set_global=True):
+    def __init__(self, ui, set_global=True, resources_path=None):
         global app
 
         self.ui = ui
+        self.resources_path = resources_path
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -98,7 +99,8 @@ class Application(object):
             storage_cache = Storage.DbStorageCache(cache_filename)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
             document_model.create_default_data_groups()
-            document_model.create_test_images()
+            if self.resources_path is not None:
+                document_model.create_sample_images(self.resources_path)
         else:
             logging.debug("Using existing document %s", db_filename)
             datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename, create=False)
