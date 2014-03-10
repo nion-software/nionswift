@@ -16,13 +16,16 @@ import time
 # time zone name is for display only and has no specified format
 # datetime_item is a dictionary with entries for the local_datetime, tz (timezone offset), and
 # dst (daylight savings time offset). it may optionally include tz_name (timezone name), if available.
-def get_current_datetime_item():
+def get_datetime_item_from_datetime(datetime_):
     datetime_item = dict()
-    datetime_item["local_datetime"] = datetime.datetime.now().isoformat()
+    datetime_item["local_datetime"] = datetime_.isoformat()
     tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
     datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes/60, tz_minutes%60)
     datetime_item["dst"] = "+60" if time.localtime().tm_isdst else "+00"
     return datetime_item
+
+def get_current_datetime_item():
+    return get_datetime_item_from_datetime(datetime.datetime.now())
 
 # return python datetime object from a datetime_item. may return None if the datetime element is
 # not properly formatted.

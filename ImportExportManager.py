@@ -202,7 +202,7 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
             if key in data_element:
                 datetime_element = data_element[key]
                 datetime_item = dict()
-                datetime_item["local_datetime"] = datetime.datetime.strptime(datetime_element["local_datetime"], "%Y-%m-%dT%H:%M:%S.%f").isoformat()
+                datetime_item["local_datetime"] = Utility.get_datetime_from_datetime_item(datetime_element).isoformat()
                 if "tz" in datetime_element:
                     tz_match = re.compile("([-+])(\d{4})").match(datetime_element["tz"])
                     if tz_match:
@@ -281,9 +281,15 @@ class StandardImportExportHandler(ImportExportHandler):
         except Exception:
             pass
         if data is not None:
-            #file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
             data_element = dict()
             data_element["data"] = data
+            if os.path.exists(path):
+                try:
+                    file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+                except:
+                    file_datetime = None
+                if file_datetime is not None:
+                    data_element["datetime_modified"] = Utility.get_datetime_item_from_datetime(file_datetime)
             return [data_element]
         return list()
 
