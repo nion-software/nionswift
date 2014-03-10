@@ -896,7 +896,16 @@ class DataItem(Storage.StorageBase):
         reference_type = self.__master_data_reference_type # if self.__master_data_reference_type else "relative_file"
         reference = self.__master_data_reference # if self.__master_data_reference else DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
         file_datetime = self.__master_data_file_datetime # if self.__master_data_file_datetime else Utility.get_datetime_from_datetime_item(self.datetime_original)
-        return self.__master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
+        # when data items are initially created, they will have their data in memory.
+        # this method will be called when the data gets written out to disk.
+        # to ensure that the data gets unloaded, grab it here and release it.
+        # if no other object is holding a reference, the data will be unloaded from memory.
+        if self.__master_data is not None:
+            with self.data_ref() as d:
+                master_data = d.master_data
+        else:
+            master_data = None
+        return master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
 
     def set_external_master_data(self, data_file_path, data_shape, data_dtype):
         with self.__data_mutex:
@@ -919,7 +928,7 @@ class DataItem(Storage.StorageBase):
     def __load_master_data(self):
         # load data from datastore if not present
         if self.has_master_data and self.datastore and self.__master_data is None:
-            #logging.debug("loading %s (%s)", self, self.uuid)
+            #logging.debug("loading %s", self)
             reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self), "master_data")
             self.__master_data = self.datastore.load_data_reference("master_data", reference_type, reference)
 
@@ -928,7 +937,8 @@ class DataItem(Storage.StorageBase):
         # data cannot be unloaded if transaction count > 0 or if there is no datastore.
         if self.transaction_count == 0 and self.has_master_data and self.datastore:
             self.__master_data = None
-            #logging.debug("unloading %s (%s)", self, self.uuid)
+            self.__cached_data = None
+            #logging.debug("unloading %s", self)
 
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:

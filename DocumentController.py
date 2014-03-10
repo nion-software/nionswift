@@ -587,12 +587,18 @@ class DocumentController(Observable.Broadcaster):
                         else:
                             self.document_model.append_data_item(data_item)
                 # when data is read from the import manager, it has not yet been added to the document.
-                # this means that data is still in memory and has not been offloaded. force the data to
-                # offload by grabbing the data reference, resetting the master data, and releasing.
+                # this means that data is still in memory and has not been offloaded.
+                # when it gets added to the document, a write to the database is queued to a background
+                # thread. the background task will write the object in the background.
+                # the _get_master_data_data_reference method will reference the data and release the
+                # reference, which will unload the data (if unused elsewhere).
+                # this is a hack to make sure the data is fully written to disk before proceeding. this
+                # keeps memory usage low during import.
+                # TODO: implement and wait on is_data_loaded event instead of polling.
                 for data_item in data_items:
-                    with data_item.data_ref() as d:
-                        # TODO: Figure out a cleaner way to get master data to write to disk.
-                        d.master_data = d.data
+                    while data_item.is_data_loaded:
+                        import time
+                        time.sleep(0.05)
                 received_data_items.extend(data_items)
             except Exception as e:
                 logging.debug("Could not read image %s", file_path)
