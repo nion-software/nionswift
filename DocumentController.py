@@ -1,9 +1,14 @@
 # standard libraries
 import collections
 import datetime
+import functools
 import gettext
 import logging
+import os.path
 import random
+import threading
+import time
+import traceback
 import weakref
 
 # third party libraries
@@ -387,9 +392,9 @@ class DocumentController(Observable.Broadcaster):
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
     # this method creates a task. it is thread safe.
-    def create_task_context_manager(self, title, task_type):
+    def create_task_context_manager(self, title, task_type, logging=True):
         task = Task.Task(title, task_type)
-        task_context_manager = Task.TaskContextManager(self, task)
+        task_context_manager = Task.TaskContextManager(self, task, logging)
         self.notify_listeners("task_created", task)
         return task_context_manager
 
@@ -566,46 +571,103 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, external=False):
-        received_data_items = list()
-        for file_path in file_paths:
-            try:
-                data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path, external=external)
-                if data_group and isinstance(data_group, DataGroup.DataGroup):
-                    for data_item in data_items:
-                        self.document_model.append_data_item(data_item)
-                        if index >= 0:
-                            data_group.insert_data_item(index, data_item)
-                            index += 1
-                        else:
-                            data_group.append_data_item(data_item)
-                else:  # insert into document model only
-                    for data_item in data_items:
-                        if index >= 0:
-                            self.document_model.insert_data_item(index, data_item)
-                            index += 1
-                        else:
-                            self.document_model.append_data_item(data_item)
-                # when data is read from the import manager, it has not yet been added to the document.
-                # this means that data is still in memory and has not been offloaded.
-                # when it gets added to the document, a write to the database is queued to a background
-                # thread. the background task will write the object in the background.
-                # the _get_master_data_data_reference method will reference the data and release the
-                # reference, which will unload the data (if unused elsewhere).
-                # this is a hack to make sure the data is fully written to disk before proceeding. this
-                # keeps memory usage low during import.
-                # TODO: implement and wait on is_data_loaded event instead of polling.
-                for data_item in data_items:
-                    while data_item.is_data_loaded:
-                        import time
-                        time.sleep(0.05)
-                received_data_items.extend(data_items)
-            except Exception as e:
-                logging.debug("Could not read image %s", file_path)
-                import traceback
-                traceback.print_exc()
-                logging.debug("Error: %s", e)
-        return received_data_items
+    def receive_files(self, file_paths, data_group=None, index=-1, external=False, threaded=True):
+
+        # this function will be called on a thread to receive files in the background.
+        def receive_files_on_thread(file_paths, data_group, index, external):
+
+            received_data_items = list()
+
+            with self.create_task_context_manager(_("Import Data Items"), "table", logging=threaded) as task:
+                task.update_progress(_("Starting import."), (0, str()))
+                task_data = {"headers": ["Number", "File"]}
+
+                class IntRef(object):
+                    def __init__(self, value):
+                        self.value = value
+
+                    def grab(self):
+                        value = self.value
+                        self.value += 1
+                        return value
+
+                index_ref = IntRef(index)
+
+                for file_index, file_path in enumerate(file_paths):
+                    data = task_data.setdefault("data", list())
+                    root_path, file_name = os.path.split(file_path)
+                    task_data_entry = [str(file_index + 1), file_name]
+                    data.append(task_data_entry)
+                    task.update_progress(_("Importing item {}.").format(file_index + 1),
+                                         (file_index + 1, len(file_paths)), task_data)
+                    try:
+                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path,
+                                                                                               external=external)
+
+                        # when data is read from the import manager, it has not yet been added to the document.
+                        # this means that data is still in memory and has not been offloaded.
+                        # when it gets added to the document, a write to the database is queued to a background
+                        # thread. the background task will write the object in the background.
+                        # but the data item itself will unload if the data ref count goes to zero, for instance if
+                        # a thumbnail squeezes in before the write occurs.
+                        # to prevent this, the data ref count is incremented here and released after the data
+                        # is grabbed by the storage machinery.
+                        # the data item has an event set up to signal when the data has been grabbed. this method
+                        # waits on that event to ensure the data gets written out.
+                        # TODO: Recover task if something goes wrong while saving data.
+
+                        # grab a data ref
+                        for data_item in data_items:
+                            data_item.increment_data_ref_count()
+
+                        def insert_data_item(_document_model, _data_group, _data_items, index_ref):
+                            if _data_group and isinstance(_data_group, DataGroup.DataGroup):
+                                for data_item in _data_items:
+                                    _document_model.append_data_item(data_item)
+                                    if index_ref.value >= 0:
+                                        _data_group.insert_data_item(index_ref.grab(), data_item)
+                                    else:
+                                        _data_group.append_data_item(data_item)
+                            else:  # insert into document model only
+                                for data_item in _data_items:
+                                    if index_ref.value >= 0:
+                                        _document_model.insert_data_item(index_ref.grab(), data_item)
+                                    else:
+                                        _document_model.append_data_item(data_item)
+
+                        # notice that a lambda function is used to snapshot the first three arguments, but the
+                        # index_ref argument is shared with all calls so that the items get inserted in order.
+                        self.queue_main_thread_task(lambda document_model=self.document_model, data_group=data_group,
+                                                           data_items=data_items: insert_data_item(document_model,
+                                                                                                   data_group,
+                                                                                                   data_items,
+                                                                                                   index_ref))
+
+                        # wait for the save event to occur, then release the data ref.
+                        for data_item in data_items:
+                            if threaded:
+                                data_item.master_data_save_event.wait()
+                            else:
+                                while not data_item.master_data_save_event.wait(0.05):
+                                    self.periodic()
+                            data_item.decrement_data_ref_count()
+
+                        received_data_items.extend(data_items)
+
+                    except Exception as e:
+                        logging.debug("Could not read image %s", file_path)
+                        traceback.print_exc()
+                        logging.debug("Error: %s", e)
+
+                task.update_progress(_("Finishing importing."), (len(file_paths), len(file_paths)))
+
+                return received_data_items
+
+        if threaded:
+            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, external)).start()
+            return None
+        else:
+            return receive_files_on_thread(file_paths, data_group, index, external)
 
     # this helps avoid circular imports
     def create_selected_data_item_binding(self):

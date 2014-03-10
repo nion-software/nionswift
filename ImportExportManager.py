@@ -281,6 +281,7 @@ class StandardImportExportHandler(ImportExportHandler):
         except Exception:
             pass
         if data is not None:
+            #file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
             data_element = dict()
             data_element["data"] = data
             return [data_element]

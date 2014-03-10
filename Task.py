@@ -264,25 +264,29 @@ class Task(Storage.StorageBase):
 # all public methods are thread safe
 class TaskContextManager(object):
 
-    def __init__(self, container, task):
+    def __init__(self, container, task, logging):
         self.__container = container
         self.__task = task
+        self.__logging = logging
 
     def __enter__(self):
-        logging.debug("%s: started", self.__task.title)
+        if self.__logging:
+            logging.debug("%s: started", self.__task.title)
         self.__task.start_time = time.time()
         return self
 
     def __exit__(self, type, value, traceback):
         self.__task.finish_time = time.time()
-        logging.debug("%s: finished", self.__task.title)
+        if self.__logging:
+            logging.debug("%s: finished", self.__task.title)
 
     def update_progress(self, progress_text, progress=None, task_data=None):
         self.__task.progress_text = progress_text
         self.__task.progress = progress
         if task_data:
             self.__task.task_data = task_data
-        logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
+        if self.__logging:
+            logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
 class TaskManager(object):

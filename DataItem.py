@@ -245,6 +245,7 @@ class DataItem(Storage.StorageBase):
         self.__master_data_reference_type = None  # used for temporary storage
         self.__master_data_reference = None  # used for temporary storage
         self.__master_data_file_datetime = None  # used for temporary storage
+        self.master_data_save_event = threading.Event()
         self.__has_master_data = False
         self.__data_source = None
         self.__data_ref_count = 0
@@ -905,6 +906,7 @@ class DataItem(Storage.StorageBase):
                 master_data = d.master_data
         else:
             master_data = None
+        self.master_data_save_event.set()
         return master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
 
     def set_external_master_data(self, data_file_path, data_shape, data_dtype):
