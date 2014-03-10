@@ -107,6 +107,7 @@ class DataPanel(Panel.Panel):
             self.ui = document_controller.ui
             self.item_model_controller = self.ui.create_item_model_controller(["display"])
             self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
+            self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.on_receive_files = None
@@ -147,7 +148,13 @@ class DataPanel(Panel.Panel):
             self.__item_count += 1
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            pass
+            container = self.document_controller.document_model
+            if mime_data.has_file_paths:
+                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                    return self.item_model_controller.NONE
+                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, len(self.document_controller.document_model.data_items)):
+                    return self.item_model_controller.COPY
+            return self.item_model_controller.NONE
 
 
     # a tree model of the data groups. this class watches for changes to the data groups contained in the document controller
@@ -530,7 +537,7 @@ class DataPanel(Panel.Panel):
         self.__block1 = False
 
         self.library_model_controller = DataPanel.LibraryModelController(document_controller)
-        self.library_model_controller.on_receive_files = lambda file_paths, index: self.library_model_receive_files(file_paths, data_group, index)
+        self.library_model_controller.on_receive_files = lambda file_paths, index: self.library_model_receive_files(file_paths, index)
 
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
@@ -792,12 +799,25 @@ class DataPanel(Panel.Panel):
         if data_item in self.data_item_model_controller.data_items:
             self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
+    def library_model_receive_files(self, file_paths, index, external=False, threaded=True):
+        def receive_files_complete(received_data_items):
+            def select_library_all():
+                self.update_data_panel_selection(DataPanelSelection(data_item=received_data_items[0]))
+            if len(received_data_items) > 0:
+                self.queue_task(select_library_all)
+        data_items = self.document_controller.receive_files(file_paths, None, index, external, threaded, receive_files_complete)
+        return True
+
     # receive files dropped into the data group. default is to embed files (external=True), not link.
     # this message comes from the data group model, which is why it is named the way it is.
     def data_group_model_receive_files(self, file_paths, data_group, index, external=False, threaded=True):
-        data_items = self.document_controller.receive_files(file_paths, data_group, index, external, threaded)
-        if data_items is not None and len(data_items) > 0:
-            # select the first item/group
-            self.update_data_panel_selection(DataPanelSelection(data_group, data_items[0]))
-            return True
-        return False
+        def receive_files_complete(received_data_items):
+            def select_data_group_and_data_item():
+                self.update_data_panel_selection(DataPanelSelection(data_group=data_group, data_item=received_data_items[0]))
+            if len(received_data_items) > 0:
+                if threaded:
+                    self.queue_task(select_data_group_and_data_item)
+                else:
+                    select_data_group_and_data_item()
+        self.document_controller.receive_files(file_paths, data_group, index, external, threaded, receive_files_complete)
+        return True

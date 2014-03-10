@@ -600,10 +600,10 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, external=False, threaded=True):
+    def receive_files(self, file_paths, data_group=None, index=-1, external=False, threaded=True, completion_fn=None):
 
         # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths, data_group, index, external):
+        def receive_files_on_thread(file_paths, data_group, index, external, completion_fn):
 
             received_data_items = list()
 
@@ -690,13 +690,16 @@ class DocumentController(Observable.Broadcaster):
 
                 task.update_progress(_("Finishing importing."), (len(file_paths), len(file_paths)))
 
+                if completion_fn:
+                    completion_fn(received_data_items)
+
                 return received_data_items
 
         if threaded:
-            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, external)).start()
+            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, external, completion_fn)).start()
             return None
         else:
-            return receive_files_on_thread(file_paths, data_group, index, external)
+            return receive_files_on_thread(file_paths, data_group, index, external, completion_fn)
 
     # this helps avoid circular imports
     def create_selected_data_item_binding(self):
