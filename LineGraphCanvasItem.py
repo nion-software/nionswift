@@ -193,7 +193,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 horizontal_tick_spacing = data_len * horizontal_tick_spacing / plot_width
                 if self.spatial_calibration:
                     horizontal_tick_spacing = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_spacing)
-                horizontal_tick_spacing = Geometry.make_pretty(horizontal_tick_spacing)
+                # TODO: add test for horizontal_tick_spacing 0.0 and vertical space 0.0 too
+                horizontal_tick_spacing = Geometry.make_pretty(horizontal_tick_spacing, round_up=True)  # never want this to round to 0.0
                 if self.spatial_calibration:
                     horizontal_tick_spacing = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_spacing)
                 # calculate the horizontal minimum value in spatial units
@@ -205,8 +206,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     horizontal_tick_min = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_min)
                 # draw the tick marks
                 x = horizontal_tick_min + plot_origin_x
-                while x < plot_origin_y + plot_width:
-                    # y 0 is at top
+                while horizontal_tick_spacing > 0.0 and x < plot_origin_x + plot_width:  # sanity check along with regular loop
                     drawing_context.begin_path()
                     if self.draw_grid:
                         drawing_context.move_to(x, plot_origin_y)
