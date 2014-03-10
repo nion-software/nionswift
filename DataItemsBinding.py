@@ -35,6 +35,7 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
             self._update_data_items()
 
     def changes(self):
+        """ Acquire this while setting filter or sort so that changes get made simultaneously. """
         class ChangeTracker(object):
             def __init__(self, binding):
                 self.__binding = binding
@@ -64,12 +65,14 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
     filter = property(__get_filter, __set_filter)
 
     # thread safe
+    # data items are the currently filtered and sorted list.
     def __get_data_items(self):
         with self._update_mutex:
             return copy.copy(self.__data_items)
     data_items = property(__get_data_items)
 
     # thread safe
+    # subclasses should implement this to return the master list of data items
     def _get_master_data_items(self):
         raise NotImplementedError()
 

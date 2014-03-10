@@ -63,11 +63,11 @@ class DataPanel(Panel.Panel):
 
     class LibraryItemController(object):
 
-        def __init__(self, container, filter_id=None):
+        def __init__(self, binding):
             self.__task_queue = Process.TaskQueue()
-            self.__binding = DataItemsBinding.DataItemsInContainerBinding()
             self.__count = 0
             self.title_updater = None
+            self.__binding = binding
             def data_item_inserted(data_item, before_index):
                 self.__count += 1
                 if self.title_updater:
@@ -76,23 +76,15 @@ class DataPanel(Panel.Panel):
                 self.__count -= 1
                 if self.title_updater:
                     self.title_updater(self.__count)
-            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__binding.container = container
-            if filter_id == "latest-session":
-                def latest_session_filter(data_item):
-                    return data_item.session_id == container.session.session_id
-                self.__binding.filter = latest_session_filter
-                self.__binding.sort = DataItemsBinding.sort_by_date_desc
-            elif filter_id == "recent":
-                def recent_filter(data_item):
-                    date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                self.__binding.filter = recent_filter
-                self.__binding.sort = DataItemsBinding.sort_by_date_desc
-            else:
-                self.__binding.filter = None
-                self.__binding.sort = DataItemsBinding.sort_natural
+            with self.__binding.changes():
+                self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+                self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
+            def update_count():
+                self.__count = len(self.__binding.data_items)
+                if self.title_updater:
+                    self.title_updater(self.__count)
+            # make sure the count gets properly initialized
+            self.queue_task(update_count)
 
         def close(self):
             del self.__binding.inserters[id(self)]
@@ -121,9 +113,9 @@ class DataPanel(Panel.Panel):
             self.__item_controllers = list()
             self.__item_count = 0
             # build the items
-            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller.document_model))
-            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller.document_model, "latest-session"))
-            self.__append_item_controller(_("Recent"), DataPanel.LibraryItemController(document_controller.document_model, "recent"))
+            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, None)))
+            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, "latest-session")))
+            self.__append_item_controller(_("Recent"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, "recent")))
 
         def close(self):
             for item_controller in self.__item_controllers:

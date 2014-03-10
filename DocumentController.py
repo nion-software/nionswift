@@ -55,8 +55,14 @@ class DocumentController(Observable.Broadcaster):
         self.weak_data_panel = None
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
+
+        # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
+        # and next by applying a custom filter to the items from the items resulting in the first selection.
+        # data items binding tracks the main list of items selected in the data panel.
+        # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
+
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -229,29 +235,38 @@ class DocumentController(Observable.Broadcaster):
         return self.__filtered_data_items_binding
     filtered_data_items_binding = property(__get_filtered_data_items_binding)
 
+    def update_data_item_binding(self, binding, data_group, filter_id):
+        with binding.changes():  # change filter and sort together
+            if data_group is not None:
+                binding.container = data_group
+                binding.filter = None
+                binding.sort = DataItemsBinding.sort_natural
+            elif filter_id == "latest-session":
+                binding.container = self.document_model
+                def latest_session_filter(data_item):
+                    return data_item.session_id == self.document_model.session.session_id
+                binding.filter = latest_session_filter
+                binding.sort = DataItemsBinding.sort_by_date_desc
+            elif filter_id == "recent":
+                binding.container = self.document_model
+                def recent_filter(data_item):
+                    date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
+                binding.filter = recent_filter
+                binding.sort = DataItemsBinding.sort_by_date_desc
+            else:
+                binding.container = self.document_model
+                binding.filter = None
+                binding.sort = DataItemsBinding.sort_natural
+
+    def create_data_item_binding(self, data_group, filter_id):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        self.update_data_item_binding(binding, data_group, filter_id)
+        return binding
+
     def set_data_group_or_filter(self, data_group, filter_id):
         if self.__data_items_binding is not None:
-            if data_group is not None:
-                self.__data_items_binding.container = data_group
-                self.__data_items_binding.filter = None
-                self.__data_items_binding.sort = DataItemsBinding.sort_natural
-            elif self.__data_items_binding is not None:  # may be closing down
-                with self.__data_items_binding.changes():
-                    self.__data_items_binding.container = self.document_model
-                    if filter_id == "latest-session":
-                        def latest_session_filter(data_item):
-                            return data_item.session_id == self.document_model.session.session_id
-                        self.__data_items_binding.filter = latest_session_filter
-                        self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-                    elif filter_id == "recent":
-                        def recent_filter(data_item):
-                            date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                            return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                        self.__data_items_binding.filter = recent_filter
-                        self.__data_items_binding.sort = DataItemsBinding.sort_by_date_desc
-                    else:
-                        self.__data_items_binding.filter = None
-                        self.__data_items_binding.sort = DataItemsBinding.sort_natural
+            self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter
