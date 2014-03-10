@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import string
 import time
 import zipfile
 
@@ -98,7 +99,7 @@ class ImportExportManager(object):
         writers = []
         for io_handler in self.__io_handlers:
             for extension in io_handler.extensions:
-                if io_handler.can_write(data_item, extension):
+                if io_handler.can_write(data_item, string.lower(extension)):
                     writers.append(io_handler)
                     break  # from iterating extensions
         return writers
@@ -108,6 +109,7 @@ class ImportExportManager(object):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
+            extension = string.lower(extension)
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
                     return io_handler.read_data_items(ui, extension, path, external)
@@ -118,6 +120,7 @@ class ImportExportManager(object):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
+            extension = string.lower(extension)
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
                     return io_handler.read_data_elements(ui, extension, path)
@@ -127,6 +130,7 @@ class ImportExportManager(object):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
+            extension = string.lower(extension)
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions and io_handler.can_write(data_item, extension):
                     io_handler.write(ui, data_item, path, extension)
