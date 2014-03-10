@@ -150,6 +150,7 @@ class DataPanel(Panel.Panel):
                 item.data["display"] = title + (" (%i)" % count)
                 self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
             item_controller.title_updater = title_updater
+            title_updater(0)
             self.__item_controllers.append(item_controller)
             self.__item_count += 1
 
