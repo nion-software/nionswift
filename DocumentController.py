@@ -49,7 +49,6 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
         self.replaced_data_item = None
-        self.__recent_weak_data_items = collections.deque(maxlen=16)
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
@@ -62,6 +61,8 @@ class DocumentController(Observable.Broadcaster):
         # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
+
+        self.recent_data_items_container = DataItemsBinding.DataItemQueueContainer()
 
         self.console = None
         self.create_menus()
@@ -239,23 +240,31 @@ class DocumentController(Observable.Broadcaster):
         with binding.changes():  # change filter and sort together
             if data_group is not None:
                 binding.container = data_group
+                binding.flat = False
                 binding.filter = None
                 binding.sort = DataItemsBinding.sort_natural
             elif filter_id == "latest-session":
                 binding.container = self.document_model
+                binding.flat = False
                 def latest_session_filter(data_item):
                     return data_item.session_id == self.document_model.session.session_id
                 binding.filter = latest_session_filter
                 binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "recent":
+                binding.container = self.recent_data_items_container
+                binding.flat = True
+                binding.filter = None
+                binding.sort = DataItemsBinding.sort_natural
+            elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
-                def recent_filter(data_item):
-                    date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                    return (datetime.datetime.now() - date_item_datetime).total_seconds() < 4 * 60 * 60
-                binding.filter = recent_filter
-                binding.sort = DataItemsBinding.sort_by_date_desc
+                binding.flat = False
+                def none_filter(data_item):
+                    return False
+                binding.filter = none_filter
+                binding.sort = DataItemsBinding.sort_natural
             else:
                 binding.container = self.document_model
+                binding.flat = False
                 binding.filter = None
                 binding.sort = DataItemsBinding.sort_natural
 
@@ -266,7 +275,15 @@ class DocumentController(Observable.Broadcaster):
 
     def set_data_group_or_filter(self, data_group, filter_id):
         if self.__data_items_binding is not None:
-            self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
+            # this is done in two steps, as an ugly ugly hack.
+            # TODO: Fix the filter update hack.
+            # the purpose is to clear out the data items in the filtered data items binding
+            # so that the level gets recalculated. otherwise the data panel simply re-uses
+            # the existing data item and level. this is a bad design.
+            with self.__filtered_data_items_binding.changes():
+                self.update_data_item_binding(self.__data_items_binding, None, "none")
+            with self.__filtered_data_items_binding.changes():
+                self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter
@@ -330,14 +347,11 @@ class DocumentController(Observable.Broadcaster):
         """ Register a data item into the most recent used list. """
         assert data_item is not None
         assert isinstance(data_item, DataItem.DataItem)
-        weak_data_item = weakref.ref(data_item)
-        if weak_data_item in self.__recent_weak_data_items:
-            self.__recent_weak_data_items.remove(weak_data_item)
-        self.__recent_weak_data_items.appendleft(weak_data_item)
+        self.recent_data_items_container.insert_data_item(data_item)
 
     def __get_recent_data_items(self):
-        """ Return up to the 16 most recent data items that the user has placed in display panels. """
-        return [weak_data_item() for weak_data_item in self.__recent_weak_data_items]
+        """ Return up to the most recent data items that the user has placed in display panels. """
+        return self.recent_data_items_container.data_items
     recent_data_items = property(__get_recent_data_items)
 
     # access the currently selected data item. read only.

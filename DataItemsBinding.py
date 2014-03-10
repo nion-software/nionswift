@@ -4,6 +4,7 @@ import copy
 import functools
 import logging
 import threading
+import weakref
 
 # third party libraries
 # None
@@ -11,6 +12,7 @@ import threading
 # local libraries
 from nion.swift import DataGroup
 from nion.swift import Utility
+from nion.ui import Observable
 from nion.ui import UserInterfaceUtility
 
 
@@ -24,6 +26,7 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         self.removers = dict()
         self.__filter = None
         self.__sort = None
+        self.__flat = False
         self.__change_level = 0
 
     def begin_change(self):
@@ -64,6 +67,15 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         self._update_data_items()
     filter = property(__get_filter, __set_filter)
 
+    # allow non-masters. 'get' has to be inheritable. ugh.
+    def _get_flat(self):
+        return self.__flat
+    def __set_flat(self, flat):
+        with self._update_mutex:
+            self.__flat = flat
+        self._update_data_items()
+    flat = property(_get_flat, __set_flat)
+
     # thread safe
     # data items are the currently filtered and sorted list.
     def __get_data_items(self):
@@ -77,33 +89,39 @@ class DataItemsBinding(UserInterfaceUtility.Binding):
         raise NotImplementedError()
 
     # thread safe.
+    def _build_data_items(self):
+        master_data_items = list()
+        for data_item in self._get_master_data_items():
+            if self.flat or data_item.has_master_data:
+                master_data_items.append(data_item)
+        assert len(set(master_data_items)) == len(master_data_items)
+        # sort the master data list
+        if self.sort:
+            sort_key, reverse = self.sort(self.container)
+            master_data_items.sort(key=sort_key, reverse=reverse)
+        # construct the data items list by expanding each master data item to
+        # include its children
+        data_items = list()
+        for data_item in master_data_items:
+            # apply filter
+            if self.filter is None or self.filter(data_item):
+                # add data item and its dependent data items
+                data_items.append(data_item)
+                if not self.flat:
+                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+        return data_items
+
+    # thread safe.
     def _update_data_items(self):
         if self.__change_level > 0:
             return
         with self._update_mutex:
             # first build the new data_items list, including data items with master data.
             old_data_items = copy.copy(self.__data_items)
-            master_data_items = list()
-            for data_item in self._get_master_data_items():
-                if data_item.has_master_data:
-                    master_data_items.append(data_item)
-            # sort the master data list
-            if self.sort:
-                sort_key, reverse = self.sort(self.container)
-                master_data_items.sort(key=sort_key, reverse=reverse)
-            # construct the data items list by expanding each master data item to
-            # include its children
-            data_items = list()
-            for data_item in master_data_items:
-                # apply filter
-                if not self.__filter or self.__filter(data_item):
-                    # add data item and its dependent data items
-                    data_items.append(data_item)
-                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+            data_items = self._build_data_items()
             # now generate the insert/remove instructions to make the official
             # list match the proposed list.
             assert len(set(self._get_master_data_items())) == len(self._get_master_data_items())
-            assert len(set(master_data_items)) == len(master_data_items)
             assert len(set(data_items)) == len(data_items)
             index = 0
             for data_item in data_items:
@@ -181,6 +199,29 @@ class DataItemsFilterBinding(DataItemsBinding):
     def _get_master_data_items(self):
         return self.__master_data_items
 
+    # thread safe.
+    def _build_data_items(self):
+        master_data_items = list()
+        for data_item in self._get_master_data_items():
+            if self.__data_items_binding.flat or data_item.has_master_data:
+                master_data_items.append(data_item)
+        assert len(set(master_data_items)) == len(master_data_items)
+        # sort the master data list
+        if self.sort:
+            sort_key, reverse = self.sort(self.container)
+            master_data_items.sort(key=sort_key, reverse=reverse)
+        # construct the data items list by expanding each master data item to
+        # include its children
+        data_items = list()
+        for data_item in master_data_items:
+            # apply filter
+            if self.filter is None or self.filter(data_item):
+                # add data item and its dependent data items
+                data_items.append(data_item)
+                if not self.__data_items_binding.flat:
+                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+        return data_items
+
 
 class DataItemsInContainerBinding(DataItemsBinding):
     """
@@ -249,3 +290,41 @@ def sort_by_date_desc(container):
         date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         return date_item_datetime
     return sort_key, True
+
+
+class DataItemQueueContainer(Observable.Broadcaster):
+    """
+        A data item container for use with DataItemsInContainerBinding that sends out
+        update_counted_data_items and subtract_counted_data_items messages to this object.
+    """
+    def __init__(self):
+        super(DataItemQueueContainer, self).__init__()
+        self.__weak_data_items = collections.deque(maxlen=16)
+
+    def __get_data_items(self):
+        return [weak_data_item() for weak_data_item in self.__weak_data_items]
+    data_items = property(__get_data_items)
+
+    def insert_data_item(self, data_item):
+        old_counted_data_items = collections.Counter()
+        old_counted_data_items.update(copy.copy(self.data_items))
+        weak_data_item = weakref.ref(data_item)
+        if weak_data_item in self.__weak_data_items:
+            self.__weak_data_items.remove(weak_data_item)
+        self.__weak_data_items.appendleft(weak_data_item)
+        new_counted_data_items = collections.Counter()
+        new_counted_data_items.update(copy.copy(self.data_items))
+        self.notify_listeners("update_counted_data_items", new_counted_data_items)
+        self.notify_listeners("subtract_counted_data_items", old_counted_data_items)
+
+    def __get_counted_data_items(self):
+        counted_data_items = collections.Counter()
+        counted_data_items.update(copy.copy(self.data_items))
+        return counted_data_items
+    counted_data_items = property(__get_counted_data_items)
+
+    def add_ref(self):
+        pass
+
+    def remove_ref(self):
+        pass
