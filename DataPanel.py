@@ -805,7 +805,7 @@ class DataPanel(Panel.Panel):
                 self.update_data_panel_selection(DataPanelSelection(data_item=received_data_items[0]))
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
-        data_items = self.document_controller.receive_files(file_paths, None, index, external, threaded, receive_files_complete)
+        self.document_controller.receive_files(file_paths, None, index, external, threaded, receive_files_complete)
         return True
 
     # receive files dropped into the data group. default is to embed files (external=True), not link.

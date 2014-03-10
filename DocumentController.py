@@ -223,6 +223,8 @@ class DocumentController(Observable.Broadcaster):
         # workspace
         if self.workspace:
             self.workspace.periodic()
+        for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
+            image_panel.periodic()
         if self.__data_items_binding:
             self.__data_items_binding.periodic()
         if self.__filtered_data_items_binding:

@@ -501,6 +501,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
+        if mime_data.has_format("text/uri-list"):
+            return "copy"
         return "ignore"
 
     def drag_leave(self):
@@ -508,6 +510,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drag_move(self, mime_data, x, y):
         if mime_data.has_format("text/data_item_uuid"):
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
             return "copy"
         return "ignore"
 
@@ -518,6 +522,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.image_panel:
                 self.document_controller.replaced_data_item = self.image_panel.data_item
                 self.image_panel.data_item = data_item
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
+            def receive_files_complete(received_data_items):
+                def update_displayed_data_item():
+                    if self.image_panel:
+                        self.document_controller.replaced_data_item = self.image_panel.data_item
+                        self.image_panel.data_item = received_data_items[0]
+                if len(received_data_items) > 0:
+                    self.image_panel.queue_task(update_displayed_data_item)
+            index = len(self.document_controller.document_model.data_items)
+            self.document_controller.receive_files(mime_data.file_paths, None, index, external=False, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         return "ignore"
 
@@ -1111,6 +1126,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
+        if mime_data.has_format("text/uri-list"):
+            return "copy"
         return "ignore"
 
     def drag_leave(self):
@@ -1118,6 +1135,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drag_move(self, mime_data, x, y):
         if mime_data.has_format("text/data_item_uuid"):
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
             return "copy"
         return "ignore"
 
@@ -1128,6 +1147,17 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if self.image_panel:
                 self.document_controller.replaced_data_item = self.image_panel.data_item
                 self.image_panel.data_item = data_item
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
+            def receive_files_complete(received_data_items):
+                def update_displayed_data_item():
+                    if self.image_panel:
+                        self.document_controller.replaced_data_item = self.image_panel.data_item
+                        self.image_panel.data_item = received_data_items[0]
+                if len(received_data_items) > 0:
+                    self.image_panel.queue_task(update_displayed_data_item)
+            index = len(self.document_controller.document_model.data_items)
+            self.document_controller.receive_files(mime_data.file_paths, None, index, external=False, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         return "ignore"
 
