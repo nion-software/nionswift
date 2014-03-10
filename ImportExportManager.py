@@ -134,6 +134,8 @@ class ImportExportManager(object):
 
 # create a new data item with a data element.
 # data element is a dict which can be processed into a data item
+# when this method returns, the data item has not been added to a document. therefore, the
+# data is still loaded into memory, but with a data ref count of zero.
 def create_data_item_from_data_element(data_element, external=False, data_file_path=None):
     data_item = DataItem.DataItem()
     update_data_item_from_data_element(data_item, data_element, external, data_file_path)
@@ -151,6 +153,8 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
             data = data_element["data"]
             data_item.set_external_master_data(data_file_path, data.shape, data.dtype)
         else:
+            if data_file_path is not None:
+                data_item.source_file_path = data_file_path
             with data_item.data_ref() as data_ref:
                 data = data_element["data"]
                 sub_area = data_element.get("sub_area")
@@ -254,6 +258,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
         data_element["intensity_calibration"] = calibration_element
     data_element["properties"] = copy.copy(data_item.properties)
     data_element["title"] = copy.copy(data_item.title)
+    data_element["source_file_path"] = copy.copy(data_item.source_file_path)
     data_element["datetime_modified"] = copy.copy(data_item.datetime_modified)
     data_element["datetime_original"] = copy.copy(data_item.datetime_original)
     data_element["uuid"] = str(data_item.uuid)

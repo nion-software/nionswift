@@ -369,10 +369,7 @@ class DocumentController(Observable.Broadcaster):
         import_dir = self.ui.get_persistent_string("import_directory", "")
         paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
-        for path in paths:
-            data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, path, external=True)
-            for data_item in data_items:
-                self.document_model.append_data_item(data_item)
+        self.receive_files(paths)
 
     def export_file(self):
         # present a loadfile dialog to the user
@@ -569,7 +566,7 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, external=True):
+    def receive_files(self, file_paths, data_group=None, index=-1, external=False):
         received_data_items = list()
         for file_path in file_paths:
             try:
@@ -589,6 +586,13 @@ class DocumentController(Observable.Broadcaster):
                             index += 1
                         else:
                             self.document_model.append_data_item(data_item)
+                # when data is read from the import manager, it has not yet been added to the document.
+                # this means that data is still in memory and has not been offloaded. force the data to
+                # offload by grabbing the data reference, resetting the master data, and releasing.
+                for data_item in data_items:
+                    with data_item.data_ref() as d:
+                        # TODO: Figure out a cleaner way to get master data to write to disk.
+                        d.master_data = d.data
                 received_data_items.extend(data_items)
             except Exception as e:
                 logging.debug("Could not read image %s", file_path)

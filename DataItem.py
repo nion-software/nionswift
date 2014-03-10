@@ -209,7 +209,7 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties"]
+        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties", "source_file_path"]
         self.storage_items += ["intrinsic_intensity_calibration"]
         self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items"]
         self.storage_data_keys += ["master_data"]
@@ -221,6 +221,7 @@ class DataItem(Storage.StorageBase):
         self.closed = False
         self.__title = None
         self.__param = 0.5
+        self.__source_file_path = None
         self.__display_limits = None  # auto
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__datetime_original = Utility.get_current_datetime_item()
@@ -289,6 +290,7 @@ class DataItem(Storage.StorageBase):
     def build(cls, datastore, item_node, uuid_):
         title = datastore.get_property(item_node, "title")
         param = datastore.get_property(item_node, "param")
+        source_file_path = datastore.get_property(item_node, "source_file_path")
         properties = datastore.get_property(item_node, "properties")
         display_limits = datastore.get_property(item_node, "display_limits")
         intrinsic_calibrations = datastore.get_items(item_node, "calibrations")  # uses old key until migrated
@@ -307,6 +309,7 @@ class DataItem(Storage.StorageBase):
         data_item = cls()
         data_item.title = title
         data_item.param = param
+        data_item.source_file_path = source_file_path
         data_item.__properties = properties if properties else dict()
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
@@ -752,6 +755,15 @@ class DataItem(Storage.StorageBase):
             self.__param = value
             self.notify_set_property("param", self.__param)
     param = property(__get_param, __set_param)
+
+    # source file path
+    def __get_source_file_path(self):
+        return self.__source_file_path
+    def __set_source_file_path(self, value):
+        if self.__source_file_path != value:
+            self.__source_file_path = value
+            self.notify_set_property("source_file_path", self.__source_file_path)
+    source_file_path = property(__get_source_file_path, __set_source_file_path)
 
     def __get_graphics(self):
         """ A copy of the graphics """
@@ -1301,6 +1313,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
+        data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
@@ -1332,6 +1345,7 @@ class DataItem(Storage.StorageBase):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
+        data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)

@@ -799,8 +799,9 @@ class DataPanel(Panel.Panel):
         if data_item in self.data_item_model_controller.data_items:
             self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
-    # this message comes from the data group model, which is why it is named the way it is
-    def data_group_model_receive_files(self, file_paths, data_group, index, external=True):
+    # receive files dropped into the data group. default is to embed files (external=True), not link.
+    # this message comes from the data group model, which is why it is named the way it is.
+    def data_group_model_receive_files(self, file_paths, data_group, index, external=False):
         data_items = self.document_controller.receive_files(file_paths, data_group, index, external)
         if len(data_items) > 0:
             # select the first item/group
