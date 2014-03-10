@@ -251,7 +251,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
         for calibration in calculated_calibrations:
             calibration_element = { "origin": calibration.origin, "scale": calibration.scale, "units": calibration.units }
             calibrations_element.append(calibration_element)
-        data_element["spatial_calibrations"] = calibration_element
+        data_element["spatial_calibrations"] = calibrations_element
     intensity_calibration = data_item.calculated_intensity_calibration
     if intensity_calibration is not None:
         intensity_calibration_element = { "origin": intensity_calibration.origin, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
