@@ -96,11 +96,6 @@ class Application(object):
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
             datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename)
-            storage_cache = Storage.DbStorageCache(cache_filename)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.create_default_data_groups()
-            if self.resources_path is not None:
-                document_model.create_sample_images(self.resources_path)
         else:
             logging.debug("Using existing document %s", db_filename)
             datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename, create=False)
@@ -207,10 +202,12 @@ class Application(object):
                 sys.exit()
             datastore.conn.commit()
             datastore.check_integrity()
-            storage_cache = Storage.DbStorageCache(cache_filename)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.create_default_data_groups()
+        storage_cache = Storage.DbStorageCache(cache_filename)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model.create_default_data_groups()
         document_controller = self.create_document_controller(document_model, "library")
+        if self.resources_path is not None:
+            document_model.create_sample_images(self.resources_path)
         self.ui.set_persistent_string("workspace_location", workspace_dir)
         logging.info("Welcome to Nion Swift.")
         return True

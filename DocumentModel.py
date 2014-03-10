@@ -89,20 +89,31 @@ class DocumentModel(Storage.StorageBase):
 
     def create_sample_images(self, resources_path):
         if True:
+            data_group = self.get_or_create_data_group(_("Example Data"))
             handler = ImportExportManager.NDataImportExportHandler(None, ["ndata1"])
             root_dir = PlugInManager.get_root_dir()
             samples_dir = os.path.join(root_dir, "SampleImages")
-            logging.debug("Looking in %s", samples_dir)
+            #logging.debug("Looking in %s", samples_dir)
             def is_ndata(file_path):
-                logging.debug("Checking %s", file_path)
+                #logging.debug("Checking %s", file_path)
                 _, extension = os.path.splitext(file_path)
                 return extension == ".ndata1"
             sample_paths = [os.path.join(samples_dir, d) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
-            logging.debug("sample_paths %s", sample_paths)
             for sample_path in sorted(sample_paths):
-                data_items = handler.read_data_items(None, "ndata1", sample_path, False)
-                for data_item in data_items:
-                    self.append_data_item(data_item)
+                def source_file_path_in_document(sample_path_):
+                    for member_data_item in self.data_items:
+                        if member_data_item.source_file_path == sample_path_:
+                            return True
+                    return False
+                if not source_file_path_in_document(sample_path):
+                    data_items = handler.read_data_items(None, "ndata1", sample_path, False)
+                    for data_item in data_items:
+                        #__, file_name = os.path.split(sample_path)
+                        #title, __ = os.path.splitext(file_name)
+                        #data_item.title = title
+                        with data_item.ref():
+                            self.append_data_item(data_item)
+                            data_group.append_data_item(data_item)
         else:
             # for testing, add a checkerboard image data item
             checkerboard_image_source = DataItem.DataItem()
