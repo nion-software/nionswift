@@ -37,17 +37,18 @@ class ImportExportHandler(object):
 
     # return data items
     def read_data_items(self, ui, extension, file_path, external):
-        data_elements = self.read_data_elements(ui, extension, file_path)
         data_items = list()
-        for data_element in data_elements:
-            if "data" in data_element:
-                if not "title" in data_element:
-                    root, filename = os.path.split(file_path)
-                    title, _ = os.path.splitext(filename)
-                    data_element["title"] = title
-                data_element["filepath"] = file_path
-                data_item = create_data_item_from_data_element(data_element, external, file_path)
-                data_items.append(data_item)
+        if os.path.exists(file_path):
+            data_elements = self.read_data_elements(ui, extension, file_path)
+            for data_element in data_elements:
+                if "data" in data_element:
+                    if not "title" in data_element:
+                        root, filename = os.path.split(file_path)
+                        title, _ = os.path.splitext(filename)
+                        data_element["title"] = title
+                    data_element["filepath"] = file_path
+                    data_item = create_data_item_from_data_element(data_element, external, file_path)
+                    data_items.append(data_item)
         return data_items
 
     # return data

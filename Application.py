@@ -279,7 +279,10 @@ class DataReferenceHandler(object):
             if os.path.isfile(absolute_file_path):
                 return pickle.load(open(absolute_file_path, "rb"))
         elif reference_type == "external_file":
-            data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.ui, reference)
+            if os.path.exists(reference):
+                data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.ui, reference)
+            else:
+                data_elements = None
             # assume bad data here
             if data_elements is not None and len(data_elements) > 0 and "data" in data_elements[0]:
                 return data_elements[0]["data"]

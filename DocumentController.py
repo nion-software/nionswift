@@ -635,55 +635,57 @@ class DocumentController(Observable.Broadcaster):
                         data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path,
                                                                                                external=external)
 
-                        # when data is read from the import manager, it has not yet been added to the document.
-                        # this means that data is still in memory and has not been offloaded.
-                        # when it gets added to the document, a write to the database is queued to a background
-                        # thread. the background task will write the object in the background.
-                        # but the data item itself will unload if the data ref count goes to zero, for instance if
-                        # a thumbnail squeezes in before the write occurs.
-                        # to prevent this, the data ref count is incremented here and released after the data
-                        # is grabbed by the storage machinery.
-                        # the data item has an event set up to signal when the data has been grabbed. this method
-                        # waits on that event to ensure the data gets written out.
-                        # TODO: Recover task if something goes wrong while saving data.
+                        if data_items is not None:
 
-                        # grab a data ref
-                        for data_item in data_items:
-                            data_item.increment_data_ref_count()
+                            # when data is read from the import manager, it has not yet been added to the document.
+                            # this means that data is still in memory and has not been offloaded.
+                            # when it gets added to the document, a write to the database is queued to a background
+                            # thread. the background task will write the object in the background.
+                            # but the data item itself will unload if the data ref count goes to zero, for instance if
+                            # a thumbnail squeezes in before the write occurs.
+                            # to prevent this, the data ref count is incremented here and released after the data
+                            # is grabbed by the storage machinery.
+                            # the data item has an event set up to signal when the data has been grabbed. this method
+                            # waits on that event to ensure the data gets written out.
+                            # TODO: Recover task if something goes wrong while saving data.
 
-                        def insert_data_item(_document_model, _data_group, _data_items, index_ref):
-                            if _data_group and isinstance(_data_group, DataGroup.DataGroup):
-                                for data_item in _data_items:
-                                    _document_model.append_data_item(data_item)
-                                    if index_ref.value >= 0:
-                                        _data_group.insert_data_item(index_ref.grab(), data_item)
-                                    else:
-                                        _data_group.append_data_item(data_item)
-                            else:  # insert into document model only
-                                for data_item in _data_items:
-                                    if index_ref.value >= 0:
-                                        _document_model.insert_data_item(index_ref.grab(), data_item)
-                                    else:
+                            # grab a data ref
+                            for data_item in data_items:
+                                data_item.increment_data_ref_count()
+
+                            def insert_data_item(_document_model, _data_group, _data_items, index_ref):
+                                if _data_group and isinstance(_data_group, DataGroup.DataGroup):
+                                    for data_item in _data_items:
                                         _document_model.append_data_item(data_item)
+                                        if index_ref.value >= 0:
+                                            _data_group.insert_data_item(index_ref.grab(), data_item)
+                                        else:
+                                            _data_group.append_data_item(data_item)
+                                else:  # insert into document model only
+                                    for data_item in _data_items:
+                                        if index_ref.value >= 0:
+                                            _document_model.insert_data_item(index_ref.grab(), data_item)
+                                        else:
+                                            _document_model.append_data_item(data_item)
 
-                        # notice that a lambda function is used to snapshot the first three arguments, but the
-                        # index_ref argument is shared with all calls so that the items get inserted in order.
-                        self.queue_main_thread_task(lambda document_model=self.document_model, data_group=data_group,
-                                                           data_items=data_items: insert_data_item(document_model,
-                                                                                                   data_group,
-                                                                                                   data_items,
-                                                                                                   index_ref))
+                            # notice that a lambda function is used to snapshot the first three arguments, but the
+                            # index_ref argument is shared with all calls so that the items get inserted in order.
+                            self.queue_main_thread_task(lambda document_model=self.document_model, data_group=data_group,
+                                                               data_items=data_items: insert_data_item(document_model,
+                                                                                                       data_group,
+                                                                                                       data_items,
+                                                                                                       index_ref))
 
-                        # wait for the save event to occur, then release the data ref.
-                        for data_item in data_items:
-                            if threaded:
-                                data_item.master_data_save_event.wait()
-                            else:
-                                while not data_item.master_data_save_event.wait(0.05):
-                                    self.periodic()
-                            data_item.decrement_data_ref_count()
+                            # wait for the save event to occur, then release the data ref.
+                            for data_item in data_items:
+                                if threaded:
+                                    data_item.master_data_save_event.wait()
+                                else:
+                                    while not data_item.master_data_save_event.wait(0.05):
+                                        self.periodic()
+                                data_item.decrement_data_ref_count()
 
-                        received_data_items.extend(data_items)
+                            received_data_items.extend(data_items)
 
                     except Exception as e:
                         logging.debug("Could not read image %s", file_path)
