@@ -106,6 +106,10 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(calibration.convert_to_calibrated_value_str(value), "0, 0, 0, 0")
         self.assertEqual(calibration.convert_to_calibrated_size_str(value), "0, 0, 0, 0")
 
+    def test_calibration_conversion_to_string_can_handle_numpy_types(self):
+        calibration = DataItem.CalibrationItem(1.0, 2.0, "c")
+        self.assertEqual(calibration.convert_to_calibrated_value_str(numpy.uint32(14)), "29 c")
+
 
 class TestDataItemClass(unittest.TestCase):
 
