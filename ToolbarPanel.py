@@ -4,7 +4,7 @@ import logging
 import threading
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import DataItem
@@ -62,6 +62,21 @@ class ToolbarPanel(Panel.Panel):
         export_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/export_icon.png")
         export_button.on_clicked = lambda: document_controller.export_action.trigger()
 
+        fit_view_button = self.ui.create_push_button_widget()
+        fit_view_button.text = _("Fit")
+        fit_view_button.icon = numpy.zeros((24, 1), dtype=numpy.uint32)
+        fit_view_button.on_clicked = lambda: document_controller.fit_view_action.trigger()
+
+        fill_view_button = self.ui.create_push_button_widget()
+        fill_view_button.text = _("Fill")
+        fill_view_button.icon = numpy.zeros((24, 1), dtype=numpy.uint32)
+        fill_view_button.on_clicked = lambda: document_controller.fill_view_action.trigger()
+
+        one_view_button = self.ui.create_push_button_widget()
+        one_view_button.text = _("1:1")
+        one_view_button.icon = numpy.zeros((24, 1), dtype=numpy.uint32)
+        one_view_button.on_clicked = lambda: document_controller.one_to_one_view_action.trigger()
+
         toggle_filter_button = self.ui.create_push_button_widget()
         toggle_filter_button.tool_tip = _("Toggle Filter Panel")
         toggle_filter_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/filter_icon.png")
@@ -78,6 +93,11 @@ class ToolbarPanel(Panel.Panel):
         commands_group_widget.add(delete_button)
         commands_group_widget.add(export_button)
 
+        view_group_widget = self.ui.create_row_widget()
+        view_group_widget.add(fit_view_button)
+        view_group_widget.add(fill_view_button)
+        view_group_widget.add(one_view_button)
+
         filter_group_widget = self.ui.create_row_widget()
         filter_group_widget.add(toggle_filter_button)
 
@@ -85,6 +105,8 @@ class ToolbarPanel(Panel.Panel):
         toolbar_row_widget.add(tool_group_widget)
         toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add(commands_group_widget)
+        toolbar_row_widget.add_spacing(12)
+        toolbar_row_widget.add(view_group_widget)
         toolbar_row_widget.add_spacing(12)
         toolbar_row_widget.add(filter_group_widget)
         toolbar_row_widget.add_spacing(12)

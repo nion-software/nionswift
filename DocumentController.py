@@ -115,7 +115,7 @@ class DocumentController(Observable.Broadcaster):
 
         self.processing_menu = self.document_window.add_menu(_("Processing"))
 
-        self.layout_menu = self.document_window.add_menu(_("Layout"))
+        self.view_menu = self.document_window.add_menu(_("View"))
 
         self.graphic_menu = self.document_window.add_menu(_("Graphic"))
 
@@ -164,20 +164,33 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self.layout_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
-        self.layout_menu.add_menu_item(_("Next Layout"), lambda: self.workspace.change_to_next_layout(), key_sequence="Ctrl+]")
-        self.layout_menu.add_separator()
-        self.layout_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
-        self.layout_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
-        self.layout_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
-        self.layout_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
-        self.layout_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
-        self.layout_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
-        #self.layout_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
-        #self.layout_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
-        #self.layout_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
+        def fit_to_view():
+            if self.selected_image_panel is not None:
+                self.selected_image_panel.image_canvas_item.set_fit_mode()
+        self.fit_view_action = self.view_menu.add_menu_item(_("Fit to View"), lambda: fit_to_view(), key_sequence="0")
+        def fill_view():
+            if self.selected_image_panel is not None:
+                self.selected_image_panel.image_canvas_item.set_fill_mode()
+        self.fill_view_action = self.view_menu.add_menu_item(_("Fill View"), lambda: fill_view(), key_sequence="Shift+0")
+        def one_to_one_view():
+            if self.selected_image_panel is not None:
+                self.selected_image_panel.image_canvas_item.set_one_to_one_mode()
+        self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), lambda: one_to_one_view(), key_sequence="1")
+        self.view_menu.add_separator()
+        self.view_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
+        self.view_menu.add_menu_item(_("Next Layout"), lambda: self.workspace.change_to_next_layout(), key_sequence="Ctrl+]")
+        self.view_menu.add_separator()
+        self.view_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
+        self.view_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
+        self.view_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
+        self.view_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
+        self.view_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
+        self.view_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
+        #self.view_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
+        #self.view_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
+        #self.view_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
 
-        self.toggle_filter_action = self.layout_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
+        self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
