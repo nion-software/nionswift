@@ -219,6 +219,15 @@ class DocumentController(Observable.Broadcaster):
 
         self.window_menu.on_about_to_show = adjust_window_menu
 
+    def get_or_create_menu(self, menu_id, menu_title, before_menu_id):
+        assert menu_id.endswith("_menu")
+        assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
+        if not hasattr(self, menu_id):
+            before_menu = getattr(self, before_menu_id) if before_menu_id is not None else None
+            menu = self.document_window.insert_menu(menu_title, before_menu)
+            setattr(self, menu_id, menu)
+        return getattr(self, menu_id)
+
     def __get_panels(self):
         if self.workspace:
             # TODO: accessing the panel via the dock widget is deprecated
