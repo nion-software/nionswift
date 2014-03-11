@@ -85,7 +85,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, OperationItem.OperationItem("invert-operation")))
         operation_list.append((data_item_real, OperationItem.OperationItem("gaussian-blur-operation")))
         operation_list.append((data_item_real, OperationItem.OperationItem("histogram-operation")))
-        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale-operation")))
+        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -119,7 +119,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
         operation_list.append((data_item_real, line_profile_operation))
-        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scale-operation")))
+        operation_list.append((data_item_real, OperationItem.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -151,7 +151,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
         line_profile_operation = OperationItem.OperationItem("line-profile-operation")
         operation_list.append((data_item_rgb, line_profile_operation))
-        operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale-operation")))
+        operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -183,7 +183,7 @@ class TestOperationClass(unittest.TestCase):
             operation_list.append((data_item_rgb, OperationItem.OperationItem("histogram-operation")))
             line_profile_operation = OperationItem.OperationItem("line-profile-operation")
             operation_list.append((data_item_rgb, line_profile_operation))
-            operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scale-operation")))
+            operation_list.append((data_item_rgb, OperationItem.OperationItem("convert-to-scalar-operation")))
 
             for source_data_item, operation in operation_list:
                 data_item = DataItem.DataItem()
@@ -196,12 +196,34 @@ class TestOperationClass(unittest.TestCase):
                     self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                     self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
-    def test_operations_2d_complex(self):
+    def test_operations_2d_complex128(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
         data_item_complex.add_ref()
 
         operation_list = []
         operation_list.append((data_item_complex, OperationItem.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item_complex, OperationItem.OperationItem("convert-to-scalar-operation")))
+
+        for source_data_item, operation in operation_list:
+            data_item = DataItem.DataItem()
+            data_item.operations.append(operation)
+            source_data_item.data_items.append(data_item)
+            with data_item.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
+                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+
+        data_item_complex.remove_ref()
+
+    def test_operations_2d_complex64(self):
+        data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex64))
+        data_item_complex.add_ref()
+
+        operation_list = []
+        operation_list.append((data_item_complex, OperationItem.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item_complex, OperationItem.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
@@ -238,7 +260,15 @@ class TestOperationClass(unittest.TestCase):
 
         with fft_data_item.data_ref() as fft_data_ref:
             self.assertEqual(fft_data_ref.data.shape, (512, 512))
-            self.assertEqual(fft_data_ref.data.dtype, numpy.complex128)
+            self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
+
+    def test_convert_complex128_to_scalar_results_in_float64(self):
+        data_item = DataItem.DataItem(numpy.zeros((512,512), numpy.complex128))
+        scalar_data_item = DataItem.DataItem()
+        scalar_data_item.operations.append(OperationItem.OperationItem("convert-to-scalar-operation"))
+        data_item.data_items.append(scalar_data_item)
+        with scalar_data_item.data_ref() as scalar_data_ref:
+            self.assertEqual(scalar_data_ref.data.dtype, numpy.dtype(numpy.float64))
 
     class DummyOperation(Operation.Operation):
         def __init__(self):
