@@ -124,31 +124,31 @@ class DocumentController(Observable.Broadcaster):
         self.help_menu = self.document_window.add_menu(_("Help"))
 
         self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window("library"), key_sequence="new")
-        self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
+        #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
         self.file_menu.add_separator()
         self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
         self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_file())
-        self.file_menu.add_separator()
-        self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
-        self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
+        #self.file_menu.add_separator()
+        #self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
+        #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
         self.file_menu.add_separator()
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
         self.file_menu.add_separator()
         self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
 
-        self.undo_action = self.edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
-        self.redo_action = self.edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")
-        self.edit_menu.add_separator()
-        self.cut_action = self.edit_menu.add_menu_item(_("Cut"), lambda: self.no_operation(), key_sequence="cut")
-        self.copy_action = self.edit_menu.add_menu_item(_("Copy"), lambda: self.no_operation(), key_sequence="copy")
-        self.paste_action = self.edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
-        self.delete_action = self.edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
-        self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
-        self.edit_menu.add_separator()
+        #self.undo_action = self.edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
+        #self.redo_action = self.edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")
+        #self.edit_menu.add_separator()
+        #self.cut_action = self.edit_menu.add_menu_item(_("Cut"), lambda: self.no_operation(), key_sequence="cut")
+        #self.copy_action = self.edit_menu.add_menu_item(_("Copy"), lambda: self.no_operation(), key_sequence="copy")
+        #self.paste_action = self.edit_menu.add_menu_item(_("Paste"), lambda: self.no_operation(), key_sequence="paste")
+        #self.delete_action = self.edit_menu.add_menu_item(_("Delete"), lambda: self.no_operation(), key_sequence="delete")
+        #self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
+        #self.edit_menu.add_separator()
         self.script_action = self.edit_menu.add_menu_item(_("Script"), lambda: self.prepare_data_item_script(), key_sequence="Ctrl+Shift+K")
-        self.edit_menu.add_separator()
-        self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
+        #self.edit_menu.add_separator()
+        #self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
 
         self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
@@ -179,6 +179,7 @@ class DocumentController(Observable.Broadcaster):
         self.view_menu.add_separator()
         self.view_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
         self.view_menu.add_menu_item(_("Next Layout"), lambda: self.workspace.change_to_next_layout(), key_sequence="Ctrl+]")
+
         self.view_menu.add_separator()
         self.view_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
         self.view_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
@@ -190,6 +191,7 @@ class DocumentController(Observable.Broadcaster):
         #self.view_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
         #self.view_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
 
+        self.view_menu.add_separator()
         self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
@@ -197,12 +199,12 @@ class DocumentController(Observable.Broadcaster):
         self.graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
         self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
 
-        self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
-        self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
+        #self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
+        #self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
 
-        self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
-        self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
-        self.window_menu.add_separator()
+        #self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
+        #self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
+        #self.window_menu.add_separator()
 
         self.__dynamic_window_actions = []
 
