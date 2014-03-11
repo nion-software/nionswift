@@ -1158,7 +1158,9 @@ class DataItem(Storage.StorageBase):
     is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
-        # do not force data calculation here
+        # do not force data calculation here, but trigger data loading
+        if self.__cached_data is None:
+            pass  # TODO: Cursor should trigger loading of data if not already laoded.
         with self.__data_mutex:
             if self.is_data_1d:
                 if self.__cached_data is not None:
