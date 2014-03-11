@@ -527,6 +527,13 @@ class DocumentController(Observable.Broadcaster):
         assert operation is not None
         self.add_processing_operation(operation, prefix, suffix, in_place, select)
 
+    def add_data_element(self, data_element, source_data_item=None):
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        if data_item:
+            self.document_model.append_data_item(data_item)
+            self.set_data_item_selection(data_item, source_data_item=source_data_item)
+        return data_item
+
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = self.selected_data_item
         if data_item:
