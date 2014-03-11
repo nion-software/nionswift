@@ -210,6 +210,9 @@ class Application(object):
             document_model.create_sample_images(self.resources_path)
         self.ui.set_persistent_string("workspace_location", workspace_dir)
         logging.info("Welcome to Nion Swift.")
+        if create_new_document and len(document_model.data_items) > 0:
+            document_controller.selected_image_panel.data_item = document_model.data_items[0]
+            document_controller.selected_image_panel.image_canvas_item.set_fill_mode()
         return True
 
     def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):
