@@ -38,7 +38,7 @@ class ImportExportHandler(object):
     # return data items
     def read_data_items(self, ui, extension, file_path, external):
         data_items = list()
-        if os.path.exists(file_path):
+        if os.path.exists(file_path) or file_path.startswith(":"):  # check for colon is for testing
             data_elements = self.read_data_elements(ui, extension, file_path)
             for data_element in data_elements:
                 if "data" in data_element:
@@ -288,7 +288,7 @@ class StandardImportExportHandler(ImportExportHandler):
         if data is not None:
             data_element = dict()
             data_element["data"] = data
-            if os.path.exists(path):
+            if os.path.exists(path) or path.startswith(":"):  # check for colon is for testing
                 try:
                     file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
                 except:
