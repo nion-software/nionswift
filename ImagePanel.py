@@ -939,12 +939,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 for child_data_item in self.__data_item.data_items:
                     if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "fft-operation":
                         data_item = child_data_item
-                if not data_item:
+                if data_item is None:
                     data_item = self.document_controller.processing_fft(select=False)
-                data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
-                fft_canvas_item = ImageCanvasItem(data_item_binding, None, None)
-                self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
-                self.accessories["fft"] = fft_canvas_item
+                if data_item is not None:
+                    data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
+                    fft_canvas_item = ImageCanvasItem(data_item_binding, None, None)
+                    self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
+                    self.accessories["fft"] = fft_canvas_item
             return True
         if key.text == "P":
             line_profile_canvas_item = self.accessories.get("line_profile")
@@ -957,12 +958,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 for child_data_item in self.__data_item.data_items:
                     if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "line-profile-operation":
                         data_item = child_data_item
-                if not data_item:
+                if data_item is None:
                     data_item = self.document_controller.processing_line_profile(select=False)
-                data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
-                line_profile_canvas_item = LinePlotCanvasItem(data_item_binding, None, None)
-                self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
-                self.accessories["line_profile"] = line_profile_canvas_item
+                if data_item is not None:
+                    data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
+                    line_profile_canvas_item = LinePlotCanvasItem(data_item_binding, None, None)
+                    self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
+                    self.accessories["line_profile"] = line_profile_canvas_item
             return True
         if key.text == "-":
             self.zoom_out()
