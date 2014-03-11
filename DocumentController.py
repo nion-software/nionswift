@@ -202,9 +202,9 @@ class DocumentController(Observable.Broadcaster):
         #self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
         #self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
 
-        #self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
-        #self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
-        #self.window_menu.add_separator()
+        self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
+        self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
+        self.window_menu.add_separator()
 
         self.__dynamic_window_actions = []
 
