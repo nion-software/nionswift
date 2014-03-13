@@ -98,7 +98,10 @@ class DocumentModel(Storage.StorageBase):
                 #logging.debug("Checking %s", file_path)
                 _, extension = os.path.splitext(file_path)
                 return extension == ".ndata1"
-            sample_paths = [os.path.join(samples_dir, d) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
+            if os.path.isdir(samples_dir):
+                sample_paths = [os.path.join(samples_dir, d) for d in os.listdir(samples_dir) if is_ndata(os.path.join(samples_dir, d))]
+            else:
+                sample_paths = []
             for sample_path in sorted(sample_paths):
                 def source_file_path_in_document(sample_path_):
                     for member_data_item in self.data_items:
