@@ -1352,6 +1352,11 @@ class DataItem(Storage.StorageBase):
         return Image.is_shape_and_dtype_rgb(data_shape, data_dtype) or Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
     is_data_rgb_type = property(__is_data_rgb_type)
 
+    def __is_data_scalar_type(self):
+        data_shape, data_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_scalar_type(data_shape, data_dtype)
+    is_data_scalar_type = property(__is_data_scalar_type)
+
     def __is_data_complex_type(self):
         data_shape, data_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_complex_type(data_shape, data_dtype)
