@@ -49,7 +49,7 @@ class Application(object):
 
         self.ui = ui
         self.resources_path = resources_path
-        self.version_str = "0.1.5.2"
+        self.version_str = "0.1.6"
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
