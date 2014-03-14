@@ -212,30 +212,25 @@ class TestDataItemClass(unittest.TestCase):
     def test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        self.assertTrue(data_item.thumbnail_data_dirty)
+        self.assertTrue(data_item.is_cached_value_dirty("thumbnail_data"))
         # configure a listener to know when the thumbnail is finished
         event = threading.Event()
-        class Listener(object):
-            def data_item_content_changed(self, data_item, changes):
-                if DataItem.THUMBNAIL in changes:
-                    event.set()
-        listener = Listener()
-        data_item.add_listener(listener)
+        def thumbnail_loaded(thumbnail_data):
+            event.set()
         # the next line also triggers the thumbnail calculation
-        self.assertIsNotNone(data_item.get_thumbnail_data(self.app.ui, 64, 64))
+        self.assertIsNotNone(data_item.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
         # wait for the thumbnail
         event.wait()
-        data_item.remove_listener(listener)
-        self.assertFalse(data_item.thumbnail_data_dirty)
+        self.assertFalse(data_item.is_cached_value_dirty("thumbnail_data"))
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-        self.assertTrue(data_item.thumbnail_data_dirty)
+        self.assertTrue(data_item.is_cached_value_dirty("thumbnail_data"))
         data_item.remove_ref()
 
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         data_item.add_ref()
-        self.assertIsNotNone(data_item.get_thumbnail_data(self.app.ui, 64, 64))
+        self.assertIsNotNone(data_item.get_processor("thumbnail").get_data(self.app.ui))
         data_item.remove_ref()
 
     def test_delete_nested_data_item(self):
@@ -468,7 +463,7 @@ class TestDataItemClass(unittest.TestCase):
             start_count = dummy_operation.count
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
-            data_item_dummy.notify_data_item_content_changed([DataItem.THUMBNAIL])
+            data_item_dummy.notify_data_item_content_changed([])  # NOTE: this test may no longer be valid
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
 

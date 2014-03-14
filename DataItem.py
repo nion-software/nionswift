@@ -166,7 +166,7 @@ class DataItemProcessor(object):
     def set_cached_value_dirty(self):
         self.data_item.set_cached_value_dirty(self.__cache_property_name)
 
-    def get_calculated_data(self, data):
+    def get_calculated_data(self, ui, data):
         """ Subclasses must implement. """
         raise NotImplementedError()
 
@@ -174,7 +174,7 @@ class DataItemProcessor(object):
         """ Subclasses must implement. """
         raise NotImplementedError()
 
-    def get_data(self, completion_fn=None):
+    def get_data(self, ui, completion_fn=None):
         if self.data_item.is_cached_value_dirty(self.__cache_property_name):
             if not self.data_item.closed and (self.data_item.has_master_data or self.data_item.has_data_source):
                 def load_data_on_thread():
@@ -182,9 +182,11 @@ class DataItemProcessor(object):
                     with self.data_item.data_ref() as data_ref:
                         data = data_ref.data
                     if data is not None:  # for data to load and make sure it has data
-                        calculated_data = self.get_calculated_data(data)
+                        calculated_data = self.get_calculated_data(ui, data)
                         self.data_item.set_cached_value(self.__cache_property_name, calculated_data)
                     else:
+                        calculated_data = None
+                    if calculated_data is None:
                         calculated_data = self.get_default_data()
                         self.data_item.remove_cached_value(self.__cache_property_name)
                     if completion_fn:
@@ -213,7 +215,7 @@ class HistogramDataItemProcessor(DataItemProcessor):
         if key == "display_limits":
             self.set_cached_value_dirty()
 
-    def get_calculated_data(self, data):
+    def get_calculated_data(self, ui, data):
         #logging.debug("Calculating histogram %s", self)
         display_range = self.data_item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
@@ -223,6 +225,97 @@ class HistogramDataItemProcessor(DataItemProcessor):
 
     def get_default_data(self):
         return numpy.zeros((self.bins, ), dtype=numpy.uint32)
+
+
+class ThumbnailDataItemProcessor(DataItemProcessor):
+
+    def __init__(self, data_item):
+        super(ThumbnailDataItemProcessor, self).__init__(data_item, "thumbnail_data")
+        self.width = 72
+        self.height = 72
+
+    def get_calculated_data(self, ui, data):
+        #logging.debug("Calculating thumbnail %s", self)
+        thumbnail_data = None
+        if Image.is_data_1d(data):
+            thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
+        elif Image.is_data_2d(data):
+            data_range = self.data_item.data_range
+            display_limits = self.data_item.display_limits
+            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
+        elif Image.is_data_3d(data):
+            # TODO: fix me 3d
+            data_range = self.data_item.data_range
+            display_limits = self.data_item.display_limits
+            thumbnail_data = self.__get_thumbnail_3d_data(ui, data, self.height, self.width, data_range, display_limits)
+        return thumbnail_data
+
+    def get_default_data(self):
+        return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
+
+    def __get_thumbnail_1d_data(self, ui, data, height, width):
+        assert data is not None
+        assert Image.is_data_1d(data)
+        data = Image.convert_to_grayscale(data)
+        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        line_graph_canvas_item.draw_captions = False
+        line_graph_canvas_item.draw_grid = False
+        line_graph_canvas_item.draw_frame = False
+        line_graph_canvas_item.background_color = "#EEEEEE"
+        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
+        line_graph_canvas_item.data = data
+        line_graph_canvas_item.update_layout((0, 0), (height, width))
+        drawing_context = ui.create_offscreen_drawing_context()
+        line_graph_canvas_item._repaint(drawing_context)
+        return ui.create_rgba_image(drawing_context, width, height)
+
+    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
+        assert image is not None
+        assert image.ndim in (2,3)
+        image = Image.scalar_from_array(image)
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = height if image_height > image_width else height * image_height / image_width
+        scaled_width = width if image_width > image_height else width * image_width / image_height
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
+    # TODO: fix me 3d
+    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
+        assert image is not None
+        assert image.ndim in (3,4)
+        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
+        logging.debug("%s -> %s", image.shape, new_shape)
+        image = Image.scalar_from_array(image.reshape(new_shape))
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
+        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        logging.debug(thumbnail_image.shape)
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
 
 # data items will represents a numpy array. the numpy array
@@ -280,8 +373,7 @@ DATA = 1
 DISPLAY = 2
 CHILDREN = 3
 PANEL = 4
-THUMBNAIL = 5
-SOURCE = 6
+SOURCE = 5
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -340,9 +432,8 @@ class DataItem(Storage.StorageBase):
         self.__preview = None
         self.__counted_data_items = collections.Counter()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
-        self.__thumbnail_mutex = threading.RLock()
-        self.__thumbnail_in_progress = False
         self.__processors = dict()
+        self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.__set_master_data(data)
 
@@ -503,11 +594,9 @@ class DataItem(Storage.StorageBase):
                 changes = self.__data_item_changes
                 self.__data_item_changes = set()
         if data_item_change_count == 0:
-            # clear the thumbnail and processing controller caches
-            if not THUMBNAIL in changes:
-                self.set_cached_value_dirty("thumbnail_data")
-                for processor in self.__processors.values():
-                    processor.data_item_changed()
+            # clear the processor caches
+            for processor in self.__processors.values():
+                processor.data_item_changed()
             # clear the preview if the the display changed
             if DISPLAY in changes:
                 self.__preview = None
@@ -1286,109 +1375,6 @@ class DataItem(Storage.StorageBase):
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
-
-    def __get_thumbnail_1d_data(self, ui, data, height, width):
-        assert data is not None
-        assert Image.is_data_1d(data)
-        data = Image.convert_to_grayscale(data)
-        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        line_graph_canvas_item.draw_captions = False
-        line_graph_canvas_item.draw_grid = False
-        line_graph_canvas_item.draw_frame = False
-        line_graph_canvas_item.background_color = "#EEEEEE"
-        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data = data
-        line_graph_canvas_item.update_layout((0, 0), (height, width))
-        drawing_context = ui.create_offscreen_drawing_context()
-        line_graph_canvas_item._repaint(drawing_context)
-        return ui.create_rgba_image(drawing_context, width, height)
-
-    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert image.ndim in (2,3)
-        image = Image.scalar_from_array(image)
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = height if image_height > image_width else height * image_height / image_width
-        scaled_width = width if image_width > image_height else width * image_width / image_height
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-
-    # TODO: fix me 3d
-    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert image.ndim in (3,4)
-        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
-        logging.debug("%s -> %s", image.shape, new_shape)
-        image = Image.scalar_from_array(image.reshape(new_shape))
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
-        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        logging.debug(thumbnail_image.shape)
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-
-    # returns a 2D uint32 array interpreted as RGBA pixels
-    def get_thumbnail_data(self, ui, height, width):
-        if self.thumbnail_data_dirty:
-            if not self.closed and (self.has_master_data or self.has_data_source):
-                def load_thumbnail_on_thread():
-                    time.sleep(0.2)
-                    with self.data_ref() as data_ref:
-                        data = data_ref.data
-                    if data is not None:  # for data to load and make sure it has data
-                        #logging.debug("load_thumbnail_on_thread")
-                        if Image.is_data_1d(data):
-                            self.set_cached_value("thumbnail_data", self.__get_thumbnail_1d_data(ui, data, height, width))
-                        elif Image.is_data_2d(data):
-                            data_range = self.__get_data_range()
-                            self.set_cached_value("thumbnail_data", self.__get_thumbnail_2d_data(ui, data, height, width, data_range, self.display_limits))
-                        elif Image.is_data_3d(data):
-                            # TODO: fix me 3d
-                            data_range = self.__get_data_range()
-                            self.set_cached_value("thumbnail_data", self.__get_thumbnail_3d_data(ui, data, height, width, data_range, self.display_limits))
-                        else:
-                            self.remove_cached_value("thumbnail_data")
-                        self.notify_data_item_content_changed(set([THUMBNAIL]))
-                    else:
-                        self.remove_cached_value("thumbnail_data")
-                    with self.__thumbnail_mutex:
-                        self.__thumbnail_in_progress = False
-                with self.__thumbnail_mutex:
-                    if not self.__thumbnail_in_progress:
-                        self.__thumbnail_in_progress = True
-                        self.__shared_thread_pool.add_task("load-thumbnail", None, lambda: load_thumbnail_on_thread())
-        thumbnail_data = self.get_cached_value("thumbnail_data")
-        if thumbnail_data is not None:
-            return thumbnail_data
-        return numpy.zeros((height, width), dtype=numpy.uint32)
-
-    def __get_thumbnail_data_dirty(self):
-        return self.is_cached_value_dirty("thumbnail_data")
-    thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()

@@ -505,7 +505,11 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            thumbnail_data = data_item.get_thumbnail_data(self.ui, 72, 72)
+            local_self = self
+            def update_thumbail_data(thumbail_data):
+                with local_self.__changed_data_items_mutex:
+                    local_self.__changed_data_items.add(data_item)
+            thumbnail_data = data_item.get_processor("thumbnail").get_data(self.ui, completion_fn=update_thumbail_data)
             data = self._get_model_data(index)
             level = data["level"]
             display = data_item.title

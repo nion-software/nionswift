@@ -182,7 +182,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         def update_histogram_data(histogram_data):
             self.simple_line_graph_canvas_item.data = histogram_data
             self.adornments_canvas_item.update()
-        histogram_data = self.__data_item.get_processor("histogram").get_data(completion_fn=update_histogram_data) if self.__data_item else None
+        histogram_data = self.__data_item.get_processor("histogram").get_data(None, completion_fn=update_histogram_data) if self.__data_item else None
         update_histogram_data(histogram_data)
 
     # this message is received from the data item binding.
