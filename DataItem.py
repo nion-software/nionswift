@@ -196,8 +196,7 @@ DISPLAY = 2
 CHILDREN = 3
 PANEL = 4
 THUMBNAIL = 5
-HISTOGRAM = 6
-SOURCE = 7
+SOURCE = 6
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -414,7 +413,7 @@ class DataItem(Storage.StorageBase):
                 self.__data_item_changes = set()
         if data_item_change_count == 0:
             # clear the histogram and thumbnail
-            if not THUMBNAIL in changes and not HISTOGRAM in changes:
+            if not THUMBNAIL in changes:
                 self.set_cached_value_dirty("thumbnail_data")
                 self.set_cached_value_dirty("histogram_data")
             # clear the preview if the the display changed
@@ -1295,7 +1294,7 @@ class DataItem(Storage.StorageBase):
         return self.is_cached_value_dirty("thumbnail_data")
     thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
 
-    def get_histogram_data(self):
+    def get_histogram_data(self, bins=256, completion_fn=None):
         if self.is_cached_value_dirty("histogram_data"):
             if not self.closed and (self.has_master_data or self.has_data_source):
                 def load_histogram_on_thread():
@@ -1305,13 +1304,16 @@ class DataItem(Storage.StorageBase):
                     if data is not None:  # for data to load and make sure it has data
                         display_range = self.display_range  # may be None
                         #logging.debug("Calculating histogram %s", self)
-                        histogram_data = numpy.histogram(data, range=display_range, bins=256)[0]
+                        histogram_data = numpy.histogram(data, range=display_range, bins=bins)[0]
                         histogram_max = float(numpy.max(histogram_data))
                         histogram_data = histogram_data / histogram_max
                         self.set_cached_value("histogram_data", histogram_data)
-                        self.notify_data_item_content_changed(set([HISTOGRAM]))
                     else:
+                        histogram_data = numpy.zeros((bins, ), dtype=numpy.uint32)
                         self.remove_cached_value("histogram_data")
+                    if completion_fn:
+                        completion_fn(histogram_data)
+                    pass # self.notify_data_item_content_changed(set([HISTOGRAM]))
                     with self.__histogram_mutex:
                         self.__histogram_in_progress = False
                 with self.__histogram_mutex:
@@ -1321,7 +1323,7 @@ class DataItem(Storage.StorageBase):
         histogram_data = self.get_cached_value("histogram_data")
         if histogram_data is not None:
             return histogram_data
-        return numpy.zeros((256, ), dtype=numpy.uint32)
+        return numpy.zeros((bins, ), dtype=numpy.uint32)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()

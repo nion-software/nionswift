@@ -177,12 +177,17 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
             self.adornments_canvas_item.display_limits = (0, 1)
-        histogram_data = self.__data_item.get_histogram_data() if self.__data_item else None
-        self.simple_line_graph_canvas_item.data = histogram_data
-        self.adornments_canvas_item.update()
+        # this will get called twice: once with the initial return values
+        # and once with the updated return values once the thread completes.
+        def update_histogram_data(histogram_data):
+            self.simple_line_graph_canvas_item.data = histogram_data
+            self.adornments_canvas_item.update()
+        histogram_data = self.__data_item.get_histogram_data(completion_fn=update_histogram_data) if self.__data_item else None
+        update_histogram_data(histogram_data)
 
     # this message is received from the data item binding.
     # it is established using add_listener
+    # TODO: histogram gets updated unnecessarily when dragging graphic items
     def data_item_binding_data_item_changed(self, data_item):
         if self.__shared_thread_pool and data_item:
             def update_histogram_data_on_thread():
