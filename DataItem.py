@@ -180,11 +180,11 @@ class DataItemProcessor(object):
                     time.sleep(0.2)
                     with self.data_item.data_ref() as data_ref:
                         data = data_ref.data
-                    if data is not None:  # for data to load and make sure it has data
-                        calculated_data = self.get_calculated_data(ui, data)
-                        self.data_item.set_cached_value(self.__cache_property_name, calculated_data)
-                    else:
-                        calculated_data = None
+                        if data is not None:  # for data to load and make sure it has data
+                            calculated_data = self.get_calculated_data(ui, data)
+                            self.data_item.set_cached_value(self.__cache_property_name, calculated_data)
+                        else:
+                            calculated_data = None
                     if calculated_data is None:
                         calculated_data = self.get_default_data()
                         self.data_item.remove_cached_value(self.__cache_property_name)
@@ -236,7 +236,13 @@ class StatisticsDataItemProcessor(DataItemProcessor):
         mean = numpy.mean(data)
         std = numpy.std(data)
         data_min, data_max = self.data_item.data_range
-        return { "mean": mean, "std": std, "min": data_min, "max": data_max }
+        all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max }
+        global _computation_fns
+        for computation_fn in _computation_fns:
+            computations = computation_fn(self.data_item)
+            if computations is not None:
+                all_computations.update(computations)
+        return all_computations
 
     def get_default_data(self):
         return { }
@@ -1538,3 +1544,13 @@ class DataItemBindingSource(Observable.Observable):
 
     def item_removed(self, container, key, object, index):
         self.notify_remove_item(key, object, index)
+
+
+_computation_fns = list()
+
+def register_data_item_computation(computation_fn):
+    global _computation_fns
+    _computation_fns.append(computation_fn)
+
+def unregister_data_item_computation(self, computation_fn):
+    pass
