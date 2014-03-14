@@ -270,15 +270,6 @@ class RectangleTypeGraphic(Graphic):
             return "all"
         # didn't find anything
         return None
-    def calibrated_description(self, image_size, calibrations):
-        size_image = (image_size[0] * self.bounds[1][0], image_size[1] * self.bounds[1][1])
-        origin_image = (size_image[0] * 0.5 + image_size[0] * self.bounds[0][0] - 0.5 * image_size[0],
-                        size_image[1] * 0.5 + image_size[1] * self.bounds[0][1] - 0.5 * image_size[1])
-        origin_x_str = calibrations[1].convert_to_calibrated_value_str(origin_image[1])
-        origin_y_str = calibrations[0].convert_to_calibrated_value_str(origin_image[0])
-        size_x_str = calibrations[1].convert_to_calibrated_value_str(size_image[1])
-        size_y_str = calibrations[0].convert_to_calibrated_value_str(size_image[0])
-        return "{0}\n  Center ({1}, {2})\n  Size ({3} x {4})".format(self.title, origin_x_str, origin_y_str, size_x_str, size_y_str)
     def begin_drag(self):
         return (self.bounds, )
     def end_drag(self, part_data):
@@ -461,14 +452,6 @@ class LineTypeGraphic(Graphic):
             return "all"
         # didn't find anything
         return None
-    def calibrated_description(self, image_size, calibrations):
-        start_image = (image_size[0] * self.start[0], image_size[1] * self.start[1])
-        end_image = (image_size[0] * self.end[0], image_size[1] * self.end[1])
-        start_x_str = calibrations[1].convert_to_calibrated_value_str(start_image[1])
-        start_y_str = calibrations[0].convert_to_calibrated_value_str(start_image[0])
-        end_x_str = calibrations[1].convert_to_calibrated_value_str(end_image[1])
-        end_y_str = calibrations[0].convert_to_calibrated_value_str(end_image[0])
-        return "{0}\n  Start ({1}, {2})\n  End ({3}, {4})".format(self.title, start_x_str, start_y_str, end_x_str, end_y_str)
     def begin_drag(self):
         return (self.start, self.end)
     def end_drag(self, part_data):

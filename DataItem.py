@@ -171,8 +171,7 @@ class DataItemProcessor(object):
         raise NotImplementedError()
 
     def get_default_data(self):
-        """ Subclasses must implement. """
-        raise NotImplementedError()
+        return None
 
     def get_data(self, ui, completion_fn=None):
         if self.data_item.is_cached_value_dirty(self.__cache_property_name):
@@ -225,6 +224,22 @@ class HistogramDataItemProcessor(DataItemProcessor):
 
     def get_default_data(self):
         return numpy.zeros((self.bins, ), dtype=numpy.uint32)
+
+
+class StatisticsDataItemProcessor(DataItemProcessor):
+
+    def __init__(self, data_item):
+        super(StatisticsDataItemProcessor, self).__init__(data_item, "statistics_data")
+
+    def get_calculated_data(self, ui, data):
+        #logging.debug("Calculating statistics %s", self)
+        mean = numpy.mean(data)
+        std = numpy.std(data)
+        data_min, data_max = self.data_item.data_range
+        return { "mean": mean, "std": std, "min": data_min, "max": data_max }
+
+    def get_default_data(self):
+        return { }
 
 
 class ThumbnailDataItemProcessor(DataItemProcessor):
@@ -435,6 +450,7 @@ class DataItem(Storage.StorageBase):
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
+        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__set_master_data(data)
 
     def __str__(self):

@@ -1444,9 +1444,6 @@ class InfoPanel(Panel.Panel):
 
         self.closed = False
 
-        self.__pending_info = None
-        self.__pending_info_mutex = threading.RLock()
-
         # used to maintain the display when cursor is not moving
         self.__last_source = None
 
@@ -1454,7 +1451,6 @@ class InfoPanel(Panel.Panel):
         self.position_text = ui.create_label_widget()
         value_label = ui.create_label_widget(_("Value:"))
         self.value_text = ui.create_label_widget()
-        self.graphic_text = ui.create_label_widget()
 
         position_row = ui.create_row_widget(properties={"spacing": 6})
         position_row.add(position_label)
@@ -1466,16 +1462,11 @@ class InfoPanel(Panel.Panel):
         value_row.add(self.value_text)
         value_row.add_stretch()
 
-        graphic_row = ui.create_row_widget(properties={"spacing": 6})
-        graphic_row.add(self.graphic_text)
-        graphic_row.add_stretch()
-
         properties["spacing"] = 2
         properties["margin"] = 6
         column = ui.create_column_widget(properties)
         column.add(position_row)
         column.add(value_row)
-        column.add(graphic_row)
         column.add_stretch()
 
         self.widget = column
@@ -1490,18 +1481,6 @@ class InfoPanel(Panel.Panel):
         # finish closing
         super(InfoPanel, self).close()
 
-    def periodic(self):
-        super(InfoPanel, self).periodic()
-        with self.__pending_info_mutex:
-            do_update = self.__pending_info is not None
-            if do_update:
-                position_text, value_text, graphic_text = self.__pending_info
-                self.__pending_info = None
-        if do_update:
-            self.position_text.text = position_text
-            self.value_text.text = value_text
-            self.graphic_text.text = graphic_text
-
     # this message is received from the document controller.
     # it is established using add_listener
     def cursor_changed(self, source, data_item, pos, selected_graphics, data_size):
@@ -1514,7 +1493,6 @@ class InfoPanel(Panel.Panel):
                 return str(value)
         position_text = ""
         value_text = ""
-        graphic_text = ""
         if data_item and data_size:
             calibrations = data_item.calculated_calibrations
             intensity_calibration = data_item.calculated_intensity_calibration
@@ -1540,10 +1518,9 @@ class InfoPanel(Panel.Panel):
                 if pos[0] >= 0 and pos[0] < data_size[0]:
                     position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(data_item.get_data_value(pos), intensity_calibration)
-            if len(selected_graphics) == 1:
-                graphic = selected_graphics[0]
-                graphic_text = graphic.calibrated_description(data_size, calibrations)
             self.__last_source = source
         if self.__last_source == source:
-            with self.__pending_info_mutex:
-                self.__pending_info = (position_text, value_text, graphic_text)
+            def update_position_and_value(position_text, value_text):
+                self.position_text.text = position_text
+                self.value_text.text = value_text
+            self.add_task("position_and_value", lambda: update_position_and_value(position_text, value_text))

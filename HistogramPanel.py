@@ -245,12 +245,67 @@ class HistogramPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
-        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties)
-        self.widget = self.root_canvas_item.canvas
+
         self.data_item_binding = document_controller.create_selected_data_item_binding()
+
+        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
         self.root_canvas_item.add_canvas_item(HistogramCanvasItem(self.data_item_binding))
+
+        self.stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        self.stats_column2 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        self.stats_column1_label = self.ui.create_label_widget()
+        self.stats_column2_label = self.ui.create_label_widget()
+        self.stats_column1.add(self.stats_column1_label)
+        self.stats_column1.add_stretch()
+        self.stats_column2.add(self.stats_column2_label)
+        self.stats_column2.add_stretch()
+
+        stats_section = self.ui.create_row_widget(properties={"spacing": 6})
+        stats_section.add_spacing(13)
+        stats_section.add(self.stats_column1)
+        stats_section.add_stretch()
+        stats_section.add(self.stats_column2)
+        stats_section.add_spacing(13)
+
+        column = self.ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3})
+        column.add(self.root_canvas_item.canvas)
+        column.add_spacing(6)
+        column.add(stats_section)
+        column.add_spacing(6)
+
+        self.widget = column
+
+        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
+        # and data_item_binding_data_item_content_changed
+        self.data_item_binding.add_listener(self)
+        # initial data item changed message
+        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
 
     def close(self):
         self.root_canvas_item.close()
+        # disconnect data item binding
+        self.data_item_binding_data_item_changed(None)
+        self.data_item_binding.remove_listener(self)
         self.data_item_binding.close()
         super(HistogramPanel, self).close()
+
+    # this message is received from the data item binding.
+    # it is established using add_listener
+    # TODO: statistics gets updated unnecessarily when dragging graphic items
+    def data_item_binding_data_item_changed(self, data_item):
+        def update_statistics(statistics_data):
+            statistic_strs = list()
+            for key in sorted(statistics_data.keys()):
+                statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+                statistic_strs.append(statistic_str)
+            self.stats_column1_label.text = "\n".join(statistic_strs[:(len(statistic_strs)+1)/2])
+            self.stats_column2_label.text = "\n".join(statistic_strs[(len(statistic_strs)+1)/2:])
+        def update_statistics_data(statistics_data):
+            self.add_task("statistics", lambda: update_statistics(statistics_data))
+        statistics_data = data_item.get_processor("statistics").get_data(None, completion_fn=update_statistics_data) if data_item else dict()
+        self.add_task("statistics", lambda: update_statistics(statistics_data))
+
+    # this message is received from the data item binding.
+    # it is established using add_listener
+    def data_item_binding_data_item_content_changed(self, data_item, changes):
+        self.data_item_binding_data_item_changed(data_item)
