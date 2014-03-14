@@ -1204,6 +1204,12 @@ class DataItem(Storage.StorageBase):
             data = property(__get_data)
         return DataAccessor(self)
 
+    def __get_data_immediate(self):
+        """ add_ref, get data, remove_ref """
+        with self.data_ref() as data_ref:
+            return data_ref.data
+    data = property(__get_data_immediate)
+
     # root data is data before operations have been applied.
     def __get_root_data(self):
         # this should NOT happen under the data mutex. it can take a long time.
