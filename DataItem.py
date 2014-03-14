@@ -140,6 +140,91 @@ class CalibratedSizeFloatToStringConverter(object):
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
+class DataItemProcessor(object):
+
+    def __init__(self, data_item, cache_property_name):
+        self.__weak_data_item = weakref.ref(data_item)
+        self.__cache_property_name = cache_property_name
+        self.__mutex = threading.RLock()
+        self.__in_progress = False
+
+    def __get_data_item(self):
+        return self.__weak_data_item() if self.__weak_data_item else None
+    data_item = property(__get_data_item)
+
+    def data_item_changed(self):
+        """ Called directly from data item. """
+        self.set_cached_value_dirty()
+
+    def data_item_property_changed(self, key, value):
+        """
+            Subclasses should override and call set_cached_value_dirty to add
+            property dependencies. Called directly from data item.
+        """
+        pass
+
+    def set_cached_value_dirty(self):
+        self.data_item.set_cached_value_dirty(self.__cache_property_name)
+
+    def get_calculated_data(self, data):
+        """ Subclasses must implement. """
+        raise NotImplementedError()
+
+    def get_default_data(self):
+        """ Subclasses must implement. """
+        raise NotImplementedError()
+
+    def get_data(self, completion_fn=None):
+        if self.data_item.is_cached_value_dirty(self.__cache_property_name):
+            if not self.data_item.closed and (self.data_item.has_master_data or self.data_item.has_data_source):
+                def load_data_on_thread():
+                    time.sleep(0.2)
+                    with self.data_item.data_ref() as data_ref:
+                        data = data_ref.data
+                    if data is not None:  # for data to load and make sure it has data
+                        calculated_data = self.get_calculated_data(data)
+                        self.data_item.set_cached_value(self.__cache_property_name, calculated_data)
+                    else:
+                        calculated_data = self.get_default_data()
+                        self.data_item.remove_cached_value(self.__cache_property_name)
+                    if completion_fn:
+                        completion_fn(calculated_data)
+                    with self.__mutex:
+                        self.__in_progress = False
+                with self.__mutex:
+                    if not self.__in_progress:
+                        self.__in_progress = True
+                        self.data_item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread())
+        calculated_data = self.data_item.get_cached_value(self.__cache_property_name)
+        if calculated_data is not None:
+            return calculated_data
+        return self.get_default_data()
+
+
+class HistogramDataItemProcessor(DataItemProcessor):
+
+    def __init__(self, data_item):
+        super(HistogramDataItemProcessor, self).__init__(data_item, "histogram_data")
+        self.bins = 256
+
+    def data_item_property_changed(self, key, value):
+        """ Called directly from data item. """
+        super(HistogramDataItemProcessor, self).data_item_property_changed(key, value)
+        if key == "display_limits":
+            self.set_cached_value_dirty()
+
+    def get_calculated_data(self, data):
+        #logging.debug("Calculating histogram %s", self)
+        display_range = self.data_item.display_range  # may be None
+        histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
+        histogram_max = float(numpy.max(histogram_data))
+        histogram_data = histogram_data / histogram_max
+        return histogram_data
+
+    def get_default_data(self):
+        return numpy.zeros((self.bins, ), dtype=numpy.uint32)
+
+
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
 # from another data item (data source).
@@ -257,8 +342,8 @@ class DataItem(Storage.StorageBase):
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__thumbnail_mutex = threading.RLock()
         self.__thumbnail_in_progress = False
-        self.__histogram_mutex = threading.RLock()
-        self.__histogram_in_progress = False
+        self.__processors = dict()
+        self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.__set_master_data(data)
 
     def __str__(self):
@@ -352,6 +437,12 @@ class DataItem(Storage.StorageBase):
             self.operations.remove(operation)
         super(DataItem, self).about_to_delete()
 
+    def add_shared_task(self, task_id, item, fn):
+        self.__shared_thread_pool.add_task(task_id, item, fn)
+
+    def get_processor(self, processor_id):
+        return self.__processors[processor_id]
+
     def remove_data_item(self, data_item):
         self.data_items.remove(data_item)
 
@@ -412,10 +503,11 @@ class DataItem(Storage.StorageBase):
                 changes = self.__data_item_changes
                 self.__data_item_changes = set()
         if data_item_change_count == 0:
-            # clear the histogram and thumbnail
+            # clear the thumbnail and processing controller caches
             if not THUMBNAIL in changes:
                 self.set_cached_value_dirty("thumbnail_data")
-                self.set_cached_value_dirty("histogram_data")
+                for processor in self.__processors.values():
+                    processor.data_item_changed()
             # clear the preview if the the display changed
             if DISPLAY in changes:
                 self.__preview = None
@@ -437,7 +529,6 @@ class DataItem(Storage.StorageBase):
     def __set_display_limits(self, display_limits):
         if self.__display_limits != display_limits:
             self.__display_limits = display_limits
-            self.set_cached_value_dirty("histogram_data")
             self.notify_set_property("display_limits", display_limits)
             self.notify_data_item_content_changed(set([DISPLAY]))
     display_limits = property(__get_display_limits, __set_display_limits)
@@ -479,8 +570,11 @@ class DataItem(Storage.StorageBase):
     def __get_display_range(self):
         data_range = self.__get_data_range()
         return self.__display_limits if self.__display_limits else data_range
+    def __set_display_range(self, display_range):
+        # TODO: This is a temporary hack to get display limits in inspector working properly.
+        self.display_limits = display_range
     # TODO: this is only valid after data has been called (!)
-    display_range = property(__get_display_range)
+    display_range = property(__get_display_range, __set_display_range)
 
     # calibration stuff
 
@@ -809,6 +903,8 @@ class DataItem(Storage.StorageBase):
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
         self.notify_data_item_content_changed(set([DISPLAY]))
+        for processor in self.__processors.values():
+            processor.data_item_property_changed(key, value)
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
@@ -1293,37 +1389,6 @@ class DataItem(Storage.StorageBase):
     def __get_thumbnail_data_dirty(self):
         return self.is_cached_value_dirty("thumbnail_data")
     thumbnail_data_dirty = property(__get_thumbnail_data_dirty)
-
-    def get_histogram_data(self, bins=256, completion_fn=None):
-        if self.is_cached_value_dirty("histogram_data"):
-            if not self.closed and (self.has_master_data or self.has_data_source):
-                def load_histogram_on_thread():
-                    time.sleep(0.2)
-                    with self.data_ref() as data_ref:
-                        data = data_ref.data
-                    if data is not None:  # for data to load and make sure it has data
-                        display_range = self.display_range  # may be None
-                        #logging.debug("Calculating histogram %s", self)
-                        histogram_data = numpy.histogram(data, range=display_range, bins=bins)[0]
-                        histogram_max = float(numpy.max(histogram_data))
-                        histogram_data = histogram_data / histogram_max
-                        self.set_cached_value("histogram_data", histogram_data)
-                    else:
-                        histogram_data = numpy.zeros((bins, ), dtype=numpy.uint32)
-                        self.remove_cached_value("histogram_data")
-                    if completion_fn:
-                        completion_fn(histogram_data)
-                    pass # self.notify_data_item_content_changed(set([HISTOGRAM]))
-                    with self.__histogram_mutex:
-                        self.__histogram_in_progress = False
-                with self.__histogram_mutex:
-                    if not self.__histogram_in_progress:
-                        self.__histogram_in_progress = True
-                        self.__shared_thread_pool.add_task("calculate-histogram", None, lambda: load_histogram_on_thread())
-        histogram_data = self.get_cached_value("histogram_data")
-        if histogram_data is not None:
-            return histogram_data
-        return numpy.zeros((bins, ), dtype=numpy.uint32)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
