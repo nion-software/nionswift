@@ -49,6 +49,7 @@ class Application(object):
 
         self.ui = ui
         self.resources_path = resources_path
+        self.version_str = "0.1.5.2"
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -216,7 +217,7 @@ class Application(object):
         return True
 
     def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):
-        document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id)
+        document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
         document_controller.add_listener(self)
         self.register_document_controller(document_controller)
         # attempt to set data item / group

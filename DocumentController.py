@@ -27,6 +27,7 @@ from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Utility
 from nion.swift import Workspace
+from nion.ui import Dialog
 from nion.ui import Process
 from nion.ui import Observable
 
@@ -37,7 +38,7 @@ class DocumentController(Observable.Broadcaster):
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
-    def __init__(self, ui, document_model, workspace_id=None):
+    def __init__(self, ui, document_model, workspace_id=None, app=None):
         super(DocumentController, self).__init__()
         self.ui = ui
         self.document_model = document_model
@@ -48,6 +49,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
         self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
+        self.app = app
         self.replaced_data_item = None
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
@@ -200,7 +202,7 @@ class DocumentController(Observable.Broadcaster):
         self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
 
         #self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
-        #self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.no_operation(), role="about")
+        self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.show_about_box(), role="about")
 
         self.window_menu.add_menu_item(_("Minimize"), lambda: self.no_operation())
         self.window_menu.add_menu_item(_("Bring to Front"), lambda: self.no_operation())
@@ -227,6 +229,36 @@ class DocumentController(Observable.Broadcaster):
             menu = self.document_window.insert_menu(menu_title, before_menu)
             setattr(self, menu_id, menu)
         return getattr(self, menu_id)
+
+    def show_about_box(self):
+        version_str = self.app.version_str if self.app else str()
+        class AboutDialog(Dialog.OkCancelDialog):
+            def __init__(self, ui):
+                super(AboutDialog, self).__init__(ui, include_cancel=False)
+                row = self.ui.create_row_widget()
+                logo_button = self.ui.create_push_button_widget()
+                image = self.ui.load_rgba_data_from_file(":/Graphics/logo3.png")
+                logo_button.icon = image
+                column = self.ui.create_column_widget()
+                row_one = self.ui.create_row_widget()
+                row_one.add_spacing(13)
+                row_one.add(self.ui.create_label_widget("Nion Swift {0}".format(version_str)))
+                row_one.add_spacing(13)
+                row_one.add_stretch()
+                row_two = self.ui.create_row_widget()
+                row_two.add_spacing(13)
+                row_two.add(self.ui.create_label_widget("Copyright 2012-2014 Nion Co. All Rights Reserved."))
+                row_two.add_spacing(13)
+                row_two.add_stretch()
+                column.add_spacing(26)
+                column.add(row_one)
+                column.add(row_two)
+                column.add_spacing(26)
+                column.add_stretch()
+                row.add(logo_button)
+                row.add(column)
+                self.content.add(row)
+        AboutDialog(self.ui).show()
 
     def __get_panels(self):
         if self.workspace:
