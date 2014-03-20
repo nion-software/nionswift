@@ -1,8 +1,6 @@
 # standard libraries
 import collections
 import copy
-import functools
-import logging
 import threading
 import weakref
 
@@ -10,8 +8,8 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import DataGroup
-from nion.swift import Utility
+from nion.swift.model import DataGroup
+from nion.swift.model import Utility
 from nion.ui import Observable
 from nion.ui import UserInterfaceUtility
 

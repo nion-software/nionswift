@@ -12,10 +12,10 @@ import scipy.ndimage.filters
 import scipy.ndimage.fourier
 
 # local libraries
-from nion.swift import Calibration
-from nion.swift import Graphics
-from nion.swift import Image
-from nion.swift import Storage
+from nion.swift.model import Calibration
+from nion.swift.model import Graphics
+from nion.swift.model import Image
+from nion.swift.model import Storage
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext

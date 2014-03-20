@@ -7,10 +7,8 @@ import unittest
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DataItem
-from nion.swift import Workspace
+from nion.swift.model import DataItem
 from nion.swift.test import DocumentController_test
-from nion.ui import UserInterface
 from nion.ui import Test
 
 

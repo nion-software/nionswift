@@ -1,15 +1,12 @@
 # standard libraries
 import gettext
-import logging
 import math
-import numpy  # for arange
-import uuid
 
 # third party libraries
-# None
+import numpy  # for arange
 
 # local libraries
-from nion.swift import Storage
+from nion.swift.model import Storage
 
 _ = gettext.gettext
 

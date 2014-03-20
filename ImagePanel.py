@@ -6,12 +6,12 @@ import uuid
 # third party libraries
 
 # local libraries
-from nion.swift import Image
-from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import HistogramPanel
-from nion.swift import LineGraphCanvasItem
 from nion.swift import Panel
+from nion.swift.model import DataItem
+from nion.swift.model import Image
+from nion.swift.model import LineGraphCanvasItem
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable

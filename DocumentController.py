@@ -1,32 +1,24 @@
 # standard libraries
-import collections
-import datetime
-import functools
 import gettext
 import logging
 import os.path
 import random
 import threading
-import time
 import traceback
 import weakref
 
 # third party libraries
-import numpy
 
 # local libraries
-from nion.swift import DataGroup
-from nion.swift import DataItem
-from nion.swift import DataItemsBinding
 from nion.swift import DataPanel
-from nion.swift import DocumentModel
-from nion.swift import Graphics
-from nion.swift import ImportExportManager
-from nion.swift import Operation
-from nion.swift import Storage
 from nion.swift import Task
-from nion.swift import Utility
 from nion.swift import Workspace
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
+from nion.swift.model import DataItemsBinding
+from nion.swift.model import Graphics
+from nion.swift.model import ImportExportManager
+from nion.swift.model import Operation
 from nion.ui import Dialog
 from nion.ui import Process
 from nion.ui import Observable

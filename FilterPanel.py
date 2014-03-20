@@ -1,9 +1,7 @@
 # standard libraries
 import bisect
-import collections
 import datetime
 import gettext
-import logging
 import threading
 import weakref
 
@@ -11,10 +9,8 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import DataItemsBinding
-from nion.swift import DataPanel
 from nion.swift import Panel
-from nion.swift import Utility
+from nion.swift.model import Utility
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext

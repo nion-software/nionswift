@@ -1,14 +1,12 @@
 # standard libraries
 import copy
-import logging
 import types
 
 # third party libraries
 import numpy
 
 # local libraries
-# None
-from nion.swift import Storage
+from nion.swift.model import Storage
 
 
 class Calibration(object):

@@ -11,9 +11,7 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import DataItem
 from nion.swift import Decorators
-from nion.ui import UserInterface
 
 
 _ = gettext.gettext

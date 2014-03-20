@@ -11,13 +11,13 @@ import weakref
 import scipy
 
 # local libraries
-from nion.swift import DataGroup
-from nion.swift import DataItem
-from nion.swift import Image
-from nion.swift import ImportExportManager
-from nion.swift import PlugInManager
-from nion.swift import Session
-from nion.swift import Storage
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
+from nion.swift.model import Image
+from nion.swift.model import ImportExportManager
+from nion.swift.model import PlugInManager
+from nion.swift.model import Session
+from nion.swift.model import Storage
 
 _ = gettext.gettext
 
@@ -90,8 +90,7 @@ class DocumentModel(Storage.StorageBase):
         if True:
             data_group = self.get_or_create_data_group(_("Example Data"))
             handler = ImportExportManager.NDataImportExportHandler(None, ["ndata1"])
-            root_dir = PlugInManager.get_root_dir()
-            samples_dir = os.path.join(root_dir, "SampleImages")
+            samples_dir = os.path.join(resources_path, "SampleImages")
             #logging.debug("Looking in %s", samples_dir)
             def is_ndata(file_path):
                 #logging.debug("Checking %s", file_path)

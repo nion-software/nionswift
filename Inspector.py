@@ -1,17 +1,14 @@
 # standard libraries
-import copy
 import gettext
-import logging
 import threading
-import weakref
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift import DataItem
 from nion.swift import DataItemInspector
 from nion.swift import Panel
+from nion.swift.model import DataItem
 from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext

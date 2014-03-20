@@ -7,7 +7,7 @@ import unittest
 
 # local libraries
 from nion.swift import Application
-from nion.swift import LineGraphCanvasItem
+from nion.swift.model import LineGraphCanvasItem
 from nion.ui import Test
 
 

@@ -2,14 +2,14 @@
 import collections
 import copy
 import gettext
-import logging
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift import DataItem
-from nion.swift import Storage
+from nion.swift.model import DataItem
+from nion.swift.model import Storage
+
 
 _ = gettext.gettext
 

@@ -1,21 +1,18 @@
 # standard libraries
 import copy
-import logging
 import unittest
-import weakref
 
 # third party libraries
 import numpy
-import scipy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DataGroup
-from nion.swift import DataItem
 from nion.swift import DocumentController
-from nion.swift import DocumentModel
-from nion.swift import Operation
-from nion.swift import Storage
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.swift.model import Operation
+from nion.swift.model import Storage
 from nion.ui import Test
 
 

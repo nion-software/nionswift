@@ -8,8 +8,8 @@ import unittest
 import numpy
 
 # local libraries
-from nion.swift import ImportExportManager
-from nion.swift import DataItem
+from nion.swift.model import DataItem
+from nion.swift.model import ImportExportManager
 
 
 class TestImportExportManagerClass(unittest.TestCase):

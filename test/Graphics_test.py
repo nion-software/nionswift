@@ -7,7 +7,7 @@ import unittest
 # None
 
 # local libraries
-from nion.swift import Graphics
+from nion.swift.model import Graphics
 
 
 class TestGraphicsClass(unittest.TestCase):

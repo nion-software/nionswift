@@ -10,47 +10,11 @@ import unittest
 __test_suites = []
 
 
-def get_root_dir():
-    # in Windows, we generally have
-    # |   NionImaging.exe
-    # +---nion
-    # |   |   init.py
-    # |   \---swift
-    # |       |   ...
-    # |       |   PluginManager.py
-    # |       |   ...
-    # +---PlugIns
-    # |   \---PluginOne
-    # |       |   init.py
-    # |       ...
-    #
-    # and under Mac
-    # +---MacOs
-    # |       NionImaging.app
-    # +---Resources
-    # |   \---nion
-    # |       |   init.py
-    # |       \---swift
-    # |           |   ...
-    # |           |   PluginManager.py
-    # |           |   ...
-    # +---PlugIns
-    # |   \---PluginOne
-    # |       |   init.py
-    # |       ...
-    root_dir = os.path.dirname(os.path.realpath(__file__))
-    path_ascend_count = 2
-    for i in range(path_ascend_count):
-        root_dir = os.path.dirname(root_dir)
-    return root_dir
-
-
-def load_plug_ins(ui):
+def load_plug_ins(ui, root_dir):
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
     # we'll let command line arguments overwrite the plugin folder location
     subdirectories = []
 
-    root_dir = get_root_dir()
     subdirectories.append(root_dir)
 
     data_location = ui.get_data_location()

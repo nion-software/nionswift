@@ -8,7 +8,6 @@ import Queue
 import os
 import sqlite3
 import StringIO
-import sys
 import threading
 import time
 import uuid
@@ -18,7 +17,6 @@ import weakref
 # None
 
 # local libraries
-from nion.swift.Decorators import traceit
 from nion.ui import Observable
 
 
@@ -716,11 +714,11 @@ class DictDatastore(object):
         item = None
         if uuid_ not in self.__item_map:
             node = self.__node_map[uuid_]
-            from nion.swift import Calibration
-            from nion.swift import DataGroup
-            from nion.swift import DataItem
-            from nion.swift import Graphics
-            from nion.swift import Operation
+            from nion.swift.model import Calibration
+            from nion.swift.model import DataGroup
+            from nion.swift.model import DataItem
+            from nion.swift.model import Graphics
+            from nion.swift.model import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
@@ -1141,11 +1139,11 @@ class DbDatastore(object):
     def build_item(self, uuid_):
         item = None
         if uuid_ not in self.__item_map:
-            from nion.swift import Calibration
-            from nion.swift import DataGroup
-            from nion.swift import DataItem
-            from nion.swift import Graphics
-            from nion.swift import Operation
+            from nion.swift.model import Calibration
+            from nion.swift.model import DataGroup
+            from nion.swift.model import DataItem
+            from nion.swift.model import Graphics
+            from nion.swift.model import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,

@@ -12,12 +12,11 @@ import zipfile
 import numpy
 
 # local libraries
-from nion.swift import Calibration
-from nion.swift import DataItem
-from nion.swift import Decorators
-from nion.swift import Graphics
-from nion.swift import Image
-from nion.swift import Utility
+from nion.swift.model import Calibration
+from nion.swift.model import DataItem
+from nion.swift.model import Graphics
+from nion.swift.model import Image
+from nion.swift.model import Utility
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -72,7 +71,7 @@ class ImportExportHandler(object):
 
 
 class ImportExportManager(object):
-    __metaclass__ = Decorators.Singleton
+    __metaclass__ = Utility.Singleton
 
     """
     Keeps track of import/export plugins.

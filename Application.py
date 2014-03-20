@@ -1,10 +1,8 @@
 # standard libraries
 import calendar
-import collections
 import copy
 import datetime
 import gettext
-import importlib
 import logging
 import os
 import cPickle as pickle
@@ -14,28 +12,25 @@ import time
 import uuid
 
 # third party libraries
-import numpy
 
 # local libraries
-from nion.swift import DataItem
 from nion.swift import DataPanel
 from nion.swift import DocumentController
-from nion.swift import DocumentModel
 from nion.swift import FilterPanel
-from nion.swift import HardwareSource
 from nion.swift import HistogramPanel
 from nion.swift import ImagePanel
-from nion.swift import ImportExportManager
 from nion.swift import Inspector
 from nion.swift import Panel
-from nion.swift import PlugInManager
-from nion.swift import Session
-from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Test
 from nion.swift import ToolbarPanel
-from nion.swift import Utility
 from nion.swift import Workspace
+from nion.swift import SessionPanel
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.swift.model import ImportExportManager
+from nion.swift.model import PlugInManager
+from nion.swift.model import Storage
 
 _ = gettext.gettext
 
@@ -63,7 +58,7 @@ class Application(object):
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(ImagePanel.ImagePanel, "image-panel", _("Image Panel"), ["central"], "central")
-        workspace_manager.register_panel(Session.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"width": 320, "height": 80})
+        workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"width": 320, "height": 80})
         workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 320, "height": 400})
         workspace_manager.register_panel(HistogramPanel.HistogramPanel, "histogram-panel", _("Histogram"), ["left", "right"], "right", {"width": 320, "height": 140})
         workspace_manager.register_panel(ImagePanel.InfoPanel, "info-panel", _("Info"), ["left", "right"], "right", {"width": 320})
@@ -76,7 +71,7 @@ class Application(object):
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
-        PlugInManager.load_plug_ins(self.ui)
+        PlugInManager.load_plug_ins(self.ui, get_root_dir())
         Test.load_tests()  # after plug-ins are loaded
 
     def start(self):
@@ -332,6 +327,41 @@ class DataReferenceHandler(object):
         else:
             logging.debug("Cannot remove master data %s %s", reference_type, reference)
             raise NotImplementedError()
+
+
+def get_root_dir():
+    # in Windows, we generally have
+    # |   NionImaging.exe
+    # +---nion
+    # |   |   init.py
+    # |   \---swift
+    # |       |   ...
+    # |       |   PluginManager.py
+    # |       |   ...
+    # +---PlugIns
+    # |   \---PluginOne
+    # |       |   init.py
+    # |       ...
+    #
+    # and under Mac
+    # +---MacOs
+    # |       NionImaging.app
+    # +---Resources
+    # |   \---nion
+    # |       |   init.py
+    # |       \---swift
+    # |           |   ...
+    # |           |   PluginManager.py
+    # |           |   ...
+    # +---PlugIns
+    # |   \---PluginOne
+    # |       |   init.py
+    # |       ...
+    root_dir = os.path.dirname(os.path.realpath(__file__))
+    path_ascend_count = 2
+    for i in range(path_ascend_count):
+        root_dir = os.path.dirname(root_dir)
+    return root_dir
 
 
 def print_stack_all():

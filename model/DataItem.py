@@ -13,11 +13,11 @@ import weakref
 import numpy
 
 # local libraries
-from nion.swift import Calibration
-from nion.swift import LineGraphCanvasItem
-from nion.swift import Image
-from nion.swift import Storage
-from nion.swift import Utility
+from nion.swift.model import Calibration
+from nion.swift.model import Image
+from nion.swift.model import LineGraphCanvasItem
+from nion.swift.model import Storage
+from nion.swift.model import Utility
 from nion.ui import Observable
 from nion.ui import ThreadPool
 from nion.ui import UserInterfaceUtility

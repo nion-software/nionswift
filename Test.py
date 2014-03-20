@@ -1,7 +1,6 @@
 # standard libraries
 import importlib
 import inspect
-import logging
 import os
 import unittest
 
@@ -9,7 +8,7 @@ import unittest
 # None
 
 # local libraries
-from nion.swift import PlugInManager
+from nion.swift.model import PlugInManager
 
 """
 Running tests without Qt:

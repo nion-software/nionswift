@@ -12,17 +12,16 @@ import scipy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import Calibration
-from nion.swift import DataGroup
-from nion.swift import DataItem
 from nion.swift import DocumentController
-from nion.swift import DocumentModel
-from nion.swift import Graphics
 from nion.swift import ImagePanel
-from nion.swift import ImportExportManager
-from nion.swift import Operation
-from nion.swift import Storage
-from nion.swift import Utility
+from nion.swift.model import Calibration
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.swift.model import ImportExportManager
+from nion.swift.model import Operation
+from nion.swift.model import Storage
+from nion.swift.model import Utility
 from nion.ui import Test
 
 

@@ -1,17 +1,11 @@
 # standard libraries
 import gettext
-import logging
-import threading
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.swift import DataItem
-from nion.swift.Decorators import relative_file
-from nion.swift import DocumentController
 from nion.swift import Panel
-from nion.ui import CanvasItem
 
 _ = gettext.gettext
 

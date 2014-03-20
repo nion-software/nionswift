@@ -6,12 +6,11 @@ import numpy
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DataItem
 from nion.swift import DocumentController
-from nion.swift import DocumentModel
 from nion.swift import HistogramPanel
-from nion.swift import ImagePanel
-from nion.swift import Storage
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.swift.model import Storage
 from nion.ui import Test
 
 

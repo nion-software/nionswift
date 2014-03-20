@@ -1,14 +1,10 @@
 # standard libraries
 import gettext
-import logging
-import threading
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift import DataItem
-from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import ThreadPool

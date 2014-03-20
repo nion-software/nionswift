@@ -15,18 +15,12 @@ from contextlib import contextmanager
 import copy
 import gettext
 import logging
-import numbers
-import Queue as queue
 import threading
 import time
-import uuid
-import weakref
 
 # local imports
-from nion.swift import Decorators
-from nion.swift import DataGroup
-from nion.swift import DataItem
-from nion.swift import ImportExportManager
+from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -35,7 +29,7 @@ _ = gettext.gettext
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
 class HardwareSourceManager(Observable.Broadcaster):
-    __metaclass__ = Decorators.Singleton
+    __metaclass__ = Utility.Singleton
 
     def __init__(self):
         super(HardwareSourceManager, self).__init__()

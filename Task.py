@@ -11,7 +11,7 @@ import time
 # local libraries
 from nion.swift import Decorators
 from nion.swift import Panel
-from nion.swift import Storage
+from nion.swift.model import Storage
 
 _ = gettext.gettext
 

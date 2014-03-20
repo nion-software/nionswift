@@ -1,5 +1,4 @@
 # standard libraries
-import logging
 import unittest
 
 # third party libraries
@@ -7,10 +6,10 @@ import unittest
 
 # local libraries
 from nion.swift import Application
-from nion.swift import DataGroup
-from nion.swift import DataItem
-from nion.swift import DocumentModel
-from nion.swift import Storage
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
+from nion.swift.model import Storage
 from nion.ui import Test
 
 

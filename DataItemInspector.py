@@ -1,15 +1,13 @@
 # standard libraries
 import gettext
-import logging
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift import DataItem
-from nion.swift import Graphics
-from nion.swift import Operation
-from nion.swift import Storage
+from nion.swift.model import DataItem
+from nion.swift.model import Graphics
+from nion.swift.model import Operation
 from nion.ui import Process
 from nion.ui import UserInterfaceUtility
 

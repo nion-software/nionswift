@@ -3,10 +3,10 @@ import time
 
 import numpy as np
 
-from nion.swift import DocumentModel
-from nion.swift import HardwareSource
-from nion.swift import Session
-from nion.swift import Storage
+from nion.swift.model import DocumentModel
+from nion.swift.model import HardwareSource
+from nion.swift.model import Session
+from nion.swift.model import Storage
 
 
 class SimpleHardwareSource(HardwareSource.HardwareSource):

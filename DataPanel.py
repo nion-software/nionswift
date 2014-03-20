@@ -1,7 +1,5 @@
 # standard libraries
-import collections
 import copy
-import datetime
 import functools
 import gettext
 import logging
@@ -13,12 +11,9 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import DataItem
-from nion.swift import DataItemsBinding
-from nion.swift import DataGroup
 from nion.swift import Panel
-from nion.swift import Storage
-from nion.swift import Utility
+from nion.swift.model import DataGroup
+from nion.swift.model import DataItem
 from nion.ui import Geometry
 from nion.ui import Process
 from nion.ui import UserInterfaceUtility
