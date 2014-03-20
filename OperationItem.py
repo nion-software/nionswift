@@ -1,16 +1,15 @@
 # standard libraries
 import copy
 import gettext
-import logging
 import math
 
 # third party libraries
 # None
 
 # local libraries
-from nion.imaging import Operation
 from nion.swift import DataItem
 from nion.swift import Graphics
+from nion.swift import Operation
 from nion.swift import Storage
 from nion.ui import UserInterfaceUtility
 

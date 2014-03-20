@@ -1,24 +1,15 @@
 # standard libraries
 import gettext
-import logging
-import math
 import numbers
-import random
-import threading
-import time
 import uuid
-import weakref
 
 # third party libraries
-import numpy
 
 # local libraries
-from nion.imaging import Image
-from nion.swift import DataGroup
+from nion.swift import Image
 from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import HistogramPanel
-from nion.swift import Inspector
 from nion.swift import LineGraphCanvasItem
 from nion.swift import Panel
 from nion.ui import CanvasItem

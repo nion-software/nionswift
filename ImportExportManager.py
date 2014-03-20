@@ -3,21 +3,19 @@ import copy
 import cStringIO
 import datetime
 import json
-import logging
 import os
 import re
 import string
-import time
 import zipfile
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.imaging import Image
 from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import Graphics
+from nion.swift import Image
 from nion.swift import Utility
 
 

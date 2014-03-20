@@ -5,22 +5,19 @@ import datetime
 import gettext
 import logging
 import os
-import cPickle as pickle
 import threading
 import time
-import types
 import weakref
 
 # third party libraries
 import numpy
 
 # local libraries
-from nion.imaging import Calibration
-from nion.imaging import Image
+from nion.swift import Calibration
 from nion.swift import LineGraphCanvasItem
+from nion.swift import Image
 from nion.swift import Storage
 from nion.swift import Utility
-from nion.ui import CanvasItem
 from nion.ui import Observable
 from nion.ui import ThreadPool
 from nion.ui import UserInterfaceUtility

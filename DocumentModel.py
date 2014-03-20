@@ -2,7 +2,6 @@
 import collections
 import copy
 import gettext
-import logging
 import numbers
 import os.path
 import uuid
@@ -12,9 +11,9 @@ import weakref
 import scipy
 
 # local libraries
-from nion.imaging import Image
 from nion.swift import DataGroup
 from nion.swift import DataItem
+from nion.swift import Image
 from nion.swift import ImportExportManager
 from nion.swift import PlugInManager
 from nion.swift import Session

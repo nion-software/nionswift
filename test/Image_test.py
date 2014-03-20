@@ -5,7 +5,7 @@ import unittest
 import numpy
 
 # local libraries
-from nion.imaging import Image
+from nion.swift import Image
 
 
 class TestImageClass(unittest.TestCase):

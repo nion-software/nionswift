@@ -10,12 +10,12 @@ import weakref
 import numpy
 
 # local libraries
-from nion.imaging import Image
-from nion.imaging import Operation
 from nion.swift import Application
 from nion.swift import DataItem
 from nion.swift import DocumentModel
 from nion.swift import Graphics
+from nion.swift import Image
+from nion.swift import Operation
 from nion.swift import OperationItem
 from nion.swift import Storage
 from nion.ui import Test
