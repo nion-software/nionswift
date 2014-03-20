@@ -12,6 +12,7 @@ import zipfile
 import numpy
 
 # local libraries
+from nion.swift import Calibration
 from nion.swift import DataItem
 from nion.swift import Decorators
 from nion.swift import Graphics
@@ -180,7 +181,7 @@ def update_data_item_from_data_element(data_item, data_element, external=False, 
                     scale = float(dimension_calibration["scale"])
                     units = unicode(dimension_calibration["units"])
                     if scale != 0.0:
-                        data_item.set_calibration(dimension, DataItem.CalibrationItem(origin, scale, units))
+                        data_item.set_calibration(dimension, Calibration.CalibrationItem(origin, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
             origin = float(intensity_calibration["origin"])

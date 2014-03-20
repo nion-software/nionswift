@@ -11,7 +11,8 @@ import scipy.ndimage.filters
 import scipy.ndimage.fourier
 
 # local libraries
-from nion.swift import Calibration, Image
+from nion.swift import Calibration
+from nion.swift import Image
 
 _ = gettext.gettext
 

@@ -34,75 +34,6 @@ _ = gettext.gettext
 # origin: the calibrated value at the origin
 # scale: the calibrated value at location 1.0
 # units: the units of the calibrated value
-class CalibrationItem(Storage.StorageBase):
-    def __init__(self, origin=None, scale=None, units=None, calibration=None):
-        super(CalibrationItem, self).__init__()
-        # TODO: add optional saving for these items
-        self.storage_properties += ["origin", "scale", "units"]
-        self.storage_type = "calibration"
-        self.calibration = copy.copy(calibration) if calibration else Calibration.Calibration(origin, scale, units)
-
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        origin = datastore.get_property(item_node, "origin", None)
-        scale = datastore.get_property(item_node, "scale", None)
-        units = datastore.get_property(item_node, "units", None)
-        calibration = Calibration.Calibration(origin, scale, units)
-        return cls(calibration=calibration)
-
-    def __deepcopy__(self, memo):
-        calibration_item = CalibrationItem(calibration=self.calibration)
-        memo[id(self)] = calibration_item
-        return calibration_item
-
-    def __str__(self):
-        return "{0:s} origin:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.origin, self.scale, self.units)
-
-    def __get_is_calibrated(self):
-        return self.calibration.is_calibrated
-    is_calibrated = property(__get_is_calibrated)
-
-    def clear(self):
-        self.calibration.clear()
-
-    def __get_origin(self):
-        return self.calibration.origin
-    def __set_origin(self, value):
-        self.calibration.origin = value
-        self.notify_set_property("origin", value)
-    origin = property(__get_origin, __set_origin)
-
-    def __get_scale(self):
-        return self.calibration.scale
-    def __set_scale(self, value):
-        self.calibration.scale = value
-        self.notify_set_property("scale", value)
-    scale = property(__get_scale, __set_scale)
-
-    def __get_units(self):
-        return self.calibration.units
-    def __set_units(self, value):
-        self.calibration.units = value
-        self.notify_set_property("units", value)
-    units = property(__get_units, __set_units)
-
-    # pass these through to calibration object
-    def convert_to_calibrated_value(self, value):
-        return self.calibration.convert_to_calibrated_value(value)
-    def convert_to_calibrated_size(self, size):
-        return self.calibration.convert_to_calibrated_size(size)
-    def convert_from_calibrated_value(self, value):
-        return self.calibration.convert_from_calibrated_value(value)
-    def convert_from_calibrated_size(self, size):
-        return self.calibration.convert_from_calibrated_size(size)
-    def convert_to_calibrated_value_str(self, value, include_units=True):
-        return self.calibration.convert_to_calibrated_value_str(value, include_units)
-    def convert_to_calibrated_size_str(self, size, include_units=True):
-        return self.calibration.convert_to_calibrated_size_str(size, include_units)
-
-    def notify_set_property(self, key, value):
-        super(CalibrationItem, self).notify_set_property(key, value)
-        self.notify_listeners("calibration_changed", self)
 
 
 class CalibratedValueFloatToStringConverter(object):
@@ -517,7 +448,7 @@ class DataItem(Storage.StorageBase):
         data_item.intrinsic_calibrations.extend(intrinsic_calibrations)
         # if we have master data, we should have intensity calibration
         if has_master_data and intrinsic_intensity_calibration is None:
-            intrinsic_intensity_calibration = CalibrationItem()
+            intrinsic_intensity_calibration = Calibration.CalibrationItem()
         data_item.intrinsic_intensity_calibration = intrinsic_intensity_calibration
         if display_calibrated_values is not None:
             data_item.display_calibrated_values = display_calibrated_values
@@ -728,7 +659,7 @@ class DataItem(Storage.StorageBase):
                 intensity_calibration_item = self.intrinsic_intensity_calibration
             else:
                 # construct empty calibration to display unitless
-                intensity_calibration_item = CalibrationItem()
+                intensity_calibration_item = Calibration.CalibrationItem()
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
         if intensity_calibration_item is None and self.data_source:
             intensity_calibration_item = self.data_source.calculated_intensity_calibration
@@ -745,11 +676,11 @@ class DataItem(Storage.StorageBase):
     # of intrinsic_calibrations exist in this object.
     def sync_intrinsic_calibrations(self, ndim):
         while len(self.intrinsic_calibrations) < ndim:
-            self.intrinsic_calibrations.append(CalibrationItem())
+            self.intrinsic_calibrations.append(Calibration.CalibrationItem())
         while len(self.intrinsic_calibrations) > ndim:
             self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
         if self.has_master_data and self.intrinsic_intensity_calibration is None:
-            self.intrinsic_intensity_calibration = CalibrationItem()
+            self.intrinsic_intensity_calibration = Calibration.CalibrationItem()
         if not self.has_master_data and self.intrinsic_intensity_calibration is not None:
             self.intrinsic_intensity_calibration = None
 
@@ -767,7 +698,7 @@ class DataItem(Storage.StorageBase):
                 # construct empty calibrations to display pixels
                 calibration_items = list()
                 for _ in xrange(0, len(self.spatial_shape)):
-                    calibration_items.append(CalibrationItem())
+                    calibration_items.append(Calibration.CalibrationItem())
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
         if calibration_items is None and self.data_source:
             calibration_items = self.data_source.calculated_calibrations

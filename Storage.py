@@ -716,6 +716,7 @@ class DictDatastore(object):
         item = None
         if uuid_ not in self.__item_map:
             node = self.__node_map[uuid_]
+            from nion.swift import Calibration
             from nion.swift import DataGroup
             from nion.swift import DataItem
             from nion.swift import Graphics
@@ -723,7 +724,7 @@ class DictDatastore(object):
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "calibration": DataItem.CalibrationItem,
+                "calibration": Calibration.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
@@ -1140,6 +1141,7 @@ class DbDatastore(object):
     def build_item(self, uuid_):
         item = None
         if uuid_ not in self.__item_map:
+            from nion.swift import Calibration
             from nion.swift import DataGroup
             from nion.swift import DataItem
             from nion.swift import Graphics
@@ -1147,7 +1149,7 @@ class DbDatastore(object):
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "calibration": DataItem.CalibrationItem,
+                "calibration": Calibration.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,

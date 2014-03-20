@@ -7,6 +7,7 @@ import math
 # None
 
 # local libraries
+from nion.swift import Calibration
 from nion.swift import DataItem
 from nion.swift import Graphics
 from nion.swift import Operation
@@ -184,13 +185,13 @@ class OperationItem(Storage.StorageBase):
         if self.operation:
             calibrations = [calibration_item.calibration for calibration_item in source_calibration_items]
             calibrations = self.operation.get_processed_spatial_calibrations(data_shape, data_dtype, calibrations)
-            return [DataItem.CalibrationItem(calibration=calibration) for calibration in calibrations]
+            return [Calibration.CalibrationItem(calibration=calibration) for calibration in calibrations]
         else:
             return source_calibration_items
 
     def get_processed_intensity_calibration_item(self, data_shape, data_dtype, intensity_calibration_item):
         if self.operation:
-            return DataItem.CalibrationItem(calibration=self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration_item.calibration))
+            return Calibration.CalibrationItem(calibration=self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration_item.calibration))
         else:
             return intensity_calibration_item
 
