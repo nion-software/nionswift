@@ -22,7 +22,7 @@ from nion.swift import DataPanel
 from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImportExportManager
-from nion.swift import OperationItem
+from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Task
 from nion.swift import Utility
@@ -554,7 +554,7 @@ class DocumentController(Observable.Broadcaster):
             self.workspace.display_data_item(data_item, source_data_item)
 
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
-        operation = OperationItem.OperationItem(operation_id)
+        operation = Operation.OperationItem(operation_id)
         assert operation is not None
         self.add_processing_operation(operation, prefix, suffix, in_place, select)
 
@@ -600,14 +600,14 @@ class DocumentController(Observable.Broadcaster):
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            operation = OperationItem.OperationItem("crop-operation")
+            operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_line_profile(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            operation = OperationItem.OperationItem("line-profile-operation")
+            operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
             return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)

@@ -20,7 +20,7 @@ from nion.swift import DocumentModel
 from nion.swift import Graphics
 from nion.swift import ImagePanel
 from nion.swift import ImportExportManager
-from nion.swift import OperationItem
+from nion.swift import Operation
 from nion.swift import Storage
 from nion.swift import Utility
 from nion.ui import Test
@@ -296,7 +296,7 @@ class TestStorageClass(unittest.TestCase):
     def verify_and_test_set_item(self, document_controller):
         # check that the graphic associated with the operation was read back
         crop_operation = document_controller.document_model.data_groups[0].data_items[0].data_items[3].operations[0]
-        self.assertIsInstance(crop_operation, OperationItem.OperationItem)
+        self.assertIsInstance(crop_operation, Operation.OperationItem)
         self.assertEqual(crop_operation.operation_id, "crop-operation")
 
     def test_dict_storage_set_item(self):

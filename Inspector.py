@@ -11,7 +11,6 @@ import weakref
 # local libraries
 from nion.swift import DataItem
 from nion.swift import DataItemInspector
-from nion.swift import OperationItem
 from nion.swift import Panel
 from nion.ui import UserInterfaceUtility
 
@@ -159,9 +158,9 @@ class OperationsInspector(DataItemInspector.InspectorSection):
                 label_widget = self.ui.create_label_widget(name)
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.maximum = 100
-                slider_widget.bind_value(OperationItem.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatTo100Converter()))
+                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatTo100Converter()))
                 line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(OperationItem.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatToPercentStringConverter()))
+                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatToPercentStringConverter()))
                 row_widget.add(label_widget)
                 row_widget.add_spacing(8)
                 row_widget.add(slider_widget)
@@ -174,7 +173,7 @@ class OperationsInspector(DataItemInspector.InspectorSection):
                 row_widget = self.ui.create_row_widget()
                 label_widget = self.ui.create_label_widget(name)
                 line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(OperationItem.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.IntegerToStringConverter()))
+                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.IntegerToStringConverter()))
                 row_widget.add(label_widget)
                 row_widget.add_spacing(8)
                 row_widget.add(line_edit_widget)

@@ -8,7 +8,7 @@ import logging
 # local libraries
 from nion.swift import DataItem
 from nion.swift import Graphics
-from nion.swift import OperationItem
+from nion.swift import Operation
 from nion.swift import Storage
 from nion.ui import Process
 from nion.ui import UserInterfaceUtility
@@ -427,7 +427,7 @@ class GraphicsInspector(InspectorSection):
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
             make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
-        if isinstance(graphic, OperationItem.LineProfileGraphic):
+        if isinstance(graphic, Operation.LineProfileGraphic):
             graphic_title_type_label.text = _("Line Profile")
             make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
         if isinstance(graphic, Graphics.RectangleGraphic):

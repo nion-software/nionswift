@@ -720,7 +720,7 @@ class DictDatastore(object):
             from nion.swift import DataGroup
             from nion.swift import DataItem
             from nion.swift import Graphics
-            from nion.swift import OperationItem
+            from nion.swift import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
@@ -728,7 +728,7 @@ class DictDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": OperationItem.OperationItem,
+                "operation": Operation.OperationItem,
             }
             type = node["type"]
             if type in build_map:
@@ -1145,7 +1145,7 @@ class DbDatastore(object):
             from nion.swift import DataGroup
             from nion.swift import DataItem
             from nion.swift import Graphics
-            from nion.swift import OperationItem
+            from nion.swift import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
@@ -1153,7 +1153,7 @@ class DbDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": OperationItem.OperationItem,
+                "operation": Operation.OperationItem,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
