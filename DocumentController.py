@@ -800,6 +800,8 @@ class SelectedDataItemBinding(DataItem.DataItemBinding):
                 self.__data_item.remove_listener(self)
             self.__data_item = data_item
 
+    # this message is received from the data item, if there is one.
+    # it is established using add_listener
     def data_item_content_changed(self, data_item, changes):
         if data_item == self.__data_item:
             self.selected_data_item_content_changed(data_item, changes)

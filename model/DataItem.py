@@ -1352,8 +1352,6 @@ class DataItem(Storage.StorageBase):
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
         data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
         data_item_copy.display_calibrated_values = self.display_calibrated_values
-        # graphic must be copied before operation, since operations can
-        # depend on graphics.
         for graphic in self.graphics:
             data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
         for operation in self.operations:
@@ -1370,6 +1368,11 @@ class DataItem(Storage.StorageBase):
         return data_item_copy
 
     def snapshot(self):
+        """
+            Take a snapshot and return a new data item. A snapshot is a copy of everything
+            except the data and operations which are replaced by new data with the operations
+            applied or "burned in".
+        """
         data_item_copy = DataItem()
         data_item_copy.title = self.title
         data_item_copy.param = self.param
@@ -1384,12 +1387,11 @@ class DataItem(Storage.StorageBase):
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))
         data_item_copy.intrinsic_intensity_calibration = self.calculated_intensity_calibration
         data_item_copy.display_calibrated_values = self.display_calibrated_values
-        # graphic must be copied before operation, since operations can
-        # depend on graphics.
         for graphic in self.graphics:
             data_item_copy.append_graphic(copy.deepcopy(graphic))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item))
+        # operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
             data_item_copy.__set_master_data(numpy.copy(data_ref.data))
         return data_item_copy
