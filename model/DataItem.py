@@ -356,7 +356,7 @@ class DataItem(Storage.StorageBase):
         self.__display_calibrated_values = True
         self.__intrinsic_intensity_calibration = None
         self.__graphics = Storage.MutableRelationship(self, "graphics")
-        self.__drawn_graphics = Model.ListModel("drawn_graphics")
+        self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
