@@ -277,6 +277,8 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
 
 # graphics are currently only used on images.
 
+# presentations: list of presentations for this data item
+
 # TODO: associated graphics with a new 'display' object instead of directly with data item.
 
 # drawn graphics: graphic items drawn on the data, including synthesized items used for ROIs from operations of children
@@ -336,7 +338,7 @@ class DataItem(Storage.StorageBase):
         super(DataItem, self).__init__()
         self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties", "source_file_path"]
         self.storage_items += ["intrinsic_intensity_calibration"]
-        self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items"]
+        self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items", "presentations"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
@@ -358,6 +360,7 @@ class DataItem(Storage.StorageBase):
         self.__drawn_graphics = UserInterfaceUtility.ListModel("drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
+        self.presentations = Storage.MutableRelationship(self, "presentations")
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
@@ -426,6 +429,7 @@ class DataItem(Storage.StorageBase):
         datetime_original = datastore.get_property(item_node, "datetime_original")
         graphics = datastore.get_items(item_node, "graphics")
         operations = datastore.get_items(item_node, "operations")
+        presentations = datastore.get_items(item_node, "presentations")
         data_items = datastore.get_items(item_node, "data_items")
         has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
@@ -442,6 +446,7 @@ class DataItem(Storage.StorageBase):
         data_item.__has_master_data = has_master_data
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
+        data_item.presentations.extend(presentations)
         # setting master data may add intrinsic_calibrations automatically. remove them here to start from clean slate.
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()
@@ -476,6 +481,8 @@ class DataItem(Storage.StorageBase):
             self.remove_graphic(graphic)
         for operation in copy.copy(self.operations):
             self.operations.remove(operation)
+        for presentation in copy.copy(self.presentations):
+            self.presentations.remove(presentation)
         super(DataItem, self).about_to_delete()
 
     def add_shared_task(self, task_id, item, fn):
@@ -788,6 +795,9 @@ class DataItem(Storage.StorageBase):
             value.add_listener(self)
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
+        elif key == "presentations":
+            value.add_listener(self)
+            self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index, False)
             value.data_source = self
@@ -810,6 +820,9 @@ class DataItem(Storage.StorageBase):
             value.remove_listener(self)
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
+        elif key == "presentations":
+            value.remove_listener(self)
+            self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "data_items":
             value.remove_observer(self)
             for operation_index, operation_item in enumerate(reversed(value.operations)):
@@ -960,6 +973,11 @@ class DataItem(Storage.StorageBase):
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         self.notify_data_item_content_changed(set([DATA]))
+
+    # this message comes from the presentation. the connection is established when a presentation
+    # is added or removed from this object.
+    def presentation_changed(self, presentation):
+        self.notify_data_item_content_changed(set([DISPLAY]))
 
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
@@ -1356,6 +1374,8 @@ class DataItem(Storage.StorageBase):
             data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
         for operation in self.operations:
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
+        for presentation in self.presentations:
+            data_item_copy.presentations.append(copy.deepcopy(presentation, memo))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
         if self.has_master_data:
@@ -1391,6 +1411,8 @@ class DataItem(Storage.StorageBase):
             data_item_copy.append_graphic(copy.deepcopy(graphic))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item))
+        for presentation in self.presentations:
+            data_item_copy.presentations.append(copy.deepcopy(presentation))
         # operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
             data_item_copy.__set_master_data(numpy.copy(data_ref.data))
