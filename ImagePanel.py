@@ -528,43 +528,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return "ignore"
 
 
-# binding to a child of another data item binding
-class CanvasItemChildDataItemBinding(DataItem.DataItemBinding):
-
-    def __init__(self, data_item_binding, uuid):
-        super(CanvasItemChildDataItemBinding, self).__init__()
-        self.data_item_binding = data_item_binding
-        self.uuid = uuid
-        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
-        # and data_item_binding_data_item_content_changed
-        self.data_item_binding.add_listener(self)
-
-        # initial data item changed message
-        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
-
-    def close(self):
-        # disconnect self as listener
-        self.data_item_binding.remove_listener(self)
-        super(CanvasItemChildDataItemBinding, self).close()
-
-    # this message is received from the enclosing data item binding.
-    def data_item_binding_data_item_changed(self, data_item):
-        if data_item:
-            for child_data_item in data_item.data_items:
-                if child_data_item.uuid == self.uuid:
-                    self.notify_data_item_binding_data_item_changed(child_data_item)
-                    return
-        self.notify_data_item_binding_data_item_changed(None)
-
-    def data_item_binding_data_item_content_changed(self, data_item, changes):
-        if data_item:
-            for child_data_item in data_item.data_items:
-                if child_data_item.uuid == self.uuid:
-                    self.notify_data_item_binding_data_item_content_changed(child_data_item, changes)
-                    return
-        # do not pass on if no content changed
-
-
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item_binding, document_controller, image_panel):
@@ -578,8 +541,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # ugh. these are optional.
         self.document_controller = document_controller
         self.image_panel = image_panel
-
-        self.accessories = dict()
 
         self.__last_image_zoom = 1.0
         self.__last_image_norm_center = (0.5, 0.5)
@@ -598,9 +559,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.composite_canvas_item)
         self.scroll_area_canvas_item.updated_layout = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_updated_layout(canvas_size)
-        # next the accessory canvas
-        self.accessory_canvas_item = CanvasItem.CanvasItemComposition()
-        self.accessory_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(origin=(16, 20), spacing=12, fraction=0.25, min_width=200, max_width=320)
         # info overlay (scale marker, etc.)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         # and focus ring
@@ -608,7 +566,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # canvas items get added back to front
         self.add_canvas_item(self.background_canvas_item)
         self.add_canvas_item(self.scroll_area_canvas_item)
-        self.add_canvas_item(self.accessory_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
@@ -906,56 +863,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.move_right(amount)
             elif key.is_down_arrow:
                 self.move_down(amount)
-            return True
-        if key.text == "H":
-            histogram_canvas_item = self.accessories.get("histogram")
-            if histogram_canvas_item:
-                self.accessory_canvas_item.remove_canvas_item(histogram_canvas_item)
-                histogram_canvas_item.close()
-                del self.accessories["histogram"]
-            else:
-                histogram_canvas_item = HistogramPanel.HistogramCanvasItem(self.data_item_binding)
-                histogram_canvas_item.background_color = "#EEEEEE"
-                self.accessory_canvas_item.add_canvas_item(histogram_canvas_item)
-                self.accessories["histogram"] = histogram_canvas_item
-            return True
-        if key.text == "F":
-            fft_canvas_item = self.accessories.get("fft")
-            if fft_canvas_item:
-                self.accessory_canvas_item.remove_canvas_item(fft_canvas_item)
-                fft_canvas_item.close()
-                del self.accessories["fft"]
-            else:
-                data_item = None
-                for child_data_item in self.__data_item.data_items:
-                    if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "fft-operation":
-                        data_item = child_data_item
-                if data_item is None:
-                    data_item = self.document_controller.processing_fft(select=False)
-                if data_item is not None:
-                    data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
-                    fft_canvas_item = ImageCanvasItem(data_item_binding, None, None)
-                    self.accessory_canvas_item.add_canvas_item(fft_canvas_item)
-                    self.accessories["fft"] = fft_canvas_item
-            return True
-        if key.text == "P":
-            line_profile_canvas_item = self.accessories.get("line_profile")
-            if line_profile_canvas_item:
-                self.accessory_canvas_item.remove_canvas_item(line_profile_canvas_item)
-                line_profile_canvas_item.close()
-                del self.accessories["line_profile"]
-            else:
-                data_item = None
-                for child_data_item in self.__data_item.data_items:
-                    if len(child_data_item.operations) and child_data_item.operations[0].operation_id == "line-profile-operation":
-                        data_item = child_data_item
-                if data_item is None:
-                    data_item = self.document_controller.processing_line_profile(select=False)
-                if data_item is not None:
-                    data_item_binding = CanvasItemChildDataItemBinding(self.data_item_binding, data_item.uuid)
-                    line_profile_canvas_item = LinePlotCanvasItem(data_item_binding, None, None)
-                    self.accessory_canvas_item.add_canvas_item(line_profile_canvas_item)
-                    self.accessories["line_profile"] = line_profile_canvas_item
             return True
         if key.text == "-":
             self.zoom_out()
