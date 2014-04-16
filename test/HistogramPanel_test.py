@@ -9,6 +9,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import HistogramPanel
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Storage
 from nion.ui import Test
@@ -40,11 +41,10 @@ class TestHistogramPanelClass(unittest.TestCase):
             def _child_updated(self, child):
                 pass
         self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem()
-        self.histogram_canvas_item.update_data_item(self.data_item)
+        self.histogram_canvas_item.update_display(Display.Display(self.data_item))
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
-        self.histogram_canvas_item._set_data_item(self.data_item)
 
     def tearDown(self):
         self.data_item.remove_ref()
@@ -55,7 +55,7 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_drag_to_set_limits(self):
         self.assertEqual(self.data_item.display_range, (200, 650))
         self.assertIsNone(self.data_item.display_limits)
-        self.assertEqual(self.histogram_canvas_item._get_data_item(), self.data_item)
+        self.assertEqual(self.histogram_canvas_item._get_display().data_item, self.data_item)
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)

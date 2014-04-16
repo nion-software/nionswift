@@ -16,6 +16,7 @@ from nion.swift import Workspace
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
+from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
@@ -772,6 +773,7 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     def __init__(self, document_controller):
         super(SelectedDataItemBinding, self).__init__()
         self.__weak_data_item = None
+        self.display = None
         self.document_controller = document_controller
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
@@ -800,10 +802,14 @@ class SelectedDataItemBinding(Observable.Broadcaster):
             if data_item:
                 data_item.add_ref()
                 data_item.add_listener(self)
+                self.display = Display.Display(data_item)
+            else:
+                self.display = None
             # save the new data item
             self.__weak_data_item = weakref.ref(data_item) if data_item else None
             # notify our listeners
             self.notify_listeners("data_item_binding_data_item_changed", data_item)
+            self.notify_listeners("data_item_binding_display_changed", self.display)
             # and detach from the old item
             if old_data_item:
                 old_data_item.remove_ref()
@@ -818,5 +824,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_content_changed(self, data_item, changes):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+        assert data_item == self.data_item
         self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)
+        self.notify_listeners("data_item_binding_display_changed", self.display)
