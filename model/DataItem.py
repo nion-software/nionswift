@@ -210,13 +210,14 @@ class DataItem(Storage.StorageBase):
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
-        data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
         if len(displays) > 0:
             # replace existing displays. TODO: remove this once clients can handle data items without any displays
             while len(data_item.displays):
                 data_item.displays.pop()
             data_item.displays.extend(displays)
+        # load child data items after displays as easy way to get drawn graphics to reload properly
+        data_item.data_items.extend(data_items)
         # setting master data may add intrinsic_calibrations automatically. remove them here to start from clean slate.
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()

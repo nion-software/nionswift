@@ -486,7 +486,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drag_leave(self):
         if self.image_panel:
-            self.image_panel.drag_leave()
+            self.image_panel.handle_drag_leave()
         return False
 
     def drag_move(self, mime_data, x, y):
@@ -989,7 +989,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drag_leave(self):
         if self.image_panel:
-            self.image_panel.drag_leave()
+            self.image_panel.handle_drag_leave()
         return False
 
     def drag_move(self, mime_data, x, y):

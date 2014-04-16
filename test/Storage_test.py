@@ -568,6 +568,26 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_reloading_data_item_with_display_builds_drawn_graphics_properly(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.save_document(document_controller)
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 4)  # verify assumptions
+        storage_data = datastore.to_data()
+        document_controller.close()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify drawn_graphics reload
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 4)
+        # clean up
+        document_controller.close()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

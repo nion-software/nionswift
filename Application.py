@@ -215,6 +215,8 @@ class Application(object):
                     c.execute("INSERT INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (display_uuid, display_properties_data))
                     # for each display relationship with parent matching node, switch it to 'display'
                     c.execute("UPDATE relationships SET parent_uuid=? WHERE parent_uuid=? AND key IN ('graphics')", (display_uuid, data_item_uuid))
+                c.execute("UPDATE version SET version = ?", (6, ))
+                datastore.conn.commit()
                 version = 6
             # NOTE: version must be changed here and in Storage.py
             if version > 6:

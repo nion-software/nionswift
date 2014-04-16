@@ -503,7 +503,7 @@ class DataPanel(Panel.Panel):
             def update_thumbail_data(thumbail_data):
                 with local_self.__changed_data_items_mutex:
                     local_self.__changed_data_items.add(data_item)
-            thumbnail_data = data_item.get_processor("thumbnail").get_data(self.ui, completion_fn=update_thumbail_data)
+            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui, completion_fn=update_thumbail_data)
             data = self._get_model_data(index)
             level = data["level"]
             display = data_item.title
