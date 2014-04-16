@@ -684,7 +684,7 @@ class DataItem(Storage.StorageBase):
         while len(self.intrinsic_calibrations) < ndim:
             self.intrinsic_calibrations.append(Calibration.CalibrationItem())
         while len(self.intrinsic_calibrations) > ndim:
-            self.intrinsic_calibrations.remove(self.intrinsic_calibrations[ndim])
+            self.intrinsic_calibrations.remove(self.intrinsic_calibrations[-1])
         if self.has_master_data and self.intrinsic_intensity_calibration is None:
             self.intrinsic_intensity_calibration = Calibration.CalibrationItem()
         if not self.has_master_data and self.intrinsic_intensity_calibration is not None:
