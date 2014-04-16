@@ -18,9 +18,10 @@ from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Storage
 from nion.swift.model import Utility
+from nion.ui import Binding
+from nion.ui import Model
 from nion.ui import Observable
 from nion.ui import ThreadPool
-from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -355,7 +356,7 @@ class DataItem(Storage.StorageBase):
         self.__display_calibrated_values = True
         self.__intrinsic_intensity_calibration = None
         self.__graphics = Storage.MutableRelationship(self, "graphics")
-        self.__drawn_graphics = UserInterfaceUtility.ListModel("drawn_graphics")
+        self.__drawn_graphics = Model.ListModel("drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")

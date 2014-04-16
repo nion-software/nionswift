@@ -8,8 +8,9 @@ import gettext
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
+from nion.ui import Binding
+from nion.ui import Converter
 from nion.ui import Process
-from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -65,28 +66,28 @@ class InfoInspector(InspectorSection):
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_title_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "title"))
+        self.info_title_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
         self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_session_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "session_id"))
+        self.info_session_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "session_id"))
         self.info_section_session_row.add(self.info_session_label)
         self.info_section_session_row.add_stretch()
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
         self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "datetime_original_as_string"))
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "datetime_original_as_string"))
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         # format (size, datatype)
         self.info_section_format_row = self.ui.create_row_widget()
         self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
         self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "size_and_data_format_as_string"))
+        self.info_format_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "size_and_data_format_as_string"))
         self.info_section_format_row.add(self.info_format_label)
         self.info_section_format_row.add_stretch()
         # add all of the rows to the section content
@@ -110,9 +111,9 @@ class ParamInspector(InspectorSection):
         param_label = self.ui.create_label_widget(_("Parameter"))
         self.param_slider = self.ui.create_slider_widget()
         self.param_slider.maximum = 100
-        self.param_slider.bind_value(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatTo100Converter()))
+        self.param_slider.bind_value(Binding.PropertyBinding(data_item_binding_source, "param", converter=Converter.FloatTo100Converter()))
         self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.bind_text(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "param", converter=UserInterfaceUtility.FloatToPercentStringConverter()))
+        self.param_field.bind_text(Binding.PropertyBinding(data_item_binding_source, "param", converter=Converter.FloatToPercentStringConverter()))
         self.param_row.add(param_label)
         self.param_row.add_spacing(8)
         self.param_row.add(self.param_slider)
@@ -136,7 +137,7 @@ class CalibrationsInspector(InspectorSection):
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "intrinsic_calibrations"))
+        list_widget.bind_items(Binding.ListBinding(data_item_binding_source, "intrinsic_calibrations"))
         self.add_widget_to_content(list_widget)
         # create the intensity row
         intensity_calibration = data_item_binding_source.intrinsic_intensity_calibration
@@ -146,10 +147,10 @@ class CalibrationsInspector(InspectorSection):
             origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
             scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
             units_field = self.ui.create_line_edit_widget(properties={"width": 60})
-            float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
-            origin_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "origin", converter=float_point_2_converter))
-            scale_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "scale", float_point_2_converter))
-            units_field.bind_text(UserInterfaceUtility.PropertyBinding(intensity_calibration, "units"))
+            float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
+            origin_field.bind_text(Binding.PropertyBinding(intensity_calibration, "origin", converter=float_point_2_converter))
+            scale_field.bind_text(Binding.PropertyBinding(intensity_calibration, "scale", float_point_2_converter))
+            units_field.bind_text(Binding.PropertyBinding(intensity_calibration, "units"))
             intensity_row.add(row_label)
             intensity_row.add_spacing(12)
             intensity_row.add(origin_field)
@@ -162,7 +163,7 @@ class CalibrationsInspector(InspectorSection):
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_widget(_("Displayed"))
-        self.display_calibrations_checkbox.bind_check_state(UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=UserInterfaceUtility.CheckedToCheckStateConverter()))
+        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
@@ -210,11 +211,11 @@ class CalibrationsInspector(InspectorSection):
             def convert_back(self, str):
                 raise NotImplementedError()
         # binding
-        row_label.bind_text(UserInterfaceUtility.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
-        float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
-        origin_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "origin", converter=float_point_2_converter))
-        scale_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "scale", float_point_2_converter))
-        units_field.bind_text(UserInterfaceUtility.PropertyBinding(calibration, "units"))
+        row_label.bind_text(Binding.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
+        origin_field.bind_text(Binding.PropertyBinding(calibration, "origin", converter=float_point_2_converter))
+        scale_field.bind_text(Binding.PropertyBinding(calibration, "scale", float_point_2_converter))
+        units_field.bind_text(Binding.PropertyBinding(calibration, "units"))
         # notice the binding of calibration_index below.
         calibration_row.add(row_label)
         calibration_row.add_spacing(12)
@@ -242,9 +243,9 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = UserInterfaceUtility.FloatToStringConverter(format="{0:.2f}")
-        self.display_limits_range_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -253,8 +254,8 @@ class DisplayLimitsInspector(InspectorSection):
         self.display_limits_limit_row = self.ui.create_row_widget()
         self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
         self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_limit_high.bind_text(UserInterfaceUtility.TuplePropertyBinding(data_item_binding_source, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
@@ -267,7 +268,7 @@ class DisplayLimitsInspector(InspectorSection):
 # combine the display calibrated values binding with the calibration values themselves.
 # this allows the text to reflect calibrated or uncalibrated data.
 # display_calibrated_values_binding should have a target value type of boolean.
-class CalibratedValueBinding(UserInterfaceUtility.Binding):
+class CalibratedValueBinding(Binding.Binding):
     def __init__(self, value_binding, display_calibrated_values_binding, converter):
         super(CalibratedValueBinding, self).__init__(None, converter)
         self.__value_binding = value_binding
@@ -302,14 +303,14 @@ class CalibratedValueBinding(UserInterfaceUtility.Binding):
 
 def make_line_type_inspector(ui, graphic_widget, data_item_binding_source, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values")
+        return Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values")
     # configure the bindings
     x_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 1, image_size[1])
     y_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 0, image_size[0])
-    start_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
-    start_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
-    end_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
-    end_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
+    start_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
+    start_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
+    end_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
+    end_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -342,16 +343,16 @@ def make_line_type_inspector(ui, graphic_widget, data_item_binding_source, image
 
 def make_rectangle_type_inspector(ui, graphic_widget, data_item_binding_source, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return UserInterfaceUtility.PropertyBinding(data_item_binding_source, "display_calibrated_values")
+        return Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values")
     # calculate values from rectangle type graphic
     x_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 1, image_size[1])
     y_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 0, image_size[0])
     width_converter = DataItem.CalibratedSizeFloatToStringConverter(data_item_binding_source, 1, image_size[1])
     height_converter = DataItem.CalibratedSizeFloatToStringConverter(data_item_binding_source, 0, image_size[0])
-    center_x_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
-    center_y_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
-    size_width_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
-    size_height_binding = CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
+    center_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
+    center_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
+    size_width_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
+    size_height_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -398,7 +399,7 @@ class GraphicsInspector(InspectorSection):
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source.drawn_graphics, "drawn_graphics"))
+        list_widget.bind_items(Binding.ListBinding(data_item_binding_source.drawn_graphics, "drawn_graphics"))
         self.add_widget_to_content(list_widget)
 
     def __create_header_widget(self):
@@ -421,7 +422,7 @@ class GraphicsInspector(InspectorSection):
         graphic_widget = self.ui.create_column_widget()
         graphic_widget.add(graphic_title_row)
         def new_display_calibrated_values_binding():
-            return UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
+            return Binding.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
             make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
@@ -450,7 +451,7 @@ class DataItemInspector(object):
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
         def update_data_item(data_item):
             self.__data_item_binding_source.data_item = data_item
-        self.__data_item_binding = UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "data_item")
+        self.__data_item_binding = Binding.PropertyBinding(self.__data_item_binding_source, "data_item")
         self.__data_item_binding.target_setter = update_data_item
 
         # ui

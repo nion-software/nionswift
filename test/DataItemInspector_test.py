@@ -10,9 +10,9 @@ from nion.swift import Application
 from nion.swift import DataItemInspector
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
+from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
-from nion.ui import UserInterfaceUtility
 
 
 class TestDataItemInspectorClass(unittest.TestCase):
@@ -36,10 +36,10 @@ class TestDataItemInspectorClass(unittest.TestCase):
         y_converter = DataItem.CalibratedValueFloatToStringConverter(data_item, 0, 256)
         height_converter = DataItem.CalibratedSizeFloatToStringConverter(data_item, 0, 256)
         bool_model = BoolModel()
-        display_calibrated_values_binding = UserInterfaceUtility.PropertyBinding(bool_model, "display_calibrated_values")
-        display_calibrated_values_binding2 = UserInterfaceUtility.PropertyBinding(bool_model, "display_calibrated_values")
-        center_y_binding = DataItemInspector.CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(rect_graphic, "center", 0), display_calibrated_values_binding, y_converter)
-        size_width_binding = DataItemInspector.CalibratedValueBinding(UserInterfaceUtility.TuplePropertyBinding(rect_graphic, "size", 0), display_calibrated_values_binding2, height_converter)
+        display_calibrated_values_binding = Binding.PropertyBinding(bool_model, "display_calibrated_values")
+        display_calibrated_values_binding2 = Binding.PropertyBinding(bool_model, "display_calibrated_values")
+        center_y_binding = DataItemInspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "center", 0), display_calibrated_values_binding, y_converter)
+        size_width_binding = DataItemInspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "size", 0), display_calibrated_values_binding2, height_converter)
         size_width_binding.update_source("0.6")
         center_y_binding.periodic()
         size_width_binding.periodic()

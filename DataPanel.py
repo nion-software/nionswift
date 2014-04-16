@@ -14,9 +14,9 @@ import weakref
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.ui import Binding
 from nion.ui import Geometry
 from nion.ui import Process
-from nion.ui import UserInterfaceUtility
 
 _ = gettext.gettext
 
@@ -655,7 +655,7 @@ class DataPanel(Panel.Panel):
             column.add_spacing(1)
             return column
 
-        class StringListBinding(UserInterfaceUtility.Binding):
+        class StringListBinding(Binding.Binding):
             def __init__(self, items):
                 super(StringListBinding, self).__init__(None)
                 self.items = items

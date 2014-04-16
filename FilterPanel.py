@@ -11,7 +11,7 @@ import weakref
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
-from nion.ui import UserInterfaceUtility
+from nion.ui import Binding
 
 _ = gettext.gettext
 
@@ -27,7 +27,7 @@ _ = gettext.gettext
 # TODO: Add text field browser for searching
 
 
-class DataItemDateTreeBinding(UserInterfaceUtility.Binding):
+class DataItemDateTreeBinding(Binding.Binding):
 
     def __init__(self):
         super(DataItemDateTreeBinding, self).__init__(None)

@@ -16,7 +16,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Storage
-from nion.ui import UserInterfaceUtility
+from nion.ui import Binding
 
 _ = gettext.gettext
 
@@ -560,7 +560,7 @@ class OperationManager(object):
         return None
 
 
-class OperationPropertyBinding(UserInterfaceUtility.Binding):
+class OperationPropertyBinding(Binding.Binding):
 
     """
         Binds to a property of an operation item.

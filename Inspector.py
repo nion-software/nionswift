@@ -10,7 +10,8 @@ from nion.swift import DataItemInspector
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
-from nion.ui import UserInterfaceUtility
+from nion.ui import Binding
+from nion.ui import Converter
 
 _ = gettext.gettext
 
@@ -128,7 +129,7 @@ class OperationsInspector(DataItemInspector.InspectorSection):
         # ui. create the spatial operations list.
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), None, header_for_empty_list_widget)
-        list_widget.bind_items(UserInterfaceUtility.ListBinding(data_item_binding_source, "operations"))
+        list_widget.bind_items(Binding.ListBinding(data_item_binding_source, "operations"))
         self.add_widget_to_content(list_widget)
 
     # not thread safe
@@ -156,9 +157,9 @@ class OperationsInspector(DataItemInspector.InspectorSection):
                 label_widget = self.ui.create_label_widget(name)
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.maximum = 100
-                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatTo100Converter()))
+                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatTo100Converter()))
                 line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.FloatToPercentStringConverter()))
+                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatToPercentStringConverter()))
                 row_widget.add(label_widget)
                 row_widget.add_spacing(8)
                 row_widget.add(slider_widget)
@@ -171,7 +172,7 @@ class OperationsInspector(DataItemInspector.InspectorSection):
                 row_widget = self.ui.create_row_widget()
                 label_widget = self.ui.create_label_widget(name)
                 line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=UserInterfaceUtility.IntegerToStringConverter()))
+                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)
                 row_widget.add_spacing(8)
                 row_widget.add(line_edit_widget)
@@ -196,7 +197,7 @@ class ProcessingInspector(object):
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
         def update_data_item(data_item):
             self.__data_item_binding_source.data_item = data_item
-        self.__data_item_binding = UserInterfaceUtility.PropertyBinding(self.__data_item_binding_source, "data_item")
+        self.__data_item_binding = Binding.PropertyBinding(self.__data_item_binding_source, "data_item")
         self.__data_item_binding.target_setter = update_data_item
 
         # ui

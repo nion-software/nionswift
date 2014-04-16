@@ -10,11 +10,11 @@ import weakref
 # local libraries
 from nion.swift.model import DataGroup
 from nion.swift.model import Utility
+from nion.ui import Binding
 from nion.ui import Observable
-from nion.ui import UserInterfaceUtility
 
 
-class DataItemsBinding(UserInterfaceUtility.Binding):
+class DataItemsBinding(Binding.Binding):
 
     def __init__(self):
         super(DataItemsBinding, self).__init__(None)
