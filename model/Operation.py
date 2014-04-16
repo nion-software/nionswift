@@ -578,18 +578,13 @@ class OperationPropertyBinding(Binding.Binding):
         self.__values = copy.copy(source.values)
 
     # thread safe
-    def queue_update_target(self, new_value):
-        # perform on the main thread
-        self.add_task("update_target", lambda: self.update_target(new_value))
-
-    # thread safe
     def property_changed(self, sender, property, property_value):
         if sender == self.source and property == "values":
             values = property_value
             new_value = values.get(self.__property_name)
             old_value = self.__values.get(self.__property_name)
             if new_value != old_value:
-                self.queue_update_target(new_value)
+                self.update_target(new_value)
                 self.__values = copy.copy(self.source.values)
 
 
@@ -611,10 +606,6 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
         self.__graphic.remove_observer(self)
         self.__graphic = None
         super(OperationPropertyToGraphicBinding, self).close()
-
-    # thread safe. perform immediately for this binding. no queueing.
-    def queue_update_target(self, new_value):
-        self.update_target(new_value)
 
     # watch for property changes on the graphic.
     def property_changed(self, sender, property_name, property_value):

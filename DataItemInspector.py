@@ -281,10 +281,6 @@ class CalibratedValueBinding(Binding.Binding):
         self.__value_binding.close()
         self.__display_calibrated_values_binding.close()
         super(CalibratedValueBinding, self).close()
-    def periodic(self):
-        super(CalibratedValueBinding, self).periodic()
-        self.__display_calibrated_values_binding.periodic()
-        self.__value_binding.periodic()
     # set the model value from the target ui element text.
     def update_source(self, target_value):
         display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()

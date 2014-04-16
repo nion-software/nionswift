@@ -41,8 +41,6 @@ class TestDataItemInspectorClass(unittest.TestCase):
         center_y_binding = DataItemInspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "center", 0), display_calibrated_values_binding, y_converter)
         size_width_binding = DataItemInspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "size", 0), display_calibrated_values_binding2, height_converter)
         size_width_binding.update_source("0.6")
-        center_y_binding.periodic()
-        size_width_binding.periodic()
         self.assertEqual(center, rect_graphic.center)
 
 

@@ -85,7 +85,6 @@ class DateModelController(object):
         self.item_model_controller = None
 
     def periodic(self):
-        self.__date_binding.periodic()
         for item_controller in self.__item_controllers:
             item_controller.periodic()
 

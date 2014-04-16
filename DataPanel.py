@@ -89,7 +89,6 @@ class DataPanel(Panel.Panel):
 
         def periodic(self):
             self.__task_queue.perform_tasks()
-            self.__binding.periodic()
 
         # thread safe
         def queue_task(self, task):

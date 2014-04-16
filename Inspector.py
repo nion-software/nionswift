@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import logging
 import threading
 
 # third party libraries
@@ -49,12 +50,14 @@ class InspectorPanelBase(Panel.Panel):
         self.data_item_binding_data_item_changed(None)
         # disconnect self as listener
         self.data_item_binding.remove_listener(self)
+        # close the property controller. note: this will close and create
+        # a new data item inspector; so it should go before the final
+        # data item inspector close, which is below.
+        self.data_item_binding.close()
+        self.data_item = None
         # close the data item inspector
         if self.__data_item_inspector:
             self.__data_item_inspector.close()
-        # close the property controller
-        self.data_item_binding.close()
-        self.data_item = None
         # finish closing
         super(InspectorPanelBase, self).close()
 

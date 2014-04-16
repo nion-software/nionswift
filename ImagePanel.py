@@ -1187,7 +1187,7 @@ class ImagePanel(Panel.Panel):
         if self.__data_item:
             self.__data_item.add_ref()
             self.__data_item.add_listener(self)
-            self.__drawn_graphics_binding = Binding.ListBinding(self.__data_item.drawn_graphics, "drawn_graphics", threaded=False)
+            self.__drawn_graphics_binding = Binding.ListBinding(self.__data_item.drawn_graphics, "drawn_graphics")
             self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
             self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
             # note: data_ref_count has already been incremented above.
