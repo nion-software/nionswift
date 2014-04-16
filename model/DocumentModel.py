@@ -29,7 +29,7 @@ class DocumentModel(Storage.StorageBase):
         self.__counted_data_items = collections.Counter()
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
-        self.storage_relationships += ["data_groups"]
+        self.storage_relationships += ["data_groups", "data_items"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.__data_items = Storage.MutableRelationship(self, "data_items")
