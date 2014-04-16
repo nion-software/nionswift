@@ -7,9 +7,13 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
+from nion.swift import ImagePanel
 from nion.swift import Inspector
 from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Storage
 from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
@@ -22,6 +26,21 @@ class TestInspectorClass(unittest.TestCase):
 
     def tearDown(self):
         pass
+
+    def test_display_limits_inspector_should_bind_to_display_without_errors(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        # configure the inspectors
+        document_controller.set_selected_data_item(data_item)
+        document_controller.periodic()  # force UI to update
+        document_controller.set_selected_data_item(None)
+        # clean up
+        document_controller.close()
 
     # necessary to make inspector display updated values properly
     def test_adjusting_rectangle_width_should_keep_center_constant(self):

@@ -18,24 +18,19 @@ from nion.ui import Process
 _ = gettext.gettext
 
 
-class InspectorPanelBase(Panel.Panel):
-    def __init__(self, document_controller, panel_id, title, properties):
-        super(InspectorPanelBase, self).__init__(document_controller, panel_id, title)
+class InspectorPanel(Panel.Panel):
+    def __init__(self, document_controller, panel_id, properties):
+        super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
-        self.__data_item = None
-        self.__data_item_inspector = None
-
-        # these fields facilitate a changing data item from a thread.
-        self.__update_data_item_changed = False
-        self.__update_data_item_data_item = None
-        self.__update_data_item_mutex = threading.RLock()
+        self.__display = None
+        self.__display_inspector = None
 
         # bind to the selected data item.
         # connect self as listener. this will result in calls to data_item_binding_data_item_changed
         # and data_item_binding_data_item_content_changed
-        self.data_item_binding = document_controller.create_selected_data_item_binding()
-        self.data_item = None
-        self.data_item_binding.add_listener(self)
+        self.__display_binding = document_controller.create_selected_data_item_binding()
+        self.__set_display(None)
+        self.__display_binding.add_listener(self)
 
         # top level widget in this inspector is a scroll area.
         # content of the scroll area is the column, to which inspectors
@@ -47,70 +42,48 @@ class InspectorPanelBase(Panel.Panel):
         self.widget = scroll_area
 
     def close(self):
-        # first set the data item to None
-        self.data_item_binding_data_item_changed(None)
         # disconnect self as listener
-        self.data_item_binding.remove_listener(self)
+        self.__display_binding.remove_listener(self)
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
-        self.data_item_binding.close()
-        self.data_item = None
+        self.__display_binding.close()
+        self.__set_display(None)
         # close the data item inspector
-        if self.__data_item_inspector:
-            self.__data_item_inspector.close()
+        if self.__display_inspector:
+            self.__display_inspector.close()
         # finish closing
-        super(InspectorPanelBase, self).close()
+        super(InspectorPanel, self).close()
 
     def periodic(self):
-        super(InspectorPanelBase, self).periodic()
-        if self.__data_item_inspector:
-            self.__data_item_inspector.periodic()
-        # watch for changes to the data item. changes will be requested by
-        # flagging update_data_item_changed. if this happens, set the data_item
-        # to the new value.
-        with self.__update_data_item_mutex:
-            update_data_item_changed = self.__update_data_item_changed
-            data_item = self.__update_data_item_data_item
-            self.__update_data_item_changed = False
-            self.__update_data_item_data_item = None
-        if update_data_item_changed:
-            if self.data_item != data_item:
-                self.data_item = data_item
-
-    # subclasses should implement this to create the data item inspector
-    def _create_data_item_inspector(self, data_item):
-        raise NotImplementedError()
+        super(InspectorPanel, self).periodic()
+        if self.__display_inspector:
+            self.__display_inspector.periodic()
 
     # close the old data item inspector, and create a new one
     # not thread safe.
-    def __update_data_item_inspector(self):
-        if self.__data_item_inspector:
-            self.column.remove(self.__data_item_inspector.widget)
-            self.__data_item_inspector.close()
-            self.__data_item_inspector = None
-        if self.__data_item:
-            self.__data_item_inspector = self._create_data_item_inspector(self.__data_item)
-            self.column.add(self.__data_item_inspector.widget)
+    def __update_display_inspector(self):
+        if self.__display_inspector:
+            self.column.remove(self.__display_inspector.widget)
+            self.__display_inspector.close()
+            self.__display_inspector = None
+        if self.__display:
+            self.__display_inspector = DataItemInspector(self.ui, self.__display)
+            self.column.add(self.__display_inspector.widget)
 
-    def __get_data_item(self):
-        return self.__data_item
-    # not thread safe.
-    def __set_data_item(self, data_item):
-        if self.__data_item != data_item:
-            self.__data_item = data_item
-            self.__update_data_item_inspector()
-    data_item = property(__get_data_item, __set_data_item)
+    def __set_display(self, display):
+        if self.__display != display:
+            self.__display = display
+            self.__update_display_inspector()
 
     # this message is received from the data item binding.
     # it is established using add_listener. when it is called
-    # mark the data item as needing updating. the actual update
-    # will happen in periodic.
+    # mark the data item as needing updating.
     # thread safe.
-    def data_item_binding_data_item_changed(self, data_item):
-        with self.__update_data_item_mutex:
-            self.__update_data_item_changed = True
-            self.__update_data_item_data_item = data_item
+    def data_item_binding_display_changed(self, display):
+        def update_display():
+            self.__set_display(display)
+        self.add_task("update_display", update_display)
 
 
 class InspectorSection(object):
@@ -158,34 +131,34 @@ class InfoInspectorSection(InspectorSection):
         Subclass InspectorSection to implement info inspector.
     """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, data_item):
         super(InfoInspectorSection, self).__init__(ui, _("Info"))
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
         self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_title_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "title"))
+        self.info_title_label.bind_text(Binding.PropertyBinding(data_item, "title"))
         self.info_section_title_row.add(self.info_title_label)
         self.info_section_title_row.add_stretch()
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
         self.info_session_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_session_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "session_id"))
+        self.info_session_label.bind_text(Binding.PropertyBinding(data_item, "session_id"))
         self.info_section_session_row.add(self.info_session_label)
         self.info_section_session_row.add_stretch()
         # date
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
         self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "datetime_original_as_string"))
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item, "datetime_original_as_string"))
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         # format (size, datatype)
         self.info_section_format_row = self.ui.create_row_widget()
         self.info_section_format_row.add(self.ui.create_label_widget(_("Data"), properties={"width": 60}))
         self.info_format_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_format_label.bind_text(Binding.PropertyBinding(data_item_binding_source, "size_and_data_format_as_string"))
+        self.info_format_label.bind_text(Binding.PropertyBinding(data_item, "size_and_data_format_as_string"))
         self.info_section_format_row.add(self.info_format_label)
         self.info_section_format_row.add_stretch()
         # add all of the rows to the section content
@@ -202,16 +175,16 @@ class ParamInspectorSection(InspectorSection):
         Used for testing / example code.
     """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, data_item):
         super(ParamInspectorSection, self).__init__(ui, _("Param"))
         # ui
         self.param_row = self.ui.create_row_widget()
         param_label = self.ui.create_label_widget(_("Parameter"))
         self.param_slider = self.ui.create_slider_widget()
         self.param_slider.maximum = 100
-        self.param_slider.bind_value(Binding.PropertyBinding(data_item_binding_source, "param", converter=Converter.FloatTo100Converter()))
+        self.param_slider.bind_value(Binding.PropertyBinding(data_item, "param", converter=Converter.FloatTo100Converter()))
         self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.bind_text(Binding.PropertyBinding(data_item_binding_source, "param", converter=Converter.FloatToPercentStringConverter()))
+        self.param_field.bind_text(Binding.PropertyBinding(data_item, "param", converter=Converter.FloatToPercentStringConverter()))
         self.param_row.add(param_label)
         self.param_row.add_spacing(8)
         self.param_row.add(self.param_slider)
@@ -228,17 +201,17 @@ class CalibrationsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement calibrations inspector.
     """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, data_item):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
-        self.__calibrations = data_item_binding_source.intrinsic_calibrations
+        self.__calibrations = data_item.intrinsic_calibrations
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item_binding_source, "intrinsic_calibrations"))
+        list_widget.bind_items(Binding.ListBinding(data_item, "intrinsic_calibrations"))
         self.add_widget_to_content(list_widget)
         # create the intensity row
-        intensity_calibration = data_item_binding_source.intrinsic_intensity_calibration
+        intensity_calibration = data_item.intrinsic_intensity_calibration
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
@@ -261,7 +234,7 @@ class CalibrationsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_widget(_("Displayed"))
-        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
+        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(data_item, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
@@ -335,15 +308,15 @@ class DisplayLimitsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, display):
         super(DisplayLimitsInspectorSection, self).__init__(ui, _("Display Limits"))
         # configure the display limit editor
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(display, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(display, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -352,8 +325,8 @@ class DisplayLimitsInspectorSection(InspectorSection):
         self.display_limits_limit_row = self.ui.create_row_widget()
         self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
         self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(data_item_binding_source, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(display, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(display, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
@@ -395,12 +368,12 @@ class CalibratedValueBinding(Binding.Binding):
         return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
 
 
-def make_line_type_inspector(ui, graphic_widget, data_item_binding_source, image_size, graphic):
+def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values")
+        return Binding.PropertyBinding(display, "display_calibrated_values")
     # configure the bindings
-    x_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 1, image_size[1])
-    y_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 0, image_size[0])
+    x_converter = DataItem.CalibratedValueFloatToStringConverter(display, 1, image_size[1])
+    y_converter = DataItem.CalibratedValueFloatToStringConverter(display, 0, image_size[0])
     start_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
     start_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
     end_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
@@ -435,14 +408,14 @@ def make_line_type_inspector(ui, graphic_widget, data_item_binding_source, image
     graphic_widget.add_spacing(4)
 
 
-def make_rectangle_type_inspector(ui, graphic_widget, data_item_binding_source, image_size, graphic):
+def make_rectangle_type_inspector(ui, graphic_widget, display, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(data_item_binding_source, "display_calibrated_values")
+        return Binding.PropertyBinding(display, "display_calibrated_values")
     # calculate values from rectangle type graphic
-    x_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 1, image_size[1])
-    y_converter = DataItem.CalibratedValueFloatToStringConverter(data_item_binding_source, 0, image_size[0])
-    width_converter = DataItem.CalibratedSizeFloatToStringConverter(data_item_binding_source, 1, image_size[1])
-    height_converter = DataItem.CalibratedSizeFloatToStringConverter(data_item_binding_source, 0, image_size[0])
+    x_converter = DataItem.CalibratedValueFloatToStringConverter(display, 1, image_size[1])
+    y_converter = DataItem.CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    width_converter = DataItem.CalibratedSizeFloatToStringConverter(display, 1, image_size[1])
+    height_converter = DataItem.CalibratedSizeFloatToStringConverter(display, 0, image_size[0])
     center_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
     center_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
     size_width_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
@@ -483,17 +456,17 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, data_item, display):
         super(GraphicsInspectorSection, self).__init__(ui, _("Graphics"))
-        self.__image_size = data_item_binding_source.spatial_shape
-        self.__calibrations = data_item_binding_source.calculated_calibrations
-        self.__graphics = data_item_binding_source.drawn_graphics
-        self.__data_item_binding_source = data_item_binding_source
+        self.__image_size = data_item.spatial_shape
+        self.__calibrations = data_item.calculated_calibrations
+        self.__graphics = display.drawn_graphics
+        self.__display = display
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item_binding_source.drawn_graphics, "drawn_graphics"))
+        list_widget.bind_items(Binding.ListBinding(display.drawn_graphics, "drawn_graphics"))
         self.add_widget_to_content(list_widget)
 
     def __create_header_widget(self):
@@ -517,16 +490,16 @@ class GraphicsInspectorSection(InspectorSection):
         graphic_widget.add(graphic_title_row)
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
-            make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
+            make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Operation.LineProfileGraphic):
             graphic_title_type_label.text = _("Line Profile")
-            make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
+            make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Graphics.RectangleGraphic):
             graphic_title_type_label.text = _("Rectangle")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Graphics.EllipseGraphic):
             graphic_title_type_label.text = _("Ellipse")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -539,13 +512,13 @@ class OperationsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement operations inspector.
     """
 
-    def __init__(self, ui, data_item_binding_source):
+    def __init__(self, ui, data_item):
         super(OperationsInspectorSection, self).__init__(ui, _("Operations"))
-        self.__operations = data_item_binding_source.operations
+        self.__operations = data_item.operations
         # ui. create the spatial operations list.
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), None, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item_binding_source, "operations"))
+        list_widget.bind_items(Binding.ListBinding(data_item, "operations"))
         self.add_widget_to_content(list_widget)
 
     # not thread safe
@@ -605,25 +578,21 @@ class OperationsInspectorSection(InspectorSection):
 
 class DataItemInspector(object):
 
-    def __init__(self, ui, data_item):
+    def __init__(self, ui, display):
         self.ui = ui
 
-        # bindings
-
-        self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
-
-        # ui
+        data_item = display.data_item
 
         self.__inspectors = list()
         content_widget = self.ui.create_column_widget()
         content_widget.add_spacing(6)
 
-        self.__inspectors.append(InfoInspectorSection(self.ui, self.__data_item_binding_source))
-#       self.__inspectors.append(ParamInspectorSection(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(CalibrationsInspectorSection(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(GraphicsInspectorSection(self.ui, self.__data_item_binding_source))
-        self.__inspectors.append(OperationsInspectorSection(self.ui, self.__data_item_binding_source))
+        self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
+#       self.__inspectors.append(ParamInspectorSection(self.ui, data_item))
+        self.__inspectors.append(CalibrationsInspectorSection(self.ui, data_item))
+        self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
+        self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
+        self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
 
         for inspector in self.__inspectors:
             content_widget.add(inspector.widget)
@@ -636,18 +605,8 @@ class DataItemInspector(object):
         # close inspectors
         for inspector in self.__inspectors:
             inspector.close()
-        # close the data item content binding
-        self.__data_item_binding_source.close()
 
     # update the values if needed
     def periodic(self):
         for inspector in self.__inspectors:
             inspector.periodic()
-
-
-class InspectorPanel(InspectorPanelBase):
-    def __init__(self, document_controller, panel_id, properties):
-        super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"), properties)
-
-    def _create_data_item_inspector(self, data_item):
-        return DataItemInspector(self.ui, data_item)

@@ -781,8 +781,10 @@ class SelectedDataItemBinding(Observable.Broadcaster):
         self.document_controller.remove_listener(self)
         # disconnect data item
         if self.data_item:
-            self.data_item.remove_ref()
             self.data_item.remove_listener(self)
+            self.data_item.remove_ref()
+        if self.display:
+            self.display.remove_ref()
         self.__weak_data_item = None
 
     def __get_data_item(self):
@@ -798,18 +800,22 @@ class SelectedDataItemBinding(Observable.Broadcaster):
             if data_item:
                 data_item.add_ref()
                 data_item.add_listener(self)
+                if self.display:
+                    self.display.remove_ref()
                 self.display = Display.Display(data_item)
+                self.display.add_ref()
             else:
+                if self.display:
+                    self.display.remove_ref()
                 self.display = None
             # save the new data item
             self.__weak_data_item = weakref.ref(data_item) if data_item else None
             # notify our listeners
-            self.notify_listeners("data_item_binding_data_item_changed", data_item)
             self.notify_listeners("data_item_binding_display_changed", self.display)
             # and detach from the old item
             if old_data_item:
-                old_data_item.remove_ref()
                 old_data_item.remove_listener(self)
+                old_data_item.remove_ref()
 
     # this message is received from the data item, if there is one.
     # it is established using add_listener
@@ -821,5 +827,4 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     # it is established using add_listener
     def selected_data_item_content_changed(self, data_item, changes):
         assert data_item == self.data_item
-        self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)
         self.notify_listeners("data_item_binding_display_changed", self.display)
