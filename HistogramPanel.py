@@ -123,9 +123,8 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, data_item_binding):
+    def __init__(self):
         super(HistogramCanvasItem, self).__init__()
-        self.data_item_binding = data_item_binding
         self.adornments_canvas_item = AdornmentsCanvasItem()
         self.simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
         # canvas items get added back to front
@@ -134,24 +133,14 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__data_item = None
         self.__pressed = False
 
-        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
-        # and data_item_binding_data_item_content_changed
-        self.data_item_binding.add_listener(self)
-
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
 
         self.preferred_aspect_ratio = 1.618  # golden ratio
 
-        # initial data item changed message
-        self.data_item_binding_data_item_changed(self.data_item_binding.data_item)
-
     def close(self):
         self.__shared_thread_pool.close()
         self.__shared_thread_pool = None
-        # first set the data item to None
-        self.data_item_binding_data_item_changed(None)
-        # disconnect self as listener
-        self.data_item_binding.remove_listener(self)
+        self.update_data_item(None)
         super(HistogramCanvasItem, self).close()
 
     # pass this along to the simple line graph canvas item
@@ -165,9 +154,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     def _get_data_item(self):
         return self.__data_item
     def _set_data_item(self, data_item):
-        # this will get invoked whenever the data item changes too. it gets invoked
-        # from the histogram thread which gets triggered via the data_item_binding_data_item_changed
-        # or data_item_binding_data_item_content_changed message from the data item binding.
+        # this will get invoked whenever the data item changes. it gets invoked
+        # from the histogram thread which gets triggered via the data_item_updated method.
         self.__data_item = data_item
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
@@ -181,19 +169,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         histogram_data = self.__data_item.get_processor("histogram").get_data(None, completion_fn=update_histogram_data) if self.__data_item else None
         update_histogram_data(histogram_data)
 
-    # this message is received from the data item binding.
-    # it is established using add_listener
     # TODO: histogram gets updated unnecessarily when dragging graphic items
-    def data_item_binding_data_item_changed(self, data_item):
+    def update_data_item(self, data_item):
         if self.__shared_thread_pool and data_item:
             def update_histogram_data_on_thread():
                 self._set_data_item(data_item)
             self.__shared_thread_pool.add_task("update-histogram-data", data_item, lambda: update_histogram_data_on_thread())
-
-    # this message is received from the data item binding.
-    # it is established using add_listener
-    def data_item_binding_data_item_content_changed(self, data_item, changes):
-        self.data_item_binding_data_item_changed(data_item)
 
     def __set_display_limits(self, display_limits):
         self.adornments_canvas_item.display_limits = display_limits
@@ -245,7 +226,8 @@ class HistogramPanel(Panel.Panel):
         self.data_item_binding = document_controller.create_selected_data_item_binding()
 
         self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
-        self.root_canvas_item.add_canvas_item(HistogramCanvasItem(self.data_item_binding))
+        self.histogram_canvas_item = HistogramCanvasItem()
+        self.root_canvas_item.add_canvas_item(self.histogram_canvas_item)
 
         self.stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
         self.stats_column2 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
@@ -298,6 +280,7 @@ class HistogramPanel(Panel.Panel):
             self.stats_column2_label.text = "\n".join(statistic_strs[(len(statistic_strs)+1)/2:])
         def update_statistics_data(statistics_data):
             self.add_task("statistics", lambda: update_statistics(statistics_data))
+        self.histogram_canvas_item.update_data_item(data_item)
         statistics_data = data_item.get_processor("statistics").get_data(None, completion_fn=update_statistics_data) if data_item else dict()
         self.add_task("statistics", lambda: update_statistics(statistics_data))
 
