@@ -42,8 +42,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             def _child_updated(self, child):
                 pass
         self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem()
-        self.display = Display.Display(self.data_item)
-        self.display.add_ref()
+        self.display = self.data_item.displays[0]
         self.histogram_canvas_item.update_display(self.display)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
@@ -51,7 +50,6 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def tearDown(self):
         self.data_item.remove_ref()
-        self.display.remove_ref()
         self.image_panel.close()
         self.histogram_canvas_item.close()
         self.document_controller.close()

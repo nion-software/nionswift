@@ -45,8 +45,8 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = Display.Display(data_item)
-        with display.ref():
+        with data_item.ref():
+            display = data_item.displays[0]
             converter = Inspector.CalibratedValueFloatToStringConverter(display, 0, 256)
             converter.convert(0.5)
             converter = Inspector.CalibratedSizeFloatToStringConverter(display, 0, 256)
@@ -62,8 +62,8 @@ class TestInspectorClass(unittest.TestCase):
                 super(BoolModel, self).__init__()
                 self.display_calibrated_values = False
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = Display.Display(data_item)
-        with display.ref():
+        with data_item.ref():
+            display = data_item.displays[0]
             y_converter = Inspector.CalibratedValueFloatToStringConverter(display, 0, 256)
             height_converter = Inspector.CalibratedSizeFloatToStringConverter(display, 0, 256)
             bool_model = BoolModel()

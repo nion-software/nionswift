@@ -3,15 +3,20 @@
 """
 
 # standard libraries
+import copy
 import gettext
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
-from nion.swift.model import DataItem
+from nion.swift.model import Image
+from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Storage
+from nion.swift.model import DataItemProcessor
+from nion.ui import Model
+from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -34,8 +39,8 @@ class Display(Storage.StorageBase):
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
-        self.__processors["thumbnail"] = DataItem.ThumbnailDataItemProcessor(self)
-        self.__processors["histogram"] = DataItem.HistogramDataItemProcessor(self)
+        self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
+        self.__processors["histogram"] = HistogramDataItemProcessor(self)
 
     def about_to_delete(self):
         self.__shared_thread_pool.close()
@@ -53,7 +58,7 @@ class Display(Storage.StorageBase):
         return display
 
     def __deepcopy__(self, memo):
-        display_copy = DataItem()
+        display_copy = Display()
         with display_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
@@ -77,10 +82,8 @@ class Display(Storage.StorageBase):
         if self.data_item:
             self.data_item.remove_observer(self)
             self.data_item.remove_listener(self)
-            self.data_item.remove_ref()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         if self.data_item:
-            self.data_item.add_ref()
             self.data_item.add_observer(self)
             self.data_item.add_listener(self)
 
@@ -96,8 +99,8 @@ class Display(Storage.StorageBase):
         self.__preview = None
 
     def property_changes(self):
-        grab_properties = DataItem.__grab_properties
-        release_properties = DataItem.__release_properties
+        grab_properties = Display.__grab_properties
+        release_properties = Display.__release_properties
         class PropertyChangeContextManager(object):
             def __init__(self, data_item):
                 self.__data_item = data_item
@@ -144,7 +147,7 @@ class Display(Storage.StorageBase):
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
     def __get_display_limits(self):
-        return self.__properties.get("display_limits", True)
+        return self.__properties.get("display_limits")
     def __set_display_limits(self, display_limits):
         with self.property_changes() as pc:
             pc.properties["display_limits"] = display_limits
@@ -186,11 +189,15 @@ class Display(Storage.StorageBase):
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
     def data_item_content_changed(self, data_item, changes):
-        self.__preview = None
-        self.notify_listeners("display_changed", self)
-        # clear the processor caches
-        for processor in self.__processors.values():
-            processor.data_item_changed()
+        DATA = 1
+        METADATA = 2
+        SOURCE = 5
+        if DATA in changes or METADATA in changes or SOURCE in changes:
+            self.__preview = None
+            self.notify_listeners("display_changed", self)
+            # clear the processor caches
+            for processor in self.__processors.values():
+                processor.data_item_changed()
 
     # this is called from the data item when an operation is inserted into one of
     # its child data items. this method updates the drawn graphics list.
@@ -250,12 +257,12 @@ class Display(Storage.StorageBase):
             self.__graphics.remove(drawn_graphic)
         else:  # a synthesized graphic
             # cycle through each data item.
-            for data_item in self.data_items:
+            for data_item in self.data_item.data_items:
                 # and each operation within that data item.
                 for operation_item in data_item.operations:
                     operation_graphics = operation_item.graphics
                     if drawn_graphic in operation_graphics:
-                        self.data_items.remove(data_item)
+                        self.data_item.data_items.remove(data_item)
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
@@ -267,3 +274,121 @@ class Display(Storage.StorageBase):
         super(Display, self).notify_set_property(key, value)
         for processor in self.__processors.values():
             processor.item_property_changed(key, value)
+
+
+class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
+
+    def __init__(self, display):
+        super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
+        self.bins = 256
+
+    def item_property_changed(self, key, value):
+        """ Called directly from data item. """
+        super(HistogramDataItemProcessor, self).item_property_changed(key, value)
+        if key == "display_limits":
+            self.set_cached_value_dirty()
+
+    def get_calculated_data(self, ui, data):
+        #logging.debug("Calculating histogram %s", self)
+        display_range = self.item.display_range  # may be None
+        histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
+        histogram_max = float(numpy.max(histogram_data))
+        histogram_data = histogram_data / histogram_max
+        return histogram_data
+
+    def get_default_data(self):
+        return numpy.zeros((self.bins, ), dtype=numpy.uint32)
+
+    def get_data_item(self):
+        return self.item.data_item
+
+
+class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
+
+    def __init__(self, display):
+        super(ThumbnailDataItemProcessor, self).__init__(display, "thumbnail_data")
+        self.width = 72
+        self.height = 72
+
+    def get_calculated_data(self, ui, data):
+        thumbnail_data = None
+        if Image.is_data_1d(data):
+            thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
+        elif Image.is_data_2d(data):
+            data_range = self.item.data_range
+            display_limits = self.item.display_limits
+            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
+        elif Image.is_data_3d(data):
+            # TODO: fix me 3d
+            data_range = self.item.data_range
+            display_limits = self.item.display_limits
+            thumbnail_data = self.__get_thumbnail_3d_data(ui, data, self.height, self.width, data_range, display_limits)
+        return thumbnail_data
+
+    def get_default_data(self):
+        return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
+
+    def get_data_item(self):
+        return self.item.data_item
+
+    def __get_thumbnail_1d_data(self, ui, data, height, width):
+        assert data is not None
+        assert Image.is_data_1d(data)
+        data = Image.convert_to_grayscale(data)
+        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        line_graph_canvas_item.draw_captions = False
+        line_graph_canvas_item.draw_grid = False
+        line_graph_canvas_item.draw_frame = False
+        line_graph_canvas_item.background_color = "#EEEEEE"
+        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
+        line_graph_canvas_item.data = data
+        line_graph_canvas_item.update_layout((0, 0), (height, width))
+        drawing_context = ui.create_offscreen_drawing_context()
+        line_graph_canvas_item._repaint(drawing_context)
+        return ui.create_rgba_image(drawing_context, width, height)
+
+    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
+        assert image is not None
+        assert image.ndim in (2,3)
+        image = Image.scalar_from_array(image)
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = height if image_height > image_width else height * image_height / image_width
+        scaled_width = width if image_width > image_height else width * image_width / image_height
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
+    # TODO: fix me 3d
+    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
+        assert image is not None
+        assert image.ndim in (3,4)
+        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
+        image = Image.scalar_from_array(image.reshape(new_shape))
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+        assert image_height > 0 and image_width > 0
+        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
+        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
+        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+        if numpy.ndim(thumbnail_image) == 2:
+            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        elif numpy.ndim(thumbnail_image) == 3:
+            data = thumbnail_image
+            if thumbnail_image.shape[2] == 4:
+                return data.view(numpy.uint32).reshape(data.shape[:-1])
+            elif thumbnail_image.shape[2] == 3:
+                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                rgba[:,:,0:3] = data
+                rgba[:,:,3] = 255
+                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])

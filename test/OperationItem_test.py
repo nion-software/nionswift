@@ -409,14 +409,15 @@ class TestOperationClass(unittest.TestCase):
 
     def test_operation_item_property_to_graphic_binding(self):
         data_item = DataItem.DataItem()
-        operation = Operation.OperationItem("crop-operation")
-        data_item.operations.append(operation)
-        bounds1 = ((0.0, 0.0), (0.1, 0.1))
-        bounds2 = ((0.0, 0.0), (0.2, 0.2))
-        operation.set_property("bounds", bounds1)
-        self.assertEqual(operation.graphics[0].bounds, bounds1)
-        operation.graphics[0].bounds = bounds2
-        self.assertEqual(operation.get_property("bounds"), bounds2)
+        with data_item.ref():
+            operation = Operation.OperationItem("crop-operation")
+            data_item.operations.append(operation)
+            bounds1 = ((0.0, 0.0), (0.1, 0.1))
+            bounds2 = ((0.0, 0.0), (0.2, 0.2))
+            operation.set_property("bounds", bounds1)
+            self.assertEqual(operation.graphics[0].bounds, bounds1)
+            operation.graphics[0].bounds = bounds2
+            self.assertEqual(operation.get_property("bounds"), bounds2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

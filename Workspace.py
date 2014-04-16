@@ -93,7 +93,7 @@ class Workspace(object):
             dock_widget.panel.periodic()
             dock_widget.periodic()
             elapsed = time.time() - start
-            if elapsed > 0.05:
+            if elapsed > 0.10:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
         self.filter_row.periodic()
 
@@ -180,8 +180,8 @@ class Workspace(object):
         old_selected_data_item = self.document_controller.selected_data_item
         old_displayed_data_items = []
         for image_panel in self.image_panels:
-            if image_panel.data_item is not None:
-                old_displayed_data_items.append(image_panel.data_item)
+            if image_panel.get_displayed_data_item() is not None:
+                old_displayed_data_items.append(image_panel.get_displayed_data_item())
         # remember the current layout.
         # 1321
         # first store the existing layout in the current slot
@@ -351,7 +351,7 @@ class Workspace(object):
                     return image_panel
             # now search for an open slot
             for image_panel in self.image_panels:
-                if image_panel.data_item and not is_data_item_for_hardware_source(image_panel.data_item):
+                if image_panel.get_displayed_data_item() and not is_data_item_for_hardware_source(image_panel.get_displayed_data_item()):
                     image_panel.set_displayed_data_item(primary_data_item)
                     return image_panel
             image_panel = self.image_panels[0]
@@ -369,7 +369,7 @@ class Workspace(object):
             # first search forward from primary
             for image_panel in self.image_panels:
                 will_match = image_panel.get_displayed_data_item() == source_data_item
-                if not is_data_item_for_hardware_source(image_panel.data_item):
+                if not is_data_item_for_hardware_source(image_panel.get_displayed_data_item()):
                     if matched:
                         image_panel.set_displayed_data_item(primary_data_item)
                         return image_panel

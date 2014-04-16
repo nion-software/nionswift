@@ -11,6 +11,7 @@ from nion.swift import HistogramPanel
 from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.ui import Binding
@@ -1132,7 +1133,7 @@ class ImagePanel(Panel.Panel):
 
     # sets the data item that this panel displays
     def set_displayed_data_item(self, data_item):
-        self.display = data_item.displays[0]
+        self.__set_display(data_item.displays[0] if data_item else None)
 
     def __get_display(self):
         return self.__display
@@ -1165,6 +1166,7 @@ class ImagePanel(Panel.Panel):
         # let the document controller update the recent data item list
         if display is not None:
             self.document_controller.note_new_recent_data_item(display.data_item)
+    # display = property(__get_display, __set_display)  # can we get away without this?
 
     # this message comes from the document model.
     def data_item_deleted(self, data_item):

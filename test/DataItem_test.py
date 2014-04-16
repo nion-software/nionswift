@@ -211,26 +211,26 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
-        self.assertTrue(data_item.is_cached_value_dirty("thumbnail_data"))
-        # configure a listener to know when the thumbnail is finished
-        event = threading.Event()
-        def thumbnail_loaded(thumbnail_data):
-            event.set()
-        # the next line also triggers the thumbnail calculation
-        self.assertIsNotNone(data_item.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
-        # wait for the thumbnail
-        event.wait()
-        self.assertFalse(data_item.is_cached_value_dirty("thumbnail_data"))
-        with data_item.data_ref() as data_ref:
-            data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-        self.assertTrue(data_item.is_cached_value_dirty("thumbnail_data"))
-        data_item.remove_ref()
+        with data_item.ref():
+            display = data_item.displays[0]
+            self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
+            # configure a listener to know when the thumbnail is finished
+            event = threading.Event()
+            def thumbnail_loaded(thumbnail_data):
+                event.set()
+            # the next line also triggers the thumbnail calculation
+            self.assertIsNotNone(display.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
+            # wait for the thumbnail
+            event.wait()
+            self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
+            with data_item.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
+            self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
 
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         data_item.add_ref()
-        self.assertIsNotNone(data_item.get_processor("thumbnail").get_data(self.app.ui))
+        self.assertIsNotNone(data_item.displays[0].get_processor("thumbnail").get_data(self.app.ui))
         data_item.remove_ref()
 
     def test_delete_nested_data_item(self):
@@ -243,7 +243,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.data_items.remove(data_item2)
         data_item.remove_ref()
 
-    def test_copy_data_item_with_graphics(self):
+    def test_copy_data_item_with_display_and_graphics_should_copy_graphics(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         rect_graphic = Graphics.RectangleGraphic()
@@ -272,88 +272,90 @@ class TestDataItemClass(unittest.TestCase):
             def __init__(self):
                 self.reset()
             def reset(self):
-                self.data_changed = False
-                self.display_changed = False
-                self.children_changed = False
+                self._data_changed = False
+                self._display_changed = False
             def data_item_content_changed(self, data_item, changes):
-                self.data_changed = self.data_changed or DataItem.DATA in changes
-                self.display_changed = self.display_changed or DataItem.DISPLAY in changes or DataItem.DATA in changes
-                self.children_changed = self.children_changed or DataItem.CHILDREN in changes
+                self._data_changed = self._data_changed or DataItem.DATA in changes
+            def display_changed(self, display):
+                self._display_changed = True
         listener = Listener()
         data_item.add_listener(listener)
+        data_item.displays[0].add_listener(listener)
         listener2 = Listener()
         data_item2.add_listener(listener2)
+        data_item2.displays[0].add_listener(listener2)
         listener3 = Listener()
         data_item3.add_listener(listener3)
+        data_item3.displays[0].add_listener(listener3)
         listeners = (listener, listener2, listener3)
         # changing the master data of the source should trigger a data changed message
         # subsequently that should trigger a changed message for dependent items
         map(Listener.reset, listeners)
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-        self.assertTrue(listener.data_changed and listener.display_changed)
-        self.assertTrue(listener2.data_changed and listener2.display_changed)
-        self.assertTrue(listener3.data_changed and listener3.display_changed)
+        self.assertTrue(listener._data_changed and listener._display_changed)
+        self.assertTrue(listener2._data_changed and listener2._display_changed)
+        self.assertTrue(listener3._data_changed and listener3._display_changed)
         # changing the param of the source should trigger a display changed message
         # but no data changed. nothing should change on the dependent items.
         map(Listener.reset, listeners)
         data_item.param = 0.6
-        self.assertTrue(not listener.data_changed and listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed and listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # changing a graphic on source should NOT change dependent data
         # it should change the primary data item display, but not its data
         map(Listener.reset, listeners)
         data_item_graphic.start = (0.8, 0.2)
-        self.assertTrue(not listener.data_changed)
-        self.assertTrue(listener.display_changed)
-        self.assertTrue(not listener.data_changed and listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed)
+        self.assertTrue(listener._display_changed)
+        self.assertTrue(not listener._data_changed and listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # changing the display limit of source should NOT change dependent data
         map(Listener.reset, listeners)
         data_item.displays[0].display_limits = (0.1, 0.9)
-        self.assertTrue(not listener.data_changed and listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed and listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
         data_item.intrinsic_calibrations[0].origin = 1.0
-        self.assertTrue(not listener.data_changed and listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed and listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # add/remove an operation. should change primary and dependent data and display
         map(Listener.reset, listeners)
         invert_operation = Operation.OperationItem("invert-operation")
         data_item.operations.append(invert_operation)
-        self.assertTrue(listener.data_changed and listener.display_changed)
-        self.assertTrue(listener2.data_changed and listener2.display_changed)
-        self.assertTrue(listener3.data_changed and listener3.display_changed)
+        self.assertTrue(listener._data_changed and listener._display_changed)
+        self.assertTrue(listener2._data_changed and listener2._display_changed)
+        self.assertTrue(listener3._data_changed and listener3._display_changed)
         map(Listener.reset, listeners)
         data_item.operations.remove(invert_operation)
-        self.assertTrue(listener.data_changed and listener.display_changed)
-        self.assertTrue(listener2.data_changed and listener2.display_changed)
-        self.assertTrue(listener3.data_changed and listener3.display_changed)
+        self.assertTrue(listener._data_changed and listener._display_changed)
+        self.assertTrue(listener2._data_changed and listener2._display_changed)
+        self.assertTrue(listener3._data_changed and listener3._display_changed)
         # add/remove a data item should NOT change data or dependent data or display
         map(Listener.reset, listeners)
         data_item4 = DataItem.DataItem()
         data_item.data_items.append(data_item4)
-        self.assertTrue(not listener.data_changed and not listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed and not listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         map(Listener.reset, listeners)
         data_item.data_items.remove(data_item4)
-        self.assertTrue(not listener.data_changed and not listener.display_changed)
-        self.assertTrue(not listener2.data_changed and not listener2.display_changed)
-        self.assertTrue(not listener3.data_changed and not listener3.display_changed)
+        self.assertTrue(not listener._data_changed and not listener._display_changed)
+        self.assertTrue(not listener2._data_changed and not listener2._display_changed)
+        self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify an operation. make sure data and dependent data gets updated.
         blur_operation = Operation.OperationItem("gaussian-blur-operation")
         data_item.operations.append(blur_operation)
         map(Listener.reset, listeners)
         blur_operation.set_property("sigma", 0.1)
-        self.assertTrue(listener.data_changed and listener.display_changed)
-        self.assertTrue(listener2.data_changed and listener2.display_changed)
-        self.assertTrue(listener3.data_changed and listener3.display_changed)
+        self.assertTrue(listener._data_changed and listener._display_changed)
+        self.assertTrue(listener2._data_changed and listener2._display_changed)
+        self.assertTrue(listener3._data_changed and listener3._display_changed)
         data_item.operations.remove(blur_operation)
         # modify an operation graphic. make sure data and dependent data gets updated.
         crop_operation = Operation.OperationItem("crop-operation")
@@ -361,9 +363,9 @@ class TestDataItemClass(unittest.TestCase):
         data_item.operations.append(crop_operation)
         map(Listener.reset, listeners)
         crop_operation.set_property("bounds", ((0,0), (0.5, 0.5)))
-        self.assertTrue(listener.data_changed and listener.display_changed)
-        self.assertTrue(listener2.data_changed and listener2.display_changed)
-        self.assertTrue(listener3.data_changed and listener3.display_changed)
+        self.assertTrue(listener._data_changed and listener._display_changed)
+        self.assertTrue(listener2._data_changed and listener2._display_changed)
+        self.assertTrue(listener3._data_changed and listener3._display_changed)
         data_item.operations.remove(crop_operation)
         # finish up
         data_item.remove_ref()
@@ -469,14 +471,15 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item_crop = DataItem.DataItem()
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.operations.append(crop_operation_item)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-        data_item.data_items.append(data_item_crop)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-        data_item.data_items.remove(data_item_crop)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        with data_item.ref():
+            data_item_crop = DataItem.DataItem()
+            crop_operation_item = Operation.OperationItem("crop-operation")
+            data_item_crop.operations.append(crop_operation_item)
+            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+            data_item.data_items.append(data_item_crop)
+            self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+            data_item.data_items.remove(data_item_crop)
+            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -496,19 +499,19 @@ class TestDataItemClass(unittest.TestCase):
             def __init__(self):
                 self.reset()
             def reset(self):
-                self.display_changed = False
-            def data_item_content_changed(self, data_item, changes):
-                self.display_changed = self.display_changed or DataItem.DISPLAY in changes
+                self._display_changed = False
+            def display_changed(self, display):
+                self._display_changed = True
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         listener = Listener()
-        data_item.add_listener(listener)
+        data_item.displays[0].add_listener(listener)
         data_item_crop = DataItem.DataItem()
         crop_operation_item = Operation.OperationItem("crop-operation")
         data_item_crop.operations.append(crop_operation_item)
         data_item.data_items.append(data_item_crop)
         listener.reset()
         data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        self.assertTrue(listener.display_changed)
+        self.assertTrue(listener._display_changed)
 
     # necessary to make inspector display updated values properly
     def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
@@ -517,20 +520,21 @@ class TestDataItemClass(unittest.TestCase):
             def __init__(self):
                 self.reset()
             def reset(self):
-                self.display_changed = False
-            def data_item_content_changed(self, data_item, changes):
-                self.display_changed = self.display_changed or DataItem.DISPLAY in changes
+                self._display_changed = False
+            def display_changed(self, display):
+                self._display_changed = True
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        listener = Listener()
-        data_item.add_listener(listener)
-        data_item_crop = DataItem.DataItem()
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.operations.append(crop_operation_item)
-        data_item.data_items.append(data_item_crop)
-        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        listener.reset()
-        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        self.assertTrue(listener.display_changed)
+        with data_item.ref():
+            listener = Listener()
+            data_item.displays[0].add_listener(listener)
+            data_item_crop = DataItem.DataItem()
+            crop_operation_item = Operation.OperationItem("crop-operation")
+            data_item_crop.operations.append(crop_operation_item)
+            data_item.data_items.append(data_item_crop)
+            data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+            listener.reset()
+            data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+            self.assertTrue(listener._display_changed)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

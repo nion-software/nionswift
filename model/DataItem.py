@@ -6,20 +6,17 @@ import gettext
 import logging
 import os
 import threading
-import time
-import weakref
 
 # third party libraries
 import numpy
 
 # local libraries
 from nion.swift.model import Calibration
+from nion.swift.model import DataItemProcessor
+from nion.swift.model import Display
 from nion.swift.model import Image
-from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Storage
 from nion.swift.model import Utility
-from nion.ui import Binding
-from nion.ui import Model
 from nion.ui import Observable
 from nion.ui import ThreadPool
 
@@ -37,102 +34,7 @@ _ = gettext.gettext
 # units: the units of the calibrated value
 
 
-class DataItemProcessor(object):
-
-    def __init__(self, item, cache_property_name):
-        self.__weak_item = weakref.ref(item)
-        self.__cache_property_name = cache_property_name
-        self.__mutex = threading.RLock()
-        self.__in_progress = False
-
-    def __get_item(self):
-        return self.__weak_item() if self.__weak_item else None
-    item = property(__get_item)
-
-    def data_item_changed(self):
-        """ Called directly from data item. """
-        self.set_cached_value_dirty()
-
-    def item_property_changed(self, key, value):
-        """
-            Called directly from data item.
-            Subclasses should override and call set_cached_value_dirty to add
-            property dependencies.
-        """
-        pass
-
-    def set_cached_value_dirty(self):
-        self.item.set_cached_value_dirty(self.__cache_property_name)
-
-    def get_calculated_data(self, ui, data):
-        """ Subclasses must implement. """
-        raise NotImplementedError()
-
-    def get_default_data(self):
-        return None
-
-    def get_data_item(self):
-        """ Subclasses must implement. """
-        raise NotImplementedError()
-
-    def get_data(self, ui, completion_fn=None):
-        if self.item.is_cached_value_dirty(self.__cache_property_name):
-            data_item = self.get_data_item()
-            if not data_item.closed and (data_item.has_master_data or data_item.has_data_source):
-                def load_data_on_thread():
-                    time.sleep(0.2)
-                    with data_item.data_ref() as data_ref:
-                        data = data_ref.data
-                        if data is not None:  # for data to load and make sure it has data
-                            calculated_data = self.get_calculated_data(ui, data)
-                            self.item.set_cached_value(self.__cache_property_name, calculated_data)
-                        else:
-                            calculated_data = None
-                    if calculated_data is None:
-                        calculated_data = self.get_default_data()
-                        self.item.remove_cached_value(self.__cache_property_name)
-                    if completion_fn:
-                        completion_fn(calculated_data)
-                    with self.__mutex:
-                        self.__in_progress = False
-                with self.__mutex:
-                    if not self.__in_progress:
-                        self.__in_progress = True
-                        self.item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread())
-        calculated_data = self.item.get_cached_value(self.__cache_property_name)
-        if calculated_data is not None:
-            return calculated_data
-        return self.get_default_data()
-
-
-class HistogramDataItemProcessor(DataItemProcessor):
-
-    def __init__(self, display):
-        super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
-        self.bins = 256
-
-    def item_property_changed(self, key, value):
-        """ Called directly from data item. """
-        super(HistogramDataItemProcessor, self).item_property_changed(key, value)
-        if key == "display_limits":
-            self.set_cached_value_dirty()
-
-    def get_calculated_data(self, ui, data):
-        #logging.debug("Calculating histogram %s", self)
-        display_range = self.item.display_range  # may be None
-        histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
-        histogram_max = float(numpy.max(histogram_data))
-        histogram_data = histogram_data / histogram_max
-        return histogram_data
-
-    def get_default_data(self):
-        return numpy.zeros((self.bins, ), dtype=numpy.uint32)
-
-    def get_data_item(self):
-        return self.item.data_item
-
-
-class StatisticsDataItemProcessor(DataItemProcessor):
+class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __init__(self, data_item):
         super(StatisticsDataItemProcessor, self).__init__(data_item, "statistics_data")
@@ -141,11 +43,11 @@ class StatisticsDataItemProcessor(DataItemProcessor):
         #logging.debug("Calculating statistics %s", self)
         mean = numpy.mean(data)
         std = numpy.std(data)
-        data_min, data_max = self.data_item.data_range
+        data_min, data_max = self.item.data_range
         all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max }
         global _computation_fns
         for computation_fn in _computation_fns:
-            computations = computation_fn(self.data_item)
+            computations = computation_fn(self.item)
             if computations is not None:
                 all_computations.update(computations)
         return all_computations
@@ -155,98 +57,6 @@ class StatisticsDataItemProcessor(DataItemProcessor):
 
     def get_data_item(self):
         return self.item
-
-
-class ThumbnailDataItemProcessor(DataItemProcessor):
-
-    def __init__(self, display):
-        super(ThumbnailDataItemProcessor, self).__init__(display, "thumbnail_data")
-        self.width = 72
-        self.height = 72
-
-    def get_calculated_data(self, ui, data):
-        #logging.debug("Calculating thumbnail %s", self)
-        thumbnail_data = None
-        if Image.is_data_1d(data):
-            thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
-        elif Image.is_data_2d(data):
-            data_range = self.item.data_range
-            display_limits = self.item.display_limits
-            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
-        elif Image.is_data_3d(data):
-            # TODO: fix me 3d
-            data_range = self.item.data_range
-            display_limits = self.item.display_limits
-            thumbnail_data = self.__get_thumbnail_3d_data(ui, data, self.height, self.width, data_range, display_limits)
-        return thumbnail_data
-
-    def get_default_data(self):
-        return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
-
-    def get_data_item(self):
-        return self.item.data_item
-
-    def __get_thumbnail_1d_data(self, ui, data, height, width):
-        assert data is not None
-        assert Image.is_data_1d(data)
-        data = Image.convert_to_grayscale(data)
-        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        line_graph_canvas_item.draw_captions = False
-        line_graph_canvas_item.draw_grid = False
-        line_graph_canvas_item.draw_frame = False
-        line_graph_canvas_item.background_color = "#EEEEEE"
-        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data = data
-        line_graph_canvas_item.update_layout((0, 0), (height, width))
-        drawing_context = ui.create_offscreen_drawing_context()
-        line_graph_canvas_item._repaint(drawing_context)
-        return ui.create_rgba_image(drawing_context, width, height)
-
-    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert image.ndim in (2,3)
-        image = Image.scalar_from_array(image)
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = height if image_height > image_width else height * image_height / image_width
-        scaled_width = width if image_width > image_height else width * image_width / image_height
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-
-    # TODO: fix me 3d
-    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert image.ndim in (3,4)
-        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
-        image = Image.scalar_from_array(image.reshape(new_shape))
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
-        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
 
 # data items will represents a numpy array. the numpy array
@@ -288,9 +98,9 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
 
 # enumerations for types of changes
 DATA = 1
-DISPLAY = 2
-CHILDREN = 3
-PANEL = 4
+METADATA = 2
+DISPLAYS = 3
+CHILDREN = 4
 SOURCE = 5
 
 
@@ -322,7 +132,6 @@ class DataItem(Storage.StorageBase):
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
-        self.displays.append(DataItem())  # always have one display, for now
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
@@ -348,6 +157,7 @@ class DataItem(Storage.StorageBase):
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__set_master_data(data)
+        self.displays.append(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
@@ -453,6 +263,8 @@ class DataItem(Storage.StorageBase):
         data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
         for operation in self.operations:
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
+        while len(data_item_copy.displays):
+            data_item_copy.displays.pop()
         for display in self.displays:
             data_item_copy.displays.append(copy.deepcopy(display, memo))
         for data_item in self.data_items:
@@ -664,7 +476,7 @@ class DataItem(Storage.StorageBase):
         if self.__datetime_modified != datetime_modified:
             self.__datetime_modified = datetime_modified
             self.notify_set_property("datetime_modified", datetime_modified)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([METADATA]))
     datetime_modified = property(__get_datetime_modified, __set_datetime_modified)
 
     def __get_datetime_original(self):
@@ -673,7 +485,7 @@ class DataItem(Storage.StorageBase):
         if self.__datetime_original != datetime_original:
             self.__datetime_original = datetime_original
             self.notify_set_property("datetime_original", datetime_original)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([METADATA]))
     datetime_original = property(__get_datetime_original, __set_datetime_original)
 
     def __get_datetime_original_as_string(self):
@@ -696,7 +508,7 @@ class DataItem(Storage.StorageBase):
         return self.__properties
     def __release_properties(self):
         self.notify_set_property("properties", self.__properties)
-        self.notify_data_item_content_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([METADATA]))
 
     def property_changes(self):
         grab_properties = DataItem.__grab_properties
@@ -736,7 +548,7 @@ class DataItem(Storage.StorageBase):
         elif key == "displays":
             value.add_listener(self)
             value._set_data_item(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAYS]))
         elif key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index, False)
             value.data_source = self
@@ -747,7 +559,7 @@ class DataItem(Storage.StorageBase):
             value.add_observer(self)
         elif key == "intrinsic_calibrations":
             value.add_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([METADATA]))
 
     def notify_remove_item(self, key, value, index):
         super(DataItem, self).notify_remove_item(key, value, index)
@@ -758,7 +570,7 @@ class DataItem(Storage.StorageBase):
         elif key == "displays":
             value._set_data_item(None)
             value.remove_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([DISPLAYS]))
         elif key == "data_items":
             value.remove_observer(self)
             for operation_index, operation_item in enumerate(reversed(value.operations)):
@@ -769,7 +581,7 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_content_changed(set([CHILDREN]))
         elif key == "intrinsic_calibrations":
             value.remove_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
+            self.notify_data_item_content_changed(set([METADATA]))
 
     # this message is received when an item being listened to (child data items)
     # has something inserted.
@@ -832,14 +644,14 @@ class DataItem(Storage.StorageBase):
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
-        self.notify_data_item_content_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([METADATA]))
         for processor in self.__processors.values():
             processor.item_property_changed(key, value)
 
     # this message comes from the calibration. the connection is established when a calibration
     # is added or removed from this object.
     def calibration_changed(self, calibration):
-        self.notify_data_item_content_changed(set([DISPLAY]))
+        self.notify_data_item_content_changed(set([METADATA]))
 
     # this message comes from the operation. the connection is managed
     # by watching for changes to the operations relationship. when an operation

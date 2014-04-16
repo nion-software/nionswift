@@ -33,8 +33,9 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_date_formats(self):
         data_item = DataItem.DataItem()
-        data_item.datetime_original = {"local_datetime": datetime.datetime(2013, 11, 18, 14, 5, 4, 0).isoformat(), "tz": "+0000", "dst": "+00"}
-        data_item.datetime_original_as_string
+        with data_item.ref():
+            data_item.datetime_original = {"local_datetime": datetime.datetime(2013, 11, 18, 14, 5, 4, 0).isoformat(), "tz": "+0000", "dst": "+00"}
+            data_item.datetime_original_as_string
 
     def test_sub_area_size_change(self):
         data_element = dict()

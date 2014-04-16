@@ -362,7 +362,7 @@ class DocumentController(Observable.Broadcaster):
                 image_panel.set_selected(image_panel == self.selected_image_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            selected_data_item = selected_image_panel.data_item if selected_image_panel is not None else None
+            selected_data_item = selected_image_panel.get_displayed_data_item() if selected_image_panel else None
             self.set_selected_data_item(selected_data_item)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
@@ -409,7 +409,7 @@ class DocumentController(Observable.Broadcaster):
                 return data_panel.data_item
         # if not found, check for focused or selected image panel
         if self.selected_image_panel:
-            return self.selected_image_panel.data_item
+            return self.selected_image_panel.get_displayed_data_item()
         return None
     selected_data_item = property(__get_selected_data_item)
 
@@ -793,8 +793,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
         if self.data_item:
             self.data_item.remove_listener(self)
             self.data_item.remove_ref()
-        if self.display:
-            self.display.remove_ref()
         self.__weak_data_item = None
 
     def __get_data_item(self):
@@ -810,16 +808,9 @@ class SelectedDataItemBinding(Observable.Broadcaster):
             if data_item:
                 data_item.add_ref()
                 data_item.add_listener(self)
-                if self.display:
-                    self.display.remove_ref()
-                self.display = Display.Display(data_item)
-                self.display.add_ref()
-            else:
-                if self.display:
-                    self.display.remove_ref()
-                self.display = None
             # save the new data item
             self.__weak_data_item = weakref.ref(data_item) if data_item else None
+            self.display = data_item.displays[0] if data_item else None
             # notify our listeners
             self.notify_listeners("data_item_binding_display_changed", self.display)
             # and detach from the old item

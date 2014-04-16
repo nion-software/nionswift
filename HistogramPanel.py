@@ -279,5 +279,5 @@ class HistogramPanel(Panel.Panel):
         def update_statistics_data(statistics_data):
             self.add_task("statistics", lambda: update_statistics(statistics_data))
         self.histogram_canvas_item.update_display(display)
-        statistics_data = display.get_processed_data("statistics", None, completion_fn=update_statistics_data) if display else dict()
+        statistics_data = display.data_item.get_processor("statistics").get_data(None, completion_fn=update_statistics_data) if display else dict()
         update_statistics_data(statistics_data)

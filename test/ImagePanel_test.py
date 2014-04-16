@@ -64,14 +64,14 @@ class TestImagePanelClass(unittest.TestCase):
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_disappearing_data(self):
-        self.assertEqual(self.image_panel.data_item, self.document_model.data_items[0])
-        self.assertEqual(self.image_panel.data_item, self.data_item)
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
         self.document_controller.processing_invert()
         self.document_controller.periodic()
         self.image_panel.set_displayed_data_item(self.data_item)
-        self.assertEqual(self.image_panel.data_item, self.data_item)
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
         self.document_model.remove_data_item(self.data_item)
-        self.assertIsNone(self.image_panel.data_item)
+        self.assertIsNone(self.image_panel.get_displayed_data_item())
 
     def test_select_line(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
