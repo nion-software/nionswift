@@ -133,6 +133,13 @@ class OperationItem(Storage.StorageBase):
             operation_item.set_property(key, values[key])
         return operation_item
 
+    # subclasses should override __deepcopy__ and deepcopy_from as necessary
+    def __deepcopy__(self, memo):
+        operation_item = self.__class__(self.operation_id)
+        operation_item.deepcopy_from(self, memo)
+        memo[id(self)] = operation_item
+        return operation_item
+
     def create_editor(self, ui):
         return None
 
@@ -211,13 +218,6 @@ class OperationItem(Storage.StorageBase):
             default_values = self.operation.property_defaults_for_data_shape_and_dtype(data_shape, data_dtype)
             for property, default_value in default_values.iteritems():
                 self.__set_property_default(property, default_value)
-
-    # subclasses should override __deepcopy__ and deepcopy_from as necessary
-    def __deepcopy__(self, memo):
-        operation_item = self.__class__(self.operation_id)
-        operation_item.deepcopy_from(self, memo)
-        memo[id(self)] = operation_item
-        return operation_item
 
     def deepcopy_from(self, operation_item, memo):
         values = copy.deepcopy(operation_item.values)

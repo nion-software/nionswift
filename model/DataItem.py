@@ -452,6 +452,38 @@ class DataItem(Storage.StorageBase):
             self.displays.remove(display)
         super(DataItem, self).about_to_delete()
 
+    def __deepcopy__(self, memo):
+        data_item_copy = DataItem()
+        data_item_copy.title = self.title
+        data_item_copy.param = self.param
+        data_item_copy.source_file_path = self.source_file_path
+        with data_item_copy.property_changes() as property_accessor:
+            property_accessor.properties.clear()
+            property_accessor.properties.update(self.properties)
+        data_item_copy.display_limits = self.display_limits
+        data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
+        data_item_copy.datetime_original = copy.copy(self.datetime_original)
+        for calibration in self.intrinsic_calibrations:
+            data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
+        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
+        data_item_copy.display_calibrated_values = self.display_calibrated_values
+        for graphic in self.graphics:
+            data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
+        for operation in self.operations:
+            data_item_copy.operations.append(copy.deepcopy(operation, memo))
+        for display in self.displays:
+            data_item_copy.displays.append(copy.deepcopy(display, memo))
+        for data_item in self.data_items:
+            data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
+        if self.has_master_data:
+            with self.data_ref() as data_ref:
+                data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
+        else:
+            data_item_copy.__set_master_data(None)
+        #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
+        memo[id(self)] = data_item_copy
+        return data_item_copy
+
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
 
@@ -1303,38 +1335,6 @@ class DataItem(Storage.StorageBase):
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
         return self.__preview
     preview_2d = property(__get_preview_2d)
-
-    def __deepcopy__(self, memo):
-        data_item_copy = DataItem()
-        data_item_copy.title = self.title
-        data_item_copy.param = self.param
-        data_item_copy.source_file_path = self.source_file_path
-        with data_item_copy.property_changes() as property_accessor:
-            property_accessor.properties.clear()
-            property_accessor.properties.update(self.properties)
-        data_item_copy.display_limits = self.display_limits
-        data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
-        data_item_copy.datetime_original = copy.copy(self.datetime_original)
-        for calibration in self.intrinsic_calibrations:
-            data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
-        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
-        data_item_copy.display_calibrated_values = self.display_calibrated_values
-        for graphic in self.graphics:
-            data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
-        for operation in self.operations:
-            data_item_copy.operations.append(copy.deepcopy(operation, memo))
-        for display in self.displays:
-            data_item_copy.displays.append(copy.deepcopy(display, memo))
-        for data_item in self.data_items:
-            data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
-        if self.has_master_data:
-            with self.data_ref() as data_ref:
-                data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
-        else:
-            data_item_copy.__set_master_data(None)
-        #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
-        memo[id(self)] = data_item_copy
-        return data_item_copy
 
     def snapshot(self):
         """

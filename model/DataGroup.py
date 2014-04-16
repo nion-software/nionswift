@@ -106,6 +106,18 @@ class DataGroup(Storage.StorageBase):
             self.remove_data_item(data_item)
         super(DataGroup, self).about_to_delete()
 
+    def __deepcopy__(self, memo):
+        data_group_copy = DataGroup()
+        data_group_copy.title = self.title
+        # data groups get deep copied
+        for data_group in self.data_groups:
+            data_group_copy.data_groups.append(copy.deepcopy(data_group, memo))
+        # data items do not get deep copied since they are only references anyway
+        for data_item in self.data_items:
+            data_group_copy.append_data_item(data_item)
+        memo[id(self)] = data_group_copy
+        return data_group_copy
+
     def append_data_item(self, data_item):
         self.__data_items.append(data_item)
 
@@ -188,18 +200,6 @@ class DataGroup(Storage.StorageBase):
     def data_item_property_changed(self, data_item, property, value):
         self.notify_parents("data_item_property_changed", data_item, property, value)
         self.notify_listeners("data_item_property_changed", data_item, property, value)
-
-    def __deepcopy__(self, memo):
-        data_group_copy = DataGroup()
-        data_group_copy.title = self.title
-        # data groups get deep copied
-        for data_group in self.data_groups:
-            data_group_copy.data_groups.append(copy.deepcopy(data_group, memo))
-        # data items do not get deep copied since they are only references anyway
-        for data_item in self.data_items:
-            data_group_copy.append_data_item(data_item)
-        memo[id(self)] = data_group_copy
-        return data_group_copy
 
 
 # return a generator for all data groups and child data groups in container
