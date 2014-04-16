@@ -261,8 +261,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
 
 # best data: returns the best data available without doing a calculation
 
-# preview_2d: a 2d visual representation of data
-
 # live data: a bool indicating whether the data is live
 
 # data is calculated when requested. this makes it imperative that callers
@@ -330,7 +328,6 @@ class DataItem(Storage.StorageBase):
         self.__data_item_change_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_changes = set()
-        self.__preview = None
         self.__counted_data_items = collections.Counter()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
@@ -525,13 +522,9 @@ class DataItem(Storage.StorageBase):
             # clear the processor caches
             for processor in self.__processors.values():
                 processor.data_item_changed()
-            # clear the preview if the the display changed
-            if DISPLAY in changes:
-                self.__preview = None
             # clear the data cache and preview if the data changed
             if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
-                self.__preview = None
             self.notify_listeners("data_item_content_changed", self, changes)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
@@ -1192,24 +1185,6 @@ class DataItem(Storage.StorageBase):
                 if self.__cached_data is not None:
                     return self.__cached_data[pos[0], pos[1]]
         return None
-
-    def __get_preview_2d(self):
-        if self.__preview is None:
-            with self.data_ref() as data_ref:
-                data = data_ref.data
-            if Image.is_data_2d(data):
-                data_2d = Image.scalar_from_array(data)
-            # TODO: fix me 3d
-            elif Image.is_data_3d(data):
-                data_2d = Image.scalar_from_array(data.reshape(tuple([data.shape[0] * data.shape[1], ] + list(data.shape[2::]))))
-            else:
-                data_2d = None
-            if data_2d is not None:
-                data_range = self.__get_data_range()
-                display_limits = self.display_limits
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
-        return self.__preview
-    preview_2d = property(__get_preview_2d)
 
     def snapshot(self):
         """

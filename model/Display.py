@@ -30,6 +30,7 @@ class Display(Storage.StorageBase):
         self.__properties = dict()
         self.__graphics = Storage.MutableRelationship(self, "graphics")
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
+        self.__preview = None
 
     def about_to_delete(self):
         for graphic in copy.copy(self.graphics):
@@ -80,6 +81,7 @@ class Display(Storage.StorageBase):
     def __release_properties(self):
         self.notify_set_property("properties", self.__properties)
         self.notify_listeners("display_changed", self)
+        self.__preview = None
 
     def property_changes(self):
         grab_properties = DataItem.__grab_properties
@@ -98,7 +100,23 @@ class Display(Storage.StorageBase):
 
     // the whole thumbnail and other processor stuff.
 
-    // get preview 2d
+    def __get_preview_2d(self):
+        if self.__preview is None:
+            with self.data_item.data_ref() as data_ref:
+                data = data_ref.data
+            if Image.is_data_2d(data):
+                data_2d = Image.scalar_from_array(data)
+            # TODO: fix me 3d
+            elif Image.is_data_3d(data):
+                data_2d = Image.scalar_from_array(data.reshape(tuple([data.shape[0] * data.shape[1], ] + list(data.shape[2::]))))
+            else:
+                data_2d = None
+            if data_2d is not None:
+                data_range = self.data_range
+                display_limits = self.display_limits
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
+        return self.__preview
+    preview_2d = property(__get_preview_2d)
 
     def get_processed_data(self, processor_id, ui, completion_fn):
         return self.data_item.get_processor(processor_id).get_data(ui, completion_fn)
@@ -137,6 +155,7 @@ class Display(Storage.StorageBase):
     # message sent from data item. established using add/remove observer.
     def property_changed(self, sender, property, value):
         if property == "data_range":
+            self.__preview = None
             self.notify_set_property(property, value)
             self.notify_set_property("display_range", self.display_range)
 
@@ -157,6 +176,7 @@ class Display(Storage.StorageBase):
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
     def data_item_content_changed(self, data_item, changes):
+        self.__preview = None
         self.notify_listeners("display_changed", self)
 
     # this is called from the data item when an operation is inserted into one of

@@ -300,7 +300,7 @@ class StandardImportExportHandler(ImportExportHandler):
         return len(data_item.spatial_shape) == 2
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.preview_2d  # export the display rather than the data for these types
+        data = data_item.displays[0].preview_2d  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path, extension)
 
