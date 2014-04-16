@@ -337,32 +337,35 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     # implement observer/notification mechanism
 
     def notify_set_property(self, key, value):
-        if self.datastore:  # properties are not affected by transactions
-            self.datastore.set_property(self, key, value)
+        if key in self.storage_properties:
+            if self.datastore:  # properties are not affected by transactions
+                self.datastore.set_property(self, key, value)
         super(StorageBase, self).notify_set_property(key, value)
 
     def notify_set_item(self, key, item):
-        assert item is not None
-        if self.datastore:  # items are not affected by transactions
-            item.datastore = self.datastore
-            self.datastore.set_item(self, key, item)
-        if self.storage_cache:
-            item.storage_cache = self.storage_cache
-        if item:
-            item.add_parent(self)
+        if key in self.storage_items:
+            assert item is not None
+            if self.datastore:  # items are not affected by transactions
+                item.datastore = self.datastore
+                self.datastore.set_item(self, key, item)
+            if self.storage_cache:
+                item.storage_cache = self.storage_cache
+            if item:
+                item.add_parent(self)
         super(StorageBase, self).notify_set_item(key, item)
 
     def notify_clear_item(self, key):
-        item = self.get_storage_item(key)
-        if item:
-            if self.datastore:
-                # items are not affected by transactions
-                self.datastore.clear_item(self, key)
-                item.datastore = None
-            if self.storage_cache:
-                item.storage_cache = None
-            item.remove_parent(self)
-            super(StorageBase, self).notify_clear_item(key)
+        if key in self.storage_items:
+            item = self.get_storage_item(key)
+            if item:
+                if self.datastore:
+                    # items are not affected by transactions
+                    self.datastore.clear_item(self, key)
+                    item.datastore = None
+                if self.storage_cache:
+                    item.storage_cache = None
+                item.remove_parent(self)
+        super(StorageBase, self).notify_clear_item(key)
 
     def notify_set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference, file_datetime):
         if self.datastore and self.__transaction_count == 0:
