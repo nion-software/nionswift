@@ -336,6 +336,38 @@ class DisplayLimitsInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
 
 
+class CalibratedValueFloatToStringConverter(object):
+    """
+        Converter object to convert from calibrated value to string and back.
+    """
+    def __init__(self, display, index, data_size):
+        self.__display = display
+        self.__index = index
+        self.__data_size = data_size
+    def convert(self, value):
+        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        return calibration.convert_to_calibrated_value_str(self.__data_size * value)
+    def convert_back(self, str):
+        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
+
+
+class CalibratedSizeFloatToStringConverter(object):
+    """
+        Converter object to convert from calibrated size to string and back.
+        """
+    def __init__(self, display, index, data_size):
+        self.__display = display
+        self.__index = index
+        self.__data_size = data_size
+    def convert(self, size):
+        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        return calibration.convert_to_calibrated_size_str(self.__data_size * size)
+    def convert_back(self, str):
+        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
+
+
 # combine the display calibrated values binding with the calibration values themselves.
 # this allows the text to reflect calibrated or uncalibrated data.
 # display_calibrated_values_binding should have a target value type of boolean.
@@ -372,8 +404,8 @@ def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display, "display_calibrated_values")
     # configure the bindings
-    x_converter = DataItem.CalibratedValueFloatToStringConverter(display, 1, image_size[1])
-    y_converter = DataItem.CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
     start_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
     start_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
     end_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
@@ -412,10 +444,10 @@ def make_rectangle_type_inspector(ui, graphic_widget, display, image_size, graph
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display, "display_calibrated_values")
     # calculate values from rectangle type graphic
-    x_converter = DataItem.CalibratedValueFloatToStringConverter(display, 1, image_size[1])
-    y_converter = DataItem.CalibratedValueFloatToStringConverter(display, 0, image_size[0])
-    width_converter = DataItem.CalibratedSizeFloatToStringConverter(display, 1, image_size[1])
-    height_converter = DataItem.CalibratedSizeFloatToStringConverter(display, 0, image_size[0])
+    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    width_converter = CalibratedSizeFloatToStringConverter(display, 1, image_size[1])
+    height_converter = CalibratedSizeFloatToStringConverter(display, 0, image_size[0])
     center_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
     center_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
     size_width_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)

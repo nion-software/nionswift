@@ -9,6 +9,7 @@ import uuid
 from nion.swift import Decorators
 from nion.swift import HistogramPanel
 from nion.swift import Panel
+from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
@@ -1358,8 +1359,8 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         if data_item and data_size:
-            calibrations = data_item.calculated_calibrations
-            intensity_calibration = data_item.calculated_intensity_calibration
+            calibrations = data_item.calculated_calibrations if data_item.display_calibrated_values else [Calibration.CalibrationItem() for _ in xrange(0, len(data_item.spatial_shape))]
+            intensity_calibration = data_item.calculated_intensity_calibration if data_item.display_calibrated_values else Calibration.CalibrationItem()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
                 # 3d image

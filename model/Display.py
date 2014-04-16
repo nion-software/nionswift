@@ -31,8 +31,10 @@ class Display(Storage.StorageBase):
     def __set_data_item(self, data_item):
         if self.data_item:
             self.data_item.remove_observer(self)
+            self.data_item.remove_ref()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         if self.data_item:
+            self.data_item.add_ref()
             self.data_item.add_observer(self)
     data_item = property(__get_data_item)
 

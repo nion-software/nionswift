@@ -37,38 +37,6 @@ _ = gettext.gettext
 # units: the units of the calibrated value
 
 
-class CalibratedValueFloatToStringConverter(object):
-    """
-        Converter object to convert from calibrated value to string and back.
-    """
-    def __init__(self, data_item, index, data_size):
-        self.__data_item = data_item
-        self.__index = index
-        self.__data_size = data_size
-    def convert(self, value):
-        calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_to_calibrated_value_str(self.__data_size * value)
-    def convert_back(self, str):
-        calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
-
-
-class CalibratedSizeFloatToStringConverter(object):
-    """
-        Converter object to convert from calibrated size to string and back.
-        """
-    def __init__(self, data_item, index, data_size):
-        self.__data_item = data_item
-        self.__index = index
-        self.__data_size = data_size
-    def convert(self, size):
-        calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_to_calibrated_size_str(self.__data_size * size)
-    def convert_back(self, str):
-        calibration = self.__data_item.calculated_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
-
-
 class DataItemProcessor(object):
 
     def __init__(self, data_item, cache_property_name):
@@ -660,12 +628,7 @@ class DataItem(Storage.StorageBase):
         intensity_calibration_item = None
         # if intrinsic_calibrations are set on this item, use it, giving it precedence
         if self.intrinsic_intensity_calibration:
-            if self.display_calibrated_values:
-                # use actual intrinsic_calibrations
-                intensity_calibration_item = self.intrinsic_intensity_calibration
-            else:
-                # construct empty calibration to display unitless
-                intensity_calibration_item = Calibration.CalibrationItem()
+            intensity_calibration_item = self.intrinsic_intensity_calibration
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
         if intensity_calibration_item is None and self.data_source:
             intensity_calibration_item = self.data_source.calculated_intensity_calibration
@@ -697,14 +660,7 @@ class DataItem(Storage.StorageBase):
         calibration_items = None
         # if intrinsic_calibrations are set on this item, use it, giving it precedence
         if self.intrinsic_calibrations:
-            if self.display_calibrated_values:
-                # use actual intrinsic_calibrations
-                calibration_items = self.intrinsic_calibrations
-            else:
-                # construct empty calibrations to display pixels
-                calibration_items = list()
-                for _ in xrange(0, len(self.spatial_shape)):
-                    calibration_items.append(Calibration.CalibrationItem())
+            calibration_items = self.intrinsic_calibrations
         # if intrinsic_calibrations are not set, then try to get calibrations from the data source
         if calibration_items is None and self.data_source:
             calibration_items = self.data_source.calculated_calibrations
