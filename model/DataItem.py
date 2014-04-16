@@ -309,6 +309,7 @@ class DataItem(Storage.StorageBase):
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
+        self.displays.append(DataItem())  # always have one display, for now
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
@@ -391,7 +392,11 @@ class DataItem(Storage.StorageBase):
         data_item.__has_master_data = has_master_data
         data_item.data_items.extend(data_items)
         data_item.operations.extend(operations)
-        data_item.displays.extend(displays)
+        if len(displays) > 0:
+            # replace existing displays. TODO: remove this once clients can handle data items without any displays
+            while len(data_item.displays):
+                data_item.displays.pop()
+            data_item.displays.extend(displays)
         # setting master data may add intrinsic_calibrations automatically. remove them here to start from clean slate.
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()
