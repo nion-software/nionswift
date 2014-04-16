@@ -39,29 +39,30 @@ _ = gettext.gettext
 
 class DataItemProcessor(object):
 
-    def __init__(self, data_item, cache_property_name):
-        self.__weak_data_item = weakref.ref(data_item)
+    def __init__(self, item, cache_property_name):
+        self.__weak_item = weakref.ref(item)
         self.__cache_property_name = cache_property_name
         self.__mutex = threading.RLock()
         self.__in_progress = False
 
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
+    def __get_item(self):
+        return self.__weak_item() if self.__weak_item else None
+    item = property(__get_item)
 
     def data_item_changed(self):
         """ Called directly from data item. """
         self.set_cached_value_dirty()
 
-    def data_item_property_changed(self, key, value):
+    def item_property_changed(self, key, value):
         """
+            Called directly from data item.
             Subclasses should override and call set_cached_value_dirty to add
-            property dependencies. Called directly from data item.
+            property dependencies.
         """
         pass
 
     def set_cached_value_dirty(self):
-        self.data_item.set_cached_value_dirty(self.__cache_property_name)
+        self.item.set_cached_value_dirty(self.__cache_property_name)
 
     def get_calculated_data(self, ui, data):
         """ Subclasses must implement. """
@@ -70,21 +71,26 @@ class DataItemProcessor(object):
     def get_default_data(self):
         return None
 
+    def get_data_item(self):
+        """ Subclasses must implement. """
+        raise NotImplementedError()
+
     def get_data(self, ui, completion_fn=None):
-        if self.data_item.is_cached_value_dirty(self.__cache_property_name):
-            if not self.data_item.closed and (self.data_item.has_master_data or self.data_item.has_data_source):
+        if self.item.is_cached_value_dirty(self.__cache_property_name):
+            data_item = self.get_data_item()
+            if not data_item.closed and (data_item.has_master_data or data_item.has_data_source):
                 def load_data_on_thread():
                     time.sleep(0.2)
-                    with self.data_item.data_ref() as data_ref:
+                    with data_item.data_ref() as data_ref:
                         data = data_ref.data
                         if data is not None:  # for data to load and make sure it has data
                             calculated_data = self.get_calculated_data(ui, data)
-                            self.data_item.set_cached_value(self.__cache_property_name, calculated_data)
+                            self.item.set_cached_value(self.__cache_property_name, calculated_data)
                         else:
                             calculated_data = None
                     if calculated_data is None:
                         calculated_data = self.get_default_data()
-                        self.data_item.remove_cached_value(self.__cache_property_name)
+                        self.item.remove_cached_value(self.__cache_property_name)
                     if completion_fn:
                         completion_fn(calculated_data)
                     with self.__mutex:
@@ -92,8 +98,8 @@ class DataItemProcessor(object):
                 with self.__mutex:
                     if not self.__in_progress:
                         self.__in_progress = True
-                        self.data_item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread())
-        calculated_data = self.data_item.get_cached_value(self.__cache_property_name)
+                        self.item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread())
+        calculated_data = self.item.get_cached_value(self.__cache_property_name)
         if calculated_data is not None:
             return calculated_data
         return self.get_default_data()
@@ -101,19 +107,19 @@ class DataItemProcessor(object):
 
 class HistogramDataItemProcessor(DataItemProcessor):
 
-    def __init__(self, data_item):
-        super(HistogramDataItemProcessor, self).__init__(data_item, "histogram_data")
+    def __init__(self, display):
+        super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
         self.bins = 256
 
-    def data_item_property_changed(self, key, value):
+    def item_property_changed(self, key, value):
         """ Called directly from data item. """
-        super(HistogramDataItemProcessor, self).data_item_property_changed(key, value)
+        super(HistogramDataItemProcessor, self).item_property_changed(key, value)
         if key == "display_limits":
             self.set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
         #logging.debug("Calculating histogram %s", self)
-        display_range = self.data_item.display_range  # may be None
+        display_range = self.item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
         histogram_max = float(numpy.max(histogram_data))
         histogram_data = histogram_data / histogram_max
@@ -121,6 +127,9 @@ class HistogramDataItemProcessor(DataItemProcessor):
 
     def get_default_data(self):
         return numpy.zeros((self.bins, ), dtype=numpy.uint32)
+
+    def get_data_item(self):
+        return self.item.data_item
 
 
 class StatisticsDataItemProcessor(DataItemProcessor):
@@ -144,11 +153,14 @@ class StatisticsDataItemProcessor(DataItemProcessor):
     def get_default_data(self):
         return { }
 
+    def get_data_item(self):
+        return self.item
+
 
 class ThumbnailDataItemProcessor(DataItemProcessor):
 
-    def __init__(self, data_item):
-        super(ThumbnailDataItemProcessor, self).__init__(data_item, "thumbnail_data")
+    def __init__(self, display):
+        super(ThumbnailDataItemProcessor, self).__init__(display, "thumbnail_data")
         self.width = 72
         self.height = 72
 
@@ -158,18 +170,21 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
         if Image.is_data_1d(data):
             thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
         elif Image.is_data_2d(data):
-            data_range = self.data_item.data_range
-            display_limits = self.data_item.display_limits
+            data_range = self.item.data_range
+            display_limits = self.item.display_limits
             thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
         elif Image.is_data_3d(data):
             # TODO: fix me 3d
-            data_range = self.data_item.data_range
-            display_limits = self.data_item.display_limits
+            data_range = self.item.data_range
+            display_limits = self.item.display_limits
             thumbnail_data = self.__get_thumbnail_3d_data(ui, data, self.height, self.width, data_range, display_limits)
         return thumbnail_data
 
     def get_default_data(self):
         return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
+
+    def get_data_item(self):
+        return self.item.data_item
 
     def __get_thumbnail_1d_data(self, ui, data, height, width):
         assert data is not None
@@ -331,8 +346,6 @@ class DataItem(Storage.StorageBase):
         self.__counted_data_items = collections.Counter()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
-        self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
-        self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__set_master_data(data)
 
@@ -821,7 +834,7 @@ class DataItem(Storage.StorageBase):
         super(DataItem, self).notify_set_property(key, value)
         self.notify_data_item_content_changed(set([DISPLAY]))
         for processor in self.__processors.values():
-            processor.data_item_property_changed(key, value)
+            processor.item_property_changed(key, value)
 
     # this message comes from the calibration. the connection is established when a calibration
     # is added or removed from this object.

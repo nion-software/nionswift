@@ -10,6 +10,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift.model import DataItem
 from nion.swift.model import Storage
 
 _ = gettext.gettext
@@ -31,8 +32,13 @@ class Display(Storage.StorageBase):
         self.__graphics = Storage.MutableRelationship(self, "graphics")
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
+        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        self.__processors = dict()
+        self.__processors["thumbnail"] = DataItem.ThumbnailDataItemProcessor(self)
+        self.__processors["histogram"] = DataItem.HistogramDataItemProcessor(self)
 
     def about_to_delete(self):
+        self.__shared_thread_pool.close()
         for graphic in copy.copy(self.graphics):
             self.remove_graphic(graphic)
         self._set_data_item(None)
@@ -55,6 +61,12 @@ class Display(Storage.StorageBase):
             display_copy.append_graphic(copy.deepcopy(graphic, memo))
         memo[id(self)] = display_copy
         return display_copy
+
+    def add_shared_task(self, task_id, item, fn):
+        self.__shared_thread_pool.add_task(task_id, item, fn)
+
+    def get_processor(self, processor_id):
+        return self.__processors[processor_id]
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
@@ -98,8 +110,6 @@ class Display(Storage.StorageBase):
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
 
-    // the whole thumbnail and other processor stuff.
-
     def __get_preview_2d(self):
         if self.__preview is None:
             with self.data_item.data_ref() as data_ref:
@@ -119,7 +129,7 @@ class Display(Storage.StorageBase):
     preview_2d = property(__get_preview_2d)
 
     def get_processed_data(self, processor_id, ui, completion_fn):
-        return self.data_item.get_processor(processor_id).get_data(ui, completion_fn)
+        return self.get_processor(processor_id).get_data(ui, completion_fn)
 
     def __get_drawn_graphics(self):
         return self.__drawn_graphics
@@ -178,6 +188,9 @@ class Display(Storage.StorageBase):
     def data_item_content_changed(self, data_item, changes):
         self.__preview = None
         self.notify_listeners("display_changed", self)
+        # clear the processor caches
+        for processor in self.__processors.values():
+            processor.data_item_changed()
 
     # this is called from the data item when an operation is inserted into one of
     # its child data items. this method updates the drawn graphics list.
@@ -248,3 +261,9 @@ class Display(Storage.StorageBase):
     # is added or removed from this object.
     def graphic_changed(self, graphic):
         self.notify_listeners("display_changed", self)
+
+    # override from storage to watch for changes to this data item. notify observers.
+    def notify_set_property(self, key, value):
+        super(Display, self).notify_set_property(key, value)
+        for processor in self.__processors.values():
+            processor.item_property_changed(key, value)
