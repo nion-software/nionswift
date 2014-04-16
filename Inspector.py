@@ -195,10 +195,6 @@ class ProcessingInspector(object):
         # bindings
 
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
-        def update_data_item(data_item):
-            self.__data_item_binding_source.data_item = data_item
-        self.__data_item_binding = Binding.PropertyBinding(self.__data_item_binding_source, "data_item")
-        self.__data_item_binding.target_setter = update_data_item
 
         # ui
 
@@ -222,14 +218,12 @@ class ProcessingInspector(object):
         for inspector in self.__inspectors:
             inspector.close()
         # close the data item content binding
-        self.__data_item_binding.close()
         self.__data_item_binding_source.close()
 
     # update the values if needed
     def periodic(self):
         for inspector in self.__inspectors:
             inspector.periodic()
-        self.__data_item_binding.periodic()
 
 
 class ProcessingPanel(InspectorPanelBase):

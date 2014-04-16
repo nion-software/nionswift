@@ -421,8 +421,6 @@ class GraphicsInspector(InspectorSection):
         graphic_title_row.add_stretch()
         graphic_widget = self.ui.create_column_widget()
         graphic_widget.add(graphic_title_row)
-        def new_display_calibrated_values_binding():
-            return Binding.PropertyBinding(self.__data_item_binding_source, "display_calibrated_values")
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
             make_line_type_inspector(self.ui, graphic_widget, self.__data_item_binding_source, image_size, graphic)
@@ -449,10 +447,6 @@ class DataItemInspector(object):
         # bindings
 
         self.__data_item_binding_source = DataItem.DataItemBindingSource(data_item)
-        def update_data_item(data_item):
-            self.__data_item_binding_source.data_item = data_item
-        self.__data_item_binding = Binding.PropertyBinding(self.__data_item_binding_source, "data_item")
-        self.__data_item_binding.target_setter = update_data_item
 
         # ui
 
@@ -478,11 +472,9 @@ class DataItemInspector(object):
         for inspector in self.__inspectors:
             inspector.close()
         # close the data item content binding
-        self.__data_item_binding.close()
         self.__data_item_binding_source.close()
 
     # update the values if needed
     def periodic(self):
         for inspector in self.__inspectors:
             inspector.periodic()
-        self.__data_item_binding.periodic()
