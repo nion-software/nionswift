@@ -459,7 +459,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def __get_data_size(self):
-        data_item = self.display.data_item
+        data_item = self.display.data_item if self.display else None
         data_shape = data_item.spatial_shape if data_item else None
         if not data_shape:
             return None
