@@ -660,6 +660,11 @@ class DataItem(Storage.StorageBase):
     def operation_changed(self, operation):
         self.notify_data_item_content_changed(set([DATA]))
 
+    # this message comes from the displays.
+    # TODO: Figure out a clearer way for data panel to notice changes in the data items
+    def display_changed(self, operation):
+        self.notify_data_item_content_changed(set([DISPLAYS]))
+
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
     def data_item_content_changed(self, data_source, changes):
