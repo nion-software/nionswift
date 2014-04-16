@@ -52,6 +52,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
         self.data = None
+        self.data_min = None
+        self.data_max = None
         self.spatial_calibration = None
         self.intensity_calibration = None
         self.draw_grid = True
@@ -131,8 +133,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
             # calculate the intensity scale
             vertical_tick_count = 4
-            raw_data_min = numpy.amin(self.data)
-            raw_data_max = numpy.amax(self.data)
+            raw_data_min = self.data_min if self.data_min else numpy.amin(self.data)
+            raw_data_max = self.data_max if self.data_max else numpy.amax(self.data)
             drawn_data_min, drawn_data_max = get_drawn_data_limits(raw_data_min, raw_data_max, self.intensity_calibration)
             drawn_data_range = drawn_data_max - drawn_data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
@@ -239,7 +241,10 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 for i in xrange(0, plot_width, 2):
                     px = plot_origin_x + i
                     data_index = int(data_len*float(i)/plot_width)
+                    # plot_origin_y is the TOP of the drawing
+                    # py extends DOWNWARDS
                     py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
+                    py = max(plot_origin_y, py)
                     drawing_context.line_to(px, py)
                     drawing_context.line_to(px + 2, py)
                 # finish off last line

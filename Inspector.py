@@ -623,8 +623,11 @@ class DataItemInspector(object):
         self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
 #       self.__inspectors.append(ParamInspectorSection(self.ui, data_item))
         self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
-        self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-        self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
+        if data_item.is_data_1d:
+            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
+        elif data_item.is_data_2d or data_item.is_data_3d:
+            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
         self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
 
         for inspector in self.__inspectors:

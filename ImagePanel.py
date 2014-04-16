@@ -401,6 +401,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display = display
         if self.__display is None:
             self.line_graph_canvas_item.data = None
+            self.line_graph_canvas_item.data_min = None
+            self.line_graph_canvas_item.data_max = None
             self.line_graph_canvas_item.update()
         self.__paint_thread.trigger()
 
@@ -432,7 +434,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             assert data is not None
 
             # update the line graph
+            display_limits = display.display_limits
             self.line_graph_canvas_item.data = data
+            self.line_graph_canvas_item.data_min = display_limits[0] if display_limits else None
+            self.line_graph_canvas_item.data_max = display_limits[1] if display_limits else None
             self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
             self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
             self.line_graph_canvas_item.update()
