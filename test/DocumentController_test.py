@@ -161,12 +161,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         # make sure assumptions are correct
         self.assertEqual(len(image_panel.graphic_selection.indexes), 1)
         self.assertTrue(0 in image_panel.graphic_selection.indexes)
-        self.assertEqual(len(data_item.graphics), 1)
-        self.assertEqual(data_item.graphics[0], line_graphic)
+        self.assertEqual(len(data_item.displays[0].graphics), 1)
+        self.assertEqual(data_item.displays[0].graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
         self.assertEqual(len(image_panel.graphic_selection.indexes), 0)
-        self.assertEqual(len(data_item.graphics), 0)
+        self.assertEqual(len(data_item.displays[0].graphics), 0)
         # clean up
         image_panel.close()
 
@@ -184,11 +184,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(len(data_item.data_items), 1)
-        self.assertTrue(line_profile_operation.graphics[0] in data_item.drawn_graphics)
+        self.assertTrue(line_profile_operation.graphics[0] in data_item.displays[0].drawn_graphics)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
         self.assertEqual(len(image_panel.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
         self.assertEqual(len(data_item.data_items), 0)
         # clean up
         image_panel.close()

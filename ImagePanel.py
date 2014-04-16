@@ -949,8 +949,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__mouse_in and self.__last_mouse:
                 if image_size and len(image_size) > 1:
                     pos = self.map_widget_to_image(self.__last_mouse)
-                data_item = self.display.data_item if self.display else None
-                graphics = data_item.drawn_graphics if data_item else None
+                graphics = self.display.drawn_graphics if self.display else None
                 selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
                 self.document_controller.cursor_changed(self, self.display, pos, selected_graphics, image_size)
             else:

@@ -120,6 +120,8 @@ class Display(Storage.StorageBase):
         self.data_item.display_range = display_range
     display_range = property(__get_display_range) ##, __set_display_range)
 
+    // the whole data range, display range, dependencies, etc.
+
     # message sent from data item. established using add/remove observer.
     def property_changed(self, sender, property, value):
         if property in ("data_range", "display_calibrated_values", "display_range"):

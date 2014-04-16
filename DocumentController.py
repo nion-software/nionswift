@@ -413,6 +413,16 @@ class DocumentController(Observable.Broadcaster):
         return None
     selected_data_item = property(__get_selected_data_item)
 
+    def __get_selected_display(self):
+        """
+            Return the selected display.
+
+            The selected display is the display that has keyboard focus.
+        """
+        data_item = self.selected_data_item
+        return data_item.displays[0] if data_item else None
+    selected_display = property(__get_selected_display)
+
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
     def cursor_changed(self, source, display, pos, selected_graphics, image_size):
@@ -485,45 +495,45 @@ class DocumentController(Observable.Broadcaster):
             container.data_groups.remove(data_group)
 
     def add_line_graphic(self):
-        data_item = self.selected_data_item
-        if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
+        display = self.selected_display
+        if display:
+            assert isinstance(display, Display.Display)
             graphic = Graphics.LineGraphic()
             graphic.start = (0.2,0.2)
             graphic.end = (0.8,0.8)
-            data_item.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            display.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
     def add_rectangle_graphic(self):
-        data_item = self.selected_data_item
-        if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
+        display = self.selected_display
+        if display:
+            assert isinstance(display, Display.Display)
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            data_item.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            display.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
     def add_ellipse_graphic(self):
-        data_item = self.selected_data_item
-        if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
+        display = self.selected_display
+        if display:
+            assert isinstance(display, Display.Display)
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            data_item.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(data_item.drawn_graphics.index(graphic))
+            display.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
     def remove_graphic(self):
-        data_item = self.selected_data_item
-        if data_item and self.selected_image_panel.graphic_selection.has_selection():
-            graphics = [data_item.drawn_graphics[index] for index in self.selected_image_panel.graphic_selection.indexes]
+        display = self.selected_display
+        if display and self.selected_image_panel.graphic_selection.has_selection():
+            graphics = [display.drawn_graphics[index] for index in self.selected_image_panel.graphic_selection.indexes]
             for graphic in graphics:
-                data_item.remove_drawn_graphic(graphic)
+                display.remove_drawn_graphic(graphic)
 
     def remove_operation(self, operation):
         data_item = self.selected_data_item

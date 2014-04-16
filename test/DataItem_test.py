@@ -139,7 +139,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data_updated()
             data_item.display_limits = (100, 900)
             data_item.operations.append(Operation.OperationItem("invert-operation"))
-            data_item.append_graphic(Graphics.RectangleGraphic())
+            data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
             data_item2 = DataItem.DataItem()
             data_item2.title = "data_item2"
             data_item.data_items.append(data_item2)
@@ -170,7 +170,7 @@ class TestDataItemClass(unittest.TestCase):
                 # make sure calibrations, operations, nor graphics are not shared
                 self.assertNotEqual(data_item.intrinsic_calibrations[0], data_item_copy.intrinsic_calibrations[0])
                 self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
-                self.assertNotEqual(data_item.graphics[0], data_item_copy.graphics[0])
+                self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
                 # make sure data_items are not shared
                 self.assertNotEqual(data_item.data_items[0], data_item_copy.data_items[0])
                 self.assertEqual(len(data_item.data_items), len(data_item_copy.data_items))
@@ -247,11 +247,11 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         rect_graphic = Graphics.RectangleGraphic()
-        data_item.append_graphic(rect_graphic)
-        self.assertEqual(len(data_item.graphics), 1)
+        data_item.displays[0].append_graphic(rect_graphic)
+        self.assertEqual(len(data_item.displays[0].graphics), 1)
         data_item_copy = copy.deepcopy(data_item)
         data_item_copy.add_ref()
-        self.assertEqual(len(data_item_copy.graphics), 1)
+        self.assertEqual(len(data_item_copy.displays[0].graphics), 1)
         data_item_copy.remove_ref()
         data_item.remove_ref()
 
@@ -260,7 +260,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
         data_item_graphic = Graphics.LineGraphic()
-        data_item.append_graphic(data_item_graphic)
+        data_item.displays[0].append_graphic(data_item_graphic)
         data_item2 = DataItem.DataItem()
         data_item2.operations.append(Operation.OperationItem("fft-operation"))
         data_item.data_items.append(data_item2)
@@ -472,23 +472,23 @@ class TestDataItemClass(unittest.TestCase):
         data_item_crop = DataItem.DataItem()
         crop_operation_item = Operation.OperationItem("crop-operation")
         data_item_crop.operations.append(crop_operation_item)
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
         data_item.data_items.append(data_item_crop)
-        self.assertEqual(len(data_item.drawn_graphics), 1)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
         data_item.data_items.remove(data_item_crop)
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item_crop = DataItem.DataItem()
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
         data_item.data_items.append(data_item_crop)
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
         crop_operation_item = Operation.OperationItem("crop-operation")
         data_item_crop.operations.append(crop_operation_item)
-        self.assertEqual(len(data_item.drawn_graphics), 1)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
         data_item_crop.operations.remove(crop_operation_item)
-        self.assertEqual(len(data_item.drawn_graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
         # data_item_content_changed
@@ -507,7 +507,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item_crop.operations.append(crop_operation_item)
         data_item.data_items.append(data_item_crop)
         listener.reset()
-        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         self.assertTrue(listener.display_changed)
 
     # necessary to make inspector display updated values properly
@@ -527,9 +527,9 @@ class TestDataItemClass(unittest.TestCase):
         crop_operation_item = Operation.OperationItem("crop-operation")
         data_item_crop.operations.append(crop_operation_item)
         data_item.data_items.append(data_item_crop)
-        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         listener.reset()
-        data_item.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         self.assertTrue(listener.display_changed)
 
 if __name__ == '__main__':
