@@ -149,6 +149,8 @@ class Display(Storage.StorageBase):
             value.remove_listener(self)
             self.data_item.display_changed(self)
 
+    // display changed needs to be called when the data changes. ugh. necessary for image panel.
+
     # this is called from the data item when an operation is inserted into one of
     # its child data items. this method updates the drawn graphics list.
     def operation_inserted_into_child_data_item(self, child_data_item, child_operation_item):

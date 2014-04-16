@@ -43,7 +43,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
         self.app = app
-        self.replaced_data_item = None
+        self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
@@ -415,8 +415,8 @@ class DocumentController(Observable.Broadcaster):
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
-    def cursor_changed(self, source, data_item, pos, selected_graphics, image_size):
-        self.notify_listeners("cursor_changed", source, data_item, pos, selected_graphics, image_size)
+    def cursor_changed(self, source, display, pos, selected_graphics, image_size):
+        self.notify_listeners("cursor_changed", source, display, pos, selected_graphics, image_size)
 
     def __get_tool_mode(self):
         return self.__tool_mode

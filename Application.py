@@ -231,7 +231,7 @@ class Application(object):
         self.ui.set_persistent_string("workspace_location", workspace_dir)
         logging.info("Welcome to Nion Swift.")
         if create_new_document and len(document_model.data_items) > 0:
-            document_controller.selected_image_panel.data_item = document_model.data_items[0]
+            document_controller.selected_image_panel.set_displayed_data_item(document_model.data_items[0])
             document_controller.selected_image_panel.image_canvas_item.set_fill_mode()
         return True
 
@@ -243,7 +243,7 @@ class Application(object):
         if data_panel_selection:
             image_panel = document_controller.selected_image_panel
             if image_panel:
-                image_panel.data_item = data_panel_selection.data_item
+                image_panel.set_displayed_data_item(data_panel_selection.data_item)
         document_controller.document_window.show()
         return document_controller
 

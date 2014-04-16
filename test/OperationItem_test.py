@@ -27,7 +27,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_item = self.data_item
+        self.image_panel.set_displayed_data_item(self.data_item)
 
     def tearDown(self):
         self.image_panel.close()
@@ -353,7 +353,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba2 = DataItem.DataItem()
         data_item_rgba2.operations.append(Operation.OperationItem("invert-operation"))
         data_item_rgba.data_items.append(data_item_rgba2)
-        self.image_panel.data_item = data_item_rgba2
+        self.image_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
         self.document_controller.processing_snapshot()
         data_item_rgba_copy = self.document_model.data_items[2]
@@ -363,7 +363,7 @@ class TestOperationClass(unittest.TestCase):
         data_item2 = DataItem.DataItem()
         data_item2.operations.append(Operation.OperationItem("invert-operation"))
         self.data_item.data_items.append(data_item2)
-        self.image_panel.data_item = self.data_item
+        self.image_panel.set_displayed_data_item(self.data_item)
         self.assertEqual(self.document_controller.selected_data_item, self.data_item)
         self.document_controller.processing_snapshot()
         data_item_copy = self.document_model.data_items[1]
@@ -390,7 +390,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(data_item2.calculated_calibrations), 2)
         self.assertEqual(len(data_item2.intrinsic_calibrations), 0)
         # take snapshot
-        self.image_panel.data_item = data_item2
+        self.image_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_data_item, data_item2)
         self.document_controller.processing_snapshot()
         data_item_copy = self.document_model.data_items[1]

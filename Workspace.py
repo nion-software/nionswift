@@ -301,7 +301,7 @@ class Workspace(object):
                         data_item_to_display = data_item
                         break
             # update the data item in the image panel to display it
-            image_panel.data_item = data_item_to_display
+            image_panel.set_displayed_data_item(data_item_to_display)
             displayed_data_items.append(data_item_to_display)
         # fill in the missing items if possible
         # save the layout id
@@ -346,46 +346,46 @@ class Workspace(object):
         if source_data_item is None:
             # first look for exact match
             for image_panel in self.image_panels:
-                if image_panel.data_item == primary_data_item:
-                    image_panel.set_data_item(primary_data_item)
+                if image_panel.get_displayed_data_item() == primary_data_item:
+                    image_panel.set_displayed_data_item(primary_data_item)
                     return image_panel
             # now search for an open slot
             for image_panel in self.image_panels:
                 if image_panel.data_item and not is_data_item_for_hardware_source(image_panel.data_item):
-                    image_panel.set_data_item(primary_data_item)
+                    image_panel.set_displayed_data_item(primary_data_item)
                     return image_panel
             image_panel = self.image_panels[0]
-            image_panel.set_data_item(primary_data_item)
+            image_panel.set_displayed_data_item(primary_data_item)
             return image_panel
         elif primary_data_item is not None:
             # first look for exact match
             for image_panel in self.image_panels:
-                if image_panel.data_item == primary_data_item:
-                    image_panel.set_data_item(primary_data_item)
+                if image_panel.get_displayed_data_item() == primary_data_item:
+                    image_panel.set_displayed_data_item(primary_data_item)
                     return image_panel
             first_non_live = None
             last_non_live_before_primary = None
             matched = False
             # first search forward from primary
             for image_panel in self.image_panels:
-                will_match = image_panel.data_item == source_data_item
+                will_match = image_panel.get_displayed_data_item() == source_data_item
                 if not is_data_item_for_hardware_source(image_panel.data_item):
                     if matched:
-                        image_panel.set_data_item(primary_data_item)
+                        image_panel.set_displayed_data_item(primary_data_item)
                         return image_panel
                     first_non_live = first_non_live if first_non_live else image_panel
                     last_non_live_before_primary = last_non_live_before_primary if will_match else image_panel
-                if image_panel.data_item == source_data_item:
+                if image_panel.get_displayed_data_item() == source_data_item:
                     matched = True
             # use one before if available
             if last_non_live_before_primary:
                 image_panel = last_non_live_before_primary
-                image_panel.set_data_item(primary_data_item)
+                image_panel.set_displayed_data_item(primary_data_item)
                 return image_panel
             # use first one if available
             if first_non_live:
                 image_panel = first_non_live
-                image_panel.set_data_item(primary_data_item)
+                image_panel.set_displayed_data_item(primary_data_item)
                 return image_panel
         return None
 

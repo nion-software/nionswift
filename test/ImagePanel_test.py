@@ -42,7 +42,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel = self.document_controller.selected_image_panel
         self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 1000))
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
-        self.image_panel.data_item = self.data_item
+        self.image_panel.set_displayed_data_item(self.data_item)
 
     def tearDown(self):
         self.image_panel.close()
@@ -68,7 +68,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertEqual(self.image_panel.data_item, self.data_item)
         self.document_controller.processing_invert()
         self.document_controller.periodic()
-        self.image_panel.data_item = self.data_item
+        self.image_panel.set_displayed_data_item(self.data_item)
         self.assertEqual(self.image_panel.data_item, self.data_item)
         self.document_model.remove_data_item(self.data_item)
         self.assertIsNone(self.image_panel.data_item)

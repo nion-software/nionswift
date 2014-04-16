@@ -78,7 +78,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
-        image_panel.data_item = data_item
+        image_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
         image_panel.close()
         document_controller.close()
@@ -156,7 +156,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
-        image_panel.data_item = data_item
+        image_panel.set_displayed_data_item(data_item)
         line_graphic = document_controller.add_line_graphic()
         # make sure assumptions are correct
         self.assertEqual(len(image_panel.graphic_selection.indexes), 1)
@@ -179,7 +179,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel = document_controller.selected_image_panel
         line_profile_data_item = document_controller.processing_line_profile()
         line_profile_operation = line_profile_data_item.operations[0]
-        image_panel.data_item = data_item
+        image_panel.set_displayed_data_item(data_item)
         image_panel.graphic_selection.clear()
         image_panel.graphic_selection.add(0)
         # make sure assumptions are correct

@@ -76,7 +76,7 @@ class TestWorkspaceClass(unittest.TestCase):
         derived_data_item = DataItem.DataItem()
         document_controller.document_model.data_items[0].data_items.append(derived_data_item)
         document_controller.workspace.change_layout("1x1")
-        document_controller.workspace.image_panels[0].data_item = document_controller.document_model.data_items[1]
+        document_controller.workspace.image_panels[0].set_displayed_data_item(document_controller.document_model.data_items[1])
         self.assertEqual(document_controller.workspace.image_panels[0].data_item, document_controller.document_model.data_items[1])
         preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2])
         document_controller.workspace.change_layout("3x1", preferred_data_items)
@@ -138,7 +138,7 @@ class TestWorkspaceClass(unittest.TestCase):
         derived_data_item = DataItem.DataItem()
         document_controller.document_model.data_items[0].data_items.append(derived_data_item)
         document_controller.workspace.change_layout("2x2")
-        document_controller.workspace.image_panels[3].data_item = None
+        document_controller.workspace.image_panels[3].set_displayed_data_item(None)
         document_controller.selected_image_panel = document_controller.workspace.image_panels[2]
         source_data_item = document_controller.workspace.image_panels[2].data_item
         derived_data_item2 = DataItem.DataItem()
