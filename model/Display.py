@@ -167,7 +167,8 @@ class Display(Storage.StorageBase):
         data_range = self.data_range
         return self.display_limits if self.display_limits else data_range
     # TODO: this is only valid after data has been called (!)
-    display_range = property(__get_display_range)
+    # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
+    display_range = property(__get_display_range, __set_display_limits)
 
     # message sent from data item. established using add/remove observer.
     def property_changed(self, sender, property, value):
