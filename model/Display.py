@@ -149,6 +149,10 @@ class Display(Storage.StorageBase):
     def __get_display_limits(self):
         return self.__properties.get("display_limits")
     def __set_display_limits(self, display_limits):
+        # this is a HACK to make sure the cache gets cleared before we ask to calculate it
+        # this is temporary until I clean up the message passing a bit more.
+        for processor in self.__processors.values():
+            processor.data_item_changed()
         with self.property_changes() as pc:
             pc.properties["display_limits"] = display_limits
         self.notify_set_property("display_limits", display_limits)
@@ -289,7 +293,6 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             self.set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
-        #logging.debug("Calculating histogram %s", self)
         display_range = self.item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
         histogram_max = float(numpy.max(histogram_data))

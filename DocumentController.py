@@ -808,15 +808,24 @@ class SelectedDataItemBinding(Observable.Broadcaster):
             if data_item:
                 data_item.add_ref()
                 data_item.add_listener(self)
+            if self.display:
+                self.display.remove_listener(self)
             # save the new data item
             self.__weak_data_item = weakref.ref(data_item) if data_item else None
             self.display = data_item.displays[0] if data_item else None
+            if self.display:
+                self.display.add_listener(self)
             # notify our listeners
             self.notify_listeners("data_item_binding_display_changed", self.display)
             # and detach from the old item
             if old_data_item:
                 old_data_item.remove_listener(self)
                 old_data_item.remove_ref()
+
+    # this message is received from the display, if there is one.
+    # it is established using add_listener
+    def display_changed(self, display):
+        self.notify_listeners("data_item_binding_display_changed", self.display)
 
     # this message is received from the data item, if there is one.
     # it is established using add_listener
@@ -828,4 +837,4 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     # it is established using add_listener
     def selected_data_item_content_changed(self, data_item, changes):
         assert data_item == self.data_item
-        self.notify_listeners("data_item_binding_display_changed", self.display)
+        self.display_changed(self.display)
