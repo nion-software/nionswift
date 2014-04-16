@@ -192,7 +192,32 @@ class Application(object):
                 c.execute("UPDATE version SET version = ?", (5, ))
                 datastore.conn.commit()
                 version = 5
-            if version > 5:
+            if version == 5:
+                logging.debug("Updating database from version 5 to version 6.")
+                c.execute("SELECT nodes.uuid FROM nodes WHERE nodes.type='data-item'")
+                # find each node that has 'data-item' for type
+                data_item_uuids = []
+                for row in c.fetchall():
+                    data_item_uuids.append(row[0])
+                for data_item_uuid in data_item_uuids:
+                    # for each data-item node, create a new node with 'display' for type.
+                    display_uuid = str(uuid.uuid4())
+                    c.execute("INSERT INTO nodes (uuid, type, refcount) VALUES (?, 'display', 1)", (display_uuid, ))
+                    # make an entry in 'relationships' relating each new 'display' to node
+                    c.execute("INSERT INTO relationships (parent_uuid, key, item_index, item_uuid) VALUES (?, 'displays', ?, ?)", (data_item_uuid, 0, display_uuid))
+                    # for each display property with parent matching node, switch it to "display'
+                    c.execute("SELECT key, value FROM properties WHERE uuid=? AND key IN ('display_limits', 'display_calibrated_values')", (data_item_uuid, ))
+                    display_properties = dict()
+                    for row in c.fetchall():
+                        display_properties[row[0]] = pickle.loads(str(row[1]))
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key IN ('display_limits', 'display_calibrated_values')", (data_item_uuid, ))
+                    display_properties_data = sqlite3.Binary(pickle.dumps(display_properties, pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (display_uuid, display_properties_data))
+                    # for each display relationship with parent matching node, switch it to 'display'
+                    c.execute("UPDATE relationships SET parent_uuid=? WHERE parent_uuid=? AND key IN ('graphics')", (display_uuid, data_item_uuid))
+                version = 6
+            # NOTE: version must be changed here and in Storage.py
+            if version > 6:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()

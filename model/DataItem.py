@@ -240,29 +240,16 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
 
 # thumbnail: a small representation of this data item
 
-# graphics: graphic items drawn on the data
-
-# graphics are currently only used on images.
-
 # displays: list of displays for this data item
 
-# TODO: associated graphics with a new 'display' object instead of directly with data item.
-
-# drawn graphics: graphic items drawn on the data, including synthesized items used for ROIs from operations of children
-
 # intrinsic_calibrations: calibration for each dimension
-# display_calibrated_values: whether calibrated units are displayed
 
 # data: data with all operations applied
 
 # master data: a numpy array associated with this data item
 # data source: another data item from which data is taken
 
-# display limits: data limits for display. may be None.
-
 # data range: cached value for data min/max. calculated when data is requested, or on demand.
-
-# display range: display limits if not None, else data range.
 
 # operations: a list of operations applied to make data
 
@@ -303,28 +290,22 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "display_limits", "datetime_modified", "datetime_original", "display_calibrated_values", "properties", "source_file_path"]
+        self.storage_properties += ["title", "param", "datetime_modified", "datetime_original", "properties", "source_file_path"]
         self.storage_items += ["intrinsic_intensity_calibration"]
-        self.storage_relationships += ["intrinsic_calibrations", "graphics", "operations", "data_items", "displays"]
+        self.storage_relationships += ["intrinsic_calibrations", "operations", "data_items", "displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
-        self.register_dependent_key("data_range", "display_range")
-        self.register_dependent_key("display_limits", "display_range")
         self.register_key_alias("intrinsic_calibrations", "calibrations")
         self.closed = False
         self.__title = None
         self.__param = 0.5
         self.__source_file_path = None
-        self.__display_limits = None  # auto
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__datetime_original = Utility.get_current_datetime_item()
         self.__datetime_modified = self.__datetime_original
         self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
-        self.__display_calibrated_values = True
         self.__intrinsic_intensity_calibration = None
-        self.__graphics = Storage.MutableRelationship(self, "graphics")
-        self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
@@ -388,13 +369,10 @@ class DataItem(Storage.StorageBase):
         param = datastore.get_property(item_node, "param")
         source_file_path = datastore.get_property(item_node, "source_file_path")
         properties = datastore.get_property(item_node, "properties")
-        display_limits = datastore.get_property(item_node, "display_limits")
         intrinsic_calibrations = datastore.get_items(item_node, "calibrations")  # uses old key until migrated
         intrinsic_intensity_calibration = datastore.get_item(item_node, "intrinsic_intensity_calibration")
-        display_calibrated_values = datastore.get_property(item_node, "display_calibrated_values")
         datetime_modified = datastore.get_property(item_node, "datetime_modified")
         datetime_original = datastore.get_property(item_node, "datetime_original")
-        graphics = datastore.get_items(item_node, "graphics")
         operations = datastore.get_items(item_node, "operations")
         displays = datastore.get_items(item_node, "displays")
         data_items = datastore.get_items(item_node, "data_items")
@@ -422,15 +400,10 @@ class DataItem(Storage.StorageBase):
         if has_master_data and intrinsic_intensity_calibration is None:
             intrinsic_intensity_calibration = Calibration.CalibrationItem()
         data_item.intrinsic_intensity_calibration = intrinsic_intensity_calibration
-        if display_calibrated_values is not None:
-            data_item.display_calibrated_values = display_calibrated_values
-        if display_limits is not None:
-            data_item.display_limits = display_limits
         if datetime_modified is not None:
             data_item.datetime_modified = datetime_modified
         if datetime_original is not None:
             data_item.datetime_original = datetime_original
-        data_item.extend_graphics(graphics)
         return data_item
 
     # This gets called when reference count goes to 0, but before deletion.
@@ -444,8 +417,6 @@ class DataItem(Storage.StorageBase):
         for calibration in copy.copy(self.intrinsic_calibrations):
             self.intrinsic_calibrations.remove(calibration)
         self.intrinsic_intensity_calibration = None
-        for graphic in copy.copy(self.graphics):
-            self.remove_graphic(graphic)
         for operation in copy.copy(self.operations):
             self.operations.remove(operation)
         for display in copy.copy(self.displays):
@@ -466,9 +437,6 @@ class DataItem(Storage.StorageBase):
         for calibration in self.intrinsic_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration, memo))
         data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
-        data_item_copy.display_calibrated_values = self.display_calibrated_values
-        for graphic in self.graphics:
-            data_item_copy.append_graphic(copy.deepcopy(graphic, memo))
         for operation in self.operations:
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
         for display in self.displays:
@@ -569,15 +537,6 @@ class DataItem(Storage.StorageBase):
             with self.__data_item_change_mutex:
                 self.__data_item_changes.update(changes)
 
-    def __get_display_limits(self):
-        return self.__display_limits
-    def __set_display_limits(self, display_limits):
-        if self.__display_limits != display_limits:
-            self.__display_limits = display_limits
-            self.notify_set_property("display_limits", display_limits)
-            self.notify_data_item_content_changed(set([DISPLAY]))
-    display_limits = property(__get_display_limits, __set_display_limits)
-
     def __get_data_range_for_data(self, data):
         if data is not None:
             if self.is_data_rgb_type:
@@ -612,29 +571,11 @@ class DataItem(Storage.StorageBase):
         return data_range
     data_range = property(__get_data_range)
 
-    def __get_display_range(self):
-        data_range = self.__get_data_range()
-        return self.__display_limits if self.__display_limits else data_range
-    def __set_display_range(self, display_range):
-        # TODO: This is a temporary hack to get display limits in inspector working properly.
-        self.display_limits = display_range
-    # TODO: this is only valid after data has been called (!)
-    display_range = property(__get_display_range, __set_display_range)
-
     # calibration stuff
 
     def __is_calibrated(self):
         return len(self.intrinsic_calibrations) == len(self.spatial_shape)
     is_calibrated = property(__is_calibrated)
-
-    def __get_display_calibrated_values(self):
-        return self.__display_calibrated_values
-    def __set_display_calibrated_values(self, display_calibrated_values):
-        if self.__display_calibrated_values != display_calibrated_values:
-            self.__display_calibrated_values = display_calibrated_values
-            self.notify_set_property("display_calibrated_values", display_calibrated_values)
-            self.notify_data_item_content_changed(set([DISPLAY]))
-    display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
     def set_calibration(self, dimension, calibration):
         self.intrinsic_calibrations[dimension].origin = calibration.origin
@@ -784,6 +725,7 @@ class DataItem(Storage.StorageBase):
             self.notify_data_item_content_changed(set([DATA]))
         elif key == "displays":
             value.add_listener(self)
+            value._set_data_item(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index, False)
@@ -796,10 +738,6 @@ class DataItem(Storage.StorageBase):
         elif key == "intrinsic_calibrations":
             value.add_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
-        elif key == "graphics":
-            self.__drawn_graphics.insert(before_index, value)
-            value.add_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
 
     def notify_remove_item(self, key, value, index):
         super(DataItem, self).notify_remove_item(key, value, index)
@@ -808,6 +746,7 @@ class DataItem(Storage.StorageBase):
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
         elif key == "displays":
+            value._set_data_item(None)
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
         elif key == "data_items":
@@ -821,44 +760,26 @@ class DataItem(Storage.StorageBase):
         elif key == "intrinsic_calibrations":
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAY]))
-        elif key == "graphics":
-            del self.__drawn_graphics[index]
-            value.remove_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAY]))
 
     # this message is received when an item being listened to (child data items)
     # has something inserted.
     def item_inserted(self, parent, key, object, before_index):
         # watch for operations being inserted into child data items
-        # notice: parent is a data item
+        # the parent parameter is the child data item and
+        # the object parameter is the child data item operation being inserted.
         if parent in self.data_items and key == "operations":
-            # we might be inserting drawn graphics, so find the index at which
-            # we'll insert. first count the graphics intrinsic to this object.
-            index = len(self.graphics)
-            # now cycle through each data item.
-            for data_item in self.data_items:
-                # and each operation within that data item.
-                for operation_item in data_item.operations:
-                    operation_graphics = operation_item.graphics
-                    # if this is the match operation, do the insert
-                    if data_item == parent and operation_item == object:
-                        for operation_graphic in reversed(operation_graphics):
-                            operation_graphic.add_listener(self)
-                            self.__drawn_graphics.insert(index, operation_graphic)
-                            return  # done
-                    # otherwise count up the graphics and continue
-                    index += len(operation_graphics)
+            for display in self.displays:
+                display.operation_inserted_into_child_data_item(parent, object)
 
     # this message is received when an item being listened to (child data items)
     # has something removed.
     def item_removed(self, parent, key, item, index):
         # watch for operations being removed from child data items
-        # notice: parent is a data item and has already been removed from self.data_items
+        # the parent parameter is a child data item and has already been removed from self.data_items
+        # the item parameter is the child data item operation being removed.
         if key == "operations":
-            # removal is easier since we don't need an insert point
-            for operation_graphic in item.graphics:
-                operation_graphic.remove_listener(self)
-                self.__drawn_graphics.remove(operation_graphic)
+            for display in self.displays:
+                display.operation_removed_from_child_data_item(item)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -898,57 +819,12 @@ class DataItem(Storage.StorageBase):
             self.notify_set_property("source_file_path", self.__source_file_path)
     source_file_path = property(__get_source_file_path, __set_source_file_path)
 
-    def __get_graphics(self):
-        """ A copy of the graphics """
-        return copy.copy(self.__graphics)
-    graphics = property(__get_graphics)
-
-    def insert_graphic(self, index, graphic):
-        """ Insert a graphic before the index """
-        self.__graphics.insert(index, graphic)
-
-    def append_graphic(self, graphic):
-        """ Append a graphic """
-        self.__graphics.append(graphic)
-
-    def remove_graphic(self, graphic):
-        """ Remove a graphic """
-        self.__graphics.remove(graphic)
-
-    def extend_graphics(self, graphics):
-        """ Extend the graphics array with the list of graphics """
-        self.__graphics.extend(graphics)
-
-    # drawn graphics and the regular graphic items, plus those derived from the operation classes
-    def __get_drawn_graphics(self):
-        """ List of drawn graphics """
-        return self.__drawn_graphics
-    drawn_graphics = property(__get_drawn_graphics)
-
-    def remove_drawn_graphic(self, drawn_graphic):
-        """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
-        if drawn_graphic in self.__graphics:
-            self.__graphics.remove(drawn_graphic)
-        else:  # a synthesized graphic
-            # cycle through each data item.
-            for data_item in self.data_items:
-                # and each operation within that data item.
-                for operation_item in data_item.operations:
-                    operation_graphics = operation_item.graphics
-                    if drawn_graphic in operation_graphics:
-                        self.data_items.remove(data_item)
-
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
         self.notify_data_item_content_changed(set([DISPLAY]))
         for processor in self.__processors.values():
             processor.data_item_property_changed(key, value)
-
-    # this message comes from the graphic. the connection is established when a graphic
-    # is added or removed from this object.
-    def graphic_changed(self, graphic):
-        self.notify_data_item_content_changed(set([DISPLAY]))
 
     # this message comes from the calibration. the connection is established when a calibration
     # is added or removed from this object.
@@ -1355,9 +1231,6 @@ class DataItem(Storage.StorageBase):
         for calibration in self.calculated_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))
         data_item_copy.intrinsic_intensity_calibration = self.calculated_intensity_calibration
-        data_item_copy.display_calibrated_values = self.display_calibrated_values
-        for graphic in self.graphics:
-            data_item_copy.append_graphic(copy.deepcopy(graphic))
         for data_item in self.data_items:
             data_item_copy.data_items.append(copy.deepcopy(data_item))
         for display in self.displays:
