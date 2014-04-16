@@ -245,7 +245,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
         assert image is not None
         assert image.ndim in (3,4)
         new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
-        logging.debug("%s -> %s", image.shape, new_shape)
         image = Image.scalar_from_array(image.reshape(new_shape))
         image_height = image.shape[0]
         image_width = image.shape[1]
@@ -253,7 +252,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor):
         scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
         scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
         thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        logging.debug(thumbnail_image.shape)
         if numpy.ndim(thumbnail_image) == 2:
             return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
         elif numpy.ndim(thumbnail_image) == 3:
@@ -1098,21 +1096,21 @@ class DataItem(Storage.StorageBase):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
-        if initial_count == 0:
-            if self.__data_source:
-                self.__data_source.increment_data_ref_count()
-            else:
-                self.__load_master_data()
+            if initial_count == 0:
+                if self.__data_source:
+                    self.__data_source.increment_data_ref_count()
+                else:
+                    self.__load_master_data()
         return initial_count+1
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
-        if final_count == 0:
-            if self.__data_source:
-                self.__data_source.decrement_data_ref_count()
-            else:
-                self.__unload_master_data()
+            if final_count == 0:
+                if self.__data_source:
+                    self.__data_source.decrement_data_ref_count()
+                else:
+                    self.__unload_master_data()
         return final_count
 
     # used for testing
@@ -1162,20 +1160,6 @@ class DataItem(Storage.StorageBase):
             return data_ref.data
     data = property(__get_data_immediate)
 
-    # root data is data before operations have been applied.
-    def __get_root_data(self):
-        # this should NOT happen under the data mutex. it can take a long time.
-        data = None
-        if self.has_master_data:
-            with self.data_ref() as data_ref:
-                data = data_ref.master_data
-        if data is None:
-            if self.data_source:
-                with self.data_source.data_ref() as data_ref:
-                    # this can be a lengthy operation
-                    data = data_ref.data
-        return data
-
     # get the root data shape and dtype without causing calculation to occur if possible.
     def __get_root_data_shape_and_dtype(self):
         with self.__data_mutex:
@@ -1202,7 +1186,15 @@ class DataItem(Storage.StorageBase):
         if self.__cached_data_dirty or self.__cached_data is None:
             self.__data_mutex.release()
             with self.__get_data_mutex:
-                data = self.__get_root_data()
+                # this should NOT happen under the data mutex. it can take a long time.
+                data = None
+                if self.has_master_data:
+                    data = self.__master_data
+                if data is None:
+                    if self.data_source:
+                        with self.data_source.data_ref() as data_ref:
+                            # this can be a lengthy operation
+                            data = data_ref.data
                 operations = self.operations
                 if len(operations) and data is not None:
                     # apply operations
