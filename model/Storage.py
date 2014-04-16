@@ -376,24 +376,26 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             self.notify_set_property(dependent_key, getattr(self, dependent_key))
 
     def notify_insert_item(self, key, value, before_index):
-        assert value is not None
-        if self.datastore:  # items are not affected by transactions
-            value.datastore = self.datastore
-            self.datastore.insert_item(self, key, value, before_index)
-        if self.storage_cache:
-            value.storage_cache = self.storage_cache
-        value.add_parent(self)
+        if key in self.storage_relationships:
+            assert value is not None
+            if self.datastore:  # items are not affected by transactions
+                value.datastore = self.datastore
+                self.datastore.insert_item(self, key, value, before_index)
+            if self.storage_cache:
+                value.storage_cache = self.storage_cache
+            value.add_parent(self)
         super(StorageBase, self).notify_insert_item(key, value, before_index)
 
     def notify_remove_item(self, key, value, index):
-        assert value is not None
-        if self.datastore:
-            # items are not affected by transactions
-            self.datastore.remove_item(self, key, index)
-            value.datastore = None
-        if self.storage_cache:
-            value.storage_cache = None
-        value.remove_parent(self)
+        if key in self.storage_relationships:
+            assert value is not None
+            if self.datastore:
+                # items are not affected by transactions
+                self.datastore.remove_item(self, key, index)
+                value.datastore = None
+            if self.storage_cache:
+                value.storage_cache = None
+            value.remove_parent(self)
         super(StorageBase, self).notify_remove_item(key, value, index)
 
     # only used for testing
