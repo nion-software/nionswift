@@ -1411,36 +1411,6 @@ class DataItem(Storage.StorageBase):
         return data_item_copy
 
 
-# TODO: Migrate to use DataItemBindingSource instead.
-class DataItemBinding(Observable.Broadcaster):
-
-    """
-        Hold a data item and notify listeners when the data item
-        changes or the content of the existing data item changes.
-    """
-
-    def __init__(self):
-        super(DataItemBinding, self).__init__()
-        self.__weak_data_item = None
-
-    def close(self):
-        self.__weak_data_item = None
-
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
-
-    # this message is received from subclasses (and tests).
-    def notify_data_item_binding_data_item_changed(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        self.notify_listeners("data_item_binding_data_item_changed", data_item)
-
-    # this message is received from subclasses (and tests).
-    def notify_data_item_binding_data_item_content_changed(self, data_item, changes):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)
-
-
 class DataItemBindingSource(Observable.Observable):
     """
         Hold a data item and notify observers when changed.

@@ -767,46 +767,56 @@ class DocumentController(Observable.Broadcaster):
 # send selected_data_item_changed when the data item changes.
 # this object will listen to the data item to know when its data
 # changes or when it gets deleted.
-class SelectedDataItemBinding(DataItem.DataItemBinding):
+class SelectedDataItemBinding(Observable.Broadcaster):
 
     def __init__(self, document_controller):
         super(SelectedDataItemBinding, self).__init__()
+        self.__weak_data_item = None
         self.document_controller = document_controller
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
-        self.notify_data_item_binding_data_item_changed(document_controller.selected_data_item)
-        self.__data_item = None
+        # initialize with the existing value
+        self.selected_data_item_changed(document_controller.selected_data_item)
 
     def close(self):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # disconnect data item
-        if self.__data_item:
-            self.__data_item.remove_ref()
-            self.__data_item.remove_listener(self)
-        # super
-        super(SelectedDataItemBinding, self).close()
+        if self.data_item:
+            self.data_item.remove_ref()
+            self.data_item.remove_listener(self)
+        self.__weak_data_item = None
+
+    def __get_data_item(self):
+        return self.__weak_data_item() if self.__weak_data_item else None
+    data_item = property(__get_data_item)
 
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_changed(self, data_item):
-        if data_item != self.__data_item:
+        old_data_item = self.data_item
+        if data_item != old_data_item:
+            # attach to the new item
             if data_item:
                 data_item.add_ref()
                 data_item.add_listener(self)
-            self.notify_data_item_binding_data_item_changed(data_item)
-            if self.__data_item:
-                self.__data_item.remove_ref()
-                self.__data_item.remove_listener(self)
-            self.__data_item = data_item
+            # save the new data item
+            self.__weak_data_item = weakref.ref(data_item) if data_item else None
+            # notify our listeners
+            self.notify_listeners("data_item_binding_data_item_changed", data_item)
+            # and detach from the old item
+            if old_data_item:
+                old_data_item.remove_ref()
+                old_data_item.remove_listener(self)
 
     # this message is received from the data item, if there is one.
     # it is established using add_listener
     def data_item_content_changed(self, data_item, changes):
-        if data_item == self.__data_item:
+        if data_item == self.data_item:
             self.selected_data_item_content_changed(data_item, changes)
 
     # this message is received from the document controller.
     # it is established using add_listener
     def selected_data_item_content_changed(self, data_item, changes):
-        self.notify_data_item_binding_data_item_content_changed(data_item, changes)
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+        self.notify_listeners("data_item_binding_data_item_content_changed", data_item, changes)
