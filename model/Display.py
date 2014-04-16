@@ -16,12 +16,14 @@ _ = gettext.gettext
 
 
 class Display(Storage.StorageBase):
+    # Displays are associated with exactly one data item.
 
     def __init__(self):
         super(Display, self).__init__()
         self.storage_properties += ["properties"]
         self.storage_relationships += ["graphics"]
         self.storage_type = "display"
+        # these are handled manually for now.
         # self.register_dependent_key("data_range", "display_range")
         # self.register_dependent_key("display_limits", "display_range")
         self.__weak_data_item = None
@@ -57,14 +59,17 @@ class Display(Storage.StorageBase):
         return self.__weak_data_item() if self.__weak_data_item else None
     data_item = property(__get_data_item)
 
+    # called from data item when added/removed.
     def _set_data_item(self, data_item):
         if self.data_item:
             self.data_item.remove_observer(self)
+            self.data_item.remove_listener(self)
             self.data_item.remove_ref()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         if self.data_item:
             self.data_item.add_ref()
             self.data_item.add_observer(self)
+            self.data_item.add_listener(self)
 
     def __get_properties(self):
         return self.__properties.copy()
@@ -91,23 +96,32 @@ class Display(Storage.StorageBase):
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
 
+    // the whole thumbnail and other processor stuff.
+
+    // get preview 2d
+
     def get_processed_data(self, processor_id, ui, completion_fn):
         return self.data_item.get_processor(processor_id).get_data(ui, completion_fn)
 
     def __get_drawn_graphics(self):
-        return self.data_item.drawn_graphics
+        return self.__drawn_graphics
     drawn_graphics = property(__get_drawn_graphics)
 
     def __get_display_calibrated_values(self):
-        return self.data_item.display_calibrated_values
+        return self.__properties.get("display_calibrated_values", True)
     def __set_display_calibrated_values(self, display_calibrated_values):
-        self.data_item.display_calibrated_values = display_calibrated_values
+        with self.property_changes() as pc:
+            pc.properties["display_calibrated_values"] = display_calibrated_values
+        self.notify_set_property("display_calibrated_values", display_calibrated_values)
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
     def __get_display_limits(self):
-        return self.data_item.display_limits
+        return self.__properties.get("display_limits", True)
     def __set_display_limits(self, display_limits):
-        self.data_item.display_limits = display_limits
+        with self.property_changes() as pc:
+            pc.properties["display_limits"] = display_limits
+        self.notify_set_property("display_limits", display_limits)
+        self.notify_set_property("display_range", self.display_range)
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range(self):
@@ -115,43 +129,35 @@ class Display(Storage.StorageBase):
     data_range = property(__get_data_range)
 
     def __get_display_range(self):
-        return self.data_item.display_range
-    def __set_display_range(self, display_range):
-        self.data_item.display_range = display_range
-    display_range = property(__get_display_range) ##, __set_display_range)
-
-    // the whole data range, display range, dependencies, etc.
+        data_range = self.data_range
+        return self.display_limits if self.display_limits else data_range
+    # TODO: this is only valid after data has been called (!)
+    display_range = property(__get_display_range)
 
     # message sent from data item. established using add/remove observer.
     def property_changed(self, sender, property, value):
-        if property in ("data_range", "display_calibrated_values", "display_range"):
+        if property == "data_range":
             self.notify_set_property(property, value)
-
-    # message sent from data item. established using add/remove observer.
-    def item_inserted(self, sender, key, object, before_index):
-        if key in ("drawn_graphics"):
-            self.notify_insert_item(key, object, before_index)
-
-    # message sent from data item. established using add/remove observer.
-    def item_removed(self, container, key, object, index):
-        if key in ("drawn_graphics"):
-            self.notify_remove_item(key, object, index)
+            self.notify_set_property("display_range", self.display_range)
 
     def notify_insert_item(self, key, value, before_index):
         super(Display, self).notify_insert_item(key, value, before_index)
         if key == "graphics":
             self.__drawn_graphics.insert(before_index, value)
             value.add_listener(self)
-            self.data_item.display_changed(self)
+            self.notify_listeners("display_changed", self)
 
     def notify_remove_item(self, key, value, index):
         super(Display, self).notify_remove_item(key, value, index)
         if key == "graphics":
             del self.__drawn_graphics[index]
             value.remove_listener(self)
-            self.data_item.display_changed(self)
+            self.notify_listeners("display_changed", self)
 
-    // display changed needs to be called when the data changes. ugh. necessary for image panel.
+    # this message received from data item. the connection is established using
+    # add_listener and remove_listener.
+    def data_item_content_changed(self, data_item, changes):
+        self.notify_listeners("display_changed", self)
 
     # this is called from the data item when an operation is inserted into one of
     # its child data items. this method updates the drawn graphics list.
@@ -221,4 +227,4 @@ class Display(Storage.StorageBase):
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
     def graphic_changed(self, graphic):
-        self.data_item.display_changed(self)
+        self.notify_listeners("display_changed", self)

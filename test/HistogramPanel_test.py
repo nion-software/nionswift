@@ -57,22 +57,22 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.document_controller.close()
 
     def test_drag_to_set_limits(self):
-        self.assertEqual(self.data_item.display_range, (200, 650))
-        self.assertIsNone(self.data_item.display_limits)
+        self.assertEqual(self.data_item.displays[0].display_range, (200, 650))
+        self.assertIsNone(self.data_item.displays[0].display_limits)
         self.assertEqual(self.histogram_canvas_item._get_display().data_item, self.data_item)
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
         self.histogram_canvas_item.mouse_released(90, 58, 0)
-        self.assertIsNotNone(self.data_item.display_limits)
-        self.assertEqual(self.data_item.display_range, (290, 320))
+        self.assertIsNotNone(self.data_item.displays[0].display_limits)
+        self.assertEqual(self.data_item.displays[0].display_range, (290, 320))
         # double click and return to None
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
-        self.assertIsNone(self.data_item.display_limits)
+        self.assertIsNone(self.data_item.displays[0].display_limits)
 
 if __name__ == '__main__':
     unittest.main()

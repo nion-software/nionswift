@@ -201,8 +201,9 @@ class CalibrationsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement calibrations inspector.
     """
 
-    def __init__(self, ui, data_item):
+    def __init__(self, ui, display):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
+        data_item = display.data_item
         self.__calibrations = data_item.intrinsic_calibrations
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
@@ -234,7 +235,7 @@ class CalibrationsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_checkbox = self.ui.create_check_box_widget(_("Displayed"))
-        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(data_item, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
+        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(display, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
@@ -621,7 +622,7 @@ class DataItemInspector(object):
 
         self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
 #       self.__inspectors.append(ParamInspectorSection(self.ui, data_item))
-        self.__inspectors.append(CalibrationsInspectorSection(self.ui, data_item))
+        self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
         self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
         self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
         self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))

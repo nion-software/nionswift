@@ -436,7 +436,6 @@ class DataItem(Storage.StorageBase):
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
-        data_item_copy.display_limits = self.display_limits
         data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
         data_item_copy.datetime_original = copy.copy(self.datetime_original)
         for calibration in self.intrinsic_calibrations:
@@ -842,11 +841,6 @@ class DataItem(Storage.StorageBase):
     def operation_changed(self, operation):
         self.notify_data_item_content_changed(set([DATA]))
 
-    # this message comes from the display. the connection is established when a display
-    # is added or removed from this object.
-    def display_changed(self, display):
-        self.notify_data_item_content_changed(set([DISPLAY]))
-
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
     def data_item_content_changed(self, data_source, changes):
@@ -1230,7 +1224,6 @@ class DataItem(Storage.StorageBase):
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
-        data_item_copy.display_limits = self.display_limits
         data_item_copy.datetime_original = Utility.get_current_datetime_item()
         data_item_copy.datetime_modified = data_item_copy.datetime_original
         for calibration in self.calculated_calibrations:

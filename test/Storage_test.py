@@ -47,7 +47,7 @@ class TestStorageClass(unittest.TestCase):
         data[:] = 50
         data[8, 8] = 2020
         data_item = DataItem.DataItem(data)
-        data_item.display_limits = (500, 1000)
+        data_item.displays[0].display_limits = (500, 1000)
         data_item.intrinsic_intensity_calibration = Calibration.CalibrationItem(1.0, 2.0, "three")
         with data_item.property_changes() as context:
             context.properties["one"] = 1
@@ -144,7 +144,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.data_items[1].data_items))
         # check over the data item
         data_item = document_controller.document_model.data_items[0]
-        self.assertEqual(data_item.display_limits, (500, 1000))
+        self.assertEqual(data_item.displays[0].display_limits, (500, 1000))
         self.assertEqual(data_item.intrinsic_intensity_calibration.origin, 1.0)
         self.assertEqual(data_item.intrinsic_intensity_calibration.scale, 2.0)
         self.assertEqual(data_item.intrinsic_intensity_calibration.units, "three")

@@ -137,7 +137,7 @@ class TestDataItemClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
                 data_ref.master_data_updated()
-            data_item.display_limits = (100, 900)
+            data_item.displays[0].display_limits = (100, 900)
             data_item.operations.append(Operation.OperationItem("invert-operation"))
             data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
             data_item2 = DataItem.DataItem()
@@ -160,9 +160,9 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertEqual(data_item.title, data_item_copy.title)
                 data_item.title = "data_item1"
                 self.assertNotEqual(data_item.title, data_item_copy.title)
-                self.assertEqual(data_item.display_limits, data_item_copy.display_limits)
-                data_item.display_limits = (150, 200)
-                self.assertNotEqual(data_item.display_limits, data_item_copy.display_limits)
+                self.assertEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
+                data_item.displays[0].display_limits = (150, 200)
+                self.assertNotEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
                 # make sure dates are independent
                 self.assertEqual(data_item.datetime_modified, data_item_copy.datetime_modified)
                 data_item.datetime_modified["tzname"] = "tzname"
@@ -312,7 +312,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
         # changing the display limit of source should NOT change dependent data
         map(Listener.reset, listeners)
-        data_item.display_limits = (0.1, 0.9)
+        data_item.displays[0].display_limits = (0.1, 0.9)
         self.assertTrue(not listener.data_changed and listener.display_changed)
         self.assertTrue(not listener2.data_changed and not listener2.display_changed)
         self.assertTrue(not listener3.data_changed and not listener3.display_changed)
@@ -376,14 +376,14 @@ class TestDataItemClass(unittest.TestCase):
         with data_item.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
             data_ref.data  # TODO: this should not be required
-            data_range = data_item.display_range
+            data_range = data_item.data_range
             self.assertEqual(data_range, (25, 125))
             # now test complex
             data_ref.master_data = numpy.zeros((256, 256), numpy.complex64)
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
             data_ref.data  # TODO: this should not be required
-        data_range = data_item.display_range
+        data_range = data_item.data_range
         data_min = math.log(math.sqrt(2*2 + 3*3) + 1)
         data_max = math.log(math.sqrt(12*12 + 13*13) + 1)
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
