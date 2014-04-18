@@ -166,6 +166,22 @@ class Display(Storage.StorageBase):
         return self.data_item.data_range
     data_range = property(__get_data_range)
 
+    def __get_left_channel(self):
+        return self.__properties.get("left_channel")
+    def __set_left_channel(self, left_channel):
+        with self.property_changes() as pc:
+            pc.properties["left_channel"] = left_channel
+        self.notify_set_property("left_channel", left_channel)
+    left_channel = property(__get_left_channel, __set_left_channel)
+
+    def __get_right_channel(self):
+        return self.__properties.get("right_channel")
+    def __set_right_channel(self, right_channel):
+        with self.property_changes() as pc:
+            pc.properties["right_channel"] = right_channel
+        self.notify_set_property("right_channel", right_channel)
+    right_channel = property(__get_right_channel, __set_right_channel)
+
     def __get_display_range(self):
         data_range = self.data_range
         return self.display_limits if self.display_limits else data_range

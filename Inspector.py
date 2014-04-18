@@ -337,6 +337,57 @@ class DisplayLimitsInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
 
 
+class LinePlotInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement display limits inspector.
+    """
+
+    def __init__(self, ui, display):
+        super(LinePlotInspectorSection, self).__init__(ui, _("Line Plot"))
+
+        self.display_limits_range_row = self.ui.create_row_widget()
+        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
+        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(display, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(display, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
+        self.display_limits_range_row.add(self.display_limits_range_low)
+        self.display_limits_range_row.add_spacing(8)
+        self.display_limits_range_row.add(self.display_limits_range_high)
+        self.display_limits_range_row.add_stretch()
+
+        self.display_limits_limit_row = self.ui.create_row_widget()
+        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(display, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(display, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
+        self.display_limits_limit_row.add(self.display_limits_limit_low)
+        self.display_limits_limit_row.add_spacing(8)
+        self.display_limits_limit_row.add(self.display_limits_limit_high)
+        self.display_limits_limit_row.add_stretch()
+
+        self.channels_row = self.ui.create_row_widget()
+        self.channels_left = self.ui.create_line_edit_widget(properties={"width": 80})
+        self.channels_right = self.ui.create_line_edit_widget(properties={"width": 80})
+        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:.2f}", pass_none=True)
+        self.channels_left.bind_text(Binding.PropertyBinding(display, "left_channel", float_point_2_none_converter))
+        self.channels_right.bind_text(Binding.PropertyBinding(display, "right_channel", float_point_2_none_converter))
+        self.channels_left.placeholder_text = _("Auto")
+        self.channels_right.placeholder_text = _("Auto")
+        self.channels_row.add(self.ui.create_label_widget(_("Channels:"), properties={"width": 120}))
+        self.channels_row.add(self.channels_left)
+        self.channels_row.add_spacing(8)
+        self.channels_row.add(self.channels_right)
+        self.channels_row.add_stretch()
+
+        self.add_widget_to_content(self.display_limits_range_row)
+        self.add_widget_to_content(self.display_limits_limit_row)
+        self.add_widget_to_content(self.channels_row)
+
+
 class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
@@ -624,7 +675,7 @@ class DataItemInspector(object):
 #       self.__inspectors.append(ParamInspectorSection(self.ui, data_item))
         self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
         if data_item.is_data_1d:
-            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspectors.append(LinePlotInspectorSection(self.ui, display))
         elif data_item.is_data_2d or data_item.is_data_3d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))

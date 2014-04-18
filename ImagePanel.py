@@ -403,6 +403,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data = None
             self.line_graph_canvas_item.data_min = None
             self.line_graph_canvas_item.data_max = None
+            self.line_graph_canvas_item.data_origin = None
+            self.line_graph_canvas_item.data_len = None
             self.line_graph_canvas_item.update()
         self.__paint_thread.trigger()
 
@@ -438,6 +440,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data = data
             self.line_graph_canvas_item.data_min = display_limits[0] if display_limits else None
             self.line_graph_canvas_item.data_max = display_limits[1] if display_limits else None
+            left_channel = display.left_channel
+            right_channel = display.right_channel
+            left_channel = left_channel if left_channel is not None else 0
+            right_channel = right_channel if right_channel is not None else data.shape[0]
+            left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
+            self.line_graph_canvas_item.data_origin = left_channel
+            self.line_graph_canvas_item.data_len = right_channel - left_channel
             self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
             self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
             self.line_graph_canvas_item.update()

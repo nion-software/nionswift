@@ -61,6 +61,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.data = None
         self.data_min = None
         self.data_max = None
+        self.data_origin = None
+        self.data_len = None
         self.spatial_calibration = None
         self.intensity_calibration = None
         self.draw_grid = True
@@ -194,7 +196,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.translate(-x, -y)
             drawing_context.restore()
             # draw the horizontal axis
-            data_len = self.data.shape[0]
+            data_origin = self.data_origin if self.data_origin is not None else 0.0
+            data_len = self.data_len if self.data_len is not None else self.data.shape[0]
+            raw_data_len = self.data.shape[0]
             drawing_context.save()
             if self.draw_captions:
                 # approximate tick count
@@ -229,7 +233,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
                     if self.draw_captions:
-                        value = data_len * float(x - plot_origin_x) / plot_width
+                        value = data_origin + data_len * float(x - plot_origin_x) / plot_width
                         value_str = self.spatial_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.spatial_calibration else "{0:g}".format(value)
                         drawing_context.text_align = "center"
                         drawing_context.fill_style = "#000"
@@ -251,18 +255,20 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.move_to(plot_origin_x, baseline)
                 for i in xrange(0, plot_width, 2):
                     px = plot_origin_x + i
-                    data_index = int(data_len*float(i)/plot_width)
+                    data_index = int(data_origin + data_len * float(i) / plot_width)
+                    data_value = float(self.data[data_index]) if data_index >= 0 and data_index < raw_data_len else 0.0
                     # plot_origin_y is the TOP of the drawing
                     # py extends DOWNWARDS
-                    py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
+                    py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
                     py = max(plot_origin_y, py)
                     py = min(plot_origin_y + plot_height, py)
                     drawing_context.line_to(px, py)
                     drawing_context.line_to(px + 2, py)
                 # finish off last line
                 px = plot_origin_x + plot_width
-                data_index = data_len - 1
-                py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
+                data_index = data_origin + data_len - 1
+                data_value = float(self.data[data_index]) if data_index >= 0 and data_index < raw_data_len else 0.0
+                py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
                 drawing_context.line_to(plot_origin_x + plot_width, baseline)
             else:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
