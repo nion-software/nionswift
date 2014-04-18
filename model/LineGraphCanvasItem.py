@@ -29,11 +29,18 @@ def get_calibrated_data_limits(raw_data_min, raw_data_max, calibration=None):
     return calibrated_data_min, calibrated_data_max
 
 
-def get_drawn_data_limits(raw_data_min, raw_data_max, calibration=None):
-    """ Return drawn data limits after converting calibrated limits to pretty values. """
+def get_drawn_data_limits(raw_data_min, raw_data_max, min_specified, max_specified, calibration=None):
+    """
+        Return drawn data limits after converting calibrated limits to pretty values.
+
+        If min/max specified are False, then drawn data limits will be adjusted to start
+        from 0.0.
+
+        Calibration is optional.
+    """
     calibrated_data_min, calibrated_data_max = get_calibrated_data_limits(raw_data_min, raw_data_max, calibration)
-    calibrated_data_min = 0.0 if calibrated_data_min > 0 else calibrated_data_min
-    calibrated_data_max = 0.0 if calibrated_data_max < 0 else calibrated_data_max
+    calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
+    calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
     pretty_calibrated_data_max = Geometry.make_pretty(calibrated_data_max, round_up=True)
     pretty_calibrated_data_min = Geometry.make_pretty(calibrated_data_min, round_up=True)
     if calibration:
@@ -133,9 +140,11 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
             # calculate the intensity scale
             vertical_tick_count = 4
-            raw_data_min = self.data_min if self.data_min else numpy.amin(self.data)
-            raw_data_max = self.data_max if self.data_max else numpy.amax(self.data)
-            drawn_data_min, drawn_data_max = get_drawn_data_limits(raw_data_min, raw_data_max, self.intensity_calibration)
+            min_specified = self.data_min is not None
+            max_specified = self.data_max is not None
+            raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
+            raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
+            drawn_data_min, drawn_data_max = get_drawn_data_limits(raw_data_min, raw_data_max, min_specified, max_specified, self.intensity_calibration)
             drawn_data_range = drawn_data_max - drawn_data_min
             tick_size = intensity_rect[1][0] / vertical_tick_count
             # calculate yticks
@@ -237,6 +246,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.begin_path()
             if drawn_data_range != 0.0:
                 baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - drawn_data_min) / drawn_data_range)
+                baseline = min(plot_origin_y + plot_height, baseline)
+                baseline = max(plot_origin_y, baseline)
                 drawing_context.move_to(plot_origin_x, baseline)
                 for i in xrange(0, plot_width, 2):
                     px = plot_origin_x + i
@@ -245,6 +256,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     # py extends DOWNWARDS
                     py = plot_origin_y + plot_height - (plot_height * float(self.data[data_index] - drawn_data_min) / drawn_data_range)
                     py = max(plot_origin_y, py)
+                    py = min(plot_origin_y + plot_height, py)
                     drawing_context.line_to(px, py)
                     drawing_context.line_to(px + 2, py)
                 # finish off last line

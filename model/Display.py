@@ -149,8 +149,11 @@ class Display(Storage.StorageBase):
     def __get_display_limits(self):
         return self.__properties.get("display_limits")
     def __set_display_limits(self, display_limits):
+        # setting display limits to max,min will silently reverse them to min,max
         # this is a HACK to make sure the cache gets cleared before we ask to calculate it
         # this is temporary until I clean up the message passing a bit more.
+        if display_limits is not None:
+            display_limits = min(display_limits[0], display_limits[1]), max(display_limits[0], display_limits[1])
         for processor in self.__processors.values():
             processor.data_item_changed()
         with self.property_changes() as pc:

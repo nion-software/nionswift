@@ -57,6 +57,14 @@ class TestDisplayClass(unittest.TestCase):
             display.display_limits = (0.25, 0.75)
             self.assertTrue(listener._dirty)
 
+    def test_setting_inverted_display_limits_reverses_them(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.ref():
+            display = data_item.displays[0]
+            display.display_limits = (0.75, 0.25)
+            self.assertEqual(display.display_limits, (0.25, 0.75))
+            display.display_limits = None
+            self.assertIsNone(display.display_limits)
 
 if __name__ == '__main__':
     unittest.main()
