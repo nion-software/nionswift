@@ -30,10 +30,10 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         for data_in, data_out in test_ranges:
             data_min, data_max = data_in
             expected_drawn_data_min, expected_drawn_data_max = data_out
-            drawn_data_min, drawn_data_max = LineGraphCanvasItem.get_drawn_data_limits(data_min, data_max)
+            drawn_data_min, drawn_data_max = LineGraphCanvasItem.get_drawn_data_limits(data_min, data_max, min_specified=False, max_specified=True)
             self.assertEqual(drawn_data_min, expected_drawn_data_min)
             self.assertEqual(drawn_data_max, expected_drawn_data_max)
-            drawn_data_min, drawn_data_max = LineGraphCanvasItem.get_drawn_data_limits(-data_min, -data_max)
+            drawn_data_min, drawn_data_max = LineGraphCanvasItem.get_drawn_data_limits(-data_min, -data_max, min_specified=True, max_specified=False)
             self.assertEqual(drawn_data_min, -expected_drawn_data_max)
             self.assertEqual(drawn_data_max, -expected_drawn_data_min)
 
