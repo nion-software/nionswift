@@ -144,7 +144,10 @@ class Workspace(object):
                         dock_widget.hide()
 
         # clean up panels (tabify console/output)
-        document_controller.document_window.tabify_dock_widgets(self.find_dock_widget("console-panel"), self.find_dock_widget("output-panel"))
+        console_dock_widget = self.find_dock_widget("console-panel")
+        output_dock_widget = self.find_dock_widget("output-panel")
+        if console_dock_widget is not None and output_dock_widget is not None:
+            document_controller.document_window.tabify_dock_widgets(console_dock_widget, output_dock_widget)
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties):
         try:

@@ -83,6 +83,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_model = None
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
+        self.ui.destroy_document_window(self)
 
     def about_to_show(self):
         geometry, state = self.workspace.restore_geometry_state()
