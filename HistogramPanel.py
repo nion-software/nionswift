@@ -247,7 +247,7 @@ class HistogramPanel(Panel.Panel):
         stats_section.add_spacing(13)
 
         column = self.ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3})
-        column.add(self.root_canvas_item.canvas)
+        column.add(self.root_canvas_item.canvas_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)

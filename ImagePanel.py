@@ -1074,7 +1074,7 @@ class ImagePanel(Panel.Panel):
         self.image_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
         self.image_widget = self.ui.create_column_widget()
         self.image_widget.add(self.image_header_controller.canvas_widget)
-        self.image_widget.add(self.image_root_canvas_item.canvas, fill=True)
+        self.image_widget.add(self.image_root_canvas_item.canvas_widget, fill=True)
 
         self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.line_plot_root_canvas_item.focusable = True
@@ -1086,7 +1086,7 @@ class ImagePanel(Panel.Panel):
         self.line_plot_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
         self.line_plot_widget = self.ui.create_column_widget()
         self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
-        self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas, fill=True)
+        self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas_widget, fill=True)
 
         self.widget = self.ui.create_stack_widget()
         self.widget.add(self.image_widget)

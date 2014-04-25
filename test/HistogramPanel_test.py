@@ -45,7 +45,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.display = self.data_item.displays[0]
         self.histogram_canvas_item.update_display(self.display)
         self.histogram_canvas_item.container = CanvasItemContainer()
-        self.histogram_canvas_item._set_canvas(self.document_controller.ui.create_canvas_widget())
+        self.histogram_canvas_item._set_canvas_widget(self.document_controller.ui.create_canvas_widget())
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
     def tearDown(self):
