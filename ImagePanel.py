@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import logging
 import numbers
 import uuid
 
@@ -336,18 +337,32 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.image_panel = image_panel
 
         self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        self.line_graph_vertical_axis_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisCanvasItem()
-        self.line_graph_vertical_axis_canvas_item.sizing.maximum_width = 80
-        self.line_graph_horizontal_axis_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisCanvasItem()
-        self.line_graph_horizontal_axis_canvas_item.sizing.maximum_height = 48
+
+        self.line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
+        self.line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
+        self.line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
+        self.line_graph_vertical_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
+        self.line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_label_canvas_item)
+        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_scale_canvas_item)
+        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_ticks_canvas_item)
+
+        self.line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem()
+        self.line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem()
+        self.line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem()
+        self.line_graph_horizontal_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
+        self.line_graph_horizontal_axis_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_ticks_canvas_item)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_scale_canvas_item)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_label_canvas_item)
 
         # create the grid item holding the line graph and each axes label
         self.line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
-        margins = Geometry.Margins(left=12, right=12, top=int((font_size + 4) / 2.0 + 1.5), bottom=12)
+        margins = Geometry.Margins(left=6, right=12, top=int((font_size + 4) / 2.0 + 1.5), bottom=6)
         self.line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_canvas_item, Geometry.IntPoint(x=0, y=0))
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
         self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_item, Geometry.IntPoint(x=1, y=0))
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_canvas_item, Geometry.IntPoint(x=1, y=1))
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
 
         # draw the background
         self.line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
@@ -409,10 +424,18 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
-            self.line_graph_vertical_axis_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_canvas_item.update()
-            self.line_graph_horizontal_axis_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_canvas_item.update()
+            self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_label_canvas_item.update()
+            self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_scale_canvas_item.update()
+            self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_ticks_canvas_item.update()
+            self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_label_canvas_item.update()
+            self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_scale_canvas_item.update()
+            self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_ticks_canvas_item.update()
         self.__paint_thread.trigger()
 
     # this method will be invoked from the paint thread.
@@ -458,10 +481,18 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
             self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
-            self.line_graph_vertical_axis_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_canvas_item.update()
-            self.line_graph_horizontal_axis_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_canvas_item.update()
+            self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_label_canvas_item.update()
+            self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_scale_canvas_item.update()
+            self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_ticks_canvas_item.update()
+            self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_label_canvas_item.update()
+            self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_scale_canvas_item.update()
+            self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_ticks_canvas_item.update()
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
