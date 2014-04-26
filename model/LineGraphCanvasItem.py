@@ -52,55 +52,83 @@ def get_drawn_data_limits(raw_data_min, raw_data_max, min_specified, max_specifi
     return drawn_data_min, drawn_data_max
 
 
-class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
-    golden_ratio = 1.618
+class LineGraphDataInfo(object):
+
+    def __init__(self, data=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None):
+        self.data = data
+        self.data_min = data_min
+        self.data_max = data_max
+        self.data_left = data_left
+        self.data_right = data_right
+        self.spatial_calibration = spatial_calibration
+        self.intensity_calibration = intensity_calibration
+
+    def get_drawn_data_limits(self):
+        min_specified = self.data_min is not None
+        max_specified = self.data_max is not None
+        raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
+        raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
+        return get_drawn_data_limits(raw_data_min, raw_data_max, min_specified, max_specified, self.intensity_calibration)
+
+    def calculate_y_ticks(self, height, drawn_data_min, drawn_data_range, tick_count=4):
+        # calculate the intensity scale
+        tick_size = height / tick_count
+        # calculate y_ticks
+        y_ticks = list()
+        for i in range(tick_count+1):
+            y = int(height - tick_size * i)
+            if i == 0:
+                y = height  # match it with the plot_rect
+            elif i == tick_count:
+                y = 0  # match it with the plot_rect
+            value = drawn_data_min + drawn_data_range * float(i) / tick_count
+            label = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
+            y_ticks.append((y, label))
+        return y_ticks
+
+    def calculate_x_ticks(self, width, data_left, data_width):
+        # approximate tick count
+        horizontal_tick_count = min(max(2, int(width / 100)), 10)
+        # calculate the horizontal tick spacing in spatial units
+        horizontal_tick_spacing = float(width) / horizontal_tick_count
+        horizontal_tick_spacing = data_width * horizontal_tick_spacing / width
+        if self.spatial_calibration:
+            horizontal_tick_spacing = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_spacing)
+        # TODO: add test for horizontal_tick_spacing 0.0 and vertical space 0.0 too
+        horizontal_tick_spacing = Geometry.make_pretty(horizontal_tick_spacing, round_up=True)  # never want this to round to 0.0
+        if self.spatial_calibration:
+            horizontal_tick_spacing = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_spacing)
+        # calculate the horizontal minimum value in spatial units
+        horizontal_tick_min = 0.0
+        if self.spatial_calibration:
+            horizontal_tick_min = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_min)
+        horizontal_tick_min = Geometry.make_pretty(horizontal_tick_min)
+        if self.spatial_calibration:
+            horizontal_tick_min = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_min)
+        # calculate the tick marks
+        x = horizontal_tick_min
+        x_ticks = list()
+        while horizontal_tick_spacing > 0.0 and x < width:  # sanity check along with regular loop
+            value = data_left + data_width * float(x) / width
+            value_str = self.spatial_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.spatial_calibration else "{0:g}".format(value)
+            x_ticks.append((x, value_str))
+            x += width * horizontal_tick_spacing / data_width
+        return x_ticks
+
+
+class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
-        self.data = None
-        self.data_min = None
-        self.data_max = None
-        self.data_origin = None
-        self.data_len = None
-        self.spatial_calibration = None
-        self.intensity_calibration = None
+        self.data_info = None
         self.draw_grid = True
-        self.draw_captions = True
         self.draw_frame = True
-        self.background_color = "#888"
-        self.graph_background_color = "#FFF"
-
-    def __get_plot_rect(self):
-        rect = ((0, 0), self.canvas_size)
-        rect = Geometry.fit_to_aspect_ratio(rect, self.golden_ratio)
-        plot_origin_y = rect[0][0] + self.top_margin
-        plot_origin_x = rect[0][1] + self.left_margin
-        plot_height = rect[1][0] - self.bottom_caption_height - self.top_margin
-        plot_width = rect[1][1] - self.left_margin - self.right_margin
-        plot_rect = ((plot_origin_y, plot_origin_x), (plot_height, plot_width))
-        return plot_rect
-    plot_rect = property(__get_plot_rect)
-
-    def update_layout(self, canvas_origin, canvas_size):
-        super(LineGraphCanvasItem, self).update_layout(canvas_origin, canvas_size)
-        # update internal size variables
-        canvas_width = canvas_size[1]
-        canvas_height = canvas_size[0]
-        if self.draw_captions:
-            self.font_size = max(9, min(13, int(canvas_height/25.0)))
-            self.left_margin = max(36, min(60, int(canvas_width/8.0))) + (self.font_size + 4)
-            self.top_margin = int((self.font_size + 4) / 2.0 + 1.5)
-            self.bottom_caption_height = self.top_margin + int(self.font_size + 4) * 2
-            self.right_margin = 12
-        else:
-            self.left_margin = 0
-            self.top_margin = 0
-            self.bottom_caption_height = 0
-            self.right_margin = 1
+        self.background_color = "#EEE"
+        self.font_size = 12
 
     def map_mouse_to_position(self, mouse, data_size):
-        plot_rect = self.plot_rect
+        plot_rect = self.bounds
         mouse_x = mouse[1] - plot_rect[0][1]  # 436
         mouse_y = mouse[0] - plot_rect[0][0]
         if mouse_x > 0 and mouse_x < plot_rect[1][1] and mouse_y > 0 and mouse_y < plot_rect[1][0]:
@@ -111,139 +139,52 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context):
 
         # draw the data, if any
-        if (self.data is not None and len(self.data) > 0):
+        if self.data_info is not None and self.data_info.data is not None:
 
-            # canvas size
-            canvas_width = self.canvas_size[1]
-            canvas_height = self.canvas_size[0]
-
-            rect = ((0, 0), (canvas_height, canvas_width))
-
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
-            drawing_context.fill_style = self.background_color
-            drawing_context.fill()
-
-            rect = Geometry.fit_to_aspect_ratio(rect, self.golden_ratio)
-            unit_offset = int(self.font_size + 4) if self.draw_captions else 0
-            intensity_rect = ((rect[0][0] + self.top_margin, rect[0][1] + unit_offset), (rect[1][0] - self.bottom_caption_height - self.top_margin, self.left_margin - unit_offset))
-            plot_rect = self.plot_rect
-            plot_width = int(plot_rect[1][1])
-            plot_height = int(plot_rect[1][0])
+            plot_rect = self.bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_height = int(plot_rect[1][0]) - 1
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
-            # draw the background
-            drawing_context.begin_path()
-            drawing_context.rect(int(rect[0][1]), int(rect[0][0]), int(rect[1][1]), int(rect[1][0]))
-            drawing_context.fill_style = self.graph_background_color
-            drawing_context.fill()
-            # calculate the intensity scale
-            vertical_tick_count = 4
-            min_specified = self.data_min is not None
-            max_specified = self.data_max is not None
-            raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
-            raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
-            drawn_data_min, drawn_data_max = get_drawn_data_limits(raw_data_min, raw_data_max, min_specified, max_specified, self.intensity_calibration)
-            drawn_data_range = drawn_data_max - drawn_data_min
-            tick_size = intensity_rect[1][0] / vertical_tick_count
-            # calculate yticks
-            yticks = list()
-            for i in range(vertical_tick_count+1):
-                y = int(intensity_rect[0][0] + intensity_rect[1][0] - tick_size * i)
-                if i == 0:
-                    y = plot_origin_y + plot_height  # match it with the plot_rect
-                elif i == vertical_tick_count:
-                    y = plot_origin_y  # match it with the plot_rect
-                value = drawn_data_min + drawn_data_range * float(i) / vertical_tick_count
-                label = self.intensity_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.intensity_calibration is not None else "{0:g}".format(value)
-                yticks.append((y, label))
-            # draw the yticks and labels
             drawing_context.save()
-            if self.draw_captions:
-                drawing_context.text_baseline = "middle"
-                drawing_context.font = "{0:d}px".format(self.font_size)
-            for y, label in yticks:
-                w = 4
-                drawing_context.begin_path()
-                if self.draw_grid:
+            drawing_context.begin_path()
+            drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
+            drawing_context.fill_style = self.background_color
+            drawing_context.fill()
+            drawing_context.restore()
+
+            # calculate the intensity scale
+            drawn_data_min, drawn_data_max = self.data_info.get_drawn_data_limits()
+            drawn_data_range = drawn_data_max - drawn_data_min
+            y_ticks = self.data_info.calculate_y_ticks(plot_height, drawn_data_min, drawn_data_range, tick_count=4)
+            # draw the y_ticks and labels
+            if self.draw_grid:
+                drawing_context.save()
+                for y, label in y_ticks:
+                    drawing_context.begin_path()
                     drawing_context.move_to(plot_origin_x, y)
                     drawing_context.line_to(plot_origin_x + plot_width, y)
-                if self.draw_captions:
-                    drawing_context.move_to(intensity_rect[0][1] + intensity_rect[1][1], y)
-                    drawing_context.line_to(intensity_rect[0][1] + intensity_rect[1][1] - w, y)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-                if self.draw_captions:
-                    drawing_context.text_align = "right"
-                    drawing_context.fill_style = "#000"
-                    drawing_context.fill_text(label, intensity_rect[0][1] + intensity_rect[1][1] - 8, y)
-            if self.draw_captions and self.intensity_calibration and self.intensity_calibration.units:
-                drawing_context.text_align = "center"
-                drawing_context.text_baseline = "bottom"
-                drawing_context.fill_style = "#000"
-                x = intensity_rect[0][1]
-                y = int(intensity_rect[0][0] + intensity_rect[1][0] * 0.5)
-                drawing_context.translate(x, y)
-                drawing_context.rotate(-math.pi*0.5)
-                drawing_context.translate(-x, -y)
-                drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), self.intensity_calibration.units), x, y)
-                drawing_context.translate(x, y)
-                drawing_context.rotate(+math.pi*0.5)
-                drawing_context.translate(-x, -y)
-            drawing_context.restore()
-            # draw the horizontal axis
-            data_origin = self.data_origin if self.data_origin is not None else 0.0
-            data_len = self.data_len if self.data_len is not None else self.data.shape[0]
-            raw_data_len = self.data.shape[0]
-            drawing_context.save()
-            if self.draw_captions:
-                # approximate tick count
-                horizontal_tick_count = min(max(2, int(plot_width / 100)), 10)
-                # calculate the horizontal tick spacing in spatial units
-                horizontal_tick_spacing = float(plot_width) / horizontal_tick_count
-                horizontal_tick_spacing = data_len * horizontal_tick_spacing / plot_width
-                if self.spatial_calibration:
-                    horizontal_tick_spacing = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_spacing)
-                # TODO: add test for horizontal_tick_spacing 0.0 and vertical space 0.0 too
-                horizontal_tick_spacing = Geometry.make_pretty(horizontal_tick_spacing, round_up=True)  # never want this to round to 0.0
-                if self.spatial_calibration:
-                    horizontal_tick_spacing = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_spacing)
-                # calculate the horizontal minimum value in spatial units
-                horizontal_tick_min = 0.0
-                if self.spatial_calibration:
-                    horizontal_tick_min = self.spatial_calibration.convert_to_calibrated_value(horizontal_tick_min)
-                horizontal_tick_min = Geometry.make_pretty(horizontal_tick_min)
-                if self.spatial_calibration:
-                    horizontal_tick_min = self.spatial_calibration.convert_from_calibrated_value(horizontal_tick_min)
-                # draw the tick marks
-                x = horizontal_tick_min + plot_origin_x
-                while horizontal_tick_spacing > 0.0 and x < plot_origin_x + plot_width:  # sanity check along with regular loop
-                    drawing_context.begin_path()
-                    if self.draw_grid:
-                        drawing_context.move_to(x, plot_origin_y)
-                        drawing_context.line_to(x, plot_origin_y + plot_height)
-                    if self.draw_captions:
-                        drawing_context.move_to(x, plot_origin_y + plot_height)
-                        drawing_context.line_to(x, plot_origin_y + plot_height + 4)
                     drawing_context.line_width = 1
                     drawing_context.stroke_style = '#888'
                     drawing_context.stroke()
-                    if self.draw_captions:
-                        value = data_origin + data_len * float(x - plot_origin_x) / plot_width
-                        value_str = self.spatial_calibration.convert_to_calibrated_value_str(value, include_units=False) if self.spatial_calibration else "{0:g}".format(value)
-                        drawing_context.text_align = "center"
-                        drawing_context.fill_style = "#000"
-                        drawing_context.fill_text(value_str, x, plot_origin_y + plot_height + unit_offset)
-                    x += plot_width * horizontal_tick_spacing / data_len
-                if self.draw_captions and self.spatial_calibration and self.spatial_calibration.units:
-                    drawing_context.text_align = "center"
-                    drawing_context.fill_style = "#000"
-                    value_str = u"({0})".format(self.spatial_calibration.units)
-                    drawing_context.fill_text(value_str, plot_origin_x + plot_width / 2, plot_origin_y + plot_height + unit_offset * 2)
+                drawing_context.restore()
+            # draw the horizontal axis
+            raw_data_right = self.data_info.data.shape[0]
+            data_left = self.data_info.data_left if self.data_info.data_left is not None else 0.0
+            data_right = self.data_info.data_right if self.data_info.data_right is not None else raw_data_right
+            data_width = data_right - data_left
+            x_ticks = self.data_info.calculate_x_ticks(plot_width, data_left, data_width)
+            # draw the tick marks
+            drawing_context.save()
+            for x, label in x_ticks:
+                drawing_context.begin_path()
+                if self.draw_grid:
+                    drawing_context.move_to(x, plot_origin_y)
+                    drawing_context.line_to(x, plot_origin_y + plot_height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
             drawing_context.restore()
             # draw the line plot itself
             drawing_context.save()
@@ -255,25 +196,25 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.move_to(plot_origin_x, baseline)
                 for i in xrange(0, plot_width, 2):
                     px = plot_origin_x + i
-                    data_index = int(data_origin + data_len * float(i) / plot_width)
-                    data_value = float(self.data[data_index]) if data_index >= 0 and data_index < raw_data_len else 0.0
+                    data_index = int(data_left + data_width * float(i) / plot_width)
+                    data_value = float(self.data_info.data[data_index]) if data_index >= 0 and data_index < raw_data_right else 0.0
                     # plot_origin_y is the TOP of the drawing
                     # py extends DOWNWARDS
                     py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
                     py = max(plot_origin_y, py)
                     py = min(plot_origin_y + plot_height, py)
                     drawing_context.line_to(px, py)
-                    drawing_context.line_to(px + 2, py)
+                    px = min(px + 2, plot_origin_x + plot_width)
+                    drawing_context.line_to(px, py)
                 # finish off last line
                 px = plot_origin_x + plot_width
-                data_index = data_origin + data_len - 1
-                data_value = float(self.data[data_index]) if data_index >= 0 and data_index < raw_data_len else 0.0
+                data_index = data_right - 1
+                data_value = float(self.data_info.data[data_index]) if data_index >= 0 and data_index < raw_data_right else 0.0
                 py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
                 drawing_context.line_to(plot_origin_x + plot_width, baseline)
             else:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
                 drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-            drawing_context.restore()
             # close it up and draw
             drawing_context.close_path()
             drawing_context.fill_style = '#AFA'
@@ -289,5 +230,97 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.line_width = 1
             drawing_context.stroke_style = '#888'
             drawing_context.stroke()
+            drawing_context.restore()
 
+
+class LineGraphHorizontalAxisCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(LineGraphHorizontalAxisCanvasItem, self).__init__()
+        self.data_info = None
+        self.font_size = 12
+        self.tick_height = 4
+
+    def _repaint(self, drawing_context):
+
+        # draw the data, if any
+        if self.data_info is not None and self.data_info.data is not None:
+
+            unit_offset = int(self.font_size + 4)
+            plot_width = int(self.canvas_size[1]) - 1
+
+            # draw the horizontal axis
+            raw_data_right = self.data_info.data.shape[0]
+            data_left = self.data_info.data_left if self.data_info.data_left is not None else 0.0
+            data_right = self.data_info.data_right if self.data_info.data_right is not None else raw_data_right
+            data_width = data_right - data_left
+            x_ticks = self.data_info.calculate_x_ticks(plot_width, data_left, data_width)
+            # draw the tick marks
+            drawing_context.save()
+            for x, label in x_ticks:
+                drawing_context.begin_path()
+                drawing_context.move_to(x, 0)
+                drawing_context.line_to(x, self.tick_height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
+                drawing_context.text_align = "center"
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text(label, x, unit_offset + 4)
+            if self.data_info.spatial_calibration and self.data_info.spatial_calibration.units:
+                drawing_context.text_align = "center"
+                drawing_context.fill_style = "#000"
+                value_str = u"({0})".format(self.data_info.spatial_calibration.units)
+                drawing_context.fill_text(value_str, plot_width / 2, unit_offset * 2 + 4)
+            drawing_context.restore()
+
+
+class LineGraphVerticalAxisCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super(LineGraphVerticalAxisCanvasItem, self).__init__()
+        self.data_info = None
+        self.font_size = 12
+        self.tick_width = 4
+
+    def _repaint(self, drawing_context):
+
+        # draw the data, if any
+        if self.data_info is not None and self.data_info.data is not None:
+
+            # canvas size
+            width = self.canvas_size[1]
+            plot_height = int(self.canvas_size[0]) - 1
+
+            # calculate the intensity scale
+            drawn_data_min, drawn_data_max = self.data_info.get_drawn_data_limits()
+            drawn_data_range = drawn_data_max - drawn_data_min
+            y_ticks = self.data_info.calculate_y_ticks(plot_height, drawn_data_min, drawn_data_range, tick_count=4)
+            # draw the y_ticks and labels
+            drawing_context.save()
+            drawing_context.text_baseline = "middle"
+            drawing_context.font = "{0:d}px".format(self.font_size)
+            for y, label in y_ticks:
+                drawing_context.begin_path()
+                drawing_context.move_to(width, y)
+                drawing_context.line_to(width - self.tick_width, y)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
+                drawing_context.text_align = "right"
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text(label, width - 8, y)
+            if self.data_info.intensity_calibration and self.data_info.intensity_calibration.units:
+                drawing_context.text_align = "center"
+                drawing_context.text_baseline = "bottom"
+                drawing_context.fill_style = "#000"
+                x = 0
+                y = int(plot_height * 0.5)
+                drawing_context.translate(x, y)
+                drawing_context.rotate(-math.pi*0.5)
+                drawing_context.translate(-x, -y)
+                drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), self.data_info.intensity_calibration.units), x, y)
+                drawing_context.translate(x, y)
+                drawing_context.rotate(+math.pi*0.5)
+                drawing_context.translate(-x, -y)
             drawing_context.restore()

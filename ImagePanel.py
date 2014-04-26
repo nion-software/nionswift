@@ -329,33 +329,39 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, document_controller, image_panel):
         super(LinePlotCanvasItem, self).__init__()
 
+        font_size = 12
+
         # ugh
         self.document_controller = document_controller
         self.image_panel = image_panel
 
-        # create the child canvas items
-        #self.horizontal_canvas_item = CanvasItem.CanvasItemComposition()
-        #self.horizontal_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        #self.vertical_canvas_item = CanvasItem.CanvasItemComposition()
-        #self.vertical_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        self.line_graph_vertical_axis_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisCanvasItem()
+        self.line_graph_vertical_axis_canvas_item.sizing.maximum_width = 80
+        self.line_graph_horizontal_axis_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisCanvasItem()
+        self.line_graph_horizontal_axis_canvas_item.sizing.maximum_height = 48
+
+        # create the grid item holding the line graph and each axes label
+        self.line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
+        margins = Geometry.Margins(left=12, right=12, top=int((font_size + 4) / 2.0 + 1.5), bottom=12)
+        self.line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_canvas_item, Geometry.IntPoint(x=0, y=0))
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_item, Geometry.IntPoint(x=1, y=0))
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_canvas_item, Geometry.IntPoint(x=1, y=1))
+
+        # draw the background
+        self.line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
+        self.line_graph_background_canvas_item.sizing.minimum_aspect_ratio = 1.5
+        self.line_graph_background_canvas_item.sizing.maximum_aspect_ratio = 1.7
+        self.line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
+        self.line_graph_background_canvas_item.add_canvas_item(self.line_graph_group_canvas_item)
+
+        # overlay a focus ring
         self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
 
         # canvas items get added back to front
-        #self.vertical_canvas_item.add_canvas_item(self.line_graph_canvas_item)
-        #self.horizontal_canvas_item.add_canvas_item(self.vertical_canvas_item)
-        #self.horizontal_canvas_item.add_canvas_item(self.vertical_canvas_item)
-        #self.add_canvas_item(self.horizontal_canvas_item)
-        self.add_canvas_item(self.line_graph_canvas_item)
+        self.add_canvas_item(self.line_graph_background_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
-
-        class LinePlotLayout(object):
-            def __init__(self, line_plot_canvas_item):
-                self.line_plot_canvas_item = line_plot_canvas_item
-            def layout(self, canvas_origin, canvas_size, canvas_items):
-                canvas_items[0].update_layout((canvas_origin[0], canvas_origin[1] + 80), (canvas_size[0], canvas_size[1] - 80))
-                canvas_items[1].update_layout(canvas_origin, canvas_size)
-        #self.layout = LinePlotLayout(self)
 
         # thread for drawing
         self.__display = None
@@ -363,7 +369,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__paint_thread.start()
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
-        
+
         self.__last_mouse = None
         self.__mouse_in = False
 
@@ -400,12 +406,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display(self, display):
         self.__display = display
         if self.__display is None:
-            self.line_graph_canvas_item.data = None
-            self.line_graph_canvas_item.data_min = None
-            self.line_graph_canvas_item.data_max = None
-            self.line_graph_canvas_item.data_origin = None
-            self.line_graph_canvas_item.data_len = None
+            data_info = LineGraphCanvasItem.LineGraphDataInfo()
+            self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
+            self.line_graph_vertical_axis_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_canvas_item.update()
+            self.line_graph_horizontal_axis_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_canvas_item.update()
         self.__paint_thread.trigger()
 
     # this method will be invoked from the paint thread.
@@ -437,19 +444,24 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
             # update the line graph
             display_limits = display.display_limits
-            self.line_graph_canvas_item.data = data
-            self.line_graph_canvas_item.data_min = display_limits[0] if display_limits else None
-            self.line_graph_canvas_item.data_max = display_limits[1] if display_limits else None
             left_channel = display.left_channel
             right_channel = display.right_channel
             left_channel = left_channel if left_channel is not None else 0
             right_channel = right_channel if right_channel is not None else data.shape[0]
             left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-            self.line_graph_canvas_item.data_origin = left_channel
-            self.line_graph_canvas_item.data_len = right_channel - left_channel
-            self.line_graph_canvas_item.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
-            self.line_graph_canvas_item.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
+            data_info = LineGraphCanvasItem.LineGraphDataInfo(data)
+            data_info.data_min = display_limits[0] if display_limits else None
+            data_info.data_max = display_limits[1] if display_limits else None
+            data_info.data_left = left_channel
+            data_info.data_right = right_channel
+            data_info.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
+            data_info.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
+            self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
+            self.line_graph_vertical_axis_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_canvas_item.update()
+            self.line_graph_horizontal_axis_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_canvas_item.update()
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
