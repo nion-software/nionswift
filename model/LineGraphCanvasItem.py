@@ -157,6 +157,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # calculate the intensity scale
             drawn_data_min, drawn_data_max = self.data_info.get_drawn_data_limits()
             drawn_data_range = drawn_data_max - drawn_data_min
+            self.data_per_point = drawn_data_range / plot_height
+            self.displayed_data_min = drawn_data_min
+            self.displayed_data_max = drawn_data_max
             y_ticks = self.data_info.calculate_y_ticks(plot_height, drawn_data_min, drawn_data_range, tick_count=4)
             # draw the y_ticks and labels
             if self.draw_grid:
@@ -174,6 +177,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             data_left = self.data_info.data_left if self.data_info.data_left is not None else 0.0
             data_right = self.data_info.data_right if self.data_info.data_right is not None else raw_data_right
             data_width = data_right - data_left
+            self.channel_per_point = data_width / plot_width
+            self.displayed_left_channel = data_left
+            self.displayed_right_channel = data_right
             x_ticks = self.data_info.calculate_x_ticks(plot_width, data_left, data_width)
             # draw the tick marks
             drawing_context.save()

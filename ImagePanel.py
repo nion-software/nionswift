@@ -387,16 +387,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__last_mouse = None
         self.__mouse_in = False
+        self.__tracking_horizontal = False
+        self.__tracking_vertical = False
 
     def close(self):
         self.__paint_thread.close()
         # call super
         super(LinePlotCanvasItem, self).close()
-
-    def mouse_clicked(self, x, y, modifiers):
-        if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
-            return True
-        return False
 
     def __get_focused(self):
         return self.focus_ring_canvas_item.focused
@@ -422,26 +419,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display = display
         if self.__display is None:
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
-            self.line_graph_canvas_item.data_info = data_info
-            self.line_graph_canvas_item.update()
-            self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_vertical_axis_label_canvas_item.update()
-            self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_vertical_axis_scale_canvas_item.update()
-            self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_ticks_canvas_item.update()
-            self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_horizontal_axis_label_canvas_item.update()
-            self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_scale_canvas_item.update()
-            self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_ticks_canvas_item.update()
-            if self.canvas_origin and self.canvas_size:
-                self.update_layout(self.canvas_origin, self.canvas_size)
-                self.update()
+            self.__update_data_info(data_info)
         self.__paint_thread.trigger()
 
     # this method will be invoked from the paint thread.
@@ -485,26 +463,29 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info.data_right = right_channel
             data_info.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
             data_info.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
-            self.line_graph_canvas_item.data_info = data_info
-            self.line_graph_canvas_item.update()
-            self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_vertical_axis_label_canvas_item.update()
-            self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_vertical_axis_scale_canvas_item.update()
-            self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
-            self.line_graph_vertical_axis_ticks_canvas_item.update()
-            self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
-            self.line_graph_horizontal_axis_label_canvas_item.update()
-            self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_scale_canvas_item.update()
-            self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-            self.line_graph_horizontal_axis_ticks_canvas_item.update()
-            if self.canvas_origin and self.canvas_size:
-                self.update_layout(self.canvas_origin, self.canvas_size)
-                self.update()
+            self.__update_data_info(data_info)
+
+    def __update_data_info(self, data_info):
+        self.line_graph_canvas_item.data_info = data_info
+        self.line_graph_canvas_item.update()
+        self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
+        self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
+        self.line_graph_vertical_axis_label_canvas_item.update()
+        self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+        self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
+        self.line_graph_vertical_axis_scale_canvas_item.update()
+        self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
+        self.line_graph_vertical_axis_ticks_canvas_item.update()
+        self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+        self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
+        self.line_graph_horizontal_axis_label_canvas_item.update()
+        self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
+        self.line_graph_horizontal_axis_scale_canvas_item.update()
+        self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
+        self.line_graph_horizontal_axis_ticks_canvas_item.update()
+        if self.canvas_origin and self.canvas_size:
+            self.update_layout(self.canvas_origin, self.canvas_size)
+            self.update()
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -519,13 +500,84 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_cursor_info()
         return True
 
+    def mouse_double_clicked(self, x, y, modifiers):
+        if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
+            return True
+        if self.document_controller.tool_mode == "pointer":
+            pos = Geometry.IntPoint(x=x, y=y)
+            if self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
+                self.reset_horizontal()
+                return True
+            elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
+                self.reset_vertical()
+                return True
+        return False
+
     def mouse_position_changed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
         # x,y already have transform applied
-        self.__last_mouse = (y, x)
+        self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
-        return True
+        return self.continue_tracking(Geometry.IntPoint(x=x, y=y))
+
+    def mouse_pressed(self, x, y, modifiers):
+        if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
+            return True
+        if self.document_controller.tool_mode == "pointer":
+            pos = Geometry.IntPoint(x=x, y=y)
+            if self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
+                self.begin_tracking_horizontal(pos)
+                return True
+            elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
+                self.begin_tracking_vertical(pos)
+                return True
+        return False
+
+    def mouse_released(self, x, y, modifiers):
+        if super(LinePlotCanvasItem, self).mouse_released(x, y, modifiers):
+            return True
+        self.end_tracking_all()
+        return False
+
+    def reset_horizontal(self):
+        self.__display.left_channel = None
+        self.__display.right_channel = None
+
+    def reset_vertical(self):
+        self.__display.display_limits = None
+
+    def begin_tracking_horizontal(self, pos):
+        self.__tracking_horizontal = True
+        self.__tracking_start_pos = pos
+        self.__tracking_start_channel_per_point = self.line_graph_canvas_item.channel_per_point
+        self.__tracking_start_left_channel = self.line_graph_canvas_item.displayed_left_channel
+        self.__tracking_start_right_channel = self.line_graph_canvas_item.displayed_right_channel
+
+    def begin_tracking_vertical(self, pos):
+        self.__tracking_vertical = True
+        self.__tracking_start_pos = pos
+        self.__tracking_start_data_per_point = self.line_graph_canvas_item.data_per_point
+        self.__tracking_start_displayed_data_min = self.line_graph_canvas_item.displayed_data_min
+        self.__tracking_start_displayed_data_max = self.line_graph_canvas_item.displayed_data_max
+
+    def continue_tracking(self, pos):
+        if self.__tracking_horizontal:
+            delta = pos - self.__tracking_start_pos
+            self.__display.left_channel = self.__tracking_start_left_channel - self.__tracking_start_channel_per_point * delta.x
+            self.__display.right_channel = self.__tracking_start_right_channel - self.__tracking_start_channel_per_point * delta.x
+            return True
+        if self.__tracking_vertical:
+            delta = pos - self.__tracking_start_pos
+            data_min = self.__tracking_start_displayed_data_min + self.__tracking_start_data_per_point * delta.y
+            data_max = self.__tracking_start_displayed_data_max + self.__tracking_start_data_per_point * delta.y
+            self.__display.display_limits = (data_min, data_max)
+            return True
+        return False
+
+    def end_tracking_all(self):
+        self.__tracking_horizontal = False
+        self.__tracking_vertical = False
 
     def __get_data_size(self):
         data_item = self.display.data_item if self.display else None
