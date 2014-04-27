@@ -309,6 +309,14 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_height = self.font_size + 4
         self.sizing.maximum_height = self.font_size + 4
 
+    def size_to_content(self, ui):
+        self.sizing.minimum_height = 0
+        self.sizing.maximum_height = 0
+        if self.data_info is not None and self.data_info.data is not None:
+            if self.data_info.spatial_calibration and self.data_info.spatial_calibration.units:
+                self.sizing.minimum_height = self.font_size + 4
+                self.sizing.maximum_height = self.font_size + 4
+
     def _repaint(self, drawing_context):
 
         # draw the data, if any
@@ -370,8 +378,23 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         super(LineGraphVerticalAxisScaleCanvasItem, self).__init__()
         self.data_info = None
         self.font_size = 12
-        self.sizing.minimum_width = 36
-        self.sizing.maximum_width = 36
+
+    def size_to_content(self, ui):
+        self.sizing.minimum_width = 0
+        self.sizing.maximum_width = 0
+        if self.data_info is not None and self.data_info.data is not None:
+            plot_height = int(self.canvas_size[0]) - 1
+            # calculate the intensity scale
+            drawn_data_min, drawn_data_max = self.data_info.get_drawn_data_limits()
+            drawn_data_range = drawn_data_max - drawn_data_min
+            y_ticks = self.data_info.calculate_y_ticks(plot_height, drawn_data_min, drawn_data_range, tick_count=4)
+            # draw the y_ticks and labels
+            font = "{0:d}px".format(self.font_size)
+            max_width = 0
+            for y, label in y_ticks:
+                max_width = max(max_width, ui.get_font_metrics(font, label).width)
+            self.sizing.minimum_width = max_width
+            self.sizing.maximum_width = max_width
 
     def _repaint(self, drawing_context):
 
@@ -396,7 +419,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.stroke()
                 drawing_context.text_align = "right"
                 drawing_context.fill_style = "#000"
-                drawing_context.fill_text(label, width - 8, y)
+                drawing_context.fill_text(label, width, y)
             drawing_context.restore()
 
 
@@ -408,6 +431,14 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.font_size = 12
         self.sizing.minimum_width = self.font_size + 4
         self.sizing.maximum_width = self.font_size + 4
+
+    def size_to_content(self, ui):
+        self.sizing.minimum_width = 0
+        self.sizing.maximum_width = 0
+        if self.data_info is not None and self.data_info.data is not None:
+            if self.data_info.intensity_calibration and self.data_info.intensity_calibration.units:
+                self.sizing.minimum_width = self.font_size + 4
+                self.sizing.maximum_width = self.font_size + 4
 
     def _repaint(self, drawing_context):
 

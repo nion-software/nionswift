@@ -358,7 +358,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # create the grid item holding the line graph and each axes label
         self.line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
-        margins = Geometry.Margins(left=6, right=12, top=int((font_size + 4) / 2.0 + 1.5), bottom=6)
+        margins = Geometry.Margins(left=6, right=12, top=font_size + 4, bottom=6)
         self.line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
         self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
         self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_item, Geometry.IntPoint(x=1, y=0))
@@ -425,17 +425,23 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
             self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_vertical_axis_label_canvas_item.update()
             self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_vertical_axis_scale_canvas_item.update()
             self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
             self.line_graph_vertical_axis_ticks_canvas_item.update()
             self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_horizontal_axis_label_canvas_item.update()
             self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
             self.line_graph_horizontal_axis_scale_canvas_item.update()
             self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
             self.line_graph_horizontal_axis_ticks_canvas_item.update()
+            if self.canvas_origin and self.canvas_size:
+                self.update_layout(self.canvas_origin, self.canvas_size)
+                self.update()
         self.__paint_thread.trigger()
 
     # this method will be invoked from the paint thread.
@@ -482,17 +488,23 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.line_graph_canvas_item.data_info = data_info
             self.line_graph_canvas_item.update()
             self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_vertical_axis_label_canvas_item.update()
             self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_vertical_axis_scale_canvas_item.update()
             self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
             self.line_graph_vertical_axis_ticks_canvas_item.update()
             self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
             self.line_graph_horizontal_axis_label_canvas_item.update()
             self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
             self.line_graph_horizontal_axis_scale_canvas_item.update()
             self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
             self.line_graph_horizontal_axis_ticks_canvas_item.update()
+            if self.canvas_origin and self.canvas_size:
+                self.update_layout(self.canvas_origin, self.canvas_size)
+                self.update()
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -1406,7 +1418,7 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         if display and data_size:
-            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.CalibrationItem() for _ in xrange(0, len(display.data_item.spatial_shape))]
+            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.CalibrationItem() for i in xrange(0, len(display.data_item.spatial_shape))]
             intensity_calibration = display.data_item.calculated_intensity_calibration if display.display_calibrated_values else Calibration.CalibrationItem()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
