@@ -450,15 +450,16 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             assert data is not None
 
             # update the line graph
-            display_limits = display.display_limits
+            y_min = display.y_min
+            y_max = display.y_max
             left_channel = display.left_channel
             right_channel = display.right_channel
             left_channel = left_channel if left_channel is not None else 0
             right_channel = right_channel if right_channel is not None else data.shape[0]
             left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
             data_info = LineGraphCanvasItem.LineGraphDataInfo(data)
-            data_info.data_min = display_limits[0] if display_limits else None
-            data_info.data_max = display_limits[1] if display_limits else None
+            data_info.data_min = y_min
+            data_info.data_max = y_max
             data_info.data_left = left_channel
             data_info.data_right = right_channel
             data_info.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
@@ -545,33 +546,35 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display.right_channel = None
 
     def reset_vertical(self):
-        self.__display.display_limits = None
+        self.__display.y_min = None
+        self.__display.y_max = None
 
     def begin_tracking_horizontal(self, pos):
         self.__tracking_horizontal = True
         self.__tracking_start_pos = pos
-        self.__tracking_start_channel_per_point = self.line_graph_canvas_item.channel_per_point
-        self.__tracking_start_left_channel = self.line_graph_canvas_item.displayed_left_channel
-        self.__tracking_start_right_channel = self.line_graph_canvas_item.displayed_right_channel
+        self.__tracking_start_drawn_channel_per_pixel = self.line_graph_canvas_item.drawn_channel_per_pixel
+        self.__tracking_start_left_channel = self.line_graph_canvas_item.drawn_left_channel
+        self.__tracking_start_right_channel = self.line_graph_canvas_item.drawn_right_channel
 
     def begin_tracking_vertical(self, pos):
         self.__tracking_vertical = True
         self.__tracking_start_pos = pos
-        self.__tracking_start_data_per_point = self.line_graph_canvas_item.data_per_point
-        self.__tracking_start_displayed_data_min = self.line_graph_canvas_item.displayed_data_min
-        self.__tracking_start_displayed_data_max = self.line_graph_canvas_item.displayed_data_max
+        self.__tracking_start_drawn_data_per_pixel = self.line_graph_canvas_item.drawn_data_per_pixel
+        self.__tracking_start_drawn_data_min = self.line_graph_canvas_item.drawn_data_min
+        self.__tracking_start_drawn_data_max = self.line_graph_canvas_item.drawn_data_max
 
     def continue_tracking(self, pos):
         if self.__tracking_horizontal:
             delta = pos - self.__tracking_start_pos
-            self.__display.left_channel = self.__tracking_start_left_channel - self.__tracking_start_channel_per_point * delta.x
-            self.__display.right_channel = self.__tracking_start_right_channel - self.__tracking_start_channel_per_point * delta.x
+            self.__display.left_channel = self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
+            self.__display.right_channel = self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
             return True
         if self.__tracking_vertical:
             delta = pos - self.__tracking_start_pos
-            data_min = self.__tracking_start_displayed_data_min + self.__tracking_start_data_per_point * delta.y
-            data_max = self.__tracking_start_displayed_data_max + self.__tracking_start_data_per_point * delta.y
-            self.__display.display_limits = (data_min, data_max)
+            data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
+            data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
+            self.__display.y_min = data_min
+            self.__display.y_max = data_max
             return True
         return False
 

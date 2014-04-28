@@ -166,6 +166,29 @@ class Display(Storage.StorageBase):
         return self.data_item.data_range
     data_range = property(__get_data_range)
 
+    def __get_display_range(self):
+        data_range = self.data_range
+        return self.display_limits if self.display_limits else data_range
+    # TODO: this is only valid after data has been called (!)
+    # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
+    display_range = property(__get_display_range, __set_display_limits)
+
+    def __get_y_min(self):
+        return self.__properties.get("y_min")
+    def __set_y_min(self, y_min):
+        with self.property_changes() as pc:
+            pc.properties["y_min"] = y_min
+        self.notify_set_property("y_min", y_min)
+    y_min = property(__get_y_min, __set_y_min)
+
+    def __get_y_max(self):
+        return self.__properties.get("y_max")
+    def __set_y_max(self, y_max):
+        with self.property_changes() as pc:
+            pc.properties["y_max"] = y_max
+        self.notify_set_property("y_max", y_max)
+    y_max = property(__get_y_max, __set_y_max)
+
     def __get_left_channel(self):
         return self.__properties.get("left_channel")
     def __set_left_channel(self, left_channel):
@@ -181,13 +204,6 @@ class Display(Storage.StorageBase):
             pc.properties["right_channel"] = right_channel
         self.notify_set_property("right_channel", right_channel)
     right_channel = property(__get_right_channel, __set_right_channel)
-
-    def __get_display_range(self):
-        data_range = self.data_range
-        return self.display_limits if self.display_limits else data_range
-    # TODO: this is only valid after data has been called (!)
-    # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
-    display_range = property(__get_display_range, __set_display_limits)
 
     # message sent from data item. established using add/remove observer.
     def property_changed(self, sender, property, value):
