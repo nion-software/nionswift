@@ -69,6 +69,9 @@ class LineGraphDataInfo(object):
 
         self.y_ticks = y_ticks
 
+        self.calibrated_data_min = calibration.convert_to_calibrated_value(self.drawn_data_min) if calibration else self.drawn_data_min
+        self.calibrated_data_max = calibration.convert_to_calibrated_value(self.drawn_data_max) if calibration else self.drawn_data_max
+
     def calculate_x_axis(self, plot_width):
 
         self.raw_data_left = 0.0
@@ -94,14 +97,13 @@ class LineGraphDataInfo(object):
             self.drawn_right_channel = raw_data_right
         else:
             self.drawn_right_channel = calibration.convert_from_calibrated_value(graph_right) if calibration else graph_right
-        self.drawn_data_width = self.drawn_right_channel - self.drawn_left_channel
-        self.drawn_channel_per_pixel = float(self.drawn_data_width) / plot_width
+        drawn_data_width = self.drawn_right_channel - self.drawn_left_channel
 
         x_ticks = list()
         for tick in ticks:
             label = (u"{0:0." + u"{0:d}".format(precision) + "f}").format(tick)
             data_tick = calibration.convert_from_calibrated_value(tick) if calibration else tick
-            x_tick = plot_width * (data_tick - self.drawn_left_channel) / self.drawn_data_width
+            x_tick = plot_width * (data_tick - self.drawn_left_channel) / drawn_data_width
             if x_tick >= 0 and x_tick <= plot_width:
                 x_ticks.append((x_tick, label))
 
@@ -109,6 +111,9 @@ class LineGraphDataInfo(object):
         self.x_tick_division = division
 
         self.x_ticks = x_ticks
+
+        self.calibrated_data_left = calibration.convert_to_calibrated_value(self.drawn_left_channel) if calibration else raw_data_left
+        self.calibrated_data_right = calibration.convert_to_calibrated_value(self.drawn_right_channel) if calibration else raw_data_right
 
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -164,16 +169,19 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             raw_data_right = self.data_info.raw_data_right
             data_left = self.data_info.drawn_left_channel
             data_right = self.data_info.drawn_right_channel
-            data_width = self.data_info.drawn_data_width
+            data_width = self.data_info.drawn_right_channel - self.data_info.drawn_left_channel
             x_ticks = self.data_info.x_ticks
 
             # save these for mouse tracking use
             self.drawn_data_per_pixel = drawn_data_per_pixel
             self.drawn_data_min = drawn_data_min
             self.drawn_data_max = drawn_data_max
-            self.drawn_channel_per_pixel = self.data_info.drawn_channel_per_pixel
+            self.calibrated_data_min = self.data_info.calibrated_data_min
+            self.calibrated_data_max = self.data_info.calibrated_data_max
             self.drawn_left_channel = data_left
             self.drawn_right_channel = data_right
+            self.calibrated_data_left = self.data_info.calibrated_data_left
+            self.calibrated_data_right = self.data_info.calibrated_data_right
 
             # draw the horizontal grid lines
             if self.draw_grid:

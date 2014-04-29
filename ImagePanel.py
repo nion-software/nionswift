@@ -528,17 +528,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.document_controller.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
             if self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
-                self.begin_tracking_horizontal(pos)
+                self.begin_tracking_horizontal(pos, rescale=modifiers.control)
                 return True
             elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
-                self.begin_tracking_vertical(pos)
+                self.begin_tracking_vertical(pos, rescale=modifiers.control)
                 return True
         return False
 
     def mouse_released(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        self.end_tracking_all()
+        self.end_tracking()
         return False
 
     def reset_horizontal(self):
@@ -549,36 +549,83 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display.y_min = None
         self.__display.y_max = None
 
-    def begin_tracking_horizontal(self, pos):
+    def begin_tracking_horizontal(self, pos, rescale):
+        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
         self.__tracking_horizontal = True
+        self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_drawn_channel_per_pixel = self.line_graph_canvas_item.drawn_channel_per_pixel
         self.__tracking_start_left_channel = self.line_graph_canvas_item.drawn_left_channel
         self.__tracking_start_right_channel = self.line_graph_canvas_item.drawn_right_channel
+        self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / (plot_rect.width - 1)
+        self.__tracking_start_calibrated_data_left = self.line_graph_canvas_item.calibrated_data_left
+        self.__tracking_start_calibrated_data_right = self.line_graph_canvas_item.calibrated_data_right
+        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
+        if 0.0 >= self.__tracking_start_calibrated_data_left and 0.0 <= self.__tracking_start_calibrated_data_right:
+            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_right - self.__tracking_start_calibrated_data_left) / (plot_rect.width - 1)
+            origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_left) / calibrated_unit_per_pixel
+            origin_offset_channel = self.__tracking_start_left_channel + origin_offset_pixels * self.__tracking_start_drawn_channel_per_pixel
+            self.__tracking_start_origin_pixel = origin_offset_pixels
+            self.__tracking_start_origin_channel = origin_offset_channel
+        else:
+            self.__tracking_start_origin_pixel = 0
+            self.__tracking_start_origin_channel = self.__tracking_start_left_channel
 
-    def begin_tracking_vertical(self, pos):
+    def begin_tracking_vertical(self, pos, rescale):
+        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
         self.__tracking_vertical = True
+        self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_drawn_data_per_pixel = self.line_graph_canvas_item.drawn_data_per_pixel
         self.__tracking_start_drawn_data_min = self.line_graph_canvas_item.drawn_data_min
         self.__tracking_start_drawn_data_max = self.line_graph_canvas_item.drawn_data_max
+        self.__tracking_start_drawn_data_per_pixel = self.line_graph_canvas_item.drawn_data_per_pixel  # = float(self.__tracking_start_drawn_data_max - self.__tracking_start_drawn_data_min) / (plot_rect.height - 1)
+        self.__tracking_start_calibrated_data_min = self.line_graph_canvas_item.calibrated_data_min
+        self.__tracking_start_calibrated_data_max = self.line_graph_canvas_item.calibrated_data_max
+        plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
+        if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:
+            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1)
+            origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
+            origin_offset_data = self.__tracking_start_drawn_data_min + origin_offset_pixels * self.__tracking_start_drawn_data_per_pixel
+            self.__tracking_start_origin_y = origin_offset_pixels
+            self.__tracking_start_origin_data = origin_offset_data
+        else:
+            self.__tracking_start_origin_y = 0  # the distance the origin is up from the bottom
+            self.__tracking_start_origin_data = self.__tracking_start_drawn_data_min
 
     def continue_tracking(self, pos):
         if self.__tracking_horizontal:
-            delta = pos - self.__tracking_start_pos
-            self.__display.left_channel = self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
-            self.__display.right_channel = self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x
-            return True
+            if self.__tracking_rescale:
+                plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
+                origin_pixel = self.__tracking_start_origin_pixel + plot_rect.left
+                channel_offset = self.__tracking_start_drawn_channel_per_pixel * (self.__tracking_start_pos.x - origin_pixel)
+                new_drawn_channel_per_pixel = channel_offset / (pos.x - origin_pixel)
+                self.__display.left_channel = int(self.__tracking_start_origin_channel - new_drawn_channel_per_pixel * (self.__tracking_start_origin_pixel))
+                self.__display.right_channel = int(self.__tracking_start_origin_channel + new_drawn_channel_per_pixel * (plot_rect.width - 1 - self.__tracking_start_origin_pixel))
+            else:
+                delta = pos - self.__tracking_start_pos
+                self.__display.left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
+                self.__display.right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
+                return True
         if self.__tracking_vertical:
-            delta = pos - self.__tracking_start_pos
-            data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
-            data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
-            self.__display.y_min = data_min
-            self.__display.y_max = data_max
-            return True
+            if self.__tracking_rescale:
+                plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
+                origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
+                data_offset = self.__tracking_start_drawn_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
+                new_drawn_data_per_pixel = data_offset / (origin_y - pos.y)
+                data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * (self.__tracking_start_origin_y)
+                data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
+                self.__display.y_min = data_min
+                self.__display.y_max = data_max
+                return True
+            else:
+                delta = pos - self.__tracking_start_pos
+                data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
+                data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
+                self.__display.y_min = data_min
+                self.__display.y_max = data_max
+                return True
         return False
 
-    def end_tracking_all(self):
+    def end_tracking(self):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
