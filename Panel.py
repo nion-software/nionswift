@@ -204,7 +204,7 @@ class HeaderWidgetController(object):
 
     def __update_header(self):
 
-        canvas = self.canvas_widget
+        canvas_widget = self.canvas_widget
 
         ctx = self.__layer.drawing_context
 
@@ -213,11 +213,11 @@ class HeaderWidgetController(object):
         ctx.save()
         ctx.begin_path()
         ctx.move_to(0, 0)
-        ctx.line_to(0, canvas.height)
-        ctx.line_to(canvas.width, canvas.height)
-        ctx.line_to(canvas.width, 0)
+        ctx.line_to(0, canvas_widget.height)
+        ctx.line_to(canvas_widget.width, canvas_widget.height)
+        ctx.line_to(canvas_widget.width, 0)
         ctx.close_path()
-        gradient = ctx.create_linear_gradient(0, 0, 0, canvas.height)
+        gradient = ctx.create_linear_gradient(0, 0, 0, canvas_widget.height)
         gradient.add_color_stop(0, '#ededed')
         gradient.add_color_stop(1, '#cacaca')
         ctx.fill_style = gradient
@@ -228,7 +228,7 @@ class HeaderWidgetController(object):
         ctx.begin_path()
         # line is adjust 1/2 pixel down to align to pixel boundary
         ctx.move_to(0, 0.5)
-        ctx.line_to(canvas.width, 0.5)
+        ctx.line_to(canvas_widget.width, 0.5)
         ctx.stroke_style = '#FFF'
         ctx.stroke()
         ctx.restore()
@@ -236,8 +236,8 @@ class HeaderWidgetController(object):
         ctx.save()
         ctx.begin_path()
         # line is adjust 1/2 pixel down to align to pixel boundary
-        ctx.move_to(0, canvas.height-0.5)
-        ctx.line_to(canvas.width, canvas.height-0.5)
+        ctx.move_to(0, canvas_widget.height-0.5)
+        ctx.line_to(canvas_widget.width, canvas_widget.height-0.5)
         ctx.stroke_style = '#b0b0b0'
         ctx.stroke()
         ctx.restore()
@@ -245,14 +245,14 @@ class HeaderWidgetController(object):
         if self.__display_drag_control:
             ctx.save()
             ctx.begin_path()
-            ctx.move_to(6, canvas.height/2 - 4)
-            ctx.line_to(16, canvas.height/2 - 4)
-            ctx.move_to(6, canvas.height/2 - 1)
-            ctx.line_to(16, canvas.height/2 - 1)
-            ctx.move_to(6, canvas.height/2 + 2)
-            ctx.line_to(16, canvas.height/2 + 2)
-            ctx.move_to(6, canvas.height/2 + 5)
-            ctx.line_to(16, canvas.height/2 + 5)
+            ctx.move_to(6, canvas_widget.height/2 - 4)
+            ctx.line_to(16, canvas_widget.height/2 - 4)
+            ctx.move_to(6, canvas_widget.height/2 - 1)
+            ctx.line_to(16, canvas_widget.height/2 - 1)
+            ctx.move_to(6, canvas_widget.height/2 + 2)
+            ctx.line_to(16, canvas_widget.height/2 + 2)
+            ctx.move_to(6, canvas_widget.height/2 + 5)
+            ctx.line_to(16, canvas_widget.height/2 + 5)
             ctx.stroke_style = '#444'
             ctx.stroke()
             ctx.restore()
@@ -260,12 +260,12 @@ class HeaderWidgetController(object):
         if self.__display_sync_control:
             ctx.save()
             ctx.begin_path()
-            ctx.move_to(24, canvas.height/2 - 2)
-            ctx.line_to(34, canvas.height/2 - 2)
-            ctx.line_to(31, canvas.height/2 - 4)
-            ctx.move_to(34, canvas.height/2 + 1)
-            ctx.line_to(24, canvas.height/2 + 1)
-            ctx.line_to(27, canvas.height/2 + 3)
+            ctx.move_to(24, canvas_widget.height/2 - 2)
+            ctx.line_to(34, canvas_widget.height/2 - 2)
+            ctx.line_to(31, canvas_widget.height/2 - 4)
+            ctx.move_to(34, canvas_widget.height/2 + 1)
+            ctx.line_to(24, canvas_widget.height/2 + 1)
+            ctx.line_to(27, canvas_widget.height/2 + 3)
             ctx.stroke_style = '#444'
             ctx.stroke()
             ctx.restore()
@@ -275,10 +275,10 @@ class HeaderWidgetController(object):
         ctx.text_align = 'center'
         ctx.text_baseline = 'middle'
         ctx.fill_style = '#000'
-        ctx.fill_text(self.title, canvas.width/2, canvas.height/2+1)
+        ctx.fill_text(self.title, canvas_widget.width/2, canvas_widget.height/2+1)
         ctx.restore()
 
-        canvas.draw()
+        canvas_widget.draw()
 
     def __header_size_changed(self, width, height):
         if width > 0 and height > 0:
