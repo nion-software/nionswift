@@ -1,5 +1,16 @@
+"""
+    A collection of classes facilitating drawing line graphs.
+
+    LineGraphDataInfo is used to pass data, drawing limits, and calibrations to
+    various canvas items.
+
+    Several canvas items including the line graph itself, and tick marks, scale,
+    and label are also available. All canvas items except for the canvas item
+    are auto sizing in the appropriate direction. Canvas items are meant to be
+    combined into a grid layout with the line graph.
+"""
+
 # standard libraries
-import logging
 import math
 import gettext
 
@@ -13,8 +24,12 @@ from nion.ui import Geometry
 _ = gettext.gettext
 
 
-
 class LineGraphDataInfo(object):
+
+    """
+        LineGraphDataInfo is used to pass data, drawing limits, and calibrations to
+        various canvas items.
+    """
 
     def __init__(self, data=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None):
         self.data = data
@@ -24,10 +39,30 @@ class LineGraphDataInfo(object):
         self.data_right = data_right
         self.spatial_calibration = spatial_calibration
         self.intensity_calibration = intensity_calibration
-        self.y_ticks = []
+        self.raw_data_left = None
+        self.raw_data_right = None
         self.x_ticks = []
+        self.x_tick_precision = None
+        self.x_tick_division = None
+        self.y_ticks = []
+        self.y_tick_calibrated_data_min = None
+        self.y_tick_calibrated_data_max = None
+        self.y_tick_precision = None
+        self.y_tick_division = None
+        self.calibrated_data_min = None
+        self.calibrated_data_max = None
+        self.calibrated_data_left = None
+        self.calibrated_data_right = None
+        self.drawn_data_min = None
+        self.drawn_data_max = None
+        self.drawn_data_range = None
+        self.drawn_data_per_pixel = None
+        self.drawn_left_channel = None
+        self.drawn_right_channel = None
 
     def calculate_y_axis(self, plot_height):
+
+        """ Calculate various parameters relating to the y-axis. """
 
         min_specified = self.data_min is not None
         max_specified = self.data_max is not None
@@ -74,6 +109,8 @@ class LineGraphDataInfo(object):
 
     def calculate_x_axis(self, plot_width):
 
+        """ Calculate various parameters relating to the x-axis. """
+
         self.raw_data_left = 0.0
         self.raw_data_right = self.data.shape[0]
 
@@ -118,6 +155,8 @@ class LineGraphDataInfo(object):
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the line plot itself. """
+
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
         self.data_info = None
@@ -125,8 +164,18 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.draw_frame = True
         self.background_color = "#EEE"
         self.font_size = 12
+        self.drawn_data_per_pixel = None
+        self.drawn_data_min = None
+        self.drawn_data_max = None
+        self.calibrated_data_min = None
+        self.calibrated_data_max = None
+        self.drawn_left_channel = None
+        self.drawn_right_channel = None
+        self.calibrated_data_left = None
+        self.calibrated_data_right = None
 
     def map_mouse_to_position(self, mouse, data_size):
+        """ Map the mouse to the 1-d position within the line graph. """
         plot_rect = self.canvas_bounds
         mouse_x = mouse[1] - plot_rect[0][1]  # 436
         mouse_y = mouse[0] - plot_rect[0][0]
@@ -186,7 +235,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # draw the horizontal grid lines
             if self.draw_grid:
                 drawing_context.save()
-                for y, label in y_ticks:
+                for y, _ in y_ticks:
                     drawing_context.begin_path()
                     drawing_context.move_to(plot_origin_x, y)
                     drawing_context.line_to(plot_origin_x + plot_width, y)
@@ -197,7 +246,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the vertical grid lines
             drawing_context.save()
-            for x, label in x_ticks:
+            for x, _ in x_ticks:
                 drawing_context.begin_path()
                 if self.draw_grid:
                     drawing_context.move_to(x, plot_origin_y)
@@ -255,6 +304,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the horizontal tick marks. """
+
     def __init__(self):
         super(LineGraphHorizontalAxisTicksCanvasItem, self).__init__()
         self.data_info = None
@@ -277,7 +328,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the tick marks
             drawing_context.save()
-            for x, label in x_ticks:
+            for x, _ in x_ticks:
                 drawing_context.begin_path()
                 drawing_context.move_to(x, 0)
                 drawing_context.line_to(x, self.tick_height)
@@ -288,6 +339,8 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    """ Canvas item to draw the horizontal scale. """
 
     def __init__(self):
         super(LineGraphHorizontalAxisScaleCanvasItem, self).__init__()
@@ -322,6 +375,8 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the horizontal label. """
+
     def __init__(self):
         super(LineGraphHorizontalAxisLabelCanvasItem, self).__init__()
         self.data_info = None
@@ -330,6 +385,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.maximum_height = self.font_size + 4
 
     def size_to_content(self, ui):
+        """ Size the canvas item to the proper height. """
         self.sizing.minimum_height = 0
         self.sizing.maximum_height = 0
         if self.data_info is not None and self.data_info.data is not None:
@@ -359,6 +415,8 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the vertical tick marks. """
+
     def __init__(self):
         super(LineGraphVerticalAxisTicksCanvasItem, self).__init__()
         self.data_info = None
@@ -375,7 +433,6 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             width = self.canvas_size[1]
             plot_height = int(self.canvas_size[0]) - 1
 
-
             # calculate the axes drawing info
             self.data_info.calculate_y_axis(plot_height)
 
@@ -384,7 +441,7 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the y_ticks and labels
             drawing_context.save()
-            for y, label in y_ticks:
+            for y, _ in y_ticks:
                 drawing_context.begin_path()
                 drawing_context.move_to(width, y)
                 drawing_context.line_to(width - self.tick_width, y)
@@ -396,12 +453,15 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the vertical scale. """
+
     def __init__(self):
         super(LineGraphVerticalAxisScaleCanvasItem, self).__init__()
         self.data_info = None
         self.font_size = 12
 
     def size_to_content(self, ui):
+        """ Size the canvas item to the proper width, the maximum of any label. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
         if self.data_info is not None and self.data_info.data is not None:
@@ -411,18 +471,15 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             # calculate the axes drawing info
             self.data_info.calculate_y_axis(plot_height)
 
-            # extract the data we need for drawing y-axis
-            y_ticks = self.data_info.y_ticks
-
             # calculate the width based on the label lengths
             font = "{0:d}px".format(self.font_size)
 
-            int_precision = int(math.floor(max(math.log10(1.0), 0.0) + 1))
-
             max_width = 0
-            label = (u"{0:0." + u"{0:d}".format(self.data_info.y_tick_precision) + "f}").format(self.data_info.y_tick_calibrated_data_max + self.data_info.y_tick_division * 15)
+            label = (u"{0:0." + u"{0:d}".format(self.data_info.y_tick_precision) + "f}").format(
+                self.data_info.y_tick_calibrated_data_max + self.data_info.y_tick_division * 15)
             max_width = max(max_width, ui.get_font_metrics(font, label).width)
-            label = (u"{0:0." + u"{0:d}".format(self.data_info.y_tick_precision) + "f}").format(self.data_info.y_tick_calibrated_data_min - self.data_info.y_tick_division * 15)
+            label = (u"{0:0." + u"{0:d}".format(self.data_info.y_tick_precision) + "f}").format(
+                self.data_info.y_tick_calibrated_data_min - self.data_info.y_tick_division * 15)
             max_width = max(max_width, ui.get_font_metrics(font, label).width)
 
             self.sizing.minimum_width = max_width
@@ -459,6 +516,8 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
+    """ Canvas item to draw the vertical label. """
+
     def __init__(self):
         super(LineGraphVerticalAxisLabelCanvasItem, self).__init__()
         self.data_info = None
@@ -467,6 +526,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.maximum_width = self.font_size + 4
 
     def size_to_content(self, ui):
+        """ Size the canvas item to the proper width. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
         if self.data_info is not None and self.data_info.data is not None:
