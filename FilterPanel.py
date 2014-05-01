@@ -1,8 +1,13 @@
+"""
+    FilterPanel contains classes the implement the tracking of filters for the data panel.
+"""
+
 # standard libraries
 import bisect
 import datetime
 import gettext
 import threading
+import time
 import weakref
 
 # third party libraries
@@ -27,90 +32,112 @@ _ = gettext.gettext
 # TODO: Add text field browser for searching
 
 
-class DataItemDateTreeBinding(Binding.Binding):
-
-    def __init__(self):
-        super(DataItemDateTreeBinding, self).__init__(None)
-        self.__data_item_tree = TreeNode(reversed=True)
-        self.__master_data_items = list()
-        self.__update_mutex = threading.RLock()
-
-    def __get_tree_node(self):
-        return self.__data_item_tree
-    tree_node = property(__get_tree_node)
-
-    # thread safe.
-    def data_item_inserted(self, data_item, before_index):
-        with self.__update_mutex:
-            assert data_item not in self.__master_data_items
-            self.__master_data_items.insert(before_index, data_item)
-            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-            indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
-            self.__data_item_tree.insert_value(indexes, data_item)
-
-    # thread safe.
-    def data_item_removed(self, data_item, index):
-        with self.__update_mutex:
-            assert data_item in self.__master_data_items
-            del self.__master_data_items[index]
-            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-            indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
-            self.__data_item_tree.remove_value(indexes, data_item)
-
-
 class DateModelController(object):
+
+    """
+        The DateModelController creates, updates, and provides access to an item model controller.
+
+        An item model controller is the controller associated with the UI system for displaying trees.
+    """
 
     def __init__(self, document_controller):
         self.ui = document_controller.ui
         self.item_model_controller = self.ui.create_item_model_controller(["display"])
         self.__document_controller_weakref = weakref.ref(document_controller)
-        self.__date_binding = DataItemDateTreeBinding()
-        self.__date_binding.tree_node.child_inserted = lambda parent_tree_node, index, tree_node: self.__insert_child(parent_tree_node, index, tree_node)
-        self.__date_binding.tree_node.child_removed = lambda parent_tree_node, index: self.__remove_child(parent_tree_node, index)
-        self.__date_binding.tree_node.tree_node_updated = lambda tree_node: self.__update_tree_node(tree_node)
-        self.__binding = document_controller.data_items_binding
-        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.__date_binding.data_item_inserted(data_item, before_index)
-        self.__binding.removers[id(self)] = lambda data_item, index: self.__date_binding.data_item_removed(data_item, index)
+
+        self.__data_item_tree = TreeNode(reversed=True)
+        self.__data_item_tree_mutex = threading.RLock()
+
+        #
+        self.__data_item_tree.child_inserted = self.__insert_child
+        self.__data_item_tree.child_removed = self.__remove_child
+        self.__data_item_tree.tree_node_updated = self.__update_tree_node
+
+        # thread safe.
+        def data_item_inserted(data_item, before_index):
+            """
+                This method will be called from the data item list binding, which comes from the document controller to
+                notify that the list of data items in the document has changed.
+                This method breaks the date-related metadata out into a list of indexes which are then displayed
+                in tree format for the date browser. in this case, the indexes are added.
+            """
+            with self.__data_item_tree_mutex:
+                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                self.__data_item_tree.insert_value(indexes, data_item)
+
+        # thread safe.
+        def data_item_removed(data_item, index):
+            """
+                This method will be called from the data item list binding, which comes from the document controller to
+                notify that the list of data items in the document has changed.
+                This method breaks the date-related metadata out into a list of indexes which are then displayed
+                in tree format for the date browser. in this case, the indexes are removed.
+            """
+            with self.__data_item_tree_mutex:
+                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                self.__data_item_tree.remove_value(indexes, data_item)
+
+        # connect the data_items_binding from the document controller to ourself.
+        # when data items are inserted or removed from the document controller, the inserter and remover methods
+        # will be called.
+        self.__data_item_list_binding = document_controller.data_items_binding
+        self.__data_item_list_binding.inserters[id(self)] = data_item_inserted
+        self.__data_item_list_binding.removers[id(self)] = data_item_removed
+
         self.__mapping = dict()
-        self.__mapping[id(self.__date_binding.tree_node)] = self.item_model_controller.root
+        self.__mapping[id(self.__data_item_tree)] = self.item_model_controller.root
+        self.__node_counts_dirty = False
+
+        self.__last_node_count_update_time = 0
 
     def close(self):
-        del self.__binding.inserters[id(self)]
-        del self.__binding.removers[id(self)]
-        self.__date_binding.close()
-        for item_controller in self.__item_controllers:
-            item_controller.close()
-        self.__item_controllers = None
+        """
+            Close the date model controller. Unlisten to the data item list binding and close
+            the item model controller.
+        """
+        del self.__data_item_list_binding.inserters[id(self)]
+        del self.__data_item_list_binding.removers[id(self)]
         self.item_model_controller.close()
         self.item_model_controller = None
 
-    def periodic(self):
-        for item_controller in self.__item_controllers:
-            item_controller.periodic()
-
     def __get_document_controller(self):
+        """ Return the document controller. """
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
+    def periodic(self):
+        """ Perform periodic tasks. In this case, update the counts if needed. """
+        if time.time() - self.__last_node_count_update_time > 1.0:  # update node counts once per second
+            self.update_all_nodes()
+            self.__last_node_count_update_time = time.time()
+
     def __display_for_tree_node(self, tree_node):
+        """ Return the text display for the given tree node. Based on number of keys associated with tree node. """
         keys = tree_node.keys
         if len(keys) == 1:
             return "{0} ({1})".format(tree_node.keys[-1], tree_node.count)
         elif len(keys) == 2:
-            months = (_("January"), _("February"), _("March"), _("April"), _("May"), _("June"), _("July"), _("August"), _("September"), _("October"), _("November"), _("December"))
-            return "{0} ({1})".format(months[max(min(tree_node.keys[1]-1,11), 0)], tree_node.count)
+            months = (_("January"), _("February"), _("March"), _("April"), _("May"), _("June"), _("July"), _("August"),
+                      _("September"), _("October"), _("November"), _("December"))
+            return "{0} ({1})".format(months[max(min(tree_node.keys[1]-1, 11), 0)], tree_node.count)
         else:
             weekdays = (_("Monday"), _("Tuesday"), _("Wednesday"), _("Thursday"), _("Friday"), _("Saturday"), _("Sunday"))
             date = datetime.date(tree_node.keys[0], tree_node.keys[1], tree_node.keys[2])
             return "{0} - {1} ({2})".format(tree_node.keys[2], weekdays[date.weekday()], tree_node.count)
 
     def __insert_child(self, parent_tree_node, index, tree_node):
+        """
+            Called from the root tree node when a new node is inserted into tree. This method creates properties
+            to represent the node for display and inserts it into the item model controller.
+        """
         # manage the item model
         parent_item = self.__mapping[id(parent_tree_node)]
         self.item_model_controller.begin_insert(index, index, parent_item.row, parent_item.id)
         properties = {
             "display": self.__display_for_tree_node(tree_node),
-            "tree_node": tree_node
+            "tree_node": tree_node  # used for removal and other lookup
         }
         item = self.item_model_controller.create_item(properties)
         parent_item.insert_child(index, item)
@@ -118,6 +145,10 @@ class DateModelController(object):
         self.item_model_controller.end_insert()
 
     def __remove_child(self, parent_tree_node, index):
+        """
+            Called from the root tree node when a node is removed from the tree. This method removes it into the
+            item model controller.
+        """
         # get parent and item
         parent_item = self.__mapping[id(parent_tree_node)]
         # manage the item model
@@ -128,12 +159,61 @@ class DateModelController(object):
         self.item_model_controller.end_remove()
 
     def __update_tree_node(self, tree_node):
-        item = self.__mapping[id(tree_node)]
-        item.data["display"] = self.__display_for_tree_node(tree_node)
-        self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+        """ Mark the fact that tree node counts need updating when convenient. """
+        self.__node_counts_dirty = True
+
+    def update_all_nodes(self):
+        """ Update all tree item displays if needed. Usually for count updates. """
+        if self.__node_counts_dirty:
+            for item in self.__mapping.values():
+                if "tree_node" in item.data:  # don't update the root node
+                    tree_node = item.data["tree_node"]
+                    item.data["display"] = self.__display_for_tree_node(tree_node)
+                    self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+
+    def date_browser_selection_changed(self, selected_indexes):
+        """
+            Called to handle selection changes in the tree widget. This method should be connected to
+            the on_selection_changed event. This method builds a list of keys represented by all selected
+            items. It then provides date_filter to filter data items based on the list of keys. It then
+            sets the filter into the document controller.
+        """
+        keys_list = list()
+
+        for index, parent_row, parent_id in selected_indexes:
+            item_model_controller = self.item_model_controller
+            tree_node = item_model_controller.item_value("tree_node", index, parent_id)
+            keys_list.append(tree_node.keys)
+
+        def date_filter(data_item):
+            """ A bound function to filter data items based on the key_list bound variable. """
+            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+            indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+
+            def matches(match_keys):
+                """ Whether match_keys match indexes, in order. """
+                for i, key in enumerate(match_keys):
+                    if indexes[i] != key:
+                        return False
+                return True
+
+            for keys in keys_list:
+                if matches(keys):
+                    return True
+
+            return False
+
+        if len(keys_list) > 0:
+            self.document_controller.display_filter = date_filter
+        else:
+            self.document_controller.display_filter = None
 
 
 class FilterPanel(object):
+
+    """
+        A object to hold the widget for the filter panel.
+    """
 
     def __init__(self, document_controller):
 
@@ -142,33 +222,10 @@ class FilterPanel(object):
 
         self.date_model_controller = DateModelController(document_controller)
 
-        def date_browser_selection_changed(selected_indexes):
-            keys_list = list()
-            for index, parent_row, parent_id in selected_indexes:
-                item_model_controller = self.date_model_controller.item_model_controller
-                tree_node = item_model_controller.item_value("tree_node", index, parent_id)
-                keys_list.append(tree_node.keys)
-            def date_filter(data_item):
-                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
-                def matches(match_keys):
-                    for index, key in enumerate(match_keys):
-                        if indexes[index] != key:
-                            return False
-                    return True
-                for keys in keys_list:
-                    if matches(keys):
-                        return True
-                return False
-            if len(keys_list) > 0:
-                self.document_controller.display_filter = date_filter
-            else:
-                self.document_controller.display_filter = None
-
         date_browser_tree_widget = self.ui.create_tree_widget()
         date_browser_tree_widget.selection_mode = "extended"
         date_browser_tree_widget.item_model_controller = self.date_model_controller.item_model_controller
-        date_browser_tree_widget.on_selection_changed = date_browser_selection_changed
+        date_browser_tree_widget.on_selection_changed = self.date_model_controller.date_browser_selection_changed
 
         date_browser = self.ui.create_column_widget()
         date_browser.add(self.ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
@@ -186,13 +243,22 @@ class FilterPanel(object):
         self.widget = filter_row
 
     def close(self):
+        """ Close the filter panel. Clients must call this to destroy it. """
         self.date_model_controller.close()
 
     def periodic(self):
+        """ Clients must call this periodically. """
         self.date_model_controller.periodic()
 
 
 class TreeNode(object):
+
+    """
+        Represents a node in a tree, used for implementing data item filters.
+
+        Tracks cumulative child count.
+    """
+
     def __init__(self, key=None, children=None, values=None, reversed=False):
         self.key = key
         self.count = 0
@@ -204,28 +270,43 @@ class TreeNode(object):
         self.child_inserted = None
         self.child_removed = None
         self.tree_node_updated = None
+
     def __lt__(self, other):
         return self.key < other.key if not self.reversed else other.key < self.key
+
     def __le__(self, other):
         return self.key <= other.key if not self.reversed else other.key <= self.key
+
     def __eq__(self, other):
         return self.key == other.key
+
     def __ne__(self, other):
         return self.key != other.key
+
     def __gt__(self, other):
         return self.key > other.key if not self.reversed else other.key > self.key
+
     def __ge__(self, other):
         return self.key >= other.key if not self.reversed else other.key >= self.key
+
     def __hash__(self):
         return self.key.__hash__()
+
     def __repr__(self):
-        return "{0}/{1}:{2}{3}".format(self.key, self.count, " {0}".format(self.children) if self.children else str(), " <{0}>".format(len(self.values)) if self.values else str())
+        return "{0}/{1}:{2}{3}".format(self.key, self.count, " {0}".format(self.children) if self.children else str(),
+                                       " <{0}>".format(len(self.values)) if self.values else str())
+
     def __get_parent(self):
+        """ Return the parent tree node, if any. """
         return self.__weak_parent() if self.__weak_parent else None
     parent = property(__get_parent)
+
     def __set_parent(self, parent):
+        """ Set the parent tree node. Private. """
         self.__weak_parent = weakref.ref(parent) if parent else None
+
     def __get_keys(self):
+        """ Return the list of keys associated with this node by adding its key and then adding parent keys recursively. """
         keys = list()
         tree_node = self
         while tree_node is not None and tree_node.key is not None:
@@ -233,7 +314,14 @@ class TreeNode(object):
             tree_node = tree_node.parent
         return keys
     keys = property(__get_keys)
+
     def insert_value(self, keys, value):
+        """
+            Insert a value (data item) into this tree node and then its
+            children. This will be called in response to a new data item being
+            inserted into the document. Also updates the tree node's cumulative
+            child count.
+        """
         self.count += 1
         if not self.key:
             self.__value_reverse_mapping[value] = keys
@@ -255,7 +343,12 @@ class TreeNode(object):
             child.insert_value(keys[1:], value)
             if self.tree_node_updated:
                 self.tree_node_updated(child)
+
     def remove_value(self, keys, value):
+        """
+            Remove a value (data item) from this tree node and its children.
+            Also updates the tree node's cumulative child count.
+        """
         self.count -= 1
         if not self.key:
             keys = self.__value_reverse_mapping[value]

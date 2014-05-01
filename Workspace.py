@@ -47,7 +47,8 @@ class Workspace(object):
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
         self.content_row = self.ui.create_column_widget()
-        self.filter_row = self.workspace_manager.create_filter_panel(document_controller).widget
+        self.filter_panel = self.workspace_manager.create_filter_panel(document_controller)
+        self.filter_row = self.filter_panel.widget
         self.image_row = self.ui.create_column_widget()
         self.content_row.add(self.filter_row)
         self.content_row.add(self.image_row, fill=True)
@@ -84,7 +85,7 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = []
-        self.filter_row.close()
+        self.filter_panel.close()
 
     def periodic(self):
         # for each of the panels too
@@ -95,7 +96,7 @@ class Workspace(object):
             elapsed = time.time() - start
             if elapsed > 0.10:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
-        self.filter_row.periodic()
+        self.filter_panel.periodic()
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
@@ -428,7 +429,7 @@ class WorkspaceManager(object):
         self.__filter_panel_class = filter_panel_class
 
     def create_filter_panel(self, document_controller):
-        return self.__filter_panel_class(document_controller)
+        return self.__filter_panel_class(document_controller) if self.__filter_panel_class else None
 
     def get_panel_info(self, panel_id):
         assert panel_id in self.__panel_tuples
