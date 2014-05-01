@@ -301,19 +301,19 @@ class DocumentController(Observable.Broadcaster):
                 binding.container = self.recent_data_items_container
                 binding.flat = True
                 binding.filter = None
-                binding.sort = DataItemsBinding.sort_natural
+                binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
                 binding.flat = False
                 def none_filter(data_item):
                     return False
                 binding.filter = none_filter
-                binding.sort = DataItemsBinding.sort_natural
+                binding.sort = DataItemsBinding.sort_by_date_desc
             else:
                 binding.container = self.document_model
                 binding.flat = False
                 binding.filter = None
-                binding.sort = DataItemsBinding.sort_natural
+                binding.sort = DataItemsBinding.sort_by_date_desc
 
     def create_data_item_binding(self, data_group, filter_id):
         binding = DataItemsBinding.DataItemsInContainerBinding()
@@ -335,7 +335,8 @@ class DocumentController(Observable.Broadcaster):
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter
     def __set_display_filter(self, display_filter):
-        self.__filtered_data_items_binding.filter = display_filter
+        if self.__filtered_data_items_binding is not None:  # during close
+            self.__filtered_data_items_binding.filter = display_filter
     display_filter = property(__get_display_filter, __set_display_filter)
 
     def register_image_panel(self, image_panel):
