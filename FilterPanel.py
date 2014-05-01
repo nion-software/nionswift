@@ -16,7 +16,6 @@ import weakref
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
-from nion.ui import Binding
 
 _ = gettext.gettext
 
@@ -38,6 +37,9 @@ class DateModelController(object):
         The DateModelController creates, updates, and provides access to an item model controller.
 
         An item model controller is the controller associated with the UI system for displaying trees.
+
+        The item model controller represents the years, months, and days available within the list of
+        data items.
     """
 
     def __init__(self, document_controller):
@@ -48,7 +50,6 @@ class DateModelController(object):
         self.__data_item_tree = TreeNode(reversed=True)
         self.__data_item_tree_mutex = threading.RLock()
 
-        #
         self.__data_item_tree.child_inserted = self.__insert_child
         self.__data_item_tree.child_removed = self.__remove_child
         self.__data_item_tree.tree_node_updated = self.__update_tree_node
@@ -79,7 +80,7 @@ class DateModelController(object):
                 indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
                 self.__data_item_tree.remove_value(indexes, data_item)
 
-        # connect the data_items_binding from the document controller to ourself.
+        # connect the data_items_binding from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods
         # will be called.
         self.__data_item_list_binding = document_controller.data_items_binding
@@ -94,7 +95,7 @@ class DateModelController(object):
 
     def close(self):
         """
-            Close the date model controller. Unlisten to the data item list binding and close
+            Close the date model controller. Un-listen to the data item list binding and close
             the item model controller.
         """
         del self.__data_item_list_binding.inserters[id(self)]
@@ -103,7 +104,7 @@ class DateModelController(object):
         self.item_model_controller = None
 
     def __get_document_controller(self):
-        """ Return the document controller. """
+        """ The :py:class:`nion.swift.DocumentController` associated with this object. """
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
@@ -173,10 +174,14 @@ class DateModelController(object):
 
     def date_browser_selection_changed(self, selected_indexes):
         """
-            Called to handle selection changes in the tree widget. This method should be connected to
-            the on_selection_changed event. This method builds a list of keys represented by all selected
-            items. It then provides date_filter to filter data items based on the list of keys. It then
-            sets the filter into the document controller.
+            Called to handle selection changes in the tree widget.
+
+            This method should be connected to the on_selection_changed event. This method builds a list
+            of keys represented by all selected items. It then provides date_filter to filter data items
+            based on the list of keys. It then sets the filter into the document controller.
+
+            :param selected_indexes: The selected indexes
+            :type selected_indexes: list of ints
         """
         keys_list = list()
 
@@ -297,7 +302,12 @@ class TreeNode(object):
                                        " <{0}>".format(len(self.values)) if self.values else str())
 
     def __get_parent(self):
-        """ Return the parent tree node, if any. """
+        """
+            Return the parent tree node, if any. Read only.
+
+            :return: The parent tree node
+            :rtype: :py:class:`nion.swift.FilterPanel.TreeNode`
+        """
         return self.__weak_parent() if self.__weak_parent else None
     parent = property(__get_parent)
 
@@ -306,7 +316,7 @@ class TreeNode(object):
         self.__weak_parent = weakref.ref(parent) if parent else None
 
     def __get_keys(self):
-        """ Return the list of keys associated with this node by adding its key and then adding parent keys recursively. """
+        """ Return the keys associated with this node by adding its key and then adding parent keys recursively. """
         keys = list()
         tree_node = self
         while tree_node is not None and tree_node.key is not None:
