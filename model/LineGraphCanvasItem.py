@@ -176,13 +176,14 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def map_mouse_to_position(self, mouse, data_size):
         """ Map the mouse to the 1-d position within the line graph. """
-        mouse = Geometry.IntPoint.make(mouse)
-        plot_rect = self.canvas_rect
-        if plot_rect.contains_point(mouse):
-            mouse = mouse - plot_rect.origin
-            x = float(mouse.x) / plot_rect.width
-            px = self.drawn_left_channel + x * (self.drawn_right_channel - self.drawn_left_channel)
-            return px,
+        if self.drawn_left_channel is not None and self.drawn_right_channel is not None:
+            mouse = Geometry.IntPoint.make(mouse)
+            plot_rect = self.canvas_rect
+            if plot_rect.contains_point(mouse):
+                mouse = mouse - plot_rect.origin
+                x = float(mouse.x) / plot_rect.width
+                px = self.drawn_left_channel + x * (self.drawn_right_channel - self.drawn_left_channel)
+                return px,
         # not in bounds
         return None
 
