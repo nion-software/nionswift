@@ -661,7 +661,6 @@ class DataItem(Storage.StorageBase):
         self.notify_data_item_content_changed(set([DATA]))
 
     # this message comes from the displays.
-    # TODO: Figure out a clearer way for data panel to notice changes in the data items
     def display_changed(self, operation):
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
