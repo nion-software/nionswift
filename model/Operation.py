@@ -498,7 +498,7 @@ class LineProfileOperation(Operation):
             data = Image.convert_to_grayscale(data, numpy.double)
         start = self.get_property("start")
         end = self.get_property("end")
-        integration_width = self.get_property("integration_width")
+        integration_width = int(self.get_property("integration_width"))
         shape = data.shape
         integration_width = min(max(shape[0], shape[1]), integration_width)  # limit integration width to sensible value
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
