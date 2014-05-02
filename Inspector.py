@@ -495,6 +495,26 @@ def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
     graphic_widget.add_spacing(4)
 
 
+def make_line_profile_inspector(ui, graphic_widget, display, image_size, graphic):
+    def new_display_calibrated_values_binding():
+        return Binding.PropertyBinding(display, "display_calibrated_values")
+    make_line_type_inspector(ui, graphic_widget, display, image_size, graphic)
+    # configure the bindings
+    width_converter = CalibratedValueFloatToStringConverter(display, 0, 1.0)
+    width_binding = CalibratedValueBinding(Binding.PropertyBinding(graphic, "width"), new_display_calibrated_values_binding(), width_converter)
+    # create the ui
+    graphic_width_row = ui.create_row_widget()
+    graphic_width_row.add_spacing(20)
+    graphic_width_row.add(ui.create_label_widget(_("Width"), properties={"width": 40}))
+    graphic_width_line_edit = ui.create_line_edit_widget(properties={"width": 80})
+    graphic_width_line_edit.bind_text(width_binding)
+    graphic_width_row.add(graphic_width_line_edit)
+    graphic_width_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_width_row)
+    graphic_widget.add_spacing(4)
+
+
 def make_rectangle_type_inspector(ui, graphic_widget, display, image_size, graphic):
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display, "display_calibrated_values")
@@ -580,7 +600,7 @@ class GraphicsInspectorSection(InspectorSection):
             make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Operation.LineProfileGraphic):
             graphic_title_type_label.text = _("Line Profile")
-            make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_line_profile_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Graphics.RectangleGraphic):
             graphic_title_type_label.text = _("Rectangle")
             make_rectangle_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
