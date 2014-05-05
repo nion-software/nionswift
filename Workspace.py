@@ -168,7 +168,7 @@ class Workspace(object):
             print "Exception creating panel '" + panel_id + "': " + str(e)
             return None
 
-    def __create_image_panel(self, element_id):
+    def create_image_panel(self, element_id):
         image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)
         image_panel.title = _("Image")
         image_panel.element_id = element_id
@@ -179,7 +179,77 @@ class Workspace(object):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def change_layout(self, layout_id, preferred_data_items=None, adjust=None):
+    def get_image_panel_by_id(self, element_id):
+        for image_panel in self.image_panels:
+            if image_panel.element_id == element_id:
+                return image_panel
+        return None
+
+    def __default_layout_fn(self, workspace, layout_id):
+        if layout_id == "2x1":
+            image_row = self.ui.create_splitter_widget("horizontal")
+            image_panel = self.create_image_panel("primary-image")
+            image_row.add(image_panel.widget)
+            image_panel2 = self.create_image_panel("secondary-image")
+            image_row.add(image_panel2.widget)
+            return image_row, image_panel, layout_id
+        elif layout_id == "1x2":
+            image_column = self.ui.create_splitter_widget("vertical")
+            image_panel = self.create_image_panel("primary-image")
+            image_column.add(image_panel.widget)
+            image_panel2 = self.create_image_panel("secondary-image")
+            image_column.add(image_panel2.widget)
+            return image_column, image_panel, layout_id
+        elif layout_id == "3x1":
+            image_row = self.ui.create_splitter_widget("horizontal")
+            image_panel1 = self.create_image_panel("primary-image")
+            image_panel2 = self.create_image_panel("secondary-image")
+            image_panel3 = self.create_image_panel("3rd-image")
+            image_row.add(image_panel1.widget)
+            image_row.add(image_panel2.widget)
+            image_row.add(image_panel3.widget)
+            return image_row, image_panel1, layout_id
+        elif layout_id == "2x2":
+            image_row = self.ui.create_splitter_widget("horizontal")
+            image_column1 = self.ui.create_splitter_widget("vertical")
+            image_column2 = self.ui.create_splitter_widget("vertical")
+            image_row.add(image_column1)
+            image_row.add(image_column2)
+            image_panel1 = self.create_image_panel("primary-image")
+            image_panel2 = self.create_image_panel("secondary-image")
+            image_panel3 = self.create_image_panel("3rd-image")
+            image_panel4 = self.create_image_panel("4th-image")
+            image_column1.add(image_panel1.widget)
+            image_column1.add(image_panel3.widget)
+            image_column2.add(image_panel2.widget)
+            image_column2.add(image_panel4.widget)
+            return image_row, image_panel1, layout_id
+        elif layout_id == "3x2":
+            image_row = self.ui.create_splitter_widget("horizontal")
+            image_column1 = self.ui.create_splitter_widget("vertical")
+            image_column2 = self.ui.create_splitter_widget("vertical")
+            image_column3 = self.ui.create_splitter_widget("vertical")
+            image_row.add(image_column1)
+            image_row.add(image_column2)
+            image_row.add(image_column3)
+            image_panel1 = self.create_image_panel("primary-image")
+            image_panel2 = self.create_image_panel("secondary-image")
+            image_panel3 = self.create_image_panel("3rd-image")
+            image_panel4 = self.create_image_panel("4th-image")
+            image_panel5 = self.create_image_panel("5th-image")
+            image_panel6 = self.create_image_panel("6th-image")
+            image_column1.add(image_panel1.widget)
+            image_column1.add(image_panel4.widget)
+            image_column2.add(image_panel2.widget)
+            image_column2.add(image_panel5.widget)
+            image_column3.add(image_panel3.widget)
+            image_column3.add(image_panel6.widget)
+            return image_row, image_panel1, layout_id
+        else:  # default 1x1
+            image_panel = self.create_image_panel("primary-image")
+            return image_panel.widget, image_panel, "1x1"
+
+    def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
         if layout_id is not None and layout_id == self.__current_layout_id:  # check for None as special test case
             # TODO: don't change layout if new layout not requested
             pass  # return  ## tests don't pass with the check.
@@ -209,77 +279,13 @@ class Workspace(object):
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
         # create the new layout
-        if layout_id == "2x1":
-            image_row = self.ui.create_splitter_widget("horizontal")
-            image_panel = self.__create_image_panel("primary-image")
-            image_row.add(image_panel.widget)
-            image_panel2 = self.__create_image_panel("secondary-image")
-            image_row.add(image_panel2.widget)
-            self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel
-        elif layout_id == "1x2":
-            image_column = self.ui.create_splitter_widget("vertical")
-            image_panel = self.__create_image_panel("primary-image")
-            image_column.add(image_panel.widget)
-            image_panel2 = self.__create_image_panel("secondary-image")
-            image_column.add(image_panel2.widget)
-            self.image_row.add(image_column)
-            self.document_controller.selected_image_panel = image_panel
-        elif layout_id == "3x1":
-            image_row = self.ui.create_splitter_widget("horizontal")
-            image_panel1 = self.__create_image_panel("primary-image")
-            image_panel2 = self.__create_image_panel("secondary-image")
-            image_panel3 = self.__create_image_panel("3rd-image")
-            image_row.add(image_panel1.widget)
-            image_row.add(image_panel2.widget)
-            image_row.add(image_panel3.widget)
-            self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel1
-        elif layout_id == "2x2":
-            image_row = self.ui.create_splitter_widget("horizontal")
-            image_column1 = self.ui.create_splitter_widget("vertical")
-            image_column2 = self.ui.create_splitter_widget("vertical")
-            image_row.add(image_column1)
-            image_row.add(image_column2)
-            image_panel1 = self.__create_image_panel("primary-image")
-            image_panel2 = self.__create_image_panel("secondary-image")
-            image_panel3 = self.__create_image_panel("3rd-image")
-            image_panel4 = self.__create_image_panel("4th-image")
-            image_column1.add(image_panel1.widget)
-            image_column1.add(image_panel3.widget)
-            image_column2.add(image_panel2.widget)
-            image_column2.add(image_panel4.widget)
-            self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel1
-        elif layout_id == "3x2":
-            image_row = self.ui.create_splitter_widget("horizontal")
-            image_column1 = self.ui.create_splitter_widget("vertical")
-            image_column2 = self.ui.create_splitter_widget("vertical")
-            image_column3 = self.ui.create_splitter_widget("vertical")
-            image_row.add(image_column1)
-            image_row.add(image_column2)
-            image_row.add(image_column3)
-            image_panel1 = self.__create_image_panel("primary-image")
-            image_panel2 = self.__create_image_panel("secondary-image")
-            image_panel3 = self.__create_image_panel("3rd-image")
-            image_panel4 = self.__create_image_panel("4th-image")
-            image_panel5 = self.__create_image_panel("5th-image")
-            image_panel6 = self.__create_image_panel("6th-image")
-            image_column1.add(image_panel1.widget)
-            image_column1.add(image_panel4.widget)
-            image_column2.add(image_panel2.widget)
-            image_column2.add(image_panel5.widget)
-            image_column3.add(image_panel3.widget)
-            image_column3.add(image_panel6.widget)
-            self.image_row.add(image_row)
-            self.document_controller.selected_image_panel = image_panel1
-        else:  # default 1x1
-            image_panel = self.__create_image_panel("primary-image")
-            self.image_row.add(image_panel.widget)
-            if adjust is None and self.document_controller.selected_image_panel is not None:
-                preferred_data_items = [old_selected_data_item]
-            self.document_controller.selected_image_panel = image_panel
-            layout_id = "1x1"  # set this in case it was something else
+        if layout_fn is None:
+            layout_fn = self.__default_layout_fn
+        content, image_panel, layout_id = layout_fn(self, layout_id)
+        self.image_row.add(content)
+        self.document_controller.selected_image_panel = image_panel
+        if layout_id == "1x1" and adjust is None and self.document_controller.selected_image_panel is not None:
+            preferred_data_items = [old_selected_data_item]
         # restore what was displayed
         displayed_data_items = []
         # use the preferred data items first
@@ -489,13 +495,9 @@ class WorkspaceController(AbstractWorkspaceController):
     def __init__(self, document_controller, session_id):
         super(WorkspaceController, self).__init__(document_controller, session_id)
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_activations = dict()  # maps hardware_source_id to a set of activated channels
+        self.__channel_activations = set()  # maps hardware_source_id to a set of activated channels
         self.__channel_data_items = dict()  # maps channel to data item
         self.__mutex = threading.RLock()
-
-    def will_start_playing(self, hardware_source):
-        with self.__mutex:
-            self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).clear()
 
     def data_item_deleted(self, data_item):
         with self.__mutex:
@@ -503,6 +505,11 @@ class WorkspaceController(AbstractWorkspaceController):
                 if self.__channel_data_items[channel] == data_item:
                     del self.__channel_data_items[channel]
                     break
+
+    def setup_channel(self, channel, data_item):
+        with self.__mutex:
+            self.__channel_data_items[channel] = data_item
+            self.__channel_activations.add(channel)
 
     def sync_channels_to_data_items(self, channels, hardware_source):
 
@@ -565,15 +572,15 @@ class WorkspaceController(AbstractWorkspaceController):
                     context.properties["hardware_source_channel_id"] = channel
                 self.document_controller.queue_main_thread_task(lambda value=data_item: insert_data_item(value))
                 with self.__mutex:
-                    self.__channel_activations[channel] = data_item
+                    self.__channel_activations.discard(channel)
             data_item.session_id = self.session_id
             with self.__mutex:
                 self.__channel_data_items[channel] = data_item
                 data_items[channel] = data_item
                 # check to see if its been activated. if not, activate it.
-                if channel not in self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()):
+                if channel not in self.__channel_activations:
                     self.document_controller.queue_main_thread_task(lambda value=data_item: activate_data_item(value))
-                    self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
+                    self.__channel_activations.add(channel)
 
         return data_items
 
