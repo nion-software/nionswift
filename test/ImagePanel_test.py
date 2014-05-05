@@ -71,13 +71,24 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.image_canvas_item.mouse_released(p2[1], p2[0], modifiers)
 
     # user deletes data item that is displayed. make sure we remove the display.
-    def test_disappearing_data(self):
+    def test_deleting_data_item_removes_it_from_image_panel(self):
         self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
         self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
         self.document_controller.processing_invert()
         self.document_controller.periodic()
         self.image_panel.set_displayed_data_item(self.data_item)
         self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
+        self.document_model.remove_data_item(self.data_item)
+        self.assertIsNone(self.image_panel.get_displayed_data_item())
+
+    # user deletes data source of data item that is displayed. make sure to remove display if source is deleted.
+    def test_deleting_data_item_with_processed_data_item_removes_processed_data_item_from_image_panel(self):
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
+        self.document_controller.processing_invert()
+        self.document_controller.periodic()
+        self.image_panel.set_displayed_data_item(self.data_item.data_items[0])
+        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item.data_items[0])
         self.document_model.remove_data_item(self.data_item)
         self.assertIsNone(self.image_panel.get_displayed_data_item())
 

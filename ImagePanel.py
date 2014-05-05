@@ -1339,10 +1339,14 @@ class ImagePanel(Panel.Panel):
     # display = property(__get_display, __set_display)  # can we get away without this?
 
     # this message comes from the document model.
-    def data_item_deleted(self, data_item):
-        # if our item gets deleted, clear the selection
-        if data_item == self.get_displayed_data_item():
-            self.__set_display(None)
+    def data_item_deleted(self, deleted_data_item):
+        data_item = self.get_displayed_data_item()
+        while data_item is not None:
+            # if our item gets deleted, clear the selection
+            if deleted_data_item == data_item:
+                self.__set_display(None)
+                break
+            data_item = data_item.data_source
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __begin_drag(self):
