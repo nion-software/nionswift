@@ -415,6 +415,16 @@ class AbstractWorkspaceController(object):
     def __init__(self, document_controller, session_id):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.session_id = session_id
+        # this results in data_item_deleted messages
+        self.document_controller.document_model.add_listener(self)
+
+    def close(self):
+        """
+            Subclasses can override this method to perform close actions and must call super.
+
+            Clients should call this to close down the workspace controller.
+        """
+        self.document_controller.document_model.remove_listener(self)
 
     def __get_document_controller(self):
         """ The document controller. """
@@ -480,11 +490,19 @@ class WorkspaceController(AbstractWorkspaceController):
         super(WorkspaceController, self).__init__(document_controller, session_id)
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
         self.__channel_activations = dict()  # maps hardware_source_id to a set of activated channels
-        self.__channel_activations_mutex = threading.RLock()
+        self.__channel_data_items = dict()  # maps channel to data item
+        self.__mutex = threading.RLock()
 
     def will_start_playing(self, hardware_source):
-        with self.__channel_activations_mutex:
+        with self.__mutex:
             self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).clear()
+
+    def data_item_deleted(self, data_item):
+        with self.__mutex:
+            for channel in self.__channel_data_items.keys():
+                if self.__channel_data_items[channel] == data_item:
+                    del self.__channel_data_items[channel]
+                    break
 
     def sync_channels_to_data_items(self, channels, hardware_source):
 
@@ -502,23 +520,27 @@ class WorkspaceController(AbstractWorkspaceController):
             if self.document_controller:
                 self.document_controller.set_data_item_selection(data_item_to_activate)
 
-        data_item_set = {}
+        data_items = {}
 
         # for each channel, see if a matching data item exists.
         # if it does, check to see if it matches this hardware source.
         # if no matching data item exists, create one.
         for channel in channels:
-            data_item_name = "%s.%s" % (hardware_source.display_name, channel)
-            # only use existing data item if it has a data buffer that matches
-            data_item = DataGroup.get_data_item_in_container_by_title(document_model, data_item_name)
+            data_item = None
+            do_copy = False
+
+            with self.__mutex:
+                if channel in self.__channel_data_items:
+                    data_item = self.__channel_data_items[channel]
+
             # to reuse, first verify that the hardware source id, if any, matches
             if data_item:
                 hardware_source_id = data_item.properties.get("hardware_source_id")
-                if hardware_source_id != hardware_source.hardware_source_id:
+                hardware_source_channel_id = data_item.properties["hardware_source_channel_id"]
+                if hardware_source_id != hardware_source.hardware_source_id or hardware_source_channel_id != channel:
                     data_item = None
             # if everything but session or live-ness matches, copy it and re-use.
             # this keeps the users display preferences intact.
-            do_copy = False
             if data_item and data_item.properties.get("session_id", str()) != self.session_id:
                 do_copy = True
             # finally, verify that this data item is live. if it isn't live, copy it and add the
@@ -537,21 +559,23 @@ class WorkspaceController(AbstractWorkspaceController):
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.add_ref()  # this will be balanced in insert_data_item
-                data_item.title = data_item_name
+                data_item.title = "%s.%s" % (hardware_source.display_name, channel)
                 with data_item.property_changes() as context:
                     context.properties["hardware_source_id"] = hardware_source.hardware_source_id
+                    context.properties["hardware_source_channel_id"] = channel
                 self.document_controller.queue_main_thread_task(lambda value=data_item: insert_data_item(value))
-                with self.__channel_activations_mutex:
-                    self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
+                with self.__mutex:
+                    self.__channel_activations[channel] = data_item
             data_item.session_id = self.session_id
-            data_item_set[channel] = data_item
-            # check to see if its been activated. if not, activate it.
-            with self.__channel_activations_mutex:
+            with self.__mutex:
+                self.__channel_data_items[channel] = data_item
+                data_items[channel] = data_item
+                # check to see if its been activated. if not, activate it.
                 if channel not in self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()):
                     self.document_controller.queue_main_thread_task(lambda value=data_item: activate_data_item(value))
                     self.__channel_activations.setdefault(hardware_source.hardware_source_id, set()).add(channel)
 
-        return data_item_set
+        return data_items
 
 
 class WorkspaceManager(object):
