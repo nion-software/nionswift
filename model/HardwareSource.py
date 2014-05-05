@@ -73,11 +73,11 @@ class HardwareSourceManager(Observable.Broadcaster):
     # handle acquisition style devices
 
     # not thread safe
-    def start_hardware_source(self, session, hardware_source, mode=None):
+    def start_hardware_source(self, workspace_controller, hardware_source, mode=None):
         if not isinstance(hardware_source, HardwareSource):
             hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
         assert hardware_source is not None
-        hardware_source.start_playing(session, mode)
+        hardware_source.start_playing(workspace_controller, mode)
 
     # not thread safe
     def abort_hardware_source(self, hardware_source):
@@ -202,7 +202,7 @@ class HardwareSource(Observable.Broadcaster):
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
-        self.__session = None  # the session when last started.
+        self.__workspace_controller = None  # the workspace_controller when last started.
         self.frame_index = 0
         self.__mode = None
         self.__mode_data = dict()
@@ -350,11 +350,11 @@ class HardwareSource(Observable.Broadcaster):
 
     # call this to start acquisition
     # not thread safe
-    def start_playing(self, session, mode=None):
+    def start_playing(self, workspace_controller, mode=None):
         if not self.data_buffer.is_playing:
             self.__abort_signal = False
-            self.__session = session
-            self.__session.will_start_playing(self)
+            self.__workspace_controller = workspace_controller
+            self.__workspace_controller.will_start_playing(self)
             self.data_buffer.start()
             self.notify_listeners("hardware_source_started", self)
 
@@ -364,8 +364,8 @@ class HardwareSource(Observable.Broadcaster):
         if self.data_buffer.is_playing:
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
-            self.__session.did_stop_playing(self)
-            # self.__session = None  # Do not clear the session here.
+            self.__workspace_controller.did_stop_playing(self)
+            # self.__workspace_controller = None  # Do not clear the workspace_controller here.
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -430,7 +430,7 @@ class HardwareSource(Observable.Broadcaster):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.__session.sync_channels_to_data_items(channels, self)
+        new_channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self)
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():

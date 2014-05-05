@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import gettext
 import numbers
 import os.path
@@ -16,7 +17,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
-from nion.swift.model import Session
 from nion.swift.model import Storage
 
 _ = gettext.gettext
@@ -33,7 +33,8 @@ class DocumentModel(Storage.StorageBase):
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.__data_items = Storage.MutableRelationship(self, "data_items")
-        self.session = Session.Session(self)
+        self.session_id = None
+        self.start_new_session()
         if self.datastore.initialized:
             self.__read()
         else:
@@ -46,8 +47,6 @@ class DocumentModel(Storage.StorageBase):
             self.remove_data_item(data_item)
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
-        # clear the session last because filters might be using it when removing other items
-        self.session = None
 
     # TODO: make DocumentModel.read private
     def __read(self):
@@ -62,6 +61,9 @@ class DocumentModel(Storage.StorageBase):
         self.data_groups.extend(data_groups)
         self.__data_items.extend(data_items)
         self.datastore.disconnected = False
+
+    def start_new_session(self):
+        self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
     def append_data_item(self, data_item):
         self.__data_items.append(data_item)

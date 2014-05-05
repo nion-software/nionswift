@@ -3,9 +3,9 @@ import time
 
 import numpy as np
 
+from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
-from nion.swift.model import Session
 from nion.swift.model import Storage
 
 
@@ -27,6 +27,21 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
 
 SimpleHardwareSource.image = np.zeros(256)
+
+
+class DummyWorkspaceController(object):
+
+    def did_stop_playing(self, hardware_source):
+        pass
+
+    def will_start_playing(self, hardware_source):
+        pass
+
+    def sync_channels_to_data_items(self, channels, hardware_source):
+        data_item_set = {}
+        for channel in channels:
+            data_item_set[channel] = DataItem.DataItem()
+        return data_item_set
 
 
 class TestHardwareSourceClass(unittest.TestCase):
@@ -89,15 +104,14 @@ class TestHardwareSourceClass(unittest.TestCase):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_model.add_ref()
-        session = Session.Session(document_model)
+        workspace_controller = DummyWorkspaceController()
         source = SimpleHardwareSource(0.01)
         self.assertEqual(source.frame_index, 0)
-        source.start_playing(session)
+        source.start_playing(workspace_controller)
         while source.frame_index < 3:
             time.sleep(0.01)
         source.abort_playing()
         source.data_buffer.current_snapshot = 0
-        session.periodic()
         source.close()
         document_model.remove_ref()
 

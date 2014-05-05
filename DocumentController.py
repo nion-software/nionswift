@@ -40,7 +40,6 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
-        self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
         self.workspace = None
         self.app = app
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
@@ -92,10 +91,6 @@ class DocumentController(Observable.Broadcaster):
     def about_to_close(self, geometry, state):
         self.workspace.save_geometry_state(geometry, state)
         self.close()
-
-    def activation_changed(self, activated):
-        if self.document_model and self.document_model.session:
-            self.document_model.session.document_controller_activation_changed(self, activated)
 
     def register_console(self, console):
         self.console = console
@@ -266,14 +261,14 @@ class DocumentController(Observable.Broadcaster):
     def periodic(self):
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
-        if self.document_model and self.document_model.session:
-            # for sessions
-            self.document_model.session.periodic()
         # workspace
         if self.workspace:
             self.workspace.periodic()
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.periodic()
+
+    def create_workspace_controller(self):
+        return Workspace.WorkspaceController(self, self.document_model.session_id)
 
     def __get_data_items_binding(self):
         return self.__data_items_binding
@@ -294,7 +289,7 @@ class DocumentController(Observable.Broadcaster):
                 binding.container = self.document_model
                 binding.flat = False
                 def latest_session_filter(data_item):
-                    return data_item.session_id == self.document_model.session.session_id
+                    return data_item.session_id == self.document_model.session_id
                 binding.filter = latest_session_filter
                 binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "recent":
