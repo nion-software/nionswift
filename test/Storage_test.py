@@ -588,6 +588,33 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
+    def test_writing_empty_data_item_followed_by_writing_data_adds_correct_calibrations(self):
+        # this failed due to a key aliasing issue.
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # create empty data item
+        data_item = DataItem.DataItem()
+        document_model.append_data_item(data_item)
+        data_item.begin_transaction()
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+        data_item.end_transaction()
+        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        # save it out
+        storage_data = datastore.to_data()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify calibrations
+        self.assertEqual(len(document_model.data_items[0].intrinsic_calibrations), 2)
+        # clean up
+        document_controller.close()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

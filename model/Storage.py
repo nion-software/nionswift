@@ -339,7 +339,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     def notify_set_property(self, key, value):
         if key in self.storage_properties:
             if self.datastore:  # properties are not affected by transactions
-                self.datastore.set_property(self, key, value)
+                resolved_key = self.__reverse_aliases.get(key, key)
+                self.datastore.set_property(self, resolved_key, value)
         super(StorageBase, self).notify_set_property(key, value)
 
     def notify_set_item(self, key, item):
@@ -347,7 +348,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             assert item is not None
             if self.datastore:  # items are not affected by transactions
                 item.datastore = self.datastore
-                self.datastore.set_item(self, key, item)
+                resolved_key = self.__reverse_aliases.get(key, key)
+                self.datastore.set_item(self, resolved_key, item)
             if self.storage_cache:
                 item.storage_cache = self.storage_cache
             if item:
@@ -360,7 +362,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             if item:
                 if self.datastore:
                     # items are not affected by transactions
-                    self.datastore.clear_item(self, key)
+                    resolved_key = self.__reverse_aliases.get(key, key)
+                    self.datastore.clear_item(self, resolved_key)
                     item.datastore = None
                 if self.storage_cache:
                     item.storage_cache = None
@@ -383,7 +386,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             assert value is not None
             if self.datastore:  # items are not affected by transactions
                 value.datastore = self.datastore
-                self.datastore.insert_item(self, key, value, before_index)
+                resolved_key = self.__reverse_aliases.get(key, key)
+                self.datastore.insert_item(self, resolved_key, value, before_index)
             if self.storage_cache:
                 value.storage_cache = self.storage_cache
             value.add_parent(self)
@@ -394,7 +398,8 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
             assert value is not None
             if self.datastore:
                 # items are not affected by transactions
-                self.datastore.remove_item(self, key, index)
+                resolved_key = self.__reverse_aliases.get(key, key)
+                self.datastore.remove_item(self, resolved_key, index)
                 value.datastore = None
             if self.storage_cache:
                 value.storage_cache = None
