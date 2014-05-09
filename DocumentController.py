@@ -56,8 +56,6 @@ class DocumentController(Observable.Broadcaster):
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
 
-        self.recent_data_items_container = DataItemsBinding.DataItemQueueContainer()
-
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -294,11 +292,6 @@ class DocumentController(Observable.Broadcaster):
                     return data_item.session_id == self.document_model.session_id
                 binding.filter = latest_session_filter
                 binding.sort = DataItemsBinding.sort_by_date_desc
-            elif filter_id == "recent":
-                binding.container = self.recent_data_items_container
-                binding.flat = True
-                binding.filter = None
-                binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
                 binding.flat = False
@@ -387,17 +380,6 @@ class DocumentController(Observable.Broadcaster):
                 data_panel.update_data_item_selection(data_item)
             else:
                 data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
-
-    def note_new_recent_data_item(self, data_item):
-        """ Register a data item into the most recent used list. """
-        assert data_item is not None
-        assert isinstance(data_item, DataItem.DataItem)
-        self.recent_data_items_container.insert_data_item(data_item)
-
-    def __get_recent_data_items(self):
-        """ Return up to the most recent data items that the user has placed in display panels. """
-        return self.recent_data_items_container.data_items
-    recent_data_items = property(__get_recent_data_items)
 
     # access the currently selected data item. read only.
     def __get_selected_data_item(self):

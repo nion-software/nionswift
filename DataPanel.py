@@ -110,7 +110,6 @@ class DataPanel(Panel.Panel):
             # build the items
             self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, None)))
             self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, "latest-session")))
-            self.__append_item_controller(_("Recent"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, "recent")))
 
         def close(self):
             for item_controller in self.__item_controllers:
@@ -564,8 +563,6 @@ class DataPanel(Panel.Panel):
                 index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
                 if index == 1:
                     self.update_data_panel_selection(DataPanelSelection(filter_id="latest-session"))
-                elif index == 2:
-                    self.update_data_panel_selection(DataPanelSelection(filter_id="recent"))
                 else:
                     self.update_data_panel_selection(DataPanelSelection())
 
@@ -662,11 +659,6 @@ class DataPanel(Panel.Panel):
             def __init__(self, items):
                 super(StringListBinding, self).__init__(None)
                 self.items = items
-
-        string_list_binding_type = StringListBinding(["All", "Recent"])
-
-        #library_list_widget = ui.create_new_list_widget(lambda item: create_list_item_widget(self.ui, item))
-        #library_list_widget.bind_items(string_list_binding_type)
 
         library_section_widget = ui.create_column_widget()
         library_section_widget.add_spacing(4)
@@ -779,8 +771,6 @@ class DataPanel(Panel.Panel):
             self.data_group_widget.clear_current_row()
             if filter_id == "latest-session":
                 self.library_widget.set_current_row(1, -1, 0)
-            elif filter_id == "recent":
-                self.library_widget.set_current_row(2, -1, 0)
             else:
                 self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking

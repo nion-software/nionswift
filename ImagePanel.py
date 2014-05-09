@@ -1333,9 +1333,6 @@ class ImagePanel(Panel.Panel):
             self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
             self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
             # note: data_ref_count has already been incremented above.
-        # let the document controller update the recent data item list
-        if display is not None:
-            self.document_controller.note_new_recent_data_item(display.data_item)
     # display = property(__get_display, __set_display)  # can we get away without this?
 
     # this message comes from the document model.
