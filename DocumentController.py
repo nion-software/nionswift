@@ -281,10 +281,12 @@ class DocumentController(Observable.Broadcaster):
     def update_data_item_binding(self, binding, data_group, filter_id):
         with binding.changes():  # change filter and sort together
             if data_group is not None:
+                def sort_natural():
+                    return DataItemsBinding.sort_natural(data_group)
                 binding.container = data_group
                 binding.flat = False
                 binding.filter = None
-                binding.sort = DataItemsBinding.sort_natural
+                binding.sort = sort_natural
             elif filter_id == "latest-session":
                 binding.container = self.document_model
                 binding.flat = False
