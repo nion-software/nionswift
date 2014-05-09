@@ -160,6 +160,18 @@ class HardwareSourceManager(Observable.Broadcaster):
         return None
 
     def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name):
+        """
+            Configure a hardware source alias.
+
+            Callers can use the alias to refer to the hardware source. This allows easier configuration.
+            The alias should be lowercase, no spaces. The display name may be used to display alias to
+            the user. The original harwdare source id and the alias hardware source id should never be
+            shown to end users.
+
+            :param str hardware_source_id: the hardware source id (lowercase, no spaces)
+            :param str alias_hardware_source_id: the alias of the hardware source id (lowercase, no spaces)
+            :param str display_name: the display name for the alias
+        """
         self.__hardware_source_aliases[alias_hardware_source_id] = (hardware_source_id, display_name)
 
 
