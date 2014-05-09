@@ -745,6 +745,29 @@ class DocumentController(Observable.Broadcaster):
     def create_selected_data_item_binding(self):
         return SelectedDataItemBinding(self)
 
+    def show_context_menu_for_data_item(self, container, data_item, gx, gy):
+        if data_item:
+            menu = self.ui.create_context_menu(self.document_window)
+            def delete():
+                if container and data_item in container.data_items:
+                    container.remove_data_item(data_item)
+            def show_source():
+                self.sync_data_item(data_item.data_source)
+            def show_in_new_window():
+                self.new_window("data", DataPanel.DataPanelSelection(container, data_item, self.__data_items_binding.filter_id))
+            menu.add_menu_item(_("Open in New Window"), show_in_new_window)
+            if data_item.has_data_source:
+                menu.add_menu_item(_("Go to Source"), show_source)
+            menu.add_menu_item(_("Delete"), delete)
+            dependent_data_items = self.document_model.get_dependent_data_items(data_item)
+            if len(dependent_data_items) > 0:
+                menu.add_separator()
+                for dependent_data_item in dependent_data_items:
+                    def show_dependent_data_item():
+                        self.sync_data_item(dependent_data_item)
+                menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), show_dependent_data_item)
+            menu.popup(gx, gy)
+
 
 # binding to the selected data item in the document controller
 # the selected data item may be in an image panel, in the data panel,

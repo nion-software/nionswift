@@ -616,6 +616,15 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
         self.data_item_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
 
+        def context_menu_event(x, y, gx, gy):
+            index = self.data_item_widget.get_row_at_pos(x, y)
+            data_item = self.data_item_model_controller.get_data_item_by_index(index)
+            if data_item:
+                container = DataGroup.get_data_item_container(self.data_item_model_controller.container, data_item)
+                self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
+
+        self.data_item_widget.on_context_menu_event = context_menu_event
+
         library_label_row = ui.create_row_widget()
         library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
         library_label_row.add_spacing(8)

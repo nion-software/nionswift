@@ -540,6 +540,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.end_tracking()
         return False
 
+    def context_menu_event(self, x, y, gx, gy):
+        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display.data_item, gx, gy)
+        return True
+
     def reset_horizontal(self):
         self.__display.left_channel = None
         self.__display.right_channel = None
@@ -953,6 +957,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def pan_gesture(self, dx, dy):
         self.update_image_canvas_position((dy, dx))
+        return True
+
+    def context_menu_event(self, x, y, gx, gy):
+        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display.data_item, gx, gy)
         return True
 
     # ths message comes from the widget
