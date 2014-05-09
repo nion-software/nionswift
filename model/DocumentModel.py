@@ -182,12 +182,14 @@ class DocumentModel(Storage.StorageBase):
             # become an observer of every data group and data item
             #logging.debug("add observer [5] %s %s", data_item, self)
             data_item.add_observer(self)
+            data_item.add_listener(self)
             # update data item count
             counted_data_items.update([data_item])
             # and the children
             for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
                 #logging.debug("add observer [4] %s %s", child_data_item, self)
                 child_data_item.add_observer(self)
+                child_data_item.add_listener(self)
                 # update data item count
                 counted_data_items.update([child_data_item])
             self.__update_counted_data_items(counted_data_items)
@@ -201,10 +203,12 @@ class DocumentModel(Storage.StorageBase):
             # become an observer of every data group and data item
             for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
                 #logging.debug("remove observer [4] %s %s", child_data_item, self)
+                child_data_item.remove_listener(self)
                 child_data_item.remove_observer(self)
                 # update data item count
                 counted_data_items.update([child_data_item])
             #logging.debug("remove observer [5] %s %s", data_item, self)
+            data_item.remove_listener(self)
             data_item.remove_observer(self)
             # update data item count
             counted_data_items.update([data_item])
@@ -217,6 +221,10 @@ class DocumentModel(Storage.StorageBase):
     def data_item_property_changed(self, data_item, property, value):
         self.notify_parents("data_item_property_changed", data_item, property, value)
         self.notify_listeners("data_item_property_changed", data_item, property, value)
+
+    # this message comes from a data item when it wants to be removed from the document. ugh.
+    def request_remove_data_item(self, data_item):
+        DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)
 
     # TODO: what about thread safety for these classes?
 

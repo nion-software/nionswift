@@ -239,28 +239,13 @@ class Display(Storage.StorageBase):
             for processor in self.__processors.values():
                 processor.data_item_changed()
 
-    # this is called from the data item when an operation is inserted into one of
-    # its child data items. this method updates the drawn graphics list.
-    def operation_inserted_into_child_data_item(self, child_data_item, child_operation_item):
-        # first count the graphics intrinsic to this object.
-        index = len(self.graphics)
-        # now cycle through each data item.
-        for data_item in self.data_item.data_items:
-            # and each operation within that data item.
-            for operation_item in data_item.operations:
-                operation_graphics = operation_item.graphics
-                # if this is the match operation, do the insert
-                if data_item == child_data_item and operation_item == child_operation_item:
-                    for operation_graphic in reversed(operation_graphics):
-                        operation_graphic.add_listener(self)
-                        self.__drawn_graphics.insert(index, operation_graphic)
-                        return  # done
-                # otherwise count up the graphics and continue
-                index += len(operation_graphics)
+    def add_operation_graphics(self, operation_graphics):
+        for operation_graphic in operation_graphics:
+            operation_graphic.add_listener(self)
+            self.__drawn_graphics.append(operation_graphic)
 
-    def operation_removed_from_child_data_item(self, operation_item):
-        # removal is easier since we don't need an insert point
-        for operation_graphic in operation_item.graphics:
+    def remove_operation_graphics(self, operation_graphics):
+        for operation_graphic in operation_graphics:
             operation_graphic.remove_listener(self)
             self.__drawn_graphics.remove(operation_graphic)
 
@@ -296,13 +281,7 @@ class Display(Storage.StorageBase):
         if drawn_graphic in self.__graphics:
             self.__graphics.remove(drawn_graphic)
         else:  # a synthesized graphic
-            # cycle through each data item.
-            for data_item in self.data_item.data_items:
-                # and each operation within that data item.
-                for operation_item in data_item.operations:
-                    operation_graphics = operation_item.graphics
-                    if drawn_graphic in operation_graphics:
-                        self.data_item.data_items.remove(data_item)
+            drawn_graphic.notify_remove_operation_graphic()
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.

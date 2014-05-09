@@ -236,8 +236,6 @@ class DataItem(Storage.StorageBase):
     def about_to_delete(self):
         self.closed = True
         self.__shared_thread_pool.close()
-        self.data_source = None
-        self.__set_master_data(None)
         for data_item in copy.copy(self.data_items):
             self.data_items.remove(data_item)
         for calibration in copy.copy(self.intrinsic_calibrations):
@@ -247,6 +245,8 @@ class DataItem(Storage.StorageBase):
             self.operations.remove(operation)
         for display in copy.copy(self.displays):
             self.displays.remove(display)
+        self.data_source = None
+        self.__set_master_data(None)
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
@@ -546,6 +546,8 @@ class DataItem(Storage.StorageBase):
             value.add_listener(self)
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
+            if self.data_source:
+                self.data_source.add_operation_graphics_to_displays(value.graphics)
         elif key == "displays":
             value.add_listener(self)
             value._set_data_item(self)
@@ -555,8 +557,8 @@ class DataItem(Storage.StorageBase):
             value.data_source = self
             self.notify_data_item_content_changed(set([CHILDREN]))
             self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            for operation_index, operation_item in enumerate(value.operations):
-                self.item_inserted(value, "operations", operation_item, operation_index)
+            for operation_item in value.operations:
+                self.add_operation_graphics_to_displays(operation_item.graphics)
             value.add_observer(self)
         elif key == "intrinsic_calibrations":
             value.add_listener(self)
@@ -568,14 +570,16 @@ class DataItem(Storage.StorageBase):
             value.remove_listener(self)
             self.sync_operations()
             self.notify_data_item_content_changed(set([DATA]))
+            if self.data_source:
+                self.data_source.remove_operation_graphics_from_displays(value.graphics)
         elif key == "displays":
             value._set_data_item(None)
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAYS]))
         elif key == "data_items":
             value.remove_observer(self)
-            for operation_index, operation_item in enumerate(reversed(value.operations)):
-                self.item_removed(value, "operations", operation_item, operation_index)
+            for operation_item in value.operations:
+                self.remove_operation_graphics_from_displays(operation_item.graphics)
             self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
             self.notify_listeners("data_item_removed", self, value, index, False)
             value.data_source = None
@@ -584,25 +588,15 @@ class DataItem(Storage.StorageBase):
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([METADATA]))
 
-    # this message is received when an item being listened to (child data items)
-    # has something inserted.
-    def item_inserted(self, parent, key, object, before_index):
-        # watch for operations being inserted into child data items
-        # the parent parameter is the child data item and
-        # the object parameter is the child data item operation being inserted.
-        if parent in self.data_items and key == "operations":
-            for display in self.displays:
-                display.operation_inserted_into_child_data_item(parent, object)
+    # this message is received by other data items using this one as a data source.
+    def add_operation_graphics_to_displays(self, operation_graphics):
+        for display in self.displays:
+            display.add_operation_graphics(operation_graphics)
 
-    # this message is received when an item being listened to (child data items)
-    # has something removed.
-    def item_removed(self, parent, key, item, index):
-        # watch for operations being removed from child data items
-        # the parent parameter is a child data item and has already been removed from self.data_items
-        # the item parameter is the child data item operation being removed.
-        if key == "operations":
-            for display in self.displays:
-                display.operation_removed_from_child_data_item(item)
+    # this message is received by other data items using this one as a data source.
+    def remove_operation_graphics_from_displays(self, operation_graphics):
+        for display in self.displays:
+            display.remove_operation_graphics(operation_graphics)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -654,11 +648,18 @@ class DataItem(Storage.StorageBase):
     def calibration_changed(self, calibration):
         self.notify_data_item_content_changed(set([METADATA]))
 
-    # this message comes from the operation. the connection is managed
+    # this message comes from the operation.
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         self.notify_data_item_content_changed(set([DATA]))
+
+    # this message comes from the operation.
+    # it is generated when the user deletes a operation graphic.
+    # that informs the display which notifies the graphic which
+    # notifies the operation which notifies this data item. ugh.
+    def remove_operation(self, operation):
+        self.notify_listeners("request_remove_data_item", self)
 
     # this message comes from the displays.
     def display_changed(self, operation):

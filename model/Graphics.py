@@ -193,6 +193,8 @@ class Graphic(Storage.StorageBase):
         self.notify_listeners("graphic_changed", self)
     def nudge(self, mapping, delta):
         raise NotImplementedError()
+    def notify_remove_operation_graphic(self):
+        self.notify_listeners("remove_operation_graphic", self)
 
 
 class RectangleTypeGraphic(Graphic):

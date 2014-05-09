@@ -106,6 +106,7 @@ class OperationItem(Storage.StorageBase):
             graphic = LineProfileGraphic()
             graphic.color = "#FF0"
             graphic.end_arrow_enabled = True
+            graphic.add_listener(self)
             self.__graphics.append(graphic)
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "start", graphic, "start"))
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "end", graphic, "end"))
@@ -113,10 +114,13 @@ class OperationItem(Storage.StorageBase):
         elif self.operation_id == "crop-operation":
             graphic = Graphics.RectangleGraphic()
             graphic.color = "#FF0"
+            graphic.add_listener(self)
             self.__graphics.append(graphic)
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "bounds", graphic, "bounds"))
 
     def about_to_delete(self):
+        for graphic in self.__graphics:
+            graphic.remove_listener(self)
         self.__graphics = None
         for binding in self.__bindings:
             binding.close()
@@ -230,6 +234,9 @@ class OperationItem(Storage.StorageBase):
     def notify_set_property(self, key, value):
         super(OperationItem, self).notify_set_property(key, value)
         self.notify_listeners("operation_changed", self)
+
+    def remove_operation_graphic(self, operation_graphic):
+        self.notify_listeners("remove_operation", self)
 
 
 class Singleton(type):
