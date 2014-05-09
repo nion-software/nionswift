@@ -282,26 +282,22 @@ class DocumentController(Observable.Broadcaster):
                 def sort_natural():
                     return DataItemsBinding.sort_natural(data_group)
                 binding.container = data_group
-                binding.flat = False
                 binding.filter = None
                 binding.sort = sort_natural
             elif filter_id == "latest-session":
                 binding.container = self.document_model
-                binding.flat = False
                 def latest_session_filter(data_item):
                     return data_item.session_id == self.document_model.session_id
                 binding.filter = latest_session_filter
                 binding.sort = DataItemsBinding.sort_by_date_desc
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
-                binding.flat = False
                 def none_filter(data_item):
                     return False
                 binding.filter = none_filter
                 binding.sort = DataItemsBinding.sort_by_date_desc
             else:
                 binding.container = self.document_model
-                binding.flat = False
                 binding.filter = None
                 binding.sort = DataItemsBinding.sort_by_date_desc
 

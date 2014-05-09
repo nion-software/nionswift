@@ -23,8 +23,8 @@ class AbstractDataItemsBinding(Binding.Binding):
     """
         Abstract base class to track a list of data items, generating insert and remove messages.
 
-        Subclasses should override _build_data_items and _get_master_data_items. This class will
-        automatically generate insert and remove messages when _update_data_items is called.
+        Subclasses can override _get_master_data_items and call _update_data_items to automatically
+        generate insert and remove messages.
 
         This class implements a filter function and a sorting function. Both the filter and
         sorting can be changed on the fly and this class will generate the appropriate insert
@@ -49,7 +49,6 @@ class AbstractDataItemsBinding(Binding.Binding):
         self.removers = dict()
         self.__filter = None
         self.__sort = None
-        self.__flat = False
         self.__change_level = 0
 
     def begin_change(self):
@@ -96,17 +95,6 @@ class AbstractDataItemsBinding(Binding.Binding):
         self._update_data_items()
     filter = property(__get_filter, __set_filter)
 
-    # allow non-masters. 'get' has to be inheritable. ugh.
-    def _get_flat(self):
-        """ Return whether data item list is flattened. """
-        return self.__flat
-    def __set_flat(self, flat):
-        """ Set whether data item list is flattened. """
-        with self._update_mutex:
-            self.__flat = flat
-        self._update_data_items()
-    flat = property(_get_flat, __set_flat)
-
     # thread safe
     # data items are the currently filtered and sorted list.
     def __get_data_items(self):
@@ -125,7 +113,7 @@ class AbstractDataItemsBinding(Binding.Binding):
         raise NotImplementedError()
 
     # thread safe.
-    def _build_data_items(self):
+    def __build_data_items(self):
         """
             Build the data items from the master data items list.
 
@@ -133,7 +121,7 @@ class AbstractDataItemsBinding(Binding.Binding):
         """
         master_data_items = list()
         for data_item in self._get_master_data_items():
-            if self.flat or data_item.has_master_data:
+            if data_item.has_master_data:
                 master_data_items.append(data_item)
         assert len(set(master_data_items)) == len(master_data_items)
         # sort the master data list
@@ -148,8 +136,7 @@ class AbstractDataItemsBinding(Binding.Binding):
             if self.filter is None or self.filter(data_item):
                 # add data item and its dependent data items
                 data_items.append(data_item)
-                if not self.flat:
-                    data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
+                data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
         return data_items
 
     # thread safe.
@@ -163,7 +150,7 @@ class AbstractDataItemsBinding(Binding.Binding):
         with self._update_mutex:
             # first build the new data_items list, including data items with master data.
             old_data_items = copy.copy(self.__data_items)
-            data_items = self._build_data_items()
+            data_items = self.__build_data_items()
             # now generate the insert/remove instructions to make the official
             # list match the proposed list.
             assert len(set(self._get_master_data_items())) == len(self._get_master_data_items())
@@ -228,7 +215,6 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
-        self.flat = data_items_binding.flat
 
     def close(self):
         del self.__data_items_binding.inserters[id(self)]
