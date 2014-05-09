@@ -179,7 +179,7 @@ class DocumentModel(Storage.StorageBase):
             # item will be removed, stop observing
             self.item_removed(self, key, value, index)
 
-    def item_inserted(self, parent, key, item, before):
+    def item_inserted(self, parent, key, item, before_index):
         # watch for data items inserted into this document model or into other data items
         # but not into data groups.
         if key == "data_items" and parent == self:
@@ -191,6 +191,7 @@ class DocumentModel(Storage.StorageBase):
             data_item.add_listener(self)
             # update data item count
             counted_data_items.update([data_item])
+            self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
             self.__update_counted_data_items(counted_data_items)
 
     def item_removed(self, parent, key, item, index):
@@ -205,6 +206,7 @@ class DocumentModel(Storage.StorageBase):
             # update data item count
             counted_data_items.update([data_item])
             self.__subtract_counted_data_items(counted_data_items)
+            self.notify_listeners("data_item_removed", self, data_item, index, False)
             if data_item.get_observer_count(self) == 0:
                 self.notify_listeners("data_item_deleted", data_item)
 

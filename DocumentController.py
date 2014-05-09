@@ -315,15 +315,7 @@ class DocumentController(Observable.Broadcaster):
 
     def set_data_group_or_filter(self, data_group, filter_id):
         if self.__data_items_binding is not None:
-            # this is done in two steps, as an ugly ugly hack.
-            # TODO: Fix the filter update hack.
-            # the purpose is to clear out the data items in the filtered data items binding
-            # so that the level gets recalculated. otherwise the data panel simply re-uses
-            # the existing data item and level. this is a bad design.
-            with self.__filtered_data_items_binding.changes():
-                self.update_data_item_binding(self.__data_items_binding, None, "none")
-            with self.__filtered_data_items_binding.changes():
-                self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
+            self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
     def __get_display_filter(self):
         return self.__filtered_data_items_binding.filter

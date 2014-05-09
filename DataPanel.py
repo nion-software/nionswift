@@ -71,9 +71,8 @@ class DataPanel(Panel.Panel):
                 self.__count -= 1
                 if self.title_updater:
                     self.title_updater(self.__count)
-            with self.__binding.changes():
-                self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-                self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
+            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
             def update_count():
                 self.__count = len(self.__binding.data_items)
                 if self.title_updater:
