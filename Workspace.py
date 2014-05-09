@@ -303,8 +303,8 @@ class Workspace(object):
                 last_displayed_data_item = data_item_to_display
             elif last_displayed_data_item:
                 # search for derived data items
-                for data_item in last_displayed_data_item.data_items:
-                    if data_item not in displayed_data_items:
+                for data_item in self.document_controller.document_model.data_items:
+                    if data_item.data_source == last_displayed_data_item and data_item not in displayed_data_items:
                         data_item_to_display = data_item
                         break
             if not data_item_to_display:
@@ -555,8 +555,6 @@ class WorkspaceController(AbstractWorkspaceController):
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
                 data_item_copy.add_ref()  # this will be balanced in append_data_item
-                for _ in xrange(len(data_item_copy.data_items)):
-                    data_item_copy.data_items.pop()
                 data_item.session_id = self.session_id  # immediately update the session id
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.

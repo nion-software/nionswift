@@ -85,10 +85,10 @@ class TestImagePanelClass(unittest.TestCase):
     def test_deleting_data_item_with_processed_data_item_removes_processed_data_item_from_image_panel(self):
         self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
         self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
-        self.document_controller.processing_invert()
+        inverted_data_item = self.document_controller.processing_invert()
         self.document_controller.periodic()
-        self.image_panel.set_displayed_data_item(self.data_item.data_items[0])
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item.data_items[0])
+        self.image_panel.set_displayed_data_item(inverted_data_item)
+        self.assertEqual(self.image_panel.get_displayed_data_item(), inverted_data_item)
         self.document_model.remove_data_item(self.data_item)
         self.assertIsNone(self.image_panel.get_displayed_data_item())
 

@@ -218,8 +218,31 @@ class Application(object):
                 c.execute("UPDATE version SET version = ?", (6, ))
                 datastore.conn.commit()
                 version = 6
+            if version == 6:
+                logging.debug("Updating database from version 6 to version 7.")
+                c.execute("SELECT uuid FROM nodes WHERE type='document'")
+                document_uuid = c.fetchone()[0]
+                c.execute("SELECT MAX(item_index) FROM relationships WHERE parent_uuid=? AND key='data_items'", (document_uuid, ))
+                data_item_index = int(c.fetchone()[0]) + 1
+                c.execute("SELECT relationships.parent_uuid, relationships.item_uuid FROM relationships, nodes WHERE relationships.parent_uuid = nodes.uuid AND nodes.type = 'data-item' AND relationships.key = 'data_items'")
+                parent_item_pairs = list()
+                for row in c.fetchall():
+                    parent_item_pairs.append((row[0], row[1]))
+                for parent_item_pair in parent_item_pairs:
+                    parent_uuid, item_uuid = parent_item_pair
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='properties'", (item_uuid, ))
+                    result = c.fetchone()
+                    properties = pickle.loads(str(result[0])) if result else dict()
+                    properties["data_source_uuid"] = parent_uuid
+                    properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (item_uuid, properties_data))
+                    c.execute("UPDATE relationships SET parent_uuid=?, item_index=? WHERE parent_uuid=? AND item_uuid=? AND key='data_items'", (document_uuid, data_item_index, parent_uuid, item_uuid))
+                    data_item_index += 1
+                c.execute("UPDATE version SET version = ?", (7, ))
+                datastore.conn.commit()
+                version = 7
             # NOTE: version must be changed here and in Storage.py
-            if version > 6:
+            if version > 7:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()

@@ -131,10 +131,7 @@ class AbstractDataItemsBinding(Binding.Binding):
 
             This method is thread safe.
         """
-        master_data_items = list()
-        for data_item in self._get_master_data_items():
-            if data_item.has_master_data:
-                master_data_items.append(data_item)
+        master_data_items = copy.copy(self._get_master_data_items())
         assert len(set(master_data_items)) == len(master_data_items)
         # sort the master data list. this is optional since it may be sorted downstream.
         if self.sort_key is not None:
@@ -147,7 +144,6 @@ class AbstractDataItemsBinding(Binding.Binding):
             if self.filter is None or self.filter(data_item):
                 # add data item and its dependent data items
                 data_items.append(data_item)
-                data_items.extend(list(DataGroup.get_flat_data_item_generator_in_container(data_item)))
         return data_items
 
     # thread safe.

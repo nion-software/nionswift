@@ -63,8 +63,10 @@ class TestStorageClass(unittest.TestCase):
         data_group.append_data_item(data_item3)
         data_item2a = DataItem.DataItem()
         data_item2b = DataItem.DataItem()
-        data_item2.data_items.append(data_item2a)
-        data_item2.data_items.append(data_item2b)
+        data_item2a.add_data_source(data_item2)
+        data_item2b.add_data_source(data_item2)
+        data_group.append_data_item(data_item2a)
+        data_group.append_data_item(data_item2b)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         document_controller.selected_image_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
@@ -123,7 +125,7 @@ class TestStorageClass(unittest.TestCase):
         data_items_type = type(document_controller.document_model.data_items)
         data_item0_calibration_len = len(document_controller.document_model.data_items[0].intrinsic_calibrations)
         data_item0_uuid = document_controller.document_model.data_items[0].uuid
-        data_item1_data_items_len = len(document_controller.document_model.data_items[1].data_items)
+        data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
         if include_rewrite:
             document_controller.document_model.data_items[0]._rewrite()
         document_controller.close()
@@ -141,7 +143,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(data_ref.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.data_items[0].uuid)
         self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.data_items[0].intrinsic_calibrations))
-        self.assertEqual(data_item1_data_items_len, len(document_controller.document_model.data_items[1].data_items))
+        new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
+        self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
         # check over the data item
         data_item = document_controller.document_model.data_items[0]
         self.assertEqual(data_item.displays[0].display_limits, (500, 1000))
@@ -291,52 +294,6 @@ class TestStorageClass(unittest.TestCase):
         data_group2_copy = copy.deepcopy(data_group2)
         data_group2_copy.add_ref()
         data_group2_copy.remove_ref()
-
-    def verify_and_test_set_item(self, document_controller):
-        # check that the graphic associated with the operation was read back
-        crop_operation = document_controller.document_model.data_groups[0].data_items[0].data_items[3].operations[0]
-        self.assertIsInstance(crop_operation, Operation.OperationItem)
-        self.assertEqual(crop_operation.operation_id, "crop-operation")
-
-    def test_dict_storage_set_item(self):
-        # write to storage
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.save_document(document_controller)
-        document_controller.close()
-        # read it back
-        node_map_copy = copy.deepcopy(datastore.node_map)
-        datastore = Storage.DictDatastore(node_map_copy)
-        storage_cache = Storage.DictStorageCache()
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        datastore.set_root(document_model)
-        document_model.write()
-        # check that the graphic associated with the operation was read back
-        self.verify_and_test_set_item(document_controller)
-        # clean up
-        document_controller.close()
-
-    def test_db_storage_set_item(self):
-        # write to storage
-        db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.save_document(document_controller)
-        storage_data = datastore.to_data()
-        document_controller.close()
-        # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        # check that the graphic associated with the operation was read back
-        self.verify_and_test_set_item(document_controller)
-        # clean up
-        document_controller.close()
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
         datastore = Storage.DictDatastore()

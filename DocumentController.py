@@ -539,7 +539,7 @@ class DocumentController(Observable.Broadcaster):
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
         operation = Operation.OperationItem(operation_id)
         assert operation is not None
-        self.add_processing_operation(operation, prefix, suffix, in_place, select)
+        return self.add_processing_operation(operation, prefix, suffix, in_place, select)
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
@@ -559,7 +559,8 @@ class DocumentController(Observable.Broadcaster):
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
                 new_data_item.operations.append(operation)
-                self.document_model.append_data_item(new_data_item, [data_item])
+                new_data_item.add_data_source(data_item)
+                self.document_model.append_data_item(new_data_item)
                 if select:
                     self.set_data_item_selection(new_data_item, source_data_item=data_item)
                 return new_data_item
@@ -604,7 +605,8 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             new_data_item = DataItem.DataItem()
             new_data_item.title = _("Clone of ") + data_item.title
-            self.document_model.append_data_item(new_data_item, [data_item])
+            new_data_item.add_data_source(data_item)
+            self.document_model.append_data_item(new_data_item)
             return new_data_item
         return None
 

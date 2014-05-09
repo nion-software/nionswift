@@ -51,7 +51,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_1x1_to_3x1_should_choose_derived_data_if_present(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         document_controller.workspace.change_layout("1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), document_controller.document_model.data_items[0])
         document_controller.workspace.change_layout("3x1")
@@ -62,7 +63,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_1x1_to_3x1_should_choose_preferred_data_if_present(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         document_controller.workspace.change_layout("1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), document_controller.document_model.data_items[0])
         preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[0])
@@ -74,7 +76,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_1x1_to_3x1_should_choose_preferred_data_if_present_then_already_displayed_data(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.image_panels[0].set_displayed_data_item(document_controller.document_model.data_items[1])
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), document_controller.document_model.data_items[1])
@@ -95,7 +98,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_3x1_to_1x1_to_previous_should_remember_3x1(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
         document_controller.workspace.change_layout("3x1", preferred_data_items)
         document_controller.workspace.change_layout("1x1")
@@ -107,7 +111,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_1x1_to_3x1_to_previous_to_next_should_remember_3x1(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.change_layout("3x1", preferred_data_items)
@@ -122,7 +127,8 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_change_layout_3x1_to_1x1_to_previous_to_next_should_remember_1x1(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         preferred_data_items = (derived_data_item, document_controller.document_model.data_items[2], document_controller.document_model.data_items[1])
         document_controller.workspace.change_layout("3x1", preferred_data_items)
         document_controller.selected_image_panel = document_controller.workspace.image_panels[1]
@@ -136,13 +142,15 @@ class TestWorkspaceClass(unittest.TestCase):
     def test_add_processing_in_4x4_bottom_left_puts_processed_image_in_empty_bottom_right(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         derived_data_item = DataItem.DataItem()
-        document_controller.document_model.data_items[0].data_items.append(derived_data_item)
+        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
+        document_controller.document_model.append_data_item(derived_data_item)
         document_controller.workspace.change_layout("2x2")
         document_controller.workspace.image_panels[3].set_displayed_data_item(None)
         document_controller.selected_image_panel = document_controller.workspace.image_panels[2]
         source_data_item = document_controller.workspace.image_panels[2].get_displayed_data_item()
         derived_data_item2 = DataItem.DataItem()
-        source_data_item.data_items.append(derived_data_item2)
+        derived_data_item2.add_data_source(source_data_item)
+        document_controller.document_model.append_data_item(derived_data_item2)
         document_controller.workspace.display_data_item(derived_data_item2, source_data_item)
         self.assertEqual(document_controller.workspace.image_panels[2].get_displayed_data_item(), source_data_item)
         self.assertEqual(document_controller.workspace.image_panels[3].get_displayed_data_item(), derived_data_item2)

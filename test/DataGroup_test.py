@@ -48,86 +48,114 @@ class TestDataGroupClass(unittest.TestCase):
                 self.assertEqual(data_item, data_group_copy.data_items[0])
 
     def test_counted_data_items(self):
+        # TODO: split test_counted_data_items into separate tests
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
-        document_controller.document_model.data_groups.append(data_group)
+        document_model.data_groups.append(data_group)
         self.assertEqual(len(data_group.counted_data_items), 0)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 0)
+        self.assertEqual(len(document_model.counted_data_items), 0)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
         # make sure that both top level and data_group see the data item
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 1)
+        self.assertEqual(len(document_model.counted_data_items), 1)
         self.assertEqual(len(data_group.counted_data_items), 1)
-        self.assertEqual(document_controller.document_model.counted_data_items, data_group.counted_data_items)
+        self.assertEqual(document_model.counted_data_items, data_group.counted_data_items)
         self.assertIn(data_item1, data_group.counted_data_items.keys())
         # add a child data item and make sure top level and data_group see it
         # also check data item.
         data_item1a = DataItem.DataItem()
         operation1a = Operation.OperationItem("resample-operation")
         data_item1a.operations.append(operation1a)
-        data_item1.data_items.append(data_item1a)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 2)
+        data_item1a.add_data_source(data_item1)
+        document_model.append_data_item(data_item1a)
+        data_group.append_data_item(data_item1a)
+        self.assertEqual(len(document_model.counted_data_items), 2)
         self.assertEqual(len(data_group.counted_data_items), 2)
-        self.assertEqual(len(data_item1.counted_data_items), 1)
         self.assertIn(data_item1, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a, data_item1.counted_data_items.keys())
         # add a child data item to the child and make sure top level and data_group match.
         # also check data items.
         data_item1a1 = DataItem.DataItem()
         operation1a1 = Operation.OperationItem("resample-operation")
         data_item1a1.operations.append(operation1a1)
-        data_item1a.data_items.append(data_item1a1)
+        data_item1a1.add_data_source(data_item1a)
+        document_model.append_data_item(data_item1a1)
+        data_group.append_data_item(data_item1a1)
         data_item1a1.calculated_calibrations
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 3)
+        self.assertEqual(len(document_model.counted_data_items), 3)
         self.assertEqual(len(data_group.counted_data_items), 3)
-        self.assertEqual(len(data_item1.counted_data_items), 2)
-        self.assertEqual(len(data_item1a.counted_data_items), 1)
         self.assertIn(data_item1, data_group.counted_data_items.keys())
         self.assertIn(data_item1a, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a, data_item1.counted_data_items.keys())
         self.assertIn(data_item1a1, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a1, data_item1a.counted_data_items.keys())
         # now add a data item that already has children
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item2)
+        data_item2a = DataItem.DataItem()
+        operation2a = Operation.OperationItem("resample-operation")
+        data_item2a.operations.append(operation2a)
+        data_item2a.add_data_source(data_item2)
+        document_model.append_data_item(data_item2a)
+        data_group.append_data_item(data_item2)
+        data_group.append_data_item(data_item2a)
+        self.assertEqual(len(document_model.counted_data_items), 5)
+        self.assertEqual(len(data_group.counted_data_items), 5)
+        self.assertIn(data_item2a, document_model.counted_data_items.keys())
+        self.assertIn(data_item2a, data_group.counted_data_items.keys())
+        # remove data item without children
+        document_model.remove_data_item(data_item1a1)
+        self.assertEqual(len(document_model.counted_data_items), 4)
+        self.assertEqual(len(data_group.counted_data_items), 4)
+        # now remove data item with children
+        document_model.remove_data_item(data_item2)
+        self.assertEqual(len(document_model.counted_data_items), 2)
+        self.assertEqual(len(data_group.counted_data_items), 2)
+
+    def test_inserting_item_with_existing_data_source_establishes_connection(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        # setup by adding data item and a dependent data item
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
         operation2a = Operation.OperationItem("resample-operation")
         data_item2a.operations.append(operation2a)
-        data_item2.data_items.append(data_item2a)
-        self.assertEqual(len(data_item2.counted_data_items), 1)
-        self.assertIn(data_item2a, data_item2.counted_data_items.keys())
-        document_model.append_data_item(data_item2)
-        data_group.append_data_item(data_item2)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 5)
-        self.assertEqual(len(data_group.counted_data_items), 5)
-        self.assertEqual(len(data_item2.counted_data_items), 1)
-        self.assertIn(data_item2a, document_controller.document_model.counted_data_items.keys())
-        self.assertIn(data_item2a, data_group.counted_data_items.keys())
-        self.assertIn(data_item2a, data_item2.counted_data_items.keys())
-        # remove data item without children
-        data_item1a.data_items.remove(data_item1a1)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 4)
-        self.assertEqual(len(data_group.counted_data_items), 4)
-        self.assertEqual(len(data_item1.counted_data_items), 1)
-        # now remove data item with children
-        data_group.remove_data_item(data_item2)
-        self.assertEqual(len(document_controller.document_model.counted_data_items), 4)
-        self.assertEqual(len(data_group.counted_data_items), 2)
+        data_item2a.add_data_source(data_item2)
+        document_model.append_data_item(data_item2)  # add this first
+        document_model.append_data_item(data_item2a)  # add this second
+        # verify
+        self.assertEqual(data_item2a.data_source, data_item2)
 
-    def test_get_data_item_container_should_find_children_of_children_in_document_model_with_data_groups(self):
+    def test_removing_data_item_with_dependent_data_item_removes_them_both(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        # setup by adding data item and a dependent data item
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2a = DataItem.DataItem()
+        operation2a = Operation.OperationItem("resample-operation")
+        data_item2a.operations.append(operation2a)
+        data_item2a.add_data_source(data_item2)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item2a)
+        # verify assumptions
+        self.assertEqual(len(document_model.data_items), 2)
+        # remove root
+        document_model.remove_data_item(data_item2)
+        # verify it and its dependent are gone
+        self.assertEqual(len(document_model.data_items), 0)
+
+    def test_deleting_document_with_dependent_data_items_works(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         with document_model.ref():
-            data_group = DataGroup.DataGroup()
-            document_model.data_groups.append(data_group)
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_item_child = DataItem.DataItem()
-            data_item.data_items.append(data_item_child)
             document_model.append_data_item(data_item)
-            self.assertEqual(DataGroup.get_data_item_container(document_model, data_item_child), data_item)
+            data_item_child = DataItem.DataItem()
+            data_item_child.add_data_source(data_item)
+            document_model.append_data_item(data_item_child)
 
 # TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
 

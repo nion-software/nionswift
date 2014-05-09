@@ -202,8 +202,9 @@ class DataPanel(Panel.Panel):
         def __append_data_item_flat(self, container, data_items):
             if isinstance(container, DataItem.DataItem):
                 data_items.append(container)
-            for child_data_item in container.data_items:
-                self.__append_data_item_flat(child_data_item, data_items)
+            if hasattr(container, "data_items"):
+                for child_data_item in container.data_items:
+                    self.__append_data_item_flat(child_data_item, data_items)
         def __get_data_item_count_flat(self, container):
             data_items = []
             self.__append_data_item_flat(container, data_items)
@@ -368,7 +369,7 @@ class DataPanel(Panel.Panel):
                 self.__data_item_removed(data_item, index)
             self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
             self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "level", "display"])
+            self.list_model_controller = self.ui.create_list_model_controller(["uuid", "display"])
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
             self.__document_controller_weakref = weakref.ref(document_controller)
@@ -444,17 +445,7 @@ class DataPanel(Panel.Panel):
                 self.__changed_data_items.add(data_item)
 
         # this method if called when one of our listened to items changes.
-        # one of the tasks of this method is to calculate the level at which a data item
-        # appears in the data panel. do this by recursively counting the number of data
-        # sources.
         def __data_item_inserted(self, data_item, before_index):
-            data_item_list_with_levels = DataGroup.get_flat_data_item_with_level_generator_in_container(self.container)
-            level = 0
-            # count the number of data sources
-            data_source = data_item.data_source
-            while data_source is not None:
-                level += 1
-                data_source = data_source.data_source
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.add_ref()
@@ -462,7 +453,6 @@ class DataPanel(Panel.Panel):
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
-                "level": level,
                 "display": data_item.title,
             }
             self.list_model_controller.begin_insert(before_index, before_index)
@@ -491,9 +481,6 @@ class DataPanel(Panel.Panel):
 
         # this message comes from the styled item delegate
         # data items are actually hierarchical in nature,
-        # but we don't use a tree view since the hierarchy is always visible and represented
-        # by indent level. this means that we must track changes to the data group that we're
-        # inspecting and translate the hierarchy into a linear indexing scheme.
         def paint(self, ctx, options):
             rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
             index = options["index"]["row"]
@@ -508,24 +495,23 @@ class DataPanel(Panel.Panel):
                     local_self.__changed_data_items.add(data_item)
             thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui, completion_fn=update_thumbail_data)
             data = self._get_model_data(index)
-            level = data["level"]
             display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
             display4 = data_item.live_status_as_string
             ctx.save()
             if thumbnail_data is not None:
-                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4 + level * 16), (72, 72))
+                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
                 draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             ctx.fill_style = "#000"
-            ctx.fill_text(display, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12)
+            ctx.fill_text(display, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
             ctx.font = "11px italic"
-            ctx.fill_text(display2, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+            ctx.fill_text(display2, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
             ctx.font = "11px italic"
-            ctx.fill_text(display3, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+            ctx.fill_text(display3, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
             ctx.font = "11px italic"
-            ctx.fill_text(display4, rect[0][1] + 4 + level * 16 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+            ctx.fill_text(display4, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
             ctx.restore()
 
     def __init__(self, document_controller, panel_id, properties):

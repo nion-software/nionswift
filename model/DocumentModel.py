@@ -3,6 +3,7 @@ import collections
 import copy
 import datetime
 import gettext
+import logging
 import numbers
 import os.path
 import uuid
@@ -43,12 +44,11 @@ class DocumentModel(Storage.StorageBase):
 
     def about_to_delete(self):
         self.datastore.disconnected = True
-        for data_item in copy.copy(self.data_items):
-            self.remove_data_item(data_item)
+        while len(self.data_items) > 0:
+            self.remove_data_item(self.data_items[-1])
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
 
-    # TODO: make DocumentModel.read private
     def __read(self):
         # first read the items
         parent_node, uuid = self.datastore.find_root_node("document")
@@ -60,30 +60,36 @@ class DocumentModel(Storage.StorageBase):
         self.datastore.disconnected = True
         self.data_groups.extend(data_groups)
         self.__data_items.extend(data_items)
+        for data_item in self.__data_items:
+            data_item.connect_data_source(self.get_data_item_by_uuid)
         self.datastore.disconnected = False
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def append_data_item(self, data_item, sources=None):
-        if sources is not None:
-            assert len(sources) == 1
-            sources[0].data_items.append(data_item)
-        else:
-            self.__data_items.append(data_item)
+    def append_data_item(self, data_item):
+        self.insert_data_item(len(self.__data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
         self.__data_items.insert(before_index, data_item)
+        data_item.connect_data_source(self.get_data_item_by_uuid)
 
     def remove_data_item(self, data_item):
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
                 data_group.remove_data_item(data_item)
+        for other_data_item in copy.copy(self.data_items):
+            if other_data_item.data_source == data_item:
+                self.remove_data_item(other_data_item)
+        data_item.disconnect_data_source()
         self.__data_items.remove(data_item)
 
     def __get_data_items(self):
         return tuple(self.__data_items)
     data_items = property(__get_data_items)
+
+    def get_dependent_data_items(self, parent_data_item):
+        return [data_item for data_item in self.data_items if data_item.data_source == parent_data_item]
 
     def create_default_data_groups(self):
         # ensure there is at least one group
@@ -176,7 +182,7 @@ class DocumentModel(Storage.StorageBase):
     def item_inserted(self, parent, key, item, before):
         # watch for data items inserted into this document model or into other data items
         # but not into data groups.
-        if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
+        if key == "data_items" and parent == self:
             data_item = item
             counted_data_items = collections.Counter()
             # become an observer of every data group and data item
@@ -185,28 +191,14 @@ class DocumentModel(Storage.StorageBase):
             data_item.add_listener(self)
             # update data item count
             counted_data_items.update([data_item])
-            # and the children
-            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
-                #logging.debug("add observer [4] %s %s", child_data_item, self)
-                child_data_item.add_observer(self)
-                child_data_item.add_listener(self)
-                # update data item count
-                counted_data_items.update([child_data_item])
             self.__update_counted_data_items(counted_data_items)
 
     def item_removed(self, parent, key, item, index):
         # watch for data items inserted into this document model or into other data items
         # but not into data groups.
-        if key == "data_items" and (parent == self or isinstance(parent, DataItem.DataItem)):
+        if key == "data_items" and parent == self:
             data_item = item
             counted_data_items = collections.Counter()
-            # become an observer of every data group and data item
-            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
-                #logging.debug("remove observer [4] %s %s", child_data_item, self)
-                child_data_item.remove_listener(self)
-                child_data_item.remove_observer(self)
-                # update data item count
-                counted_data_items.update([child_data_item])
             #logging.debug("remove observer [5] %s %s", data_item, self)
             data_item.remove_listener(self)
             data_item.remove_observer(self)
@@ -300,8 +292,6 @@ class DocumentModel(Storage.StorageBase):
     def get_flat_data_item_generator(self):
         for data_item in self.data_items:
             yield data_item
-            for child_data_item in DataGroup.get_flat_data_item_generator_in_container(data_item):
-                yield child_data_item
 
     # Return a generator over all data groups
     def get_flat_data_group_generator(self):

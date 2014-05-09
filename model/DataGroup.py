@@ -135,15 +135,13 @@ class DataGroup(Storage.StorageBase):
     # listeners an alternative way of hearing about data items being inserted
     # or removed via data_item_inserted and data_item_removed messages.
 
-    # NOTE: this code is duplicated in DataItem
-
     # override from StorageBase.
     # watch for insertions to data_items and data_groups so that smart filters get updated.
     def notify_insert_item(self, key, value, before_index):
         super(DataGroup, self).notify_insert_item(key, value, before_index)
         if key == "data_items":
             self.notify_listeners("data_item_inserted", self, value, before_index, self.__moving)
-            self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
+            self.update_counted_data_items(collections.Counter([value]))
         if key == "data_groups":
             self.update_counted_data_items(value.counted_data_items)
     # override from StorageBase
@@ -151,7 +149,7 @@ class DataGroup(Storage.StorageBase):
     def notify_remove_item(self, key, value, index):
         super(DataGroup, self).notify_remove_item(key, value, index)
         if key == "data_items":
-            self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
+            self.subtract_counted_data_items(collections.Counter([value]))
             self.notify_listeners("data_item_removed", self, value, index, self.__moving)
         if key == "data_groups":
             self.subtract_counted_data_items(value.counted_data_items)
@@ -215,26 +213,10 @@ def get_flat_data_item_generator_in_container(container):
     if hasattr(container, "data_items"):
         for data_item in container.data_items:
             yield data_item
-            for child_data_item in get_flat_data_item_generator_in_container(data_item):
-                yield child_data_item
     if hasattr(container, "data_groups"):
         for data_group in container.data_groups:
             for data_item in get_flat_data_item_generator_in_container(data_group):
                 yield data_item
-
-
-# return a generator for all data items, child data items, and data items in child groups in container. return the level too.
-def get_flat_data_item_with_level_generator_in_container(container, level=0):
-    if hasattr(container, "data_items"):
-        for data_item in container.data_items:
-            yield data_item, level
-            for child_data_item, child_level in get_flat_data_item_with_level_generator_in_container(data_item, level + 1):
-                yield child_data_item, child_level
-    if hasattr(container, "data_groups"):
-        for data_group in container.data_groups:
-            # descending into data groups does NOT increase the level since the level represents only the dependent data item hierarchy.
-            for data_item, data_item_level in get_flat_data_item_with_level_generator_in_container(data_group, level):
-                yield data_item, data_item_level
 
 
 # Return the data_group matching name that is the descendent of the container.

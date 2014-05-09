@@ -6,6 +6,7 @@ import gettext
 import logging
 import os
 import threading
+import uuid
 
 # third party libraries
 import numpy
@@ -100,8 +101,7 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 DATA = 1
 METADATA = 2
 DISPLAYS = 3
-CHILDREN = 4
-SOURCE = 5
+SOURCE = 4
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -115,7 +115,7 @@ class DataItem(Storage.StorageBase):
         super(DataItem, self).__init__()
         self.storage_properties += ["title", "param", "datetime_modified", "datetime_original", "properties", "source_file_path"]
         self.storage_items += ["intrinsic_intensity_calibration"]
-        self.storage_relationships += ["intrinsic_calibrations", "operations", "data_items", "displays"]
+        self.storage_relationships += ["intrinsic_calibrations", "operations", "displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
@@ -129,7 +129,6 @@ class DataItem(Storage.StorageBase):
         self.__datetime_modified = self.__datetime_original
         self.intrinsic_calibrations = Storage.MutableRelationship(self, "intrinsic_calibrations")
         self.__intrinsic_intensity_calibration = None
-        self.data_items = Storage.MutableRelationship(self, "data_items")
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
         self.__properties = dict()
@@ -152,7 +151,6 @@ class DataItem(Storage.StorageBase):
         self.__data_item_change_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_changes = set()
-        self.__counted_data_items = collections.Counter()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
@@ -196,7 +194,6 @@ class DataItem(Storage.StorageBase):
         datetime_original = datastore.get_property(item_node, "datetime_original")
         operations = datastore.get_items(item_node, "operations")
         displays = datastore.get_items(item_node, "displays")
-        data_items = datastore.get_items(item_node, "data_items")
         has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
             master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
@@ -216,8 +213,6 @@ class DataItem(Storage.StorageBase):
             while len(data_item.displays):
                 data_item.displays.pop()
             data_item.displays.extend(displays)
-        # load child data items after displays as easy way to get drawn graphics to reload properly
-        data_item.data_items.extend(data_items)
         # setting master data may add intrinsic_calibrations automatically. remove them here to start from clean slate.
         while len(data_item.intrinsic_calibrations):
             data_item.intrinsic_calibrations.pop()
@@ -236,8 +231,6 @@ class DataItem(Storage.StorageBase):
     def about_to_delete(self):
         self.closed = True
         self.__shared_thread_pool.close()
-        for data_item in copy.copy(self.data_items):
-            self.data_items.remove(data_item)
         for calibration in copy.copy(self.intrinsic_calibrations):
             self.intrinsic_calibrations.remove(calibration)
         self.intrinsic_intensity_calibration = None
@@ -245,7 +238,7 @@ class DataItem(Storage.StorageBase):
             self.operations.remove(operation)
         for display in copy.copy(self.displays):
             self.displays.remove(display)
-        self.data_source = None
+        self.__set_data_source(None)
         self.__set_master_data(None)
         super(DataItem, self).about_to_delete()
 
@@ -268,14 +261,13 @@ class DataItem(Storage.StorageBase):
             data_item_copy.displays.pop()
         for display in self.displays:
             data_item_copy.displays.append(copy.deepcopy(display, memo))
-        for data_item in self.data_items:
-            data_item_copy.data_items.append(copy.deepcopy(data_item, memo))
         if self.has_master_data:
             with self.data_ref() as data_ref:
                 data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
         else:
             data_item_copy.__set_master_data(None)
-        #data_item_copy.data_source = self.data_source  # not needed; handled by insert/remove.
+        # data source will be copied with properties and the connection established when
+        # this copy is inserted.
         memo[id(self)] = data_item_copy
         return data_item_copy
 
@@ -284,9 +276,6 @@ class DataItem(Storage.StorageBase):
 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
-
-    def remove_data_item(self, data_item):
-        self.data_items.remove(data_item)
 
     # cheap, but incorrect, way to tell whether this is live acquisition
     def __get_is_live(self):
@@ -536,10 +525,6 @@ class DataItem(Storage.StorageBase):
                 if operation.enabled:
                     data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
 
-    # smart groups don't participate in the storage model directly. so allow
-    # listeners an alternative way of hearing about data items being inserted
-    # or removed via data_item_inserted and data_item_removed messages.
-
     def notify_insert_item(self, key, value, before_index):
         super(DataItem, self).notify_insert_item(key, value, before_index)
         if key == "operations":
@@ -552,14 +537,6 @@ class DataItem(Storage.StorageBase):
             value.add_listener(self)
             value._set_data_item(self)
             self.notify_data_item_content_changed(set([DISPLAYS]))
-        elif key == "data_items":
-            self.notify_listeners("data_item_inserted", self, value, before_index, False)
-            value.data_source = self
-            self.notify_data_item_content_changed(set([CHILDREN]))
-            self.update_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            for operation_item in value.operations:
-                self.add_operation_graphics_to_displays(operation_item.graphics)
-            value.add_observer(self)
         elif key == "intrinsic_calibrations":
             value.add_listener(self)
             self.notify_data_item_content_changed(set([METADATA]))
@@ -576,14 +553,6 @@ class DataItem(Storage.StorageBase):
             value._set_data_item(None)
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([DISPLAYS]))
-        elif key == "data_items":
-            value.remove_observer(self)
-            for operation_item in value.operations:
-                self.remove_operation_graphics_from_displays(operation_item.graphics)
-            self.subtract_counted_data_items(value.counted_data_items + collections.Counter([value]))
-            self.notify_listeners("data_item_removed", self, value, index, False)
-            value.data_source = None
-            self.notify_data_item_content_changed(set([CHILDREN]))
         elif key == "intrinsic_calibrations":
             value.remove_listener(self)
             self.notify_data_item_content_changed(set([METADATA]))
@@ -598,17 +567,26 @@ class DataItem(Storage.StorageBase):
         for display in self.displays:
             display.remove_operation_graphics(operation_graphics)
 
-    def __get_counted_data_items(self):
-        return self.__counted_data_items
-    counted_data_items = property(__get_counted_data_items)
+    # connect this item to its data source, if any. the lookup_data_item parameter
+    # is a function to look up data items by uuid. this method also establishes the
+    # display graphics for this items operations. direct data source is used for testing.
+    def connect_data_source(self, lookup_data_item=None, direct_data_source=None):
+        assert lookup_data_item or direct_data_source
+        data_source_uuid_str = self.properties.get("data_source_uuid")
+        data_source = lookup_data_item(uuid.UUID(data_source_uuid_str)) if data_source_uuid_str and lookup_data_item else direct_data_source
+        self.__set_data_source(data_source)
+        if data_source:
+            for operation_item in self.operations:
+                data_source.add_operation_graphics_to_displays(operation_item.graphics)
 
-    def update_counted_data_items(self, counted_data_items):
-        self.__counted_data_items.update(counted_data_items)
-        self.notify_parents("update_counted_data_items", counted_data_items)
-    def subtract_counted_data_items(self, counted_data_items):
-        self.__counted_data_items.subtract(counted_data_items)
-        self.__counted_data_items += collections.Counter()  # strip empty items
-        self.notify_parents("subtract_counted_data_items", counted_data_items)
+    # disconnect this item from its data source. also removes the graphics for this
+    # items operations.
+    def disconnect_data_source(self):
+        data_source = self.data_source
+        if data_source:
+            for operation_item in self.operations:
+                data_source.remove_operation_graphics_from_displays(operation_item.graphics)
+        self.__set_data_source(None)
 
     # title
     def __get_title(self):
@@ -696,7 +674,17 @@ class DataItem(Storage.StorageBase):
                 self.__data_source.add_ref()
                 self.sync_operations()
             self.data_item_content_changed(self.__data_source, set([SOURCE]))
-    data_source = property(__get_data_source, __set_data_source)
+    data_source = property(__get_data_source)
+
+    # add a reference to the given data source
+    def add_data_source(self, data_source):
+        with self.property_changes() as property_accessor:
+            property_accessor.properties["data_source_uuid"] = str(data_source.uuid)
+
+    # remove a reference to the given data source
+    def remove_data_source(self, data_source):
+        with self.property_changes() as property_accessor:
+            property_accessor.properties.pop("data_source_uuid", None)
 
     def __get_master_data(self):
         return self.__master_data
@@ -1030,18 +1018,18 @@ class DataItem(Storage.StorageBase):
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
+            property_accessor.properties.pop("data_source_uuid", None)
         data_item_copy.datetime_original = Utility.get_current_datetime_item()
         data_item_copy.datetime_modified = data_item_copy.datetime_original
         for calibration in self.calculated_calibrations:
             data_item_copy.intrinsic_calibrations.append(copy.deepcopy(calibration))
         data_item_copy.intrinsic_intensity_calibration = self.calculated_intensity_calibration
-        for data_item in self.data_items:
-            data_item_copy.data_items.append(copy.deepcopy(data_item))
         for display in self.displays:
             data_item_copy.displays.append(copy.deepcopy(display))
         # operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
-            data_item_copy.__set_master_data(numpy.copy(data_ref.data))
+            data_copy = numpy.copy(data_ref.data)
+            data_item_copy.__set_master_data(data_copy)
         return data_item_copy
 
 

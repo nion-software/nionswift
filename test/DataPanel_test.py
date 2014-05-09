@@ -39,21 +39,25 @@ class TestDataPanelClass(unittest.TestCase):
         #   data_item3
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_controller.document_model.data_groups.append(data_group)
+        document_model.data_groups.append(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
         data_item1a = DataItem.DataItem()
         data_item1a.title = "data_item1a"
-        data_item1.data_items.append(data_item1a)
+        data_item1a.add_data_source(data_item1)
+        document_model.append_data_item(data_item1a)
+        data_group.append_data_item(data_item1a)
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
         data_item2a = DataItem.DataItem()
         data_item2a.title = "data_item2a"
-        data_item2.data_items.append(data_item2a)
+        data_item2a.add_data_source(data_item2)
+        document_model.append_data_item(data_item2a)
+        data_group.append_data_item(data_item2a)
         data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
@@ -61,20 +65,19 @@ class TestDataPanelClass(unittest.TestCase):
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         image_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
-        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group, data_item1))
+        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         data_panel.periodic()
         document_controller.selected_image_panel = image_panel
         # first delete a child of a data item
-        self.assertEqual(len(data_item1.data_items), 1)
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
+        self.assertEqual(len(data_group.data_items), 5)
         data_panel.update_data_item_selection(data_item1a)
-        #data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
-        #data_panel.data_item_widget.on_selection_changed([1])
-        data_panel.data_item_widget.on_key_pressed([1], self.app.ui.create_key_by_id("delete"))
-        self.assertEqual(len(data_item1.data_items), 0)
-        # now delete a child of a data group
-        self.assertEqual(len(data_group.data_items), 3)
-        data_panel.data_item_widget.on_selection_changed([3])
         data_panel.data_item_widget.on_key_pressed([3], self.app.ui.create_key_by_id("delete"))
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
+        # now delete a child of a data group
+        self.assertEqual(len(data_group.data_items), 4)
+        data_panel.data_item_widget.on_selection_changed([2])
+        data_panel.data_item_widget.on_key_pressed([2], self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_group.data_items), 2)
         image_panel.close()
         document_controller.close()
@@ -219,51 +222,34 @@ class TestDataPanelClass(unittest.TestCase):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        # + parent_data_group
-        #   + data_group1
-        #       data_item1
-        #         inverted
-        #   + data_group2
-        #       data_item2
-        parent_data_group = DataGroup.DataGroup()
-        parent_data_group.title = "parent_data_group"
-        data_group1 = DataGroup.DataGroup()
-        data_group1.title = "Group 1"
-        parent_data_group.data_groups.append(data_group1)
+        # data_item1
+        #   inverted
+        # data_item2
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
-        data_group1.append_data_item(data_item1)
-        data_group2 = DataGroup.DataGroup()
-        data_group2.title = "Group 2"
-        parent_data_group.data_groups.append(data_group2)
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
-        data_group2.append_data_item(data_item2)
-        document_controller.document_model.data_groups.append(parent_data_group)
         # finished setting up
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.focused = True
-        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
+        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         # make sure our preconditions are right
         self.assertEqual(document_controller.selected_data_item, data_item1)
-        self.assertEqual(len(data_item1.data_items), 0)
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # add processing and make sure it appeared
-        document_controller.processing_invert()
-        self.assertEqual(len(data_item1.data_items), 1)
+        self.assertEqual(data_panel.data_item, data_item1)
+        inverted_data_item = document_controller.processing_invert()
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         # now make sure data panel shows it as selected
-        self.assertEqual(data_panel.data_item, data_item1.data_items[0])
-        data_group_widget = data_panel.data_group_widget
+        self.assertEqual(data_panel.data_item, inverted_data_item)
         data_item_widget = data_panel.data_item_widget
         # switch away and back and make sure selection is still correct
-        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group2, data_item2))
-        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1.data_items[0]))
-        self.assertEqual(data_panel.data_item, data_item1.data_items[0])
-        selected_data_group = data_panel.data_group_model_controller.get_data_group(data_group_widget.index, data_group_widget.parent_row, data_group_widget.parent_id)
-        self.assertEqual(selected_data_group, data_group1)
-        self.assertEqual(data_panel.data_item_model_controller.container, data_group1)
-        self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), data_item1.data_items[0])
+        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item2))
+        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=inverted_data_item))
+        self.assertEqual(data_panel.data_item, inverted_data_item)
+        self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), inverted_data_item)
         document_controller.close()
 
     def test_existing_item_gets_initially_added_to_binding_data_items(self):
@@ -438,7 +424,8 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item1)
         data_item1a = DataItem.DataItem()
         data_item1a.title = "data_item1a"
-        data_item1.data_items.append(data_item1a)
+        data_item1a.add_data_source(data_item1)
+        document_model.append_data_item(data_item1a)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.data_item_widget.on_key_pressed([0, 1], self.app.ui.create_key_by_id("delete"))
 
