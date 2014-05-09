@@ -65,8 +65,12 @@ class DocumentModel(Storage.StorageBase):
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def append_data_item(self, data_item):
-        self.__data_items.append(data_item)
+    def append_data_item(self, data_item, sources=None):
+        if sources is not None:
+            assert len(sources) == 1
+            sources[0].data_items.append(data_item)
+        else:
+            self.__data_items.append(data_item)
 
     def insert_data_item(self, before_index, data_item):
         self.__data_items.insert(before_index, data_item)
