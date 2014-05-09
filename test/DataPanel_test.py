@@ -219,6 +219,12 @@ class TestDataPanelClass(unittest.TestCase):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # + parent_data_group
+        #   + data_group1
+        #       data_item1
+        #         inverted
+        #   + data_group2
+        #       data_item2
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
         data_group1 = DataGroup.DataGroup()
@@ -236,6 +242,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         data_group2.append_data_item(data_item2)
         document_controller.document_model.data_groups.append(parent_data_group)
+        # finished setting up
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.focused = True
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
