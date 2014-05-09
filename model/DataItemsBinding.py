@@ -48,7 +48,8 @@ class AbstractDataItemsBinding(Binding.Binding):
         self.inserters = dict()
         self.removers = dict()
         self.__filter = None
-        self.__sort = None
+        self.__sort_key = None
+        self.__sort_reverse = False
         self.__change_level = 0
 
     def begin_change(self):
@@ -74,15 +75,26 @@ class AbstractDataItemsBinding(Binding.Binding):
         return ChangeTracker(self)
 
     # thread safe.
-    def __get_sort(self):
-        """ Return the sort compare function. """
-        return self.__sort
-    def __set_sort(self, sort):
-        """ Set the sort compare function. """
+    def __get_sort_key(self):
+        """ Return the sort key function (for data item). """
+        return self.__sort_key
+    def __set_sort_key(self, sort_key):
+        """ Set the sort key function. """
         with self._update_mutex:
-            self.__sort = sort
+            self.__sort_key = sort_key
         self._update_data_items()
-    sort = property(__get_sort, __set_sort)
+    sort_key = property(__get_sort_key, __set_sort_key)
+
+    # thread safe.
+    def __get_sort_reverse(self):
+        """ Return the sort reverse value. """
+        return self.__sort_reverse
+    def __set_sort_reverse(self, sort_reverse):
+        """ Set the sort reverse value. """
+        with self._update_mutex:
+            self.__sort_reverse = sort_reverse
+        self._update_data_items()
+    sort_reverse = property(__get_sort_reverse, __set_sort_reverse)
 
     # thread safe.
     def __get_filter(self):
@@ -124,10 +136,9 @@ class AbstractDataItemsBinding(Binding.Binding):
             if data_item.has_master_data:
                 master_data_items.append(data_item)
         assert len(set(master_data_items)) == len(master_data_items)
-        # sort the master data list
-        if self.sort:
-            sort_key, reverse = self.sort()
-            master_data_items.sort(key=sort_key, reverse=reverse)
+        # sort the master data list. this is optional since it may be sorted downstream.
+        if self.sort_key is not None:
+            master_data_items.sort(key=self.sort_key, reverse=self.sort_reverse)
         # construct the data items list by expanding each master data item to
         # include its children
         data_items = list()
@@ -294,65 +305,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
 
     # thread safe
     def _get_master_data_items(self):
-        return self.__counted_data_items
-
-
-def sort_natural(container):
-    """ Return a sort key to sort by index within the given container. """
-    flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(container))
-    def sort_key(data_item):  # pylint: disable=missing-docstring
-        return flat_data_items.index(data_item)
-    return sort_key, False
-
-
-def sort_by_date_desc():
-    """ Return a sort key to sort by date descending. """
-    def sort_key(data_item):  # pylint: disable=missing-docstring
-        date_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-        return date_item_datetime
-    return sort_key, True
-
-
-class DataItemQueueContainer(Observable.Broadcaster):
-    """
-        A queue of data items. Compatible with DataItemsInContainerBinding.
-
-        A data item container, organized as a queue, for use with DataItemsInContainerBinding.
-        Sends update_counted_data_items and subtract_counted_data_items messages.
-    """
-    def __init__(self):
-        super(DataItemQueueContainer, self).__init__()
-        self.__weak_data_items = collections.deque(maxlen=16)
-
-    def __get_data_items(self):
-        """ Return the data items in this container. """
-        return [weak_data_item() for weak_data_item in self.__weak_data_items]
-    data_items = property(__get_data_items)
-
-    def insert_data_item(self, data_item):
-        """ Insert a new data item into the queue. """
-        old_counted_data_items = collections.Counter()
-        old_counted_data_items.update(copy.copy(self.data_items))
-        weak_data_item = weakref.ref(data_item)
-        if weak_data_item in self.__weak_data_items:
-            self.__weak_data_items.remove(weak_data_item)
-        self.__weak_data_items.appendleft(weak_data_item)
-        new_counted_data_items = collections.Counter()
-        new_counted_data_items.update(copy.copy(self.data_items))
-        self.notify_listeners("update_counted_data_items", new_counted_data_items)
-        self.notify_listeners("subtract_counted_data_items", old_counted_data_items)
-
-    def __get_counted_data_items(self):
-        """ Return the counted data items. """
-        counted_data_items = collections.Counter()
-        counted_data_items.update(copy.copy(self.data_items))
-        return counted_data_items
-    counted_data_items = property(__get_counted_data_items)
-
-    def add_ref(self):
-        """ Used for testing. """
-        pass
-
-    def remove_ref(self):
-        """ Used for testing. """
-        pass
+        flat_data_items = list(DataGroup.get_flat_data_item_generator_in_container(self.container))
+        def sort_key(data_item):  # pylint: disable=missing-docstring
+            return flat_data_items.index(data_item)
+        return sorted(self.__counted_data_items, key=sort_key)

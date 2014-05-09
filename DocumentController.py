@@ -20,6 +20,7 @@ from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
+from nion.swift.model import Utility
 from nion.ui import Dialog
 from nion.ui import Process
 from nion.ui import Observable
@@ -277,29 +278,35 @@ class DocumentController(Observable.Broadcaster):
     filtered_data_items_binding = property(__get_filtered_data_items_binding)
 
     def update_data_item_binding(self, binding, data_group, filter_id):
+
+        def sort_by_date_key(data_item):
+            """ A sort key to for the datetime_original field of a data item. """
+            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+
         with binding.changes():  # change filter and sort together
             if data_group is not None:
-                def sort_natural():
-                    return DataItemsBinding.sort_natural(data_group)
                 binding.container = data_group
                 binding.filter = None
-                binding.sort = sort_natural
+                binding.sort_key = None
             elif filter_id == "latest-session":
                 binding.container = self.document_model
                 def latest_session_filter(data_item):
                     return data_item.session_id == self.document_model.session_id
                 binding.filter = latest_session_filter
-                binding.sort = DataItemsBinding.sort_by_date_desc
+                binding.sort_key = sort_by_date_key
+                binding.sort_reverse = True
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
                 def none_filter(data_item):
                     return False
                 binding.filter = none_filter
-                binding.sort = DataItemsBinding.sort_by_date_desc
+                binding.sort_key = sort_by_date_key
+                binding.sort_reverse = True
             else:
                 binding.container = self.document_model
                 binding.filter = None
-                binding.sort = DataItemsBinding.sort_by_date_desc
+                binding.sort_key = sort_by_date_key
+                binding.sort_reverse = True
 
     def create_data_item_binding(self, data_group, filter_id):
         binding = DataItemsBinding.DataItemsInContainerBinding()
