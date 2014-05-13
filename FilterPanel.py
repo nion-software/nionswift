@@ -6,6 +6,7 @@
 import bisect
 import datetime
 import gettext
+import re
 import threading
 import time
 import weakref
@@ -92,6 +93,9 @@ class DateModelController(object):
         self.__node_counts_dirty = False
 
         self.__last_node_count_update_time = 0
+
+        self.__date_filter = None
+        self.__text_filter = None
 
     def close(self):
         """
@@ -209,7 +213,45 @@ class DateModelController(object):
             return False
 
         if len(keys_list) > 0:
-            self.document_controller.display_filter = date_filter
+            self.__date_filter = date_filter
+        else:
+            self.__date_filter = None
+
+        self.__update_filter()
+
+    def text_filter_changed(self, text):
+        """
+            Called to handle changes to the text filter.
+
+            :param text: The text for the filter.
+        """
+        text = text.strip() if text else None
+
+        def text_filter(data_item):
+            """ Filter data item on caption and title. """
+            return re.search(text, " ".join((data_item.caption, data_item.title)), re.IGNORECASE)
+
+        if text is not None:
+            self.__text_filter = text_filter
+        else:
+            self.__text_filter = None
+
+        self.__update_filter()
+
+    def __update_filter(self):
+        """
+            Create a bound function to combine various filters. Set the resulting filter into the document controller.
+        """
+        def all_filter(data_item):
+            """ A bound function to and all filters. """
+            if self.__date_filter and not self.__date_filter(data_item):
+                return False
+            if self.__text_filter and not self.__text_filter(data_item):
+                return False
+            return True
+
+        if self.__date_filter or self.__text_filter:
+            self.document_controller.display_filter = all_filter
         else:
             self.document_controller.display_filter = None
 
@@ -239,13 +281,23 @@ class FilterPanel(object):
 
         self.header_widget_controller = Panel.HeaderWidgetController(self.ui, _("Filter"))
 
-        filter_row = self.ui.create_column_widget(properties={"height": 200})
-        filter_row.add(self.header_widget_controller.canvas_widget)
-        filter_row.add_spacing(4)
-        filter_row.add(date_browser)
-        filter_row.add_spacing(4)
+        filter_bar_row = self.ui.create_row_widget()
+        filter_bar_row.add(self.ui.create_label_widget(_("Search")))
+        filter_text_widget = self.ui.create_line_edit_widget(properties={"width": 160})
+        filter_text_widget.on_text_edited = self.date_model_controller.text_filter_changed
+        filter_bar_row.add_spacing(8)
+        filter_bar_row.add(filter_text_widget)
+        filter_bar_row.add_stretch()
 
-        self.widget = filter_row
+        filter_column = self.ui.create_column_widget(properties={"height": 120})
+        filter_column.add(self.header_widget_controller.canvas_widget)
+        filter_column.add_spacing(4)
+        filter_column.add(filter_bar_row)
+        filter_column.add_spacing(4)
+        filter_column.add(date_browser)
+        filter_column.add_spacing(4)
+
+        self.widget = filter_column
 
     def close(self):
         """ Close the filter panel. Clients must call this to destroy it. """
