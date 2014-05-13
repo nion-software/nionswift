@@ -599,7 +599,7 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
 
     """
         Binds a property of an operation item to a property of a graphic item.
-        """
+    """
 
     def __init__(self, operation, operation_property_name, graphic, graphic_property_name):
         super(OperationPropertyToGraphicBinding, self).__init__(operation, operation_property_name)

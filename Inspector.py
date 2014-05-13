@@ -136,10 +136,63 @@ class InfoInspectorSection(InspectorSection):
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
-        self.info_title_label = self.ui.create_label_widget(properties={"width": 240})
+        self.info_title_label = self.ui.create_line_edit_widget()
         self.info_title_label.bind_text(Binding.PropertyBinding(data_item, "title"))
         self.info_section_title_row.add(self.info_title_label)
-        self.info_section_title_row.add_stretch()
+        self.info_section_title_row.add_spacing(8)
+        # caption
+        self.caption_row = self.ui.create_row_widget()
+
+        self.caption_label_column = self.ui.create_column_widget()
+        self.caption_label_column.add(self.ui.create_label_widget(_("Caption"), properties={"width": 60}))
+        self.caption_label_column.add_stretch()
+
+        self.caption_edit_stack = self.ui.create_stack_widget()
+
+        self.caption_static_column = self.ui.create_column_widget()
+        self.caption_static_text = self.ui.create_text_edit_widget(properties={"height": 60})
+        self.caption_static_text.editable = False
+        self.caption_static_text.bind_text(Binding.PropertyBinding(data_item, "caption"))
+        self.caption_static_button_row = self.ui.create_row_widget()
+        self.caption_static_edit_button = self.ui.create_push_button_widget(_("Edit"))
+        def begin_caption_edit():
+            self.caption_editable_text.text = data_item.caption
+            self.caption_static_text.unbind_text()
+            self.caption_edit_stack.set_current_index(1)
+        self.caption_static_edit_button.on_clicked = begin_caption_edit
+        self.caption_static_button_row.add(self.caption_static_edit_button)
+        self.caption_static_button_row.add_stretch()
+        self.caption_static_column.add(self.caption_static_text)
+        self.caption_static_column.add(self.caption_static_button_row)
+        self.caption_static_column.add_stretch()
+
+        self.caption_editable_column = self.ui.create_column_widget()
+        self.caption_editable_text = self.ui.create_text_edit_widget(properties={"height": 60})
+        self.caption_editable_button_row = self.ui.create_row_widget()
+        self.caption_editable_save_button = self.ui.create_push_button_widget(_("Save"))
+        self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
+        def end_caption_edit():
+            self.caption_static_text.bind_text(Binding.PropertyBinding(data_item, "caption"))
+            self.caption_edit_stack.set_current_index(0)
+        def save_caption_edit():
+            data_item.caption = self.caption_editable_text.text
+            end_caption_edit()
+        self.caption_editable_button_row.add(self.caption_editable_save_button)
+        self.caption_editable_button_row.add(self.caption_editable_cancel_button)
+        self.caption_editable_button_row.add_stretch()
+        self.caption_editable_save_button.on_clicked = save_caption_edit
+        self.caption_editable_cancel_button.on_clicked = end_caption_edit
+        self.caption_editable_column.add(self.caption_editable_text)
+        self.caption_editable_column.add(self.caption_editable_button_row)
+        self.caption_editable_column.add_stretch()
+
+        self.caption_edit_stack.add(self.caption_static_column)
+        self.caption_edit_stack.add(self.caption_editable_column)
+
+        self.caption_row.add(self.caption_label_column)
+        self.caption_row.add(self.caption_edit_stack)
+        self.caption_row.add_spacing(8)
+
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
@@ -163,6 +216,7 @@ class InfoInspectorSection(InspectorSection):
         self.info_section_format_row.add_stretch()
         # add all of the rows to the section content
         self.add_widget_to_content(self.info_section_title_row)
+        self.add_widget_to_content(self.caption_row)
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)

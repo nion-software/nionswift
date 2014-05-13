@@ -596,6 +596,15 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("title", value)
     title = property(__get_title, __set_title)
 
+    # caption
+    def __get_caption(self):
+        return self.__properties.get("caption", unicode())
+    def __set_caption(self, value):
+        with self.property_changes() as pc:
+            pc.properties["caption"] = unicode(value)
+        self.notify_set_property("caption", value)
+    caption = property(__get_caption, __set_caption)
+
     # param (for testing)
     def __get_param(self):
         return self.__param
