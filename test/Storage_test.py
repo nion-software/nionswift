@@ -127,7 +127,7 @@ class TestStorageClass(unittest.TestCase):
         data_item0_uuid = document_controller.document_model.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
         if include_rewrite:
-            document_controller.document_model.data_items[0]._rewrite()
+            document_controller.document_model.data_items[1]._rewrite()
         document_controller.close()
         datastore.close()
         # read it back
