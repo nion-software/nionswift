@@ -193,6 +193,30 @@ class InfoInspectorSection(InspectorSection):
         self.caption_row.add(self.caption_edit_stack)
         self.caption_row.add_spacing(8)
 
+        # flag
+        self.flag_row = self.ui.create_row_widget()
+        class FlaggedToIndexConverter(object):
+            """
+                Convert from flag index (-1, 0, 1) to chooser index.
+            """
+            def convert(self, value):
+                return (2, 0, 1)[value + 1]
+            def convert_back(self, value):
+                return (0, 1, -1)[value]
+        self.flag_chooser = self.ui.create_combo_box_widget()
+        self.flag_chooser.items = [_("Unflagged"), _("Picked"), _("Rejected")]
+        self.flag_chooser.bind_current_index(Binding.PropertyBinding(data_item, "flag", converter=FlaggedToIndexConverter()))
+        self.flag_row.add(self.ui.create_label_widget(_("Flag"), properties={"width": 60}))
+        self.flag_row.add(self.flag_chooser)
+        self.flag_row.add_stretch()
+        # rating
+        self.rating_row = self.ui.create_row_widget()
+        self.rating_chooser = self.ui.create_combo_box_widget()
+        self.rating_chooser.items = [_("No Rating"), _("1 Star"), _("2 Star"), _("3 Star"), _("4 Star"), _("5 Star")]
+        self.rating_chooser.bind_current_index(Binding.PropertyBinding(data_item, "rating"))
+        self.rating_row.add(self.ui.create_label_widget(_("Rating"), properties={"width": 60}))
+        self.rating_row.add(self.rating_chooser)
+        self.rating_row.add_stretch()
         # session
         self.info_section_session_row = self.ui.create_row_widget()
         self.info_section_session_row.add(self.ui.create_label_widget(_("Session"), properties={"width": 60}))
@@ -217,6 +241,8 @@ class InfoInspectorSection(InspectorSection):
         # add all of the rows to the section content
         self.add_widget_to_content(self.info_section_title_row)
         self.add_widget_to_content(self.caption_row)
+        self.add_widget_to_content(self.flag_row)
+        self.add_widget_to_content(self.rating_row)
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)

@@ -605,6 +605,24 @@ class DataItem(Storage.StorageBase):
         self.notify_set_property("caption", value)
     caption = property(__get_caption, __set_caption)
 
+    # flag
+    def __get_flag(self):
+        return self.__properties.get("flag", 0)
+    def __set_flag(self, value):
+        with self.property_changes() as pc:
+            pc.properties["flag"] = max(min(int(value), 1), -1)
+        self.notify_set_property("flag", value)
+    flag = property(__get_flag, __set_flag)
+
+    # rating
+    def __get_rating(self):
+        return self.__properties.get("rating", 0)
+    def __set_rating(self, value):
+        with self.property_changes() as pc:
+            pc.properties["rating"] = min(max(int(value), 0), 5)
+        self.notify_set_property("rating", value)
+    rating = property(__get_rating, __set_rating)
+
     # param (for testing)
     def __get_param(self):
         return self.__param
