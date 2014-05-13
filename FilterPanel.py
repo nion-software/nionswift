@@ -297,12 +297,12 @@ class FilterPanel(object):
         filter_bar_row.add(clear_filter_text_widget)
         filter_bar_row.add_stretch()
 
-        filter_column = self.ui.create_column_widget()  # properties={"height": 120}
+        filter_column = self.ui.create_column_widget(properties={"height": 180})
         filter_column.add(self.header_widget_controller.canvas_widget)
         filter_column.add_spacing(4)
         filter_column.add(filter_bar_row)
-        #filter_column.add_spacing(4)
-        #filter_column.add(date_browser)
+        filter_column.add_spacing(4)
+        filter_column.add(date_browser)
         filter_column.add_spacing(4)
 
         self.widget = filter_column
