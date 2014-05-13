@@ -1302,8 +1302,9 @@ class ImagePanel(Panel.Panel):
         if self.closed: return  # argh
         self.image_canvas_item.focused = focused
         self.line_plot_canvas_item.focused = focused
-        self.document_controller.selected_image_panel = self
-        self.document_controller.set_selected_data_item(self.get_displayed_data_item())
+        if focused:
+            self.document_controller.selected_image_panel = self
+            self.document_controller.set_selected_data_item(self.get_displayed_data_item())
 
     # gets the data item that this panel displays
     def get_displayed_data_item(self):

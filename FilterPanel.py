@@ -284,6 +284,7 @@ class FilterPanel(object):
         filter_bar_row = self.ui.create_row_widget()
         filter_bar_row.add(self.ui.create_label_widget(_("Search")))
         filter_text_widget = self.ui.create_line_edit_widget(properties={"width": 160})
+        filter_text_widget.placeholder_text = _("No Filter")
         filter_text_widget.on_text_edited = self.date_model_controller.text_filter_changed
         filter_bar_row.add_spacing(8)
         filter_bar_row.add(filter_text_widget)

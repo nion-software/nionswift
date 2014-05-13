@@ -555,6 +555,11 @@ class DocumentController(Observable.Broadcaster):
                 self.document_model.append_data_item(new_data_item)
                 if select:
                     self.set_data_item_selection(new_data_item, source_data_item=data_item)
+                    self.sync_data_item(new_data_item)
+                    self.set_selected_data_item(new_data_item)
+                    inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+                    if inspector_panel is not None:
+                        inspector_panel.request_focus = True
                 return new_data_item
         return None
 
@@ -599,6 +604,12 @@ class DocumentController(Observable.Broadcaster):
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.add_data_source(data_item)
             self.document_model.append_data_item(new_data_item)
+            if select:
+                self.sync_data_item(data_item_copy)
+                self.set_selected_data_item(data_item_copy)
+                inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+                if inspector_panel is not None:
+                    inspector_panel.request_focus = True
             return new_data_item
         return None
 
@@ -610,6 +621,12 @@ class DocumentController(Observable.Broadcaster):
             data_item_copy.title = _("Snapshot of ") + data_item.title
             # TODO: put this into existing group if copied from group
             self.document_model.append_data_item(data_item_copy)
+            if select:
+                self.sync_data_item(data_item_copy)
+                self.set_selected_data_item(data_item_copy)
+                inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+                if inspector_panel is not None:
+                    inspector_panel.request_focus = True
             return data_item_copy
         return None
 

@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import threading
@@ -24,6 +25,7 @@ class InspectorPanel(Panel.Panel):
 
         self.__display = None
         self.__display_inspector = None
+        self.request_focus = False
 
         # bind to the selected data item.
         # connect self as listener. this will result in calls to data_item_binding_data_item_changed
@@ -75,6 +77,10 @@ class InspectorPanel(Panel.Panel):
         if self.__display != display:
             self.__display = display
             self.__update_display_inspector()
+        if self.request_focus:
+            self.__display_inspector._get_inspectors()[0].info_title_label.focused = True
+            self.__display_inspector._get_inspectors()[0].info_title_label.select_all()
+            self.request_focus = False
 
     # this message is received from the data item binding.
     # it is established using add_listener. when it is called
@@ -800,3 +806,7 @@ class DataItemInspector(object):
     def periodic(self):
         for inspector in self.__inspectors:
             inspector.periodic()
+
+    def _get_inspectors(self):
+        """ Return a copy of the list of inspectors. """
+        return copy.copy(self.__inspectors)
