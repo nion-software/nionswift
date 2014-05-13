@@ -27,7 +27,6 @@ class DocumentModel(Storage.StorageBase):
 
     def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
-        self.__counted_data_items = collections.Counter()
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.storage_relationships += ["data_groups", "data_items"]
@@ -147,36 +146,16 @@ class DocumentModel(Storage.StorageBase):
                 data_ref.master_data = scipy.misc.lena()
             self.append_data_item(lena_image_source)
 
-    def __get_counted_data_items(self):
-        return self.__counted_data_items
-    counted_data_items = property(__get_counted_data_items)
-
-    # these are the internal counted data items, not the ones participating in the
-    # data group counting. they are different because the document model doesn't
-    # count data items in sub-groups, whereas the data groups do. these methods are
-    # differentiated only in the two underscores preceding the name.
-    def __update_counted_data_items(self, counted_data_items):
-        self.__counted_data_items.update(counted_data_items)
-        self.notify_listeners("update_counted_data_items", counted_data_items)
-    def __subtract_counted_data_items(self, counted_data_items):
-        self.__counted_data_items.subtract(counted_data_items)
-        self.__counted_data_items += collections.Counter()  # strip empty items
-        self.notify_listeners("subtract_counted_data_items", counted_data_items)
-
     # override from StorageBase.
     def notify_insert_item(self, key, item, before_index):
         super(DocumentModel, self).notify_insert_item(key, item, before_index)
         if key == "data_items":
             # an item was inserted, start observing
             data_item = item
-            counted_data_items = collections.Counter()
             # become a listener of every data item.
             # TODO: Document why document model is a listener of data items
             data_item.add_listener(self)
-            # update data item count
-            counted_data_items.update([data_item])
             self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
-            self.__update_counted_data_items(counted_data_items)
 
     # override from StorageBase
     def notify_remove_item(self, key, item, index):
@@ -184,12 +163,9 @@ class DocumentModel(Storage.StorageBase):
         if key == "data_items":
             # item will be removed, stop observing
             data_item = item
-            counted_data_items = collections.Counter()
             # unlisten to data item
             data_item.remove_listener(self)
             # update data item count
-            counted_data_items.update([data_item])
-            self.__subtract_counted_data_items(counted_data_items)
             self.notify_listeners("data_item_removed", self, data_item, index, False)
             if data_item.get_observer_count(self) == 0:  # ugh?
                 self.notify_listeners("data_item_deleted", data_item)
