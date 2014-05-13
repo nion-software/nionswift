@@ -286,16 +286,23 @@ class FilterPanel(object):
         filter_text_widget = self.ui.create_line_edit_widget(properties={"width": 160})
         filter_text_widget.placeholder_text = _("No Filter")
         filter_text_widget.on_text_edited = self.date_model_controller.text_filter_changed
+        clear_filter_text_widget = self.ui.create_push_button_widget(_("Clear"))
+        def clear_filter():
+            filter_text_widget.text = ""
+            self.date_model_controller.text_filter_changed("")
+        clear_filter_text_widget.on_clicked = clear_filter
         filter_bar_row.add_spacing(8)
         filter_bar_row.add(filter_text_widget)
+        filter_bar_row.add_spacing(8)
+        filter_bar_row.add(clear_filter_text_widget)
         filter_bar_row.add_stretch()
 
-        filter_column = self.ui.create_column_widget(properties={"height": 120})
+        filter_column = self.ui.create_column_widget()  # properties={"height": 120}
         filter_column.add(self.header_widget_controller.canvas_widget)
         filter_column.add_spacing(4)
         filter_column.add(filter_bar_row)
-        filter_column.add_spacing(4)
-        filter_column.add(date_browser)
+        #filter_column.add_spacing(4)
+        #filter_column.add(date_browser)
         filter_column.add_spacing(4)
 
         self.widget = filter_column

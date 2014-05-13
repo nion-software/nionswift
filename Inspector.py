@@ -247,8 +247,8 @@ class InfoInspectorSection(InspectorSection):
         # add all of the rows to the section content
         self.add_widget_to_content(self.info_section_title_row)
         self.add_widget_to_content(self.caption_row)
-        self.add_widget_to_content(self.flag_row)
-        self.add_widget_to_content(self.rating_row)
+        #self.add_widget_to_content(self.flag_row)
+        #self.add_widget_to_content(self.rating_row)
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)

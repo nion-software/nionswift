@@ -56,6 +56,7 @@ class DocumentController(Observable.Broadcaster):
         # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
+        self.__last_display_filter = None
 
         self.console = None
         self.create_menus()
@@ -634,6 +635,11 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("convert-to-scalar-operation", suffix=_(" Gray"), select=select)
 
     def toggle_filter(self):
+        if self.workspace.filter_row.visible:
+            self.__last_display_filter = self.display_filter
+            self.display_filter = None
+        else:
+            self.display_filter = self.__last_display_filter
         self.workspace.filter_row.visible = not self.workspace.filter_row.visible
 
     def prepare_data_item_script(self):
