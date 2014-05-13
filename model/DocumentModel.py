@@ -157,63 +157,46 @@ class DocumentModel(Storage.StorageBase):
     # differentiated only in the two underscores preceding the name.
     def __update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
-        self.notify_parents("update_counted_data_items", counted_data_items)
         self.notify_listeners("update_counted_data_items", counted_data_items)
     def __subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
-        self.notify_parents("subtract_counted_data_items", counted_data_items)
         self.notify_listeners("subtract_counted_data_items", counted_data_items)
 
     # override from StorageBase.
-    def notify_insert_item(self, key, value, before_index):
-        super(DocumentModel, self).notify_insert_item(key, value, before_index)
+    def notify_insert_item(self, key, item, before_index):
+        super(DocumentModel, self).notify_insert_item(key, item, before_index)
         if key == "data_items":
             # an item was inserted, start observing
-            self.item_inserted(self, key, value, before_index)
-
-    # override from StorageBase
-    def notify_remove_item(self, key, value, index):
-        super(DocumentModel, self).notify_remove_item(key, value, index)
-        if key == "data_items":
-            # item will be removed, stop observing
-            self.item_removed(self, key, value, index)
-
-    def item_inserted(self, parent, key, item, before_index):
-        # watch for data items inserted into this document model or into other data items
-        # but not into data groups.
-        if key == "data_items" and parent == self:
             data_item = item
             counted_data_items = collections.Counter()
-            # become an observer of every data group and data item
-            #logging.debug("add observer [5] %s %s", data_item, self)
-            data_item.add_observer(self)
+            # become a listener of every data item.
+            # TODO: Document why document model is a listener of data items
             data_item.add_listener(self)
             # update data item count
             counted_data_items.update([data_item])
             self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
             self.__update_counted_data_items(counted_data_items)
 
-    def item_removed(self, parent, key, item, index):
-        # watch for data items inserted into this document model or into other data items
-        # but not into data groups.
-        if key == "data_items" and parent == self:
+    # override from StorageBase
+    def notify_remove_item(self, key, item, index):
+        super(DocumentModel, self).notify_remove_item(key, item, index)
+        if key == "data_items":
+            # item will be removed, stop observing
             data_item = item
             counted_data_items = collections.Counter()
-            #logging.debug("remove observer [5] %s %s", data_item, self)
+            # unlisten to data item
             data_item.remove_listener(self)
-            data_item.remove_observer(self)
             # update data item count
             counted_data_items.update([data_item])
             self.__subtract_counted_data_items(counted_data_items)
             self.notify_listeners("data_item_removed", self, data_item, index, False)
-            if data_item.get_observer_count(self) == 0:
+            if data_item.get_observer_count(self) == 0:  # ugh?
                 self.notify_listeners("data_item_deleted", data_item)
 
     # watch for property changes to data items so that smart filters get updated.
     # tell any data groups to update their filter.
     def data_item_property_changed(self, data_item, property, value):
-        self.notify_parents("data_item_property_changed", data_item, property, value)
         self.notify_listeners("data_item_property_changed", data_item, property, value)
 
     # this message comes from a data item when it wants to be removed from the document. ugh.

@@ -1033,55 +1033,6 @@ class DataItem(Storage.StorageBase):
         return data_item_copy
 
 
-class DataItemBindingSource(Observable.Observable):
-    """
-        Hold a data item and notify observers when changed.
-        Also allow access to the properties of the data item
-        and allow them to be observed.
-    """
-    def __init__(self, data_item=None):
-        super(DataItemBindingSource, self).__init__()
-        self.__data_item = None
-        self.__initialized = True
-        self.data_item = data_item
-
-    def close(self):
-        self.data_item = None
-        self.__initialized = False
-
-    def __get_data_item(self):
-        return self.__data_item
-    def __set_data_item(self, data_item):
-        if self.__data_item:
-            self.__data_item.remove_observer(self)
-        self.__data_item = data_item
-        if self.__data_item:
-            self.__data_item.add_observer(self)
-        self.notify_set_property("data_item", data_item)
-    data_item = property(__get_data_item, __set_data_item)
-
-    def __getattr__(self, name):
-        return getattr(self.__data_item, name)
-
-    def __setattr__(self, name, value):
-        # this test allows attributes to be set in the __init__ method
-        if self.__dict__.has_key(name) or not self.__dict__.has_key('_DataItemBindingSource__initialized'):
-            super(DataItemBindingSource, self).__setattr__(name, value)
-        elif name == "data_item":
-            super(DataItemBindingSource, self).__setattr__(name, value)
-        else:
-            setattr(self.__data_item, name, value)
-
-    def property_changed(self, sender, property, value):
-        self.notify_set_property(property, value)
-
-    def item_inserted(self, sender, key, object, before_index):
-        self.notify_insert_item(key, object, before_index)
-
-    def item_removed(self, container, key, object, index):
-        self.notify_remove_item(key, object, index)
-
-
 _computation_fns = list()
 
 def register_data_item_computation(computation_fn):
