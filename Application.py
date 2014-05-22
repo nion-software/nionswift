@@ -270,6 +270,7 @@ class Application(object):
                         graphic_list = properties.setdefault("graphics", list())
                         graphic_list.append(graphic_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
+                        c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
@@ -297,6 +298,7 @@ class Application(object):
                         spatial_calibration_list = properties.setdefault("spatial_calibrations", list())
                         spatial_calibration_list.append(calibration_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
+                        c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
                     # find the intensity calibration items
                     c.execute("SELECT item_uuid FROM items WHERE key='intrinsic_intensity_calibration' AND parent_uuid=?", (parent_uuid, ))
                     result = c.fetchone()
@@ -311,6 +313,7 @@ class Application(object):
                             calibration_dict[key] = value
                         if calibration_dict:
                             properties["intrinsic_intensity_calibration"] = calibration_dict
+                        c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
                     # look for the title
                     c.execute("SELECT value FROM properties WHERE uuid=? AND key='title'", (parent_uuid, ))
                     result = c.fetchone()
@@ -355,6 +358,7 @@ class Application(object):
                         operation_list = properties.setdefault("operations", list())
                         operation_list.append(operation_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
+                        c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
                     # look for displays
                     c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='displays' ORDER BY item_index ASC", (parent_uuid, ))
                     item_uuids = list()
@@ -375,14 +379,20 @@ class Application(object):
                             del display_dict["properties"]
                         display_list.append(display_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
+                        c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
+                    c.execute("DELETE FROM properties WHERE key!='properties' AND uuid=?", (parent_uuid, ))
                 c.execute("DELETE FROM relationships WHERE key='graphics'")
                 c.execute("DELETE FROM relationships WHERE key='calibrations'")
+                c.execute("DELETE FROM relationships WHERE key='intrinsic_calibrations'")
                 c.execute("DELETE FROM relationships WHERE key='operations'")
                 c.execute("DELETE FROM relationships WHERE key='displays'")
                 c.execute("DELETE FROM items WHERE key='intrinsic_intensity_calibration'")
+                c.execute("DELETE FROM items WHERE key='calibration'")
+                c.execute("DELETE FROM nodes WHERE type='calibration'")
+                c.execute("DELETE FROM properties WHERE key!='properties' AND key!='title'")
                 c.execute("UPDATE version SET version = ?", (8, ))
                 datastore.conn.commit()
                 version = 8
