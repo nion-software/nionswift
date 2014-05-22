@@ -37,6 +37,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.define_property("y_max")
         self.define_property("left_channel")
         self.define_property("right_channel")
+        self.define_relationship("graphics", Graphics.factory)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
@@ -47,35 +48,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
 
     def about_to_delete(self):
         self.__shared_thread_pool.close()
-        for graphic in copy.copy(self.graphics):
-            self.remove_graphic(graphic)
+        self.about_to_delete_active()
         self._set_data_item(None)
 
     @classmethod
     def build(cls, storage_dict):
         display = cls()
         display.read(storage_dict)
-        graphic_list = storage_dict.get("graphics", list())
-        for graphic_dict in graphic_list:
-            graphic_item = Graphics.build(graphic_dict)
-            display.append_graphic(graphic_item)
         return display
-
-    def write(self, storage_dict):
-        super(Display, self).write(storage_dict)
-        graphic_list = storage_dict.setdefault("graphics", list())
-        for graphic in self.graphics:
-            graphic_dict = dict()
-            graphic.write(graphic_dict)
-            graphic_list.append(graphic_dict)
-
-    def __deepcopy__(self, memo):
-        display_copy = Display()
-        display_copy.deepcopy_from(self, memo)
-        for graphic in self.graphics:
-            display_copy.append_graphic(copy.deepcopy(graphic, memo))
-        memo[id(self)] = display_copy
-        return display_copy
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
@@ -164,10 +144,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             self.notify_set_property(property, value)
             if self.data_item:
                 self.notify_set_property("display_range", self.display_range)
-        if object in self.__graphics:
+        if object in self.graphics:
             if self.datastore:
                 with self.datastore:
-                    graphic_dict = self.datastore.storage_dict["graphics"][self.__graphics.index(object)]
+                    graphic_dict = self.datastore.storage_dict["graphics"][self.graphics.index(object)]
                     graphic_dict[property] = value
 
     # this message received from data item. the connection is established using
@@ -193,48 +173,41 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             operation_graphic.remove_listener(self)
             self.__drawn_graphics.remove(operation_graphic)
 
-    def __get_graphics(self):
-        """ A copy of the graphics """
-        return copy.copy(self.__graphics)
-    graphics = property(__get_graphics)
+    def _inserted_item(self, name, before_index, item):
+        if self.datastore:
+            with self.datastore:
+                item_list = self.datastore.storage_dict.setdefault(name, list())
+                item_dict = dict()
+                item.write(item_dict)
+                item_list.append(item_dict)
+        if name == "graphics":
+            self.__drawn_graphics.insert(before_index, item)
+        self.notify_listeners("display_changed", self)
+
+    def _removed_item(self, name, index, item):
+        if name == "graphics":
+            self.__drawn_graphics.remove(item)
+        self.notify_listeners("display_changed", self)
+        if self.datastore:
+            with self.datastore:
+                item_list = self.datastore.storage_dict[name]
+                del item_list[index]
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """
-        self.__graphics.insert(before_index, graphic)
-        graphic.add_ref()
-        graphic.add_listener(self)
-        graphic.add_observer(self)
-        if self.datastore:
-            with self.datastore:
-                graphic_list = self.datastore.storage_dict.setdefault("graphics", list())
-                graphic_dict = dict()
-                graphic.write(graphic_dict)
-                graphic_list.append(graphic_dict)
-        self.__drawn_graphics.insert(before_index, graphic)
-        self.notify_listeners("display_changed", self)
+        self.insert_item("graphics", before_index, graphic)
 
     def append_graphic(self, graphic):
         """ Append a graphic """
-        self.insert_graphic(len(self.__graphics), graphic)
+        self.append_item("graphics", graphic)
 
     def remove_graphic(self, graphic):
         """ Remove a graphic """
-        graphic_index = self.__graphics.index(graphic)
-        self.__graphics.remove(graphic)
-        self.__drawn_graphics.remove(graphic)
-        self.notify_listeners("display_changed", self)
-        graphic.remove_listener(self)
-        graphic.remove_observer(self)
-        graphic.remove_ref()
-        if self.datastore:
-            with self.datastore:
-                graphic_list = self.datastore.storage_dict["graphics"]
-                del graphic_list[graphic_index]
+        self.remove_item("graphics", graphic)
 
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
-        for graphic in graphics:
-            self.append_graphic(graphic)
+        self.extend_items("graphics", graphics)
 
     # drawn graphics and the regular graphic items, plus those derived from the operation classes
     def __get_drawn_graphics(self):
@@ -244,7 +217,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
 
     def remove_drawn_graphic(self, drawn_graphic):
         """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
-        if drawn_graphic in self.__graphics:
+        if drawn_graphic in self.graphics:
             self.remove_graphic(drawn_graphic)
         else:  # a synthesized graphic
             drawn_graphic.notify_remove_operation_graphic()

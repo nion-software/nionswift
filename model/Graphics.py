@@ -480,16 +480,15 @@ class LineGraphic(LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-def build(storage_dict):
+def factory(storage_dict):
     build_map = {
         "line-graphic": LineGraphic,
         "rect-graphic": RectangleGraphic,
         "ellipse-graphic": EllipseGraphic
     }
     type = storage_dict["type"]
-    if type in build_map:
-        cls = build_map[type]
-        graphic = cls()
+    graphic = build_map[type]() if type in build_map else None
+    if graphic:
         graphic.read(storage_dict)
         return graphic
     return None
