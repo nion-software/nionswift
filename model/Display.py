@@ -44,7 +44,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
-        self.datastore = None
 
     def about_to_delete(self):
         self.__shared_thread_pool.close()
@@ -111,9 +110,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.notify_set_property("display_range", self.display_range)
 
     def __property_changed(self, property_name, value):
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict[property_name] = value
         self.notify_set_property(property_name, value)
         self.notify_listeners("display_changed", self)
         self.__preview = None
@@ -138,11 +134,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             self.notify_set_property(property, value)
             if self.data_item:
                 self.notify_set_property("display_range", self.display_range)
-        if object in self.graphics:
-            if self.datastore:
-                with self.datastore:
-                    graphic_dict = self.datastore.storage_dict["graphics"][self.graphics.index(object)]
-                    graphic_dict[property] = value
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
@@ -171,12 +162,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         item.add_ref()
         item.add_listener(self)
         item.add_observer(self)
-        if self.datastore:
-            with self.datastore:
-                item_list = self.datastore.storage_dict.setdefault(name, list())
-                item_dict = dict()
-                item.write_storage(item_dict)
-                item_list.append(item_dict)
         self.__drawn_graphics.insert(before_index, item)
         self.notify_listeners("display_changed", self)
 
@@ -186,10 +171,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         item.remove_ref()
         self.__drawn_graphics.remove(item)
         self.notify_listeners("display_changed", self)
-        if self.datastore:
-            with self.datastore:
-                item_list = self.datastore.storage_dict[name]
-                del item_list[index]
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """
@@ -349,7 +330,5 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
 
-def display_factory(storage_dict):
-    display = Display()
-    display.read_storage(storage_dict)
-    return display
+def display_factory(vault):
+    return Display()

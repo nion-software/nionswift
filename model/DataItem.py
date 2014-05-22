@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import uuid
+import weakref
 
 # third party libraries
 import numpy
@@ -48,6 +49,54 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def get_data_item(self):
         return self.item
+
+
+class DataItemVault(object):
+
+    def __init__(self, data_item, storage_dict):
+        self.__weak_data_item = weakref.ref(data_item)
+        self.storage_dict = storage_dict
+
+    def close(self):
+        self.__weak_data_item = None
+
+    def __get_data_item(self):
+        return self.__weak_data_item() if self.__weak_data_item else None
+    data_item = property(__get_data_item)
+
+    def insert_item(self, name, before_index, item):
+        with self.data_item.property_changes() as pc:
+            item_list = self.storage_dict.setdefault(name, list())
+            item_dict = dict()
+            item_list.insert(before_index, item_dict)
+            item.vault = DataItemVault(self.data_item, item_dict)
+            item.write_storage(DataItemVault(self.data_item, item_dict))
+
+    def remove_item(self, name, index, item):
+        if name not in self.storage_dict:
+            logging.debug("remove_item %s %s %s", name, index, self.storage_dict)
+        with self.data_item.property_changes() as pc:
+            item_list = self.storage_dict[name]
+            del item_list[index]
+
+    def set_value(self, name, value):
+        with self.data_item.property_changes() as pc:
+            self.storage_dict[name] = value
+
+    def get_vault_for_item(self, name, index):
+        storage_dict = self.storage_dict[name][index]
+        return DataItemVault(self.data_item, storage_dict)
+
+    def has_value(self, name):
+        return name in self.storage_dict
+
+    def get_value(self, name):
+        return self.storage_dict[name]
+
+    def get_item_vaults(self, name):
+        if name in self.storage_dict:
+            return [DataItemVault(self.data_item, storage_dict) for storage_dict in self.storage_dict[name]]
+        return []
 
 
 # data items will represents a numpy array. the numpy array
@@ -101,14 +150,15 @@ SOURCE = 4
 
 class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
 
-    def __init__(self, data=None, create_display=True):
+    def __init__(self, data=None, properties=None, create_display=True):
         super(DataItem, self).__init__()
         self.storage_properties += ["properties"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
+        current_datetime_item = Utility.get_current_datetime_item()
         self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
-        self.define_property(Observable.Property("datetime_original", validate=self.__validate_datetime, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("datetime_modified", validate=self.__validate_datetime, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
         self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_changed))
         self.define_property(Observable.Property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_changed))
         self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_changed))
@@ -118,7 +168,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__properties = dict()
+        self.__properties = properties if properties is not None else dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
@@ -141,10 +191,8 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
-        current_datetime_item = Utility.get_current_datetime_item()
-        self.datetime_original = current_datetime_item
-        self.datetime_modified = current_datetime_item
         self.__set_master_data(data)
+        self.vault = DataItemVault(self, self.__properties)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
@@ -182,12 +230,12 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
         else:
             master_data_shape, master_data_dtype = None, None
-        data_item = DataItem(create_display=False)
+        data_item = DataItem(properties=properties, create_display=False)
         data_item.__properties = properties
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
-        data_item.read_storage(data_item.__properties)
+        data_item.read_storage(data_item.vault)
         assert(len(data_item.displays) > 0)
         return data_item
 
@@ -203,14 +251,22 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.__set_master_data(None)
         self.undefine_properties()
         self.undefine_relationships()
+        self.vault.close()
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
-        data_item_copy = DataItem(create_display=False)
-        with data_item_copy.property_changes() as property_accessor:
-            properties_copy = self.properties
-            property_accessor.properties.clear()
-            property_accessor.properties.update(properties_copy)
+        # copying data item is tricky right now while properties and metadata are merged.
+        # deepcopy_from will do all of the heavy lifting, but there are extra items stored in
+        # properties that don't get copied by deepcopy. the strategy for now is to copy properties
+        # then remove anything that will get copied by deepcopy.
+        properties_copy = copy.deepcopy(self.properties)
+        for name in self.property_names:
+            if name in properties_copy:
+                del properties_copy[name]
+        for name in self.relationship_names:
+            if name in properties_copy:
+                del properties_copy[name]
+        data_item_copy = DataItem(properties=properties_copy, create_display=False)
         data_item_copy.deepcopy_from(self, memo)
         if self.has_master_data:
             with self.data_ref() as data_ref:
@@ -312,9 +368,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         return unicode(value)
 
     def __intrinsic_intensity_calibration_changed(self, name, value):
-        with self.property_changes() as pc:
-            value_dict = pc.properties.setdefault(name, dict())
-            value.write_dict(value_dict)
         self.notify_set_property(name, value)
         self.notify_data_item_content_changed(set([METADATA]))
         self.notify_listeners("data_item_calibration_changed")
@@ -468,30 +521,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
 
-    class Datastore(object):
-
-        def __init__(self, data_item, storage_dict):
-            self.data_item = data_item
-            self.storage_dict = storage_dict
-
-        def __enter__(self):
-            return self.storage_dict
-
-        def __exit__(self, type, value, traceback):
-            self.data_item.release_properties()
-
     def __insert_display(self, name, before_index, display):
         display.add_ref()
         display.add_listener(self)
-        if not self._is_reading:
-            with self.property_changes() as pc:
-                display_list = pc.properties.setdefault("displays", list())
-                display_dict = dict()
-                display_list.append(display_dict)
-                display.datastore = DataItem.Datastore(self, display_dict)
-                display.write_storage(display.datastore.storage_dict)
-        else:
-            display.datastore = DataItem.Datastore(self, self.__properties["displays"][before_index])
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
@@ -499,11 +531,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display.remove_ref()
-        display.datastore = None
         display._set_data_item(None)
-        with self.property_changes() as pc:
-            display_list = pc.properties["displays"]
-            del display_list[index]
 
     def add_display(self, display):
         self.append_item("displays", display)
@@ -525,15 +553,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         operation.add_ref()
         operation.add_listener(self)
         operation.add_observer(self)
-        if not self._is_reading:
-            with self.property_changes() as pc:
-                operation_list = pc.properties.setdefault("operations", list())
-                operation_dict = dict()
-                operation.datastore = DataItem.Datastore(self, operation_dict)
-                operation.write_storage(operation_dict)
-                operation_list.append(operation_dict)
-        else:
-            operation.datastore = DataItem.Datastore(self, self.__properties["operations"][before_index])
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         if self.data_source:
@@ -547,9 +566,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         operation.remove_listener(self)
         operation.remove_observer(self)
         operation.remove_ref()
-        with self.property_changes() as pc:
-            operation_list = pc.properties["operations"]
-            del operation_list[index]
 
     def add_operation(self, operation):
         self.append_item("operations", operation)

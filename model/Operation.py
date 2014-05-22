@@ -78,8 +78,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_property(Observable.Property("enabled", True, changed=self.__property_changed))
         self.define_property(Observable.Property("values", dict(), changed=self.__property_changed))
 
-        self.datastore = None
-
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
         # are no saved parameters, defaults are used.
@@ -124,17 +122,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         memo[id(self)] = deepcopy
         return deepcopy
 
-    def read_storage(self, storage_dict):
-        super(OperationItem, self).read_storage(storage_dict)
+    def read_storage(self, vault):
+        super(OperationItem, self).read_storage(vault)
         # update items one by one to update operation
         for key in self.values.keys():
             if self.operation:
                 setattr(self.operation, key, self.values[key])
 
     def __property_changed(self, name, value):
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict[name] = value
         self.notify_set_property(name, value)
         self.notify_listeners("operation_changed", self)
 
@@ -612,8 +607,6 @@ OperationManager().register_operation("line-profile-operation", lambda: LineProf
 OperationManager().register_operation("convert-to-scalar-operation", lambda: ConvertToScalarOperation())
 
 
-def operation_item_factory(storage_dict):
-    operation_id = storage_dict["operation_id"]
-    operation_item = OperationItem(operation_id)
-    operation_item.read_storage(storage_dict)
-    return operation_item
+def operation_item_factory(vault):
+    operation_id = vault.get_value("operation_id")
+    return OperationItem(operation_id)

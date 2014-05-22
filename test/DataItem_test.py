@@ -141,8 +141,11 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertEqual(data_ref.master_data[0,0], 1)
                     self.assertEqual(data_copy_accessor.master_data[0,0], 0)
                 # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 7)  # temporary hack until properties are separated from metadata
+                self.assertEqual(len(data_item_copy.properties), 12)  # temporary hack until properties are separated from metadata
                 self.assertIsNot(data_item.properties, data_item_copy.properties)
+                # make sure display counts match
+                self.assertEqual(len(data_item.displays), len(data_item_copy.displays))
+                self.assertEqual(len(data_item.operations), len(data_item_copy.operations))
                 # tuples and strings are immutable, so test to make sure old/new are independent
                 self.assertEqual(data_item.title, data_item_copy.title)
                 data_item.title = "data_item1"

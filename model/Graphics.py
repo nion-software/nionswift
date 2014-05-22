@@ -476,15 +476,11 @@ class LineGraphic(LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-def factory(storage_dict):
+def factory(vault):
     build_map = {
         "line-graphic": LineGraphic,
         "rect-graphic": RectangleGraphic,
         "ellipse-graphic": EllipseGraphic
     }
-    type = storage_dict["type"]
-    graphic = build_map[type]() if type in build_map else None
-    if graphic:
-        graphic.read_storage(storage_dict)
-        return graphic
-    return None
+    type = vault.get_value("type")
+    return build_map[type]() if type in build_map else None

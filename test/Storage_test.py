@@ -588,7 +588,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertIsNotNone(document_model.data_items[0].displays[0].datastore)
+        self.assertEqual(document_model.data_items[0].displays[0].vault.data_item, document_model.data_items[0])
         # clean up
         document_controller.close()
 
@@ -610,7 +610,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertIsNotNone(document_model.data_items[0].operations[0].datastore)
+        self.assertIsNotNone(document_model.data_items[0].operations[0].vault.data_item, document_model.data_items[0])
         # clean up
         document_controller.close()
 
