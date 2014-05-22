@@ -52,12 +52,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self._set_data_item(None)
         self.undefine_properties()
 
-    @classmethod
-    def build(cls, storage_dict):
-        display = cls()
-        display.read_storage(storage_dict)
-        return display
-
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
 
@@ -353,3 +347,9 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
                 rgba[:,:,0:3] = data
                 rgba[:,:,3] = 255
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+
+
+def display_factory(storage_dict):
+    display = Display()
+    display.read_storage(storage_dict)
+    return display

@@ -115,9 +115,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
+        self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__displays = list()
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
@@ -177,9 +177,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     def build(cls, datastore, item_node, uuid_):
         properties = datastore.get_property(item_node, "properties")
         properties = properties if properties else dict()
-        display_list = properties.get("displays", list())
-        if "displays" in properties:
-            del properties["displays"]  # these will be added back below
         has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
             master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
@@ -191,10 +188,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
         data_item.read_storage(data_item.__properties)
-        # replace existing displays. TODO: remove this when we can handle data items without any displays
-        for display_dict in display_list:
-            display_item = Display.Display.build(display_dict)
-            data_item.add_display(display_item)
         assert(len(data_item.displays) > 0)
         return data_item
 
@@ -216,14 +209,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         data_item_copy = DataItem(create_display=False)
         with data_item_copy.property_changes() as property_accessor:
             properties_copy = self.properties
-            if "displays" in properties_copy:
-                del properties_copy["displays"]  # these will be added back below
             property_accessor.properties.clear()
             property_accessor.properties.update(properties_copy)
         data_item_copy.deepcopy_from(self, memo)
-        # replace existing displays. TODO: remove this when we can handle data items without any displays
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display, memo))
         if self.has_master_data:
             with self.data_ref() as data_ref:
                 data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
@@ -492,22 +480,20 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         def __exit__(self, type, value, traceback):
             self.data_item.release_properties()
 
-    def add_display(self, display):
-        self.__displays.append(display)
+    def __insert_display(self, name, before_index, display):
         display.add_ref()
         display.add_listener(self)
-        with self.property_changes() as pc:
-            display_list = pc.properties.setdefault("displays", list())
-            display_dict = dict()
-            display_list.append(display_dict)
-            display.datastore = DataItem.Datastore(self, display_dict)
-            display.write_storage(display.datastore.storage_dict)
+        if not self._is_reading:
+            with self.property_changes() as pc:
+                display_list = pc.properties.setdefault("displays", list())
+                display_dict = dict()
+                display_list.append(display_dict)
+                display.datastore = DataItem.Datastore(self, display_dict)
+                display.write_storage(display.datastore.storage_dict)
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
-    def remove_display(self, display):
-        display_index = self.__displays.index(display)
-        self.__displays.remove(display)
+    def __remove_display(self, name, index, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display.remove_ref()
@@ -515,11 +501,13 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         display._set_data_item(None)
         with self.property_changes() as pc:
             display_list = pc.properties["displays"]
-            del display_list[display_index]
+            del display_list[index]
 
-    def __get_displays(self):
-        return copy.copy(self.__displays)
-    displays = property(__get_displays)
+    def add_display(self, display):
+        self.append_item("displays", display)
+
+    def remove_display(self, display):
+        self.remove_item("displays", display)
 
     # call this when operations change or data souce changes
     # this allows operations to update their default values
