@@ -75,7 +75,7 @@ class LineProfileGraphic(Graphics.LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted):
+class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ActiveSerializable):
     """
         OperationItem represents an operation on numpy data array.
         Pass in a description during construction. The description
@@ -85,21 +85,20 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
+        self.define_property("operation_id", operation_id, read_only=True)
+        self.define_property("enabled", True)
+        self.define_property("values", dict())
+
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
         # are no saved parameters, defaults are used.
         self.operation = OperationManager().build_operation(operation_id)
 
         self.name = self.operation.name if self.operation else _("Unavailable Operation")
-        self.__enabled = True
-
-        # operation_id is immutable
-        self.operation_id = operation_id
 
         # manage properties
         self.description = self.operation.description if self.operation else []
         self.properties = [description_entry["property"] for description_entry in self.description]
-        self.values = {}
 
         # manage graphics
         self.__graphics = list()
@@ -139,28 +138,16 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
             operation_item.set_property(key, values[key])
         return operation_item
 
-    def write(self, storage_dict):
-        storage_dict["operation_id"] = self.operation_id
-        storage_dict["enabled"] = self.enabled
-        storage_dict["values"] = self.values
-
-    # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
-        operation_item = self.__class__(self.operation_id)
-        operation_item.deepcopy_from(self, memo)
-        memo[id(self)] = operation_item
-        return operation_item
+        deepcopy = self.__class__(self.operation_id)
+        deepcopy.deepcopy_from(self, memo)
+        memo[id(self)] = deepcopy
+        return deepcopy
 
-    def create_editor(self, ui):
-        return None
-
-    # enabled property
-    def __get_enabled(self):
-        return self.__enabled
-    def __set_enabled(self, enabled):
-        self.__enabled = enabled
-        self.notify_set_property("enabled", enabled)
-    enabled = property(__get_enabled, __set_enabled)
+    def _property_changed(self, property_name, value):
+        super(OperationItem, self)._property_changed(property_name, value)
+        if property_name == "enabled":
+            self.notify_set_property(property_name, value)
 
     # get a property.
     def get_property(self, property_id, default_value=None):
@@ -229,11 +216,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
                 self.__set_property_default(property, default_value)
 
     def deepcopy_from(self, operation_item, memo):
-        values = copy.deepcopy(operation_item.values)
+        super(OperationItem, self).deepcopy_from(operation_item, memo)
+        values = self.values
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.set_property(key, values[key])
-        self.__enabled = operation_item.enabled
 
     # override and watch for changes to this object and notify listeners if it changes
     def notify_set_property(self, key, value):
