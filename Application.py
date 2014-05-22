@@ -295,7 +295,7 @@ class Application(object):
                             key = row[0]
                             value = pickle.loads(str(row[1]))
                             calibration_dict[key] = value
-                        spatial_calibration_list = properties.setdefault("spatial_calibrations", list())
+                        spatial_calibration_list = properties.setdefault("intrinsic_spatial_calibrations", list())
                         spatial_calibration_list.append(calibration_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                         c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))

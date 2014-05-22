@@ -51,6 +51,26 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         return self.item
 
 
+class CalibrationList(object):
+
+    def __init__(self):
+        self.list = list()
+
+    def read_dict(self, storage_list):
+        # storage_list will be whatever is returned by write_dict.
+        new_list = list()
+        for calibration_dict in storage_list:
+            new_list.append(Calibration.Calibration().read_dict(calibration_dict))
+        self.list = new_list
+        return self  # for convenience
+
+    def write_dict(self):
+        list = []
+        for calibration in self.list:
+            list.append(calibration.write_dict())
+        return list
+
+
 class DataSourceList(object):
 
     def __init__(self):
@@ -108,7 +128,7 @@ class DataItemVault(object):
     def get_item_vaults(self, name):
         if name in self.storage_dict:
             return [DataItemVault(self.data_item, storage_dict) for storage_dict in self.storage_dict[name]]
-        return []
+        return list()
 
 
 # data items will represents a numpy array. the numpy array
@@ -168,7 +188,11 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         current_datetime_item = Utility.get_current_datetime_item()
+        spatial_calibrations = CalibrationList()
+        if data is not None:
+            spatial_calibrations.list.extend([Calibration.Calibration() for i in xrange(len(Image.spatial_shape_from_shape_and_dtype(data.shape, data.dtype)))])
         self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
+        self.define_property(Observable.Property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed))
         self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
         self.define_property(Observable.Property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
         self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_changed))
@@ -250,6 +274,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
         data_item.read_storage(data_item.vault)
+        data_item.sync_intrinsic_spatial_calibrations()
         assert(len(data_item.displays) > 0)
         return data_item
 
@@ -387,7 +412,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 self.__data_item_changes.update(changes)
 
     def __get_data_range_for_data(self, data):
-        if data is not None:
+        if data is not None and data.size:
             if self.is_data_rgb_type:
                 data_range = (0, 255)
             elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
@@ -427,23 +452,22 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     is_calibrated = property(__is_calibrated)
 
     def set_spatial_calibration(self, dimension, calibration):
-        with self.property_changes() as pc:
-            spatial_calibration_list = pc.properties.setdefault("spatial_calibrations", list())
-            while len(spatial_calibration_list) <= dimension:
-                spatial_calibration_list.append(dict())
-            calibration_dict = calibration.write_dict()
-            spatial_calibration_list[dimension].clear()
-            spatial_calibration_list[dimension].update(calibration_dict)
+        spatial_calibrations = self.intrinsic_spatial_calibrations
+        while len(spatial_calibrations.list) <= dimension:
+            spatial_calibrations.list.append(Calibration.Calibration())
+        spatial_calibrations.list[dimension] = calibration
+        self.intrinsic_spatial_calibrations = spatial_calibrations
+
+    def __intrinsic_spatial_calibrations_changed(self, name, value):
+        self.notify_data_item_content_changed(set([METADATA]))
         self.notify_listeners("data_item_calibration_changed")
+
 
     def set_intensity_calibration(self, calibration):
         self.intrinsic_intensity_calibration = calibration
 
     def __get_intrinsic_calibrations(self):
-        spatial_calibration_list = self.__properties.get("spatial_calibrations", list())
-        while len(spatial_calibration_list) < len(self.spatial_shape):
-            spatial_calibration_list.append(dict())
-        return [Calibration.Calibration().read_dict(spatial_calibration_list[i]) for i in xrange(len(self.spatial_shape))]
+        return copy.deepcopy(self.intrinsic_spatial_calibrations.list)
     intrinsic_calibrations = property(__get_intrinsic_calibrations)
 
     def __get_calculated_intensity_calibration(self):
@@ -460,6 +484,19 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                     data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
         return intensity_calibration
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
+
+    # call this when data changes. this makes sure that the right number
+    # of intrinsic_calibrations exist in this object.
+    def sync_intrinsic_spatial_calibrations(self):
+        spatial_shape = self.spatial_shape
+        ndim = len(spatial_shape) if spatial_shape is not None else 0
+        spatial_calibrations = self.intrinsic_spatial_calibrations
+        if len(spatial_calibrations.list) != ndim and not self.closed:
+            while len(spatial_calibrations.list) < ndim:
+                spatial_calibrations.list.append(Calibration.Calibration())
+            while len(spatial_calibrations.list) > ndim:
+                spatial_calibrations.list.remove(spatial_calibrations.list[-1])
+            self.intrinsic_spatial_calibrations = spatial_calibrations
 
     # calculate the calibrations by starting with the source calibration
     # and then applying calibration transformations for each enabled
@@ -622,11 +659,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         for processor in self.__processors.values():
             processor.item_property_changed(key, value)
 
-    # this message comes from the calibration. the connection is established when a calibration
-    # is added or removed from this object.
-    def calibration_changed(self, calibration):
-        self.notify_data_item_content_changed(set([METADATA]))
-
     # this message comes from the displays.
     def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
@@ -634,6 +666,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established in __set_data_source.
     def data_item_content_changed(self, data_source, changes):
+        self.sync_intrinsic_spatial_calibrations()
         assert data_source == self.data_source
         # we don't care about display changes to the data source; only data changes.
         if DATA in changes:
@@ -698,6 +731,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 self.__master_data_shape = data.shape if data is not None else None
                 self.__master_data_dtype = data.dtype if data is not None else None
                 self.__has_master_data = data is not None
+                self.sync_intrinsic_spatial_calibrations()
             data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
             file_datetime = Utility.get_datetime_from_datetime_item(self.datetime_original)
             # tell the database about it
@@ -735,6 +769,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             self.__master_data_shape = data_shape
             self.__master_data_dtype = data_dtype
             self.__has_master_data = True
+            self.sync_intrinsic_spatial_calibrations()
             file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(data_file_path))
         # save these here so that if the data isn't immediately written out, these values can be returned
         # from _get_master_data_data_reference when the data is written.
