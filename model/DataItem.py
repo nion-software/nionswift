@@ -164,6 +164,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_changed))
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
+        self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
         self.closed = False
@@ -297,26 +298,12 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         return str()
     live_status_as_string = property(__get_live_status_as_string)
 
-    def __get_session_id(self):
-        # first check to see if we have a session_id set directly
-        session_id = self.__properties.get("session_id", str())
-        # if not, try the data source
-        if not session_id and self.data_source:
-            session_id = self.data_source.session_id
-        # if not, try the datetime
-        if not session_id:
-            datetime_item = self.datetime_original if self.datetime_original else Utility.get_current_datetime_item()
-            datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
-            datetime_ = datetime_ if datetime_ else datetime.datetime.now()
-            session_id = datetime_.strftime("%Y%m%d-000000")
-        return session_id
-    def __set_session_id(self, session_id):
-        # verify its in suitable form
-        assert datetime.datetime.strptime(session_id, "%Y%m%d-%H%M%S")
-        # set it into properties
-        with self.property_changes() as property_accessor:
-            property_accessor.properties["session_id"] = session_id
-    session_id = property(__get_session_id, __set_session_id)
+    def __validate_session_id(self, value):
+        assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
+        return value
+
+    def __session_id_changed(self, name, value):
+        self.__property_changed(name, value)
 
     def data_item_changes(self):
         class DataItemChangeContextManager(object):
@@ -380,7 +367,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         with self.property_changes() as pc:
             if value is not None:
                 pc.properties[name] = value
-            else:
+            elif name in pc.properties:
                 del pc.properties[name]
         self.notify_set_property(name, value)
 
@@ -668,11 +655,13 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
 
     # add a reference to the given data source
     def add_data_source(self, data_source):
+        self.session_id = data_source.session_id
         with self.property_changes() as property_accessor:
             property_accessor.properties["data_source_uuid"] = str(data_source.uuid)
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
+        self.session_id = None
         with self.property_changes() as property_accessor:
             property_accessor.properties.pop("data_source_uuid", None)
 

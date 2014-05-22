@@ -141,7 +141,7 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertEqual(data_ref.master_data[0,0], 1)
                     self.assertEqual(data_copy_accessor.master_data[0,0], 0)
                 # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 12)  # temporary hack until properties are separated from metadata
+                self.assertEqual(len(data_item_copy.properties), 13)  # temporary hack until properties are separated from metadata
                 self.assertIsNot(data_item.properties, data_item_copy.properties)
                 # make sure display counts match
                 self.assertEqual(len(data_item.displays), len(data_item_copy.displays))
@@ -427,11 +427,12 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(crop_data_item)
             # should remove properly when shutting down.
 
-    def test_inherited_session_id(self):
+    def test_inherited_session_id_during_processing(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
         with document_model.ref():
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item.session_id = "20131231-235959"
             document_model.append_data_item(data_item)
             crop_data_item = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
@@ -439,7 +440,6 @@ class TestDataItemClass(unittest.TestCase):
             crop_data_item.add_operation(crop_operation)
             crop_data_item.add_data_source(data_item)
             document_model.append_data_item(crop_data_item)
-            data_item.session_id = "20131231-235959"
             self.assertEqual(crop_data_item.session_id, data_item.session_id)
 
     def test_adding_ref_to_dependent_data_causes_source_data_to_load(self):
