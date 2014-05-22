@@ -170,11 +170,6 @@ class DocumentModel(Storage.StorageBase):
             if data_item.get_observer_count(self) == 0:  # ugh?
                 self.notify_listeners("data_item_deleted", data_item)
 
-    # watch for property changes to data items so that smart filters get updated.
-    # tell any data groups to update their filter.
-    def data_item_property_changed(self, data_item, property, value):
-        self.notify_listeners("data_item_property_changed", data_item, property, value)
-
     # this message comes from a data item when it wants to be removed from the document. ugh.
     def request_remove_data_item(self, data_item):
         DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)

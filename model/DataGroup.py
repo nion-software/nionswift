@@ -153,11 +153,6 @@ class DataGroup(Storage.StorageBase):
             self.notify_listeners("data_item_removed", self, value, index, self.__moving)
         if key == "data_groups":
             self.subtract_counted_data_items(value.counted_data_items)
-    # override from StorageBase.
-    # watch for property changes to data items so that smart filters get updated.
-    def property_changed(self, sender, property, value):
-        if isinstance(sender, DataItem.DataItem):
-            self.data_item_property_changed(sender, property, value)
 
     # title
     def __get_title(self):
@@ -192,12 +187,6 @@ class DataGroup(Storage.StorageBase):
             self.insert_data_item(before_index, data_item)
             self.__moving = False
             data_item.remove_ref()
-
-    # watch for property changes to data items so that smart filters get updated.
-    # tell any data groups to update their filter.
-    def data_item_property_changed(self, data_item, property, value):
-        self.notify_parents("data_item_property_changed", data_item, property, value)
-        self.notify_listeners("data_item_property_changed", data_item, property, value)
 
 
 # return a generator for all data groups and child data groups in container
