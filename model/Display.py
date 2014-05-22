@@ -24,19 +24,19 @@ from nion.ui import ThreadPool
 _ = gettext.gettext
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable):
+class Display(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
         super(Display, self).__init__()
         self.__weak_data_item = None
         self.__graphics = list()
-        self.__display_calibrated_values = True
-        self.__display_limits = None
-        self.__y_min = None
-        self.__y_max = None
-        self.__left_channel = None
-        self.__right_channel = None
+        self.define_property("display_calibrated_values", True)
+        self.define_property("display_limits")
+        self.define_property("y_min")
+        self.define_property("y_max")
+        self.define_property("left_channel")
+        self.define_property("right_channel")
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
@@ -54,12 +54,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     @classmethod
     def build(cls, storage_dict):
         display = cls()
-        display.__display_calibrated_values = storage_dict.get("display_calibrated_values", True)
-        display.__display_limits = storage_dict.get("display_limits")
-        display.__y_min = storage_dict.get("y_min")
-        display.__y_max = storage_dict.get("y_max")
-        display.__left_channel = storage_dict.get("left_channel")
-        display.__right_channel = storage_dict.get("right_channel")
+        display.read(storage_dict)
         graphic_list = storage_dict.get("graphics", list())
         for graphic_dict in graphic_list:
             graphic_item = Graphics.build(graphic_dict)
@@ -67,12 +62,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         return display
 
     def write(self, storage_dict):
-        storage_dict["display_calibrated_values"] = self.display_calibrated_values
-        storage_dict["display_limits"] = self.display_limits
-        storage_dict["y_min"] = self.y_min
-        storage_dict["y_max"] = self.y_max
-        storage_dict["left_channel"] = self.left_channel
-        storage_dict["right_channel"] = self.right_channel
+        super(Display, self).write(storage_dict)
         graphic_list = storage_dict.setdefault("graphics", list())
         for graphic in self.graphics:
             graphic_dict = dict()
@@ -81,12 +71,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
 
     def __deepcopy__(self, memo):
         display_copy = Display()
-        display_copy.display_calibrated_values = self.display_calibrated_values
-        display_copy.display_limits = self.display_limits
-        display_copy.y_min = self.y_min
-        display_copy.y_max = self.y_max
-        display_copy.left_channel = self.left_channel
-        display_copy.right_channel = self.right_channel
+        display_copy.deepcopy_from(self, memo)
         for graphic in self.graphics:
             display_copy.append_graphic(copy.deepcopy(graphic, memo))
         memo[id(self)] = display_copy
@@ -139,38 +124,25 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         return self.__drawn_graphics
     drawn_graphics = property(__get_drawn_graphics)
 
-    def __get_display_calibrated_values(self):
-        return self.__display_calibrated_values
-    def __set_display_calibrated_values(self, display_calibrated_values):
-        self.__display_calibrated_values = display_calibrated_values
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict["display_calibrated_values"] = self.display_calibrated_values
-        self.notify_set_property("display_calibrated_values", display_calibrated_values)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-    display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
+    def _validate_property(self, property_name, value):
+        if property_name == "display_limits":
+            if value is not None:
+                return min(value[0], value[1]), max(value[0], value[1])
+        return super(Display, self)._validate_property(property_name, value)
 
-    def __get_display_limits(self):
-        return self.__display_limits
-    def __set_display_limits(self, display_limits):
-        # setting display limits to max,min will silently reverse them to min,max
-        # this is a HACK to make sure the cache gets cleared before we ask to calculate it
-        # this is temporary until I clean up the message passing a bit more.
-        if display_limits is not None:
-            display_limits = min(display_limits[0], display_limits[1]), max(display_limits[0], display_limits[1])
-        for processor in self.__processors.values():
-            processor.data_item_changed()
-        self.__display_limits = display_limits
+    def _property_changed(self, property_name, value):
+        super(Display, self)._property_changed(property_name, value)
+        if property_name == "display_limits":
+            for processor in self.__processors.values():
+                processor.data_item_changed()
         if self.datastore:
             with self.datastore:
-                self.datastore.storage_dict["display_limits"] = display_limits
-        self.notify_set_property("display_limits", display_limits)
-        if self.data_item:
+                self.datastore.storage_dict[property_name] = value
+        self.notify_set_property(property_name, value)
+        if property_name == "display_limits":
             self.notify_set_property("display_range", self.display_range)
         self.notify_listeners("display_changed", self)
         self.__preview = None
-    display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range(self):
         return self.data_item.data_range
@@ -179,57 +151,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     def __get_display_range(self):
         data_range = self.data_range
         return self.display_limits if self.display_limits else data_range
+    def __set_display_range(self, display_range):
+        self.display_limits = display_range
     # TODO: this is only valid after data has been called (!)
     # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
-    display_range = property(__get_display_range, __set_display_limits)
-
-    def __get_y_min(self):
-        return self.__y_min
-    def __set_y_min(self, y_min):
-        self.__y_min = y_min
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict["y_min"] = y_min
-        self.notify_set_property("y_min", y_min)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-    y_min = property(__get_y_min, __set_y_min)
-
-    def __get_y_max(self):
-        return self.__y_max
-    def __set_y_max(self, y_max):
-        self.__y_max = y_max
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict["y_max"] = y_max
-        self.notify_set_property("y_max", y_max)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-    y_max = property(__get_y_max, __set_y_max)
-
-    def __get_left_channel(self):
-        return self.__left_channel
-    def __set_left_channel(self, left_channel):
-        self.__left_channel = left_channel
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict["left_channel"] = left_channel
-        self.notify_set_property("left_channel", left_channel)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-    left_channel = property(__get_left_channel, __set_left_channel)
-
-    def __get_right_channel(self):
-        return self.__right_channel
-    def __set_right_channel(self, right_channel):
-        self.__right_channel = right_channel
-        if self.datastore:
-            with self.datastore:
-                self.datastore.storage_dict["right_channel"] = right_channel
-        self.notify_set_property("right_channel", right_channel)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-    right_channel = property(__get_right_channel, __set_right_channel)
+    display_range = property(__get_display_range, __set_display_range)
 
     # message sent from data_item or graphics. established using add/remove observer.
     def property_changed(self, object, property, value):

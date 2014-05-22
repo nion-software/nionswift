@@ -1,5 +1,7 @@
 # standard libraries
+import copy
 import gettext
+import logging
 import math
 
 # third party libraries
@@ -115,33 +117,20 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted):
+class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ActiveSerializable):
     def __init__(self, type):
         super(Graphic, self).__init__()
-        self.__color = "#F00"
-        self.__type = type
+        self.define_type(type)
+        self.define_property("color", "#F00")
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
         graphic = self.__class__()
         graphic.deepcopy_from(self, memo)
         memo[id(self)] = graphic
         return graphic
-    def deepcopy_from(self, graphic, memo):
-        self.color = graphic.color
-    def read(self, storage_dict):
-        self.color = storage_dict.get("color", self.__color)  # red
-    def write(self, storage_dict):
-        storage_dict["type"] = self.__type
-        storage_dict["color"] = self.color
-    # accessors
-    def __get_color(self):
-        return self.__color
-    def __set_color(self, color):
-        # set it
-        self.__color = color
-        # notify
-        self.notify_set_property("color", self.__color)
-    color = property(__get_color, __set_color)
+    def _property_changed(self, property_name, value):
+        super(Graphic, self)._property_changed(property_name, value)
+        self.notify_set_property(property_name, value)
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0]-p2[0], 2)+pow(p1[1]-p2[1], 2)) < radius
@@ -201,33 +190,22 @@ class RectangleTypeGraphic(Graphic):
     def __init__(self, type, title):
         super(RectangleTypeGraphic, self).__init__(type)
         self.title = title
-        # start and end points are stored in image normalized coordinates
-        self.__bounds = ((0.0, 0.0), (1.0, 1.0))
-    def deepcopy_from(self, graphic, memo):
-        super(RectangleTypeGraphic, self).deepcopy_from(graphic, memo)
-        self.bounds = graphic.bounds
-    def read(self, storage_dict):
-        super(RectangleTypeGraphic, self).read(storage_dict)
-        self.bounds = storage_dict.get("bounds", self.__bounds)
-    def write(self, storage_dict):
-        super(RectangleTypeGraphic, self).write(storage_dict)
-        storage_dict["bounds"] = self.bounds
+        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)))
     # accessors
-    def __get_bounds(self):
-        return self.__bounds
-    def __set_bounds(self, bounds):
-        # normalize
-        if bounds[1][0] < 0:  # height is negative
-            bounds = ((bounds[0][0] + bounds[1][0], bounds[0][1]), (-bounds[1][0], bounds[1][1]))
-        if bounds[1][1] < 0:  # width is negative
-            bounds = ((bounds[0][0], bounds[0][1] + bounds[1][1]), (bounds[1][0], -bounds[1][1]))
-        # set it
-        self.__bounds = bounds
-        # notify
-        self.notify_set_property("bounds", self.__bounds)
-        self.notify_set_property("center", self.center)
-        self.notify_set_property("size", self.size)
-    bounds = property(__get_bounds, __set_bounds)
+    def _validate_property(self, property_name, value):
+        if property_name == "bounds":
+            # normalize
+            if value[1][0] < 0:  # height is negative
+                value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
+            if value[1][1] < 0:  # width is negative
+                value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
+            return copy.deepcopy(value)
+        return super(RectangleTypeGraphic, self)._validate_property(property_name, value)
+    def _property_changed(self, property_name, value):
+        super(RectangleTypeGraphic, self)._property_changed(property_name, value)
+        if property_name == "bounds":
+            self.notify_set_property("center", self.center)
+            self.notify_set_property("size", self.size)
     # dependent property center
     def __get_center(self):
         return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
@@ -377,59 +355,17 @@ class LineTypeGraphic(Graphic):
         super(LineTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.__start = (0.0, 0.0)
-        self.__end = (1.0, 1.0)
-        self.__start_arrow_enabled = False
-        self.__end_arrow_enabled = False
-    def deepcopy_from(self, line_graphic, memo):
-        super(LineTypeGraphic, self).deepcopy_from(line_graphic, memo)
-        self.start = line_graphic.start
-        self.end = line_graphic.end
-    def read(self, storage_dict):
-        super(LineTypeGraphic, self).read(storage_dict)
-        self.start = storage_dict.get("start", self.__start)
-        self.end = storage_dict.get("end", self.__end)
-        self.start_arrow_enabled = storage_dict.get("start_arrow_enabled", self.__start_arrow_enabled)
-        self.end_arrow_enabled = storage_dict.get("end_arrow_enabled", self.__end_arrow_enabled)
-    def write(self, storage_dict):
-        super(LineTypeGraphic, self).write(storage_dict)
-        storage_dict["start"] = self.start
-        storage_dict["end"] = self.end
-        storage_dict["start_arrow_enabled"] = self.start_arrow_enabled
-        storage_dict["end_arrow_enabled"] = self.end_arrow_enabled
+        self.define_property("start", (0.0, 0.0))
+        self.define_property("end", (1.0, 1.0))
+        self.define_property("start_arrow_enabled", False)
+        self.define_property("end_arrow_enabled", False)
     # accessors
-    def __get_start(self):
-        return self.__start
-    def __set_start(self, start):
-        self.__start = start
-        self.notify_set_property("start", self.__start)
-    start = property(__get_start, __set_start)
-    def __get_end(self):
-        return self.__end
-    def __set_end(self, end):
-        self.__end = end
-        self.notify_set_property("end", self.__end)
-    end = property(__get_end, __set_end)
     def __get_vector(self):
         return self.start, self.end
     def __set_vector(self, vector):
-        self.__start, self.__end = vector
-        self.notify_set_property("start", self.__start)
-        self.notify_set_property("end", self.__end)
+        self.start = vector[0]
+        self.end = vector[1]
     vector = property(__get_vector, __set_vector)
-    # arrowhead accessors
-    def __get_start_arrow_enabled(self):
-        return self.__start_arrow_enabled
-    def __set_start_arrow_enabled(self, start_arrow_enabled):
-        self.__start_arrow_enabled = start_arrow_enabled
-        self.notify_set_property("start_arrow_enabled", self.__start_arrow_enabled)
-    start_arrow_enabled = property(__get_start_arrow_enabled, __set_start_arrow_enabled)
-    def __get_end_arrow_enabled(self):
-        return self.__end_arrow_enabled
-    def __set_end_arrow_enabled(self, end_arrow_enabled):
-        self.__end_arrow_enabled = end_arrow_enabled
-        self.notify_set_property("end_arrow_enabled", self.__end_arrow_enabled)
-    end_arrow_enabled = property(__get_end_arrow_enabled, __set_end_arrow_enabled)
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
