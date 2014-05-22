@@ -24,29 +24,14 @@ from nion.ui import Test
 class TestCalibrationClass(unittest.TestCase):
 
     def test_conversion(self):
-        calibration = Calibration.CalibrationItem(3.0, 2.0, "x")
-        calibration.add_ref()
+        calibration = Calibration.Calibration(3.0, 2.0, "x")
         self.assertEqual(calibration.convert_to_calibrated_value_str(5.0), u"13 x")
-        calibration.remove_ref()
-
-    def test_calibration_relationship(self):
-        data_item = DataItem.DataItem()
-        data_item.add_ref()
-        self.assertEqual(len(data_item.intrinsic_calibrations), 0)
-        data_item.intrinsic_calibrations.append(Calibration.CalibrationItem(3.0, 2.0, "x"))
-        self.assertEqual(len(data_item.intrinsic_calibrations), 1)
-        self.assertIsNotNone(data_item.intrinsic_calibrations[0])
-        data_item.remove_ref()
 
     def test_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.add_ref()
-        data_item.intrinsic_calibrations[0].origin = 3.0
-        data_item.intrinsic_calibrations[0].scale = 2.0
-        data_item.intrinsic_calibrations[0].units = "x"
-        data_item.intrinsic_calibrations[1].origin = 3.0
-        data_item.intrinsic_calibrations[1].scale = 2.0
-        data_item.intrinsic_calibrations[1].units = "x"
+        data_item.set_spatial_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
+        data_item.set_spatial_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
         data_item_copy.add_ref()
@@ -99,20 +84,20 @@ class TestCalibrationClass(unittest.TestCase):
         data_item.remove_ref()
 
     def test_calibration_should_work_for_complex_data(self):
-        calibration = Calibration.CalibrationItem(1.0, 2.0, "c")
+        calibration = Calibration.Calibration(1.0, 2.0, "c")
         value_array = numpy.zeros((1, ), dtype=numpy.complex128)
         value_array[0] = 3 + 4j
         self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7+8j c")
         self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6+8j c")
 
     def test_calibration_should_work_for_rgb_data(self):
-        calibration = Calibration.CalibrationItem(1.0, 2.0, "c")
+        calibration = Calibration.Calibration(1.0, 2.0, "c")
         value = numpy.zeros((4, ), dtype=numpy.uint8)
         self.assertEqual(calibration.convert_to_calibrated_value_str(value), "0, 0, 0, 0")
         self.assertEqual(calibration.convert_to_calibrated_size_str(value), "0, 0, 0, 0")
 
     def test_calibration_conversion_to_string_can_handle_numpy_types(self):
-        calibration = Calibration.CalibrationItem(1.0, 2.0, "c")
+        calibration = Calibration.Calibration(1.0, 2.0, "c")
         self.assertEqual(calibration.convert_to_calibrated_value_str(numpy.uint32(14)), "29 c")
 
 
@@ -351,7 +336,9 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
-        data_item.intrinsic_calibrations[0].origin = 1.0
+        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0.origin = 1.0
+        data_item.set_spatial_calibration(0, spatial_calibration_0)
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)

@@ -502,7 +502,9 @@ class TestImagePanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         data_item = self.image_panel.display.data_item
         # adjust image panel display and trigger layout
-        data_item.intrinsic_calibrations[0].origin = -200.0
+        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0.origin = -200.0
+        data_item.set_spatial_calibration(0, spatial_calibration_0)
         self.image_panel.line_plot_canvas_item.paint_display_on_thread()
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
@@ -575,7 +577,9 @@ class TestImagePanelClass(unittest.TestCase):
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
         data_item = self.image_panel.display.data_item
         # adjust image panel display and trigger layout
-        data_item.intrinsic_intensity_calibration.origin = -0.2
+        intensity_calibration = data_item.intrinsic_intensity_calibration
+        intensity_calibration.origin = -0.2
+        data_item.set_intensity_calibration(intensity_calibration)
         self.image_panel.line_plot_canvas_item.paint_display_on_thread()
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150

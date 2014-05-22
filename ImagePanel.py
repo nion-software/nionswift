@@ -1529,8 +1529,8 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         if display and data_size:
-            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.CalibrationItem() for i in xrange(0, len(display.data_item.spatial_shape))]
-            intensity_calibration = display.data_item.calculated_intensity_calibration if display.display_calibrated_values else Calibration.CalibrationItem()
+            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.data_item.spatial_shape))]
+            intensity_calibration = display.data_item.calculated_intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
                 # 3d image

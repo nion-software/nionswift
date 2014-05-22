@@ -9,6 +9,7 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
@@ -366,15 +367,9 @@ class TestOperationClass(unittest.TestCase):
 
     def test_snapshot_of_operation_should_copy_calibrations_not_intrinsic_calibrations(self):
         # setup
-        self.data_item.intrinsic_calibrations[0].scale = 2.0
-        self.data_item.intrinsic_calibrations[0].origin = 5.0
-        self.data_item.intrinsic_calibrations[0].units = u"nm"
-        self.data_item.intrinsic_calibrations[1].scale = 2.0
-        self.data_item.intrinsic_calibrations[1].origin = 5.0
-        self.data_item.intrinsic_calibrations[1].units = u"nm"
-        self.data_item.intrinsic_intensity_calibration.scale = 2.5
-        self.data_item.intrinsic_intensity_calibration.origin = 7.5
-        self.data_item.intrinsic_intensity_calibration.units = u"ll"
+        self.data_item.set_spatial_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.data_item.set_spatial_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
         data_item2 = DataItem.DataItem()
         data_item2.operations.append(Operation.OperationItem("invert-operation"))
         data_item2.add_data_source(self.data_item)
@@ -383,7 +378,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(self.data_item.calculated_calibrations), 2)
         self.assertEqual(len(self.data_item.intrinsic_calibrations), 2)
         self.assertEqual(len(data_item2.calculated_calibrations), 2)
-        self.assertEqual(len(data_item2.intrinsic_calibrations), 0)
+        self.assertEqual(len(data_item2.intrinsic_calibrations), 2)
         # take snapshot
         self.image_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_data_item, data_item2)

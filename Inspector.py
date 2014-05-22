@@ -14,6 +14,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.ui import Binding
 from nion.ui import Converter
+from nion.ui import Observable
 from nion.ui import Process
 
 _ = gettext.gettext
@@ -281,6 +282,107 @@ class ParamInspectorSection(InspectorSection):
         self.add_widget_to_content(self.param_row)
 
 
+class BoundSpatialCalibration(Observable.Observable):
+
+    def __init__(self, data_item, spatial_index):
+        super(BoundSpatialCalibration, self).__init__()
+        self.data_item = data_item
+        self.spatial_index = spatial_index
+        self.__cached_value = self.data_item.intrinsic_calibrations[self.spatial_index]
+        self.data_item.add_listener(self)
+
+    def close(self):
+        self.data_item.remove_listener(self)
+
+    def data_item_calibration_changed(self):
+        """ Message comes from data item. """
+        new_value = self.data_item.intrinsic_calibrations[self.spatial_index]
+        if new_value.origin != self.__cached_value.origin:
+            self.notify_set_property("origin", new_value.origin)
+        if new_value.scale != self.__cached_value.scale:
+            self.notify_set_property("scale", new_value.scale)
+        if new_value.units != self.__cached_value.units:
+            self.notify_set_property("units", new_value.units)
+        self.__cached_value = new_value
+
+    def __get_origin(self):
+        return self.__cached_value.origin
+    def __set_origin(self, origin):
+        spatial_calibration = self.__cached_value
+        spatial_calibration.origin = origin
+        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.notify_set_property("origin", spatial_calibration.origin)
+    origin = property(__get_origin, __set_origin)
+
+    def __get_scale(self):
+        return self.__cached_value.scale
+    def __set_scale(self, scale):
+        spatial_calibration = self.__cached_value
+        spatial_calibration.scale = scale
+        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.notify_set_property("scale", spatial_calibration.scale)
+    scale = property(__get_scale, __set_scale)
+
+    def __get_units(self):
+        return self.__cached_value.units
+    def __set_units(self, units):
+        spatial_calibration = self.__cached_value
+        spatial_calibration.units = units
+        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.notify_set_property("units", spatial_calibration.units)
+    units = property(__get_units, __set_units)
+
+
+class BoundIntensityCalibration(Observable.Observable):
+
+    def __init__(self, data_item):
+        super(BoundIntensityCalibration, self).__init__()
+        self.data_item = data_item
+        self.__cached_value = self.data_item.intrinsic_intensity_calibration
+        self.data_item.add_listener(self)
+
+    def close(self):
+        self.data_item.remove_listener(self)
+
+    def data_item_calibration_changed(self):
+        """ Message comes from data item. """
+        new_value = self.data_item.intrinsic_intensity_calibration
+        if new_value.origin != self.__cached_value.origin:
+            self.notify_set_property("origin", new_value.origin)
+        if new_value.scale != self.__cached_value.scale:
+            self.notify_set_property("scale", new_value.scale)
+        if new_value.units != self.__cached_value.units:
+            self.notify_set_property("units", new_value.units)
+        self.__cached_value = new_value
+
+    def __get_origin(self):
+        return self.__cached_value.origin
+    def __set_origin(self, origin):
+        intensity_calibration = self.__cached_value
+        intensity_calibration.origin = origin
+        self.data_item.set_intensity_calibration(intensity_calibration)
+        self.notify_set_property("origin", intensity_calibration.origin)
+    origin = property(__get_origin, __set_origin)
+
+    def __get_scale(self):
+        return self.__cached_value.scale
+    def __set_scale(self, scale):
+        intensity_calibration = self.__cached_value
+        intensity_calibration.scale = scale
+        self.data_item.set_intensity_calibration(intensity_calibration)
+        self.notify_set_property("scale", intensity_calibration.scale)
+    scale = property(__get_scale, __set_scale)
+
+    def __get_units(self):
+        return self.__cached_value.units
+    def __set_units(self, units):
+        intensity_calibration = self.__cached_value
+        intensity_calibration.units = units
+        self.data_item.set_intensity_calibration(intensity_calibration)
+        self.notify_set_property("units", intensity_calibration.units)
+    units = property(__get_units, __set_units)
+
+
 class CalibrationsInspectorSection(InspectorSection):
 
     """
@@ -290,15 +392,16 @@ class CalibrationsInspectorSection(InspectorSection):
     def __init__(self, ui, display):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
         data_item = display.data_item
-        self.__calibrations = data_item.intrinsic_calibrations
+        self.__calibrations = [BoundSpatialCalibration(data_item, index) for index in xrange(len(data_item.intrinsic_calibrations))]
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item, "intrinsic_calibrations"))
+        for index, spatial_calibration in enumerate(self.__calibrations):
+            list_widget.insert_item(spatial_calibration, index)
         self.add_widget_to_content(list_widget)
         # create the intensity row
-        intensity_calibration = data_item.intrinsic_intensity_calibration
+        intensity_calibration = BoundIntensityCalibration(data_item)
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
@@ -325,6 +428,11 @@ class CalibrationsInspectorSection(InspectorSection):
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
+
+    def close(self):
+        # close the bound calibrations
+        for spatial_calibration in self.__calibrations:
+            spatial_calibration.close()
 
     # not thread safe
     def __create_header_widget(self):

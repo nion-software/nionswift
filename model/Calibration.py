@@ -9,6 +9,16 @@ import numpy
 from nion.swift.model import Storage
 
 
+# Calibration notes:
+#   The user wants calibrations to persist during pixel-by-pixel processing
+#   The user expects operations to handle calibrations and perhaps other metadata
+#   The user expects that calibrating a processed item adjust source calibration
+
+# origin: the calibrated value at the origin
+# scale: the calibrated value at location 1.0
+# units: the units of the calibrated value
+
+
 class Calibration(object):
     def __init__(self, origin=None, scale=None, units=None):
         super(Calibration, self).__init__()
@@ -21,6 +31,17 @@ class Calibration(object):
 
     def __copy__(self):
         return type(self)(self.__origin, self.__scale, self.__units)
+
+    def read(self, storage_dict):
+        self.origin = storage_dict["origin"] if "origin" in storage_dict else None
+        self.scale = storage_dict["scale"] if "scale" in storage_dict else None
+        self.units = storage_dict["units"] if "units" in storage_dict else None
+        return self  # for convenience
+
+    def write(self, storage_dict):
+        storage_dict["origin"] = self.origin
+        storage_dict["scale"] = self.scale
+        storage_dict["units"] = self.units
 
     def __get_is_calibrated(self):
         return self.__origin is not None or self.__scale is not None or self.__units is not None

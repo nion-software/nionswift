@@ -734,7 +734,6 @@ class DictDatastore(object):
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
                 "display": Display.Display,
-                "calibration": Calibration.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
@@ -964,7 +963,7 @@ class DbDatastore(object):
             self.execute(c, "CREATE TABLE IF NOT EXISTS relationships(parent_uuid STRING, key STRING, item_index INTEGER, item_uuid STRING, PRIMARY KEY(parent_uuid, key, item_index))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS items(parent_uuid STRING, key STRING, item_uuid STRING, PRIMARY KEY(parent_uuid, key))")
             self.execute(c, "CREATE TABLE IF NOT EXISTS version(version INTEGER, PRIMARY KEY(version))")
-            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (7, ))
+            self.execute(c, "INSERT OR REPLACE INTO version (version) VALUES (?)", (8, ))
             self.conn.commit()
 
     # keep. used for testing
@@ -1161,7 +1160,6 @@ class DbDatastore(object):
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
                 "display": Display.Display,
-                "calibration": Calibration.CalibrationItem,
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,

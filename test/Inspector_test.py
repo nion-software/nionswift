@@ -10,6 +10,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import ImagePanel
 from nion.swift import Inspector
+from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
@@ -74,6 +75,19 @@ class TestInspectorClass(unittest.TestCase):
             size_width_binding.update_source("0.6")
             self.assertEqual(center, rect_graphic.center)
 
+    def test_calibration_inspector_section_binds_initially(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.ref():
+            display = data_item.displays[0]
+            Inspector.CalibrationsInspectorSection(self.app.ui, display)
+
+    def test_calibration_inspector_section_follows_spatial_calibraton_change(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.ref():
+            display = data_item.displays[0]
+            inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display)
+            data_item.set_spatial_calibration(0, Calibration.Calibration(units="mm"))
+            data_item.set_spatial_calibration(1, Calibration.Calibration(units="mm"))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
