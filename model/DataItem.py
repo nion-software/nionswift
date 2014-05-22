@@ -107,7 +107,6 @@ class DataItem(Storage.StorageBase):
         self.storage_relationships += ["displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
-        self.register_dependent_key("master_data", "data_range")
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__operations = list()
@@ -714,6 +713,7 @@ class DataItem(Storage.StorageBase):
                 self.__master_data_reference = data_file_path
                 self.__master_data_file_datetime = file_datetime
                 self.notify_set_data_reference("master_data", self.__master_data, self.__master_data.shape, self.__master_data.dtype, "relative_file", data_file_path, file_datetime)
+                self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
 
     # accessor for storage subsystem.
@@ -747,6 +747,7 @@ class DataItem(Storage.StorageBase):
         self.__master_data_reference = data_file_path
         self.__master_data_file_datetime = file_datetime
         self.notify_set_data_reference("master_data", None, data_shape, data_dtype, "external_file", data_file_path, file_datetime)
+        self.notify_set_property("data_range", self.data_range)
         self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):

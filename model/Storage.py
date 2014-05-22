@@ -378,8 +378,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
         for observer in self.observers:
             if observer and getattr(observer, "data_set", None):
                 observer.data_set(self, key, data)
-        for dependent_key in self.property_dependent_keys.get(key, list()):
-            self.notify_set_property(dependent_key, getattr(self, dependent_key))
 
     def notify_insert_item(self, key, value, before_index):
         if key in self.storage_relationships:

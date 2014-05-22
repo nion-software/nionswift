@@ -202,8 +202,6 @@ class RectangleTypeGraphic(Graphic):
         super(RectangleTypeGraphic, self).__init__()
         self.storage_type = storage_type
         self.storage_properties += ["bounds"]
-        self.register_dependent_key("bounds", "center")
-        self.register_dependent_key("bounds", "size")
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
@@ -229,6 +227,8 @@ class RectangleTypeGraphic(Graphic):
         self.__bounds = bounds
         # notify
         self.notify_set_property("bounds", self.__bounds)
+        self.notify_set_property("center", self.center)
+        self.notify_set_property("size", self.size)
     bounds = property(__get_bounds, __set_bounds)
     # dependent property center
     def __get_center(self):

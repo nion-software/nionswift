@@ -29,9 +29,6 @@ class Display(Storage.StorageBase):
         self.storage_properties += ["properties"]
         self.storage_relationships += ["graphics"]
         self.storage_type = "display"
-        # these are handled manually for now.
-        # self.register_dependent_key("data_range", "display_range")
-        # self.register_dependent_key("display_limits", "display_range")
         self.__weak_data_item = None
         self.__properties = dict()
         self.__graphics = Storage.MutableRelationship(self, "graphics")
