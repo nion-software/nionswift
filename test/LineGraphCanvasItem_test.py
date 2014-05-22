@@ -25,7 +25,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         test_ranges = (
             ((7.46, 85.36), (0.0, 100.0)),
             ((7.67, 12.95), (0.0, 15.0)),
-            ((6.67, 11.95), (0.0, 15.0))
+            ((6.67, 11.95), (0.0, 15.0)),
+            ((0.00, 0.00), (0.0, 0.0))
         )
 
         for data_in, data_out in test_ranges:

@@ -93,7 +93,10 @@ class LineGraphDataInfo(object):
         for tick in ticks:
             label = (u"{0:0." + u"{0:d}".format(precision) + "f}").format(tick)
             data_tick = calibration.convert_from_calibrated_value(tick) if calibration else tick
-            y_tick = plot_height - plot_height * (data_tick - self.drawn_data_min) / self.drawn_data_range
+            if self.drawn_data_range != 0.0:
+                y_tick = plot_height - plot_height * (data_tick - self.drawn_data_min) / self.drawn_data_range
+            else:
+                y_tick = plot_height - plot_height * 0.5
             if y_tick >= 0 and y_tick <= plot_height:
                 y_ticks.append((y_tick, label))
 
