@@ -380,6 +380,10 @@ class Application(object):
                         display_list.append(display_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                         c.execute("DELETE FROM properties WHERE uuid=?", (item_uuid, ))
+                    # change around some properties
+                    if "data_source_uuid" in properties:
+                        properties["data_sources"] = [properties["data_source_uuid"]]
+                        del properties["data_source_uuid"]
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))

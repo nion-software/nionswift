@@ -51,6 +51,20 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         return self.item
 
 
+class DataSourceList(object):
+
+    def __init__(self):
+        self.list = list()
+
+    def read_dict(self, storage_list):
+        # storage_list will be whatever is returned by write_dict.
+        self.list = copy.copy(storage_list)
+        return self  # for convenience
+
+    def write_dict(self):
+        return copy.copy(self.list)
+
+
 class DataItemVault(object):
 
     def __init__(self, data_item, storage_dict):
@@ -73,8 +87,6 @@ class DataItemVault(object):
             item.write_storage(DataItemVault(self.data_item, item_dict))
 
     def remove_item(self, name, index, item):
-        if name not in self.storage_dict:
-            logging.debug("remove_item %s %s %s", name, index, self.storage_dict)
         with self.data_item.property_changes() as pc:
             item_list = self.storage_dict[name]
             del item_list[index]
@@ -165,6 +177,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
+        self.define_property(Observable.Property("data_sources", DataSourceList(), make=DataSourceList))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
         self.closed = False
@@ -364,11 +377,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.notify_data_item_content_changed(set([METADATA]))
 
     def __property_changed(self, name, value):
-        with self.property_changes() as pc:
-            if value is not None:
-                pc.properties[name] = value
-            elif name in pc.properties:
-                del pc.properties[name]
         self.notify_set_property(name, value)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
@@ -423,7 +431,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             spatial_calibration_list = pc.properties.setdefault("spatial_calibrations", list())
             while len(spatial_calibration_list) <= dimension:
                 spatial_calibration_list.append(dict())
-            calibration.write_dict(spatial_calibration_list[dimension])
+            calibration_dict = calibration.write_dict()
+            spatial_calibration_list[dimension].clear()
+            spatial_calibration_list[dimension].update(calibration_dict)
         self.notify_listeners("data_item_calibration_changed")
 
     def set_intensity_calibration(self, calibration):
@@ -588,7 +598,8 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     # display graphics for this items operations. direct data source is used for testing.
     def connect_data_source(self, lookup_data_item=None, direct_data_source=None):
         assert lookup_data_item or direct_data_source
-        data_source_uuid_str = self.properties.get("data_source_uuid")
+        data_sources = self.data_sources
+        data_source_uuid_str = data_sources.list[0] if len(data_sources.list) == 1 else None
         data_source = lookup_data_item(uuid.UUID(data_source_uuid_str)) if data_source_uuid_str and lookup_data_item else direct_data_source
         self.__set_data_source(data_source)
         if data_source:
@@ -656,14 +667,18 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     # add a reference to the given data source
     def add_data_source(self, data_source):
         self.session_id = data_source.session_id
-        with self.property_changes() as property_accessor:
-            property_accessor.properties["data_source_uuid"] = str(data_source.uuid)
+        data_sources = self.data_sources
+        assert len(data_sources.list) == 0
+        data_sources.list.append(str(data_source.uuid))
+        self.data_sources = data_sources
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
+        data_sources = self.data_sources
+        assert len(data_sources.list) == 1 and data_sources.list[0] == data_source
+        del data_sources.list[0]
+        self.data_sources = data_sources
         self.session_id = None
-        with self.property_changes() as property_accessor:
-            property_accessor.properties.pop("data_source_uuid", None)
 
     def __get_master_data(self):
         return self.__master_data
@@ -992,7 +1007,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
-            property_accessor.properties.pop("data_source_uuid", None)
         data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
         for index in xrange(len(self.spatial_shape)):
             data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
@@ -1000,6 +1014,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             data_item_copy.remove_display(data_item_copy.displays[0])
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
+        data_item_copy.data_sources = DataSourceList()
         # operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
             data_copy = numpy.copy(data_ref.data)

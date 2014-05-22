@@ -38,10 +38,12 @@ class Calibration(object):
         self.units = storage_dict["units"] if "units" in storage_dict else None
         return self  # for convenience
 
-    def write_dict(self, storage_dict):
+    def write_dict(self):
+        storage_dict = dict()
         storage_dict["origin"] = self.origin
         storage_dict["scale"] = self.scale
         storage_dict["units"] = self.units
+        return storage_dict
 
     def __get_is_calibrated(self):
         return self.__origin is not None or self.__scale is not None or self.__units is not None
