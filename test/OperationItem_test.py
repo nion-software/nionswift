@@ -37,7 +37,7 @@ class TestOperationClass(unittest.TestCase):
     # make sure we can remove a single operation
     def test_remove_operation(self):
         operation = Operation.OperationItem("invert-operation")
-        self.data_item.operations.append(operation)
+        self.data_item.add_operation(operation)
         self.assertEqual(len(self.data_item.operations), 1)
         self.document_controller.remove_operation(operation)
         self.assertEqual(len(self.data_item.operations), 0)
@@ -45,10 +45,10 @@ class TestOperationClass(unittest.TestCase):
     # make sure we can remove the second operation
     def test_multi_remove_operation(self):
         operation = Operation.OperationItem("invert-operation")
-        self.data_item.operations.append(operation)
+        self.data_item.add_operation(operation)
         self.assertEqual(len(self.data_item.operations), 1)
         operation2 = Operation.OperationItem("resample-operation")
-        self.data_item.operations.append(operation2)
+        self.data_item.add_operation(operation2)
         self.assertEqual(len(self.data_item.operations), 2)
         self.document_controller.remove_operation(operation2)
         self.assertEqual(len(self.data_item.operations), 1)
@@ -57,14 +57,14 @@ class TestOperationClass(unittest.TestCase):
     def test_default_propogation(self):
         # first make sure data and calibrations come out OK
         operation = Operation.OperationItem("resample-operation")
-        self.data_item.operations.append(operation)
+        self.data_item.add_operation(operation)
         with self.data_item.data_ref() as data_ref:
             data_ref.data  # just calculate it
         self.data_item.calculated_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
         operation2 = Operation.OperationItem("resample-operation")
-        data_item.operations.append(operation2)
+        data_item.add_operation(operation2)
         data_item.add_data_source(self.data_item)
         self.document_model.append_data_item(data_item)
         self.assertIsNotNone(operation2.description[0]["default"])
@@ -88,7 +88,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -121,7 +121,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -153,7 +153,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -185,7 +185,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -206,7 +206,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -227,7 +227,7 @@ class TestOperationClass(unittest.TestCase):
 
         for source_data_item, operation in operation_list:
             data_item = DataItem.DataItem()
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             data_item.add_data_source(source_data_item)
             self.document_model.append_data_item(data_item)
             with data_item.data_ref() as data_ref:
@@ -243,7 +243,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.add_ref()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
-        data_item_real.operations.append(operation)
+        data_item_real.add_operation(operation)
         # make sure we get the right shape
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
         with data_item_real.data_ref() as data_real_accessor:
@@ -255,7 +255,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item)
 
         fft_data_item = DataItem.DataItem()
-        fft_data_item.operations.append(Operation.OperationItem("fft-operation"))
+        fft_data_item.add_operation(Operation.OperationItem("fft-operation"))
         fft_data_item.add_data_source(data_item)
         self.document_model.append_data_item(fft_data_item)
 
@@ -267,7 +267,7 @@ class TestOperationClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((512,512), numpy.complex128))
         self.document_model.append_data_item(data_item)
         scalar_data_item = DataItem.DataItem()
-        scalar_data_item.operations.append(Operation.OperationItem("convert-to-scalar-operation"))
+        scalar_data_item.add_operation(Operation.OperationItem("convert-to-scalar-operation"))
         scalar_data_item.add_data_source(data_item)
         self.document_model.append_data_item(scalar_data_item)
         with scalar_data_item.data_ref() as scalar_data_ref:
@@ -293,7 +293,7 @@ class TestOperationClass(unittest.TestCase):
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
-        data_item.operations.append(dummy_operation)
+        data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5)
         storage_data = document_model.datastore.to_data()
         document_controller.close()
@@ -314,7 +314,7 @@ class TestOperationClass(unittest.TestCase):
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
-        data_item.operations.append(dummy_operation)
+        data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5.2)
         storage_data = document_model.datastore.to_data()
         document_controller.close()
@@ -331,7 +331,7 @@ class TestOperationClass(unittest.TestCase):
         with data_item_rgba.ref():
             with data_item_rgba.data_ref() as data_ref:
                 data_ref.master_data[:] = (20,40,60,100)
-            data_item_rgba.operations.append(Operation.OperationItem("invert-operation"))
+            data_item_rgba.add_operation(Operation.OperationItem("invert-operation"))
             with data_item_rgba.data_ref() as data_ref:
                 pixel = data_ref.data[0,0,...]
                 self.assertEqual(pixel[0], 255 - 20)
@@ -347,7 +347,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_rgba2)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-        data_item_rgba2.operations.append(operation)
+        data_item_rgba2.add_operation(operation)
         data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
         with data_item_rgba2_copy.ref():
             # make sure the operation was copied
@@ -357,7 +357,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
         self.document_model.append_data_item(data_item_rgba)
         data_item_rgba2 = DataItem.DataItem()
-        data_item_rgba2.operations.append(Operation.OperationItem("invert-operation"))
+        data_item_rgba2.add_operation(Operation.OperationItem("invert-operation"))
         data_item_rgba2.add_data_source(data_item_rgba)
         self.document_model.append_data_item(data_item_rgba2)
         self.image_panel.set_displayed_data_item(data_item_rgba2)
@@ -371,7 +371,7 @@ class TestOperationClass(unittest.TestCase):
         self.data_item.set_spatial_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
         self.data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.OperationItem("invert-operation"))
+        data_item2.add_operation(Operation.OperationItem("invert-operation"))
         data_item2.add_data_source(self.data_item)
         self.document_model.append_data_item(data_item2)
         # make sure our assumptions are correct
@@ -400,7 +400,7 @@ class TestOperationClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         with data_item.ref():
             operation = Operation.OperationItem("crop-operation")
-            data_item.operations.append(operation)
+            data_item.add_operation(operation)
             bounds1 = ((0.0, 0.0), (0.1, 0.1))
             bounds2 = ((0.0, 0.0), (0.2, 0.2))
             operation.set_property("bounds", bounds1)

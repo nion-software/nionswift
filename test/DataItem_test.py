@@ -35,7 +35,7 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
         data_item_copy.add_ref()
-        data_item_copy.operations.append(Operation.OperationItem("invert-operation"))
+        data_item_copy.add_operation(Operation.OperationItem("invert-operation"))
         data_item_copy.add_data_source(data_item)
         data_item_copy.connect_data_source(direct_data_source=data_item)
         calculated_calibrations = data_item_copy.calculated_calibrations
@@ -46,7 +46,7 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(int(calculated_calibrations[1].origin), 3)
         self.assertEqual(int(calculated_calibrations[1].scale), 2)
         self.assertEqual(calculated_calibrations[1].units, "x")
-        data_item_copy.operations.append(Operation.OperationItem("fft-operation"))
+        data_item_copy.add_operation(Operation.OperationItem("fft-operation"))
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(int(calculated_calibrations[0].origin), 0)
         self.assertEqual(calculated_calibrations[0].units, "1/x")
@@ -61,13 +61,13 @@ class TestCalibrationClass(unittest.TestCase):
         data_item2 = DataItem.DataItem()
         data_item2.add_ref()
         operation2 = Operation.OperationItem("resample-operation")
-        data_item2.operations.append(operation2)
+        data_item2.add_operation(operation2)
         data_item2.add_data_source(data_item)
         data_item2.connect_data_source(direct_data_source=data_item)
         data_item3 = DataItem.DataItem()
         data_item3.add_ref()
         operation3 = Operation.OperationItem("resample-operation")
-        data_item3.operations.append(operation3)
+        data_item3.add_operation(operation3)
         data_item3.add_data_source(data_item2)
         data_item3.connect_data_source(direct_data_source=data_item2)
         data_item3.calculated_calibrations
@@ -128,7 +128,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
                 data_ref.master_data_updated()
             data_item.displays[0].display_limits = (100, 900)
-            data_item.operations.append(Operation.OperationItem("invert-operation"))
+            data_item.add_operation(Operation.OperationItem("invert-operation"))
             data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
             data_item_copy = copy.deepcopy(data_item)
             with data_item_copy.ref():
@@ -141,7 +141,7 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertEqual(data_ref.master_data[0,0], 1)
                     self.assertEqual(data_copy_accessor.master_data[0,0], 0)
                 # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 5)  # temporary hack until properties are separated from metadata
+                self.assertEqual(len(data_item_copy.properties), 6)  # temporary hack until properties are separated from metadata
                 self.assertIsNot(data_item.properties, data_item_copy.properties)
                 # tuples and strings are immutable, so test to make sure old/new are independent
                 self.assertEqual(data_item.title, data_item_copy.title)
@@ -166,7 +166,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item2a = DataItem.DataItem()
             operation2a = Operation.OperationItem("resample-operation")
-            data_item2a.operations.append(operation2a)
+            data_item2a.add_operation(operation2a)
             data_item2a.add_data_source(data_item2)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
@@ -184,7 +184,7 @@ class TestDataItemClass(unittest.TestCase):
         with data_item.ref():
             crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            data_item.operations.append(crop_operation)
+            data_item.add_operation(crop_operation)
             data_item_copy = copy.deepcopy(data_item)
             with data_item_copy.ref():
                 self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
@@ -238,11 +238,11 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item2a = DataItem.DataItem()
             operation2a = Operation.OperationItem("resample-operation")
-            data_item2a.operations.append(operation2a)
+            data_item2a.add_operation(operation2a)
             data_item2a.add_data_source(data_item2)
             data_item2a1 = DataItem.DataItem()
             operation2a1 = Operation.OperationItem("resample-operation")
-            data_item2a1.operations.append(operation2a1)
+            data_item2a1.add_operation(operation2a1)
             data_item2a1.add_data_source(data_item2a)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
@@ -275,11 +275,11 @@ class TestDataItemClass(unittest.TestCase):
         data_item.displays[0].append_graphic(data_item_graphic)
         document_model.append_data_item(data_item)
         data_item2 = DataItem.DataItem()
-        data_item2.operations.append(Operation.OperationItem("fft-operation"))
+        data_item2.add_operation(Operation.OperationItem("fft-operation"))
         data_item2.add_data_source(data_item)
         document_model.append_data_item(data_item2)
         data_item3 = DataItem.DataItem()
-        data_item3.operations.append(Operation.OperationItem("inverse-fft-operation"))
+        data_item3.add_operation(Operation.OperationItem("inverse-fft-operation"))
         data_item3.add_data_source(data_item2)
         document_model.append_data_item(data_item3)
         # establish listeners
@@ -344,12 +344,12 @@ class TestDataItemClass(unittest.TestCase):
         # add/remove an operation. should change primary and dependent data and display
         map(Listener.reset, listeners)
         invert_operation = Operation.OperationItem("invert-operation")
-        data_item.operations.append(invert_operation)
+        data_item.add_operation(invert_operation)
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
         map(Listener.reset, listeners)
-        data_item.operations.remove(invert_operation)
+        data_item.remove_operation(invert_operation)
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
@@ -368,23 +368,23 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify an operation. make sure data and dependent data gets updated.
         blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        data_item.operations.append(blur_operation)
+        data_item.add_operation(blur_operation)
         map(Listener.reset, listeners)
         blur_operation.set_property("sigma", 0.1)
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
-        data_item.operations.remove(blur_operation)
+        data_item.remove_operation(blur_operation)
         # modify an operation graphic. make sure data and dependent data gets updated.
         crop_operation = Operation.OperationItem("crop-operation")
         crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        data_item.operations.append(crop_operation)
+        data_item.add_operation(crop_operation)
         map(Listener.reset, listeners)
         crop_operation.set_property("bounds", ((0,0), (0.5, 0.5)))
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
-        data_item.operations.remove(crop_operation)
+        data_item.remove_operation(crop_operation)
         # finish up
         document_model.remove_ref()
 
@@ -419,7 +419,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             crop_data_item = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
-            crop_data_item.operations.append(crop_operation)
+            crop_data_item.add_operation(crop_operation)
             crop_data_item.add_data_source(data_item)
             document_model.append_data_item(crop_data_item)
             # should remove properly when shutting down.
@@ -433,7 +433,7 @@ class TestDataItemClass(unittest.TestCase):
             crop_data_item = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            crop_data_item.operations.append(crop_operation)
+            crop_data_item.add_operation(crop_operation)
             crop_data_item.add_data_source(data_item)
             document_model.append_data_item(crop_data_item)
             data_item.session_id = "20131231-235959"
@@ -446,7 +446,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
             data_item_inverted = DataItem.DataItem()
-            data_item_inverted.operations.append(Operation.OperationItem("invert-operation"))
+            data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
             data_item_inverted.add_data_source(data_item)
             document_model.append_data_item(data_item_inverted)
             # begin checks
@@ -476,7 +476,7 @@ class TestDataItemClass(unittest.TestCase):
             dummy_operation = TestDataItemClass.DummyOperation()
             Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
             dummy_operation_item = Operation.OperationItem("dummy-operation")
-            data_item_dummy.operations.append(dummy_operation_item)
+            data_item_dummy.add_operation(dummy_operation_item)
             data_item_dummy.add_data_source(data_item)
             document_model.append_data_item(data_item_dummy)
             with data_item_dummy.data_ref() as d:
@@ -496,7 +496,7 @@ class TestDataItemClass(unittest.TestCase):
             dummy_operation = TestDataItemClass.DummyOperation()
             Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
             dummy_operation_item = Operation.OperationItem("dummy-operation")
-            data_item_dummy.operations.append(dummy_operation_item)
+            data_item_dummy.add_operation(dummy_operation_item)
             data_item_dummy.add_data_source(data_item)
             document_model.append_data_item(data_item_dummy)
             with data_item_dummy.data_ref() as d:
@@ -515,7 +515,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item_crop = DataItem.DataItem()
             crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.operations.append(crop_operation_item)
+            data_item_crop.add_operation(crop_operation_item)
             self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
             data_item_crop.add_data_source(data_item)
             document_model.append_data_item(data_item_crop)
@@ -535,9 +535,9 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item_crop)
             self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
             crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.operations.append(crop_operation_item)
+            data_item_crop.add_operation(crop_operation_item)
             self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-            data_item_crop.operations.remove(crop_operation_item)
+            data_item_crop.remove_operation(crop_operation_item)
             self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
@@ -558,7 +558,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item.displays[0].add_listener(listener)
             data_item_crop = DataItem.DataItem()
             crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.operations.append(crop_operation_item)
+            data_item_crop.add_operation(crop_operation_item)
             data_item_crop.add_data_source(data_item)
             document_model.append_data_item(data_item_crop)
             listener.reset()
@@ -584,7 +584,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item.displays[0].add_listener(listener)
             data_item_crop = DataItem.DataItem()
             crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.operations.append(crop_operation_item)
+            data_item_crop.add_operation(crop_operation_item)
             data_item_crop.add_data_source(data_item)
             document_model.append_data_item(data_item_crop)
             data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))

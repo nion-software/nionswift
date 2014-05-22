@@ -309,11 +309,26 @@ class Application(object):
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='datetime_modified'", (parent_uuid, ))
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='source_file_path'", (parent_uuid, ))
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='param'", (parent_uuid, ))
+                    # look for operations
+                    c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='operations' ORDER BY item_index ASC", (parent_uuid, ))
+                    item_uuids = list()
+                    for row in c.fetchall():
+                        item_uuids.append(row[0])
+                    for index, item_uuid in enumerate(item_uuids):
+                        c.execute("SELECT key, value FROM properties WHERE uuid=?", (item_uuid, ))
+                        operation_dict = dict()
+                        for row in c.fetchall():
+                            key = row[0]
+                            value = pickle.loads(str(row[1]))
+                            operation_dict[key] = value
+                        operation_list = properties.setdefault("operations", list())
+                        operation_list.append(operation_dict)
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
                     c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                 c.execute("DELETE FROM relationships WHERE key='calibrations'")
+                c.execute("DELETE FROM relationships WHERE key='operations'")
                 c.execute("DELETE FROM items WHERE key='intrinsic_intensity_calibration'")
                 c.execute("UPDATE version SET version = ?", (8, ))
                 datastore.conn.commit()

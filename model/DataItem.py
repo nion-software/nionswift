@@ -16,6 +16,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Display
 from nion.swift.model import Image
+from nion.swift.model import Operation
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.ui import Observable
@@ -103,13 +104,13 @@ class DataItem(Storage.StorageBase):
     def __init__(self, data=None):
         super(DataItem, self).__init__()
         self.storage_properties += ["properties"]
-        self.storage_relationships += ["operations", "displays"]
+        self.storage_relationships += ["displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.operations = Storage.MutableRelationship(self, "operations")
+        self.__operations = list()
         self.displays = Storage.MutableRelationship(self, "displays")
         self.__properties = dict()
         current_datetime_item = Utility.get_current_datetime_item()
@@ -168,7 +169,9 @@ class DataItem(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         properties = datastore.get_property(item_node, "properties")
-        operations = datastore.get_items(item_node, "operations")
+        operation_list = properties.get("operations", list())
+        if "operations" in properties:
+            del properties["operations"]  # these will be added back below
         displays = datastore.get_items(item_node, "displays")
         has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
@@ -180,7 +183,9 @@ class DataItem(Storage.StorageBase):
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
-        data_item.operations.extend(operations)
+        for operation_dict in operation_list:
+            operation_item = Operation.OperationItem.build(operation_dict)
+            data_item.add_operation(operation_item)
         if len(displays) > 0:
             # replace existing displays. TODO: remove this once clients can handle data items without any displays
             while len(data_item.displays):
@@ -192,8 +197,8 @@ class DataItem(Storage.StorageBase):
     def about_to_delete(self):
         self.closed = True
         self.__shared_thread_pool.close()
-        for operation in copy.copy(self.operations):
-            self.operations.remove(operation)
+        for operation in self.operations:
+            self.remove_operation(operation)
         for display in copy.copy(self.displays):
             self.displays.remove(display)
         self.__set_data_source(None)
@@ -206,7 +211,7 @@ class DataItem(Storage.StorageBase):
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
         for operation in self.operations:
-            data_item_copy.operations.append(copy.deepcopy(operation, memo))
+            data_item_copy.add_operation(copy.deepcopy(operation, memo))
         while len(data_item_copy.displays):
             data_item_copy.displays.pop()
         for display in self.displays:
@@ -473,37 +478,51 @@ class DataItem(Storage.StorageBase):
                 if operation.enabled:
                     data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
 
-    def notify_insert_item(self, key, value, before_index):
-        super(DataItem, self).notify_insert_item(key, value, before_index)
-        if key == "operations":
-            value.add_listener(self)
-            self.sync_operations()
-            self.notify_data_item_content_changed(set([DATA]))
-            if self.data_source:
-                self.data_source.add_operation_graphics_to_displays(value.graphics)
-        elif key == "displays":
-            value.add_listener(self)
-            value._set_data_item(self)
-            self.notify_data_item_content_changed(set([DISPLAYS]))
-        elif key == "intrinsic_calibrations":
-            value.add_listener(self)
-            self.notify_data_item_content_changed(set([METADATA]))
+    def add_operation(self, operation):
+        self.__operations.append(operation)
+        operation.add_ref()
+        operation.add_listener(self)
+        operation.add_observer(self)
+        with self.property_changes() as pc:
+            operation_list = pc.properties.setdefault("operations", list())
+            operation_dict = dict()
+            operation.write(operation_dict)
+            operation_list.append(operation_dict)
+        self.sync_operations()
+        self.notify_data_item_content_changed(set([DATA]))
+        if self.data_source:
+            self.data_source.add_operation_graphics_to_displays(operation.graphics)
 
-    def notify_remove_item(self, key, value, index):
-        super(DataItem, self).notify_remove_item(key, value, index)
-        if key == "operations":
-            value.remove_listener(self)
-            self.sync_operations()
-            self.notify_data_item_content_changed(set([DATA]))
-            if self.data_source:
-                self.data_source.remove_operation_graphics_from_displays(value.graphics)
-        elif key == "displays":
-            value._set_data_item(None)
-            value.remove_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAYS]))
-        elif key == "intrinsic_calibrations":
-            value.remove_listener(self)
-            self.notify_data_item_content_changed(set([METADATA]))
+    def remove_operation(self, operation):
+        operation_index = self.__operations.index(operation)
+        self.__operations.remove(operation)
+        self.sync_operations()
+        self.notify_data_item_content_changed(set([DATA]))
+        if self.data_source:
+            self.data_source.remove_operation_graphics_from_displays(operation.graphics)
+        operation.remove_listener(self)
+        operation.remove_observer(self)
+        operation.remove_ref()
+        with self.property_changes() as pc:
+            operation_list = pc.properties["operations"]
+            del operation_list[operation_index]
+
+    def __get_operations(self):
+        return copy.copy(self.__operations)
+    operations = property(__get_operations)
+
+    # this message comes from the operation.
+    # by watching for changes to the operations relationship. when an operation
+    # is added/removed, this object becomes a listener via add_listener/remove_listener.
+    def operation_changed(self, operation):
+        self.notify_data_item_content_changed(set([DATA]))
+
+    # this message comes from the operation.
+    # it is generated when the user deletes a operation graphic.
+    # that informs the display which notifies the graphic which
+    # notifies the operation which notifies this data item. ugh.
+    def remove_operation_because_graphic_removed(self, operation):
+        self.notify_listeners("request_remove_data_item", self)
 
     # this message is received by other data items using this one as a data source.
     def add_operation_graphics_to_displays(self, operation_graphics):
@@ -514,6 +533,26 @@ class DataItem(Storage.StorageBase):
     def remove_operation_graphics_from_displays(self, operation_graphics):
         for display in self.displays:
             display.remove_operation_graphics(operation_graphics)
+
+    def property_changed(self, object, property, value):
+        if object in self.__operations:
+            with self.property_changes() as pc:
+                operation_dict = pc.properties["operations"][self.__operations.index(object)]
+                operation_dict[property] = value
+
+    def notify_insert_item(self, key, value, before_index):
+        super(DataItem, self).notify_insert_item(key, value, before_index)
+        if key == "displays":
+            value.add_listener(self)
+            value._set_data_item(self)
+            self.notify_data_item_content_changed(set([DISPLAYS]))
+
+    def notify_remove_item(self, key, value, index):
+        super(DataItem, self).notify_remove_item(key, value, index)
+        if key == "displays":
+            value._set_data_item(None)
+            value.remove_listener(self)
+            self.notify_data_item_content_changed(set([DISPLAYS]))
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
@@ -600,21 +639,8 @@ class DataItem(Storage.StorageBase):
     def calibration_changed(self, calibration):
         self.notify_data_item_content_changed(set([METADATA]))
 
-    # this message comes from the operation.
-    # by watching for changes to the operations relationship. when an operation
-    # is added/removed, this object becomes a listener via add_listener/remove_listener.
-    def operation_changed(self, operation):
-        self.notify_data_item_content_changed(set([DATA]))
-
-    # this message comes from the operation.
-    # it is generated when the user deletes a operation graphic.
-    # that informs the display which notifies the graphic which
-    # notifies the operation which notifies this data item. ugh.
-    def remove_operation(self, operation):
-        self.notify_listeners("request_remove_data_item", self)
-
     # this message comes from the displays.
-    def display_changed(self, operation):
+    def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
     # data_item_content_changed comes from data sources to indicate that data

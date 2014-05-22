@@ -1,6 +1,7 @@
 # standard libraries
 import copy
 import gettext
+import logging
 import math
 
 # third party libraries
@@ -17,6 +18,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Storage
 from nion.ui import Binding
+from nion.ui import Observable
 
 _ = gettext.gettext
 
@@ -70,7 +72,7 @@ class LineProfileGraphic(Graphics.LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-class OperationItem(Storage.StorageBase):
+class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted):
     """
         OperationItem represents an operation on numpy data array.
         Pass in a description during construction. The description
@@ -78,10 +80,9 @@ class OperationItem(Storage.StorageBase):
         are connected to the operation.
         """
     def __init__(self, operation_id):
-        Storage.StorageBase.__init__(self)
+        super(OperationItem, self).__init__()
 
-        self.storage_type = "operation"
-        self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
+        # self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -127,15 +128,20 @@ class OperationItem(Storage.StorageBase):
         self.__bindings = None
 
     @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        operation_id = datastore.get_property(item_node, "operation_id")
+    def build(cls, operation_dict):
+        operation_id = operation_dict["operation_id"]
         operation_item = cls(operation_id)
-        operation_item.enabled = datastore.get_property(item_node, "enabled", True)
-        values = datastore.get_property(item_node, "values", dict())
+        operation_item.enabled = operation_dict.get("enabled", True)
+        values = operation_dict.get("values", dict())
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             operation_item.set_property(key, values[key])
         return operation_item
+
+    def write(self, storage_dict):
+        storage_dict["operation_id"] = self.operation_id
+        storage_dict["enabled"] = self.enabled
+        storage_dict["values"] = self.values
 
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
@@ -234,7 +240,7 @@ class OperationItem(Storage.StorageBase):
         self.notify_listeners("operation_changed", self)
 
     def remove_operation_graphic(self, operation_graphic):
-        self.notify_listeners("remove_operation", self)
+        self.notify_listeners("remove_operation_because_graphic_removed", self)
 
 
 class Singleton(type):

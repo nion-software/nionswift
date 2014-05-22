@@ -515,7 +515,7 @@ class DocumentController(Observable.Broadcaster):
     def remove_operation(self, operation):
         data_item = self.selected_data_item
         if data_item:
-            data_item.operations.remove(operation)
+            data_item.remove_operation(operation)
 
     # sets the selected data item in the data panel and an appropriate image panel.
     # use this sparingly, and only in response to user requests such as
@@ -546,12 +546,12 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             if in_place:  # in place?
-                data_item.operations.append(operation)
+                data_item.add_operation(operation)
                 return data_item
             else:
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
-                new_data_item.operations.append(operation)
+                new_data_item.add_operation(operation)
                 new_data_item.add_data_source(data_item)
                 self.document_model.append_data_item(new_data_item)
                 if select:

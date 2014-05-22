@@ -116,7 +116,7 @@ class MutableRelationship(collections.MutableSequence):
 """
 
 
-class StorageBase(Observable.Observable, Observable.Broadcaster):
+class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted):
 
     def __init__(self):
         super(StorageBase, self).__init__()
@@ -141,7 +141,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster):
     def __del__(self):
         # There should not be listeners or references at this point.
         assert len(self.__weak_parents) == 0, '{0} still has parents'.format(self.__class__.__name__)
-        assert self.__ref_count == 0, '{0} still has references'.format(self.__class__.__name__)
+        super(StorageBase, self).__del__()
 
     # Give subclasses a chance to clean up. This gets called when reference
     # count goes to 0, but before deletion.
@@ -724,12 +724,10 @@ class DictDatastore(object):
         item = None
         if uuid_ not in self.__item_map:
             node = self.__node_map[uuid_]
-            from nion.swift.model import Calibration
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             from nion.swift.model import Display
             from nion.swift.model import Graphics
-            from nion.swift.model import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
@@ -737,7 +735,6 @@ class DictDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": Operation.OperationItem,
             }
             type = node["type"]
             if type in build_map:
@@ -1150,12 +1147,10 @@ class DbDatastore(object):
     def build_item(self, uuid_):
         item = None
         if uuid_ not in self.__item_map:
-            from nion.swift.model import Calibration
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             from nion.swift.model import Display
             from nion.swift.model import Graphics
-            from nion.swift.model import Operation
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
@@ -1163,7 +1158,6 @@ class DbDatastore(object):
                 "line-graphic": Graphics.LineGraphic,
                 "rect-graphic": Graphics.RectangleGraphic,
                 "ellipse-graphic": Graphics.EllipseGraphic,
-                "operation": Operation.OperationItem,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
