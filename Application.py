@@ -368,6 +368,11 @@ class Application(object):
                             value = pickle.loads(str(row[1]))
                             display_dict[key] = value
                         display_list = properties.setdefault("displays", list())
+                        # fix up the display properties
+                        if "properties" in display_dict:
+                            for key in display_dict["properties"].keys():
+                                display_dict[key] = display_dict["properties"][key]
+                            del display_dict["properties"]
                         display_list.append(display_dict)
                         c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                     # update the properties

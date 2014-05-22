@@ -453,15 +453,15 @@ class DataItem(Storage.StorageBase):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
-    def __grab_properties(self):
+    def grab_properties(self):
         return self.__properties
-    def __release_properties(self):
+    def release_properties(self):
         self.notify_set_property("properties", self.__properties)
         self.notify_data_item_content_changed(set([METADATA]))
 
     def property_changes(self):
-        grab_properties = DataItem.__grab_properties
-        release_properties = DataItem.__release_properties
+        grab_properties = DataItem.grab_properties
+        release_properties = DataItem.release_properties
         class PropertyChangeContextManager(object):
             def __init__(self, data_item):
                 self.__data_item = data_item
@@ -474,16 +474,28 @@ class DataItem(Storage.StorageBase):
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
 
+    class Datastore(object):
+
+        def __init__(self, data_item, storage_dict):
+            self.data_item = data_item
+            self.storage_dict = storage_dict
+
+        def __enter__(self):
+            return self.storage_dict
+
+        def __exit__(self, type, value, traceback):
+            self.data_item.release_properties()
+
     def add_display(self, display):
         self.__displays.append(display)
         display.add_ref()
         display.add_listener(self)
-        display.add_observer(self)
         with self.property_changes() as pc:
             display_list = pc.properties.setdefault("displays", list())
             display_dict = dict()
-            display.write(display_dict)
             display_list.append(display_dict)
+            display.datastore = DataItem.Datastore(self, display_dict)
+            display.write(display.datastore.storage_dict)
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
@@ -492,8 +504,8 @@ class DataItem(Storage.StorageBase):
         self.__displays.remove(display)
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
-        display.remove_observer(self)
         display.remove_ref()
+        display.datastore = None
         display._set_data_item(None)
         with self.property_changes() as pc:
             display_list = pc.properties["displays"]
@@ -574,10 +586,6 @@ class DataItem(Storage.StorageBase):
             with self.property_changes() as pc:
                 operation_dict = pc.properties["operations"][self.__operations.index(object)]
                 operation_dict[property] = value
-        elif object in self.__displays:
-            with self.property_changes() as pc:
-                display_dict = pc.properties["displays"][self.__displays.index(object)]
-                display_dict[property] = value
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the

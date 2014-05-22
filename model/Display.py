@@ -30,14 +30,20 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     def __init__(self):
         super(Display, self).__init__()
         self.__weak_data_item = None
-        self.__properties = dict()
         self.__graphics = list()
+        self.__display_calibrated_values = True
+        self.__display_limits = None
+        self.__y_min = None
+        self.__y_max = None
+        self.__left_channel = None
+        self.__right_channel = None
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
+        self.datastore = None
 
     def about_to_delete(self):
         self.__shared_thread_pool.close()
@@ -47,25 +53,40 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
 
     @classmethod
     def build(cls, storage_dict):
-        properties = storage_dict.get("properties", dict())
-        graphic_list = properties.get("graphics", list())
-        if "graphics" in properties:
-            del properties["graphics"]  # these will be added back below
         display = cls()
-        display.__properties = properties
+        display.__display_calibrated_values = storage_dict.get("display_calibrated_values", True)
+        display.__display_limits = storage_dict.get("display_limits")
+        display.__y_min = storage_dict.get("y_min")
+        display.__y_max = storage_dict.get("y_max")
+        display.__left_channel = storage_dict.get("left_channel")
+        display.__right_channel = storage_dict.get("right_channel")
+        graphic_list = storage_dict.get("graphics", list())
         for graphic_dict in graphic_list:
             graphic_item = Graphics.build(graphic_dict)
             display.append_graphic(graphic_item)
         return display
 
     def write(self, storage_dict):
-        storage_dict["properties"] = copy.deepcopy(self.properties)
+        storage_dict["display_calibrated_values"] = self.display_calibrated_values
+        storage_dict["display_limits"] = self.display_limits
+        storage_dict["y_min"] = self.y_min
+        storage_dict["y_max"] = self.y_max
+        storage_dict["left_channel"] = self.left_channel
+        storage_dict["right_channel"] = self.right_channel
+        graphic_list = storage_dict.setdefault("graphics", list())
+        for graphic in self.graphics:
+            graphic_dict = dict()
+            graphic.write(graphic_dict)
+            graphic_list.append(graphic_dict)
 
     def __deepcopy__(self, memo):
         display_copy = Display()
-        with display_copy.property_changes() as property_accessor:
-            property_accessor.properties.clear()
-            property_accessor.properties.update(self.properties)
+        display_copy.display_calibrated_values = self.display_calibrated_values
+        display_copy.display_limits = self.display_limits
+        display_copy.y_min = self.y_min
+        display_copy.y_max = self.y_max
+        display_copy.left_channel = self.left_channel
+        display_copy.right_channel = self.right_channel
         for graphic in self.graphics:
             display_copy.append_graphic(copy.deepcopy(graphic, memo))
         memo[id(self)] = display_copy
@@ -93,32 +114,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             self.data_item.add_listener(self)
             self.storage_cache = self.data_item.storage_cache
 
-    def __get_properties(self):
-        return self.__properties.copy()
-    properties = property(__get_properties)
-
-    def __grab_properties(self):
-        return self.__properties
-    def __release_properties(self):
-        self.notify_set_property("properties", self.__properties)
-        self.notify_listeners("display_changed", self)
-        self.__preview = None
-
-    def property_changes(self):
-        grab_properties = Display.__grab_properties
-        release_properties = Display.__release_properties
-        class PropertyChangeContextManager(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __enter__(self):
-                return self
-            def __exit__(self, type, value, traceback):
-                release_properties(self.__data_item)
-            def __get_properties(self):
-                return grab_properties(self.__data_item)
-            properties = property(__get_properties)
-        return PropertyChangeContextManager(self)
-
     def __get_preview_2d(self):
         if self.__preview is None:
             with self.data_item.data_ref() as data_ref:
@@ -145,15 +140,19 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     drawn_graphics = property(__get_drawn_graphics)
 
     def __get_display_calibrated_values(self):
-        return self.__properties.get("display_calibrated_values", True)
+        return self.__display_calibrated_values
     def __set_display_calibrated_values(self, display_calibrated_values):
-        with self.property_changes() as pc:
-            pc.properties["display_calibrated_values"] = display_calibrated_values
+        self.__display_calibrated_values = display_calibrated_values
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["display_calibrated_values"] = self.display_calibrated_values
         self.notify_set_property("display_calibrated_values", display_calibrated_values)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     display_calibrated_values = property(__get_display_calibrated_values, __set_display_calibrated_values)
 
     def __get_display_limits(self):
-        return self.__properties.get("display_limits")
+        return self.__display_limits
     def __set_display_limits(self, display_limits):
         # setting display limits to max,min will silently reverse them to min,max
         # this is a HACK to make sure the cache gets cleared before we ask to calculate it
@@ -162,10 +161,15 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             display_limits = min(display_limits[0], display_limits[1]), max(display_limits[0], display_limits[1])
         for processor in self.__processors.values():
             processor.data_item_changed()
-        with self.property_changes() as pc:
-            pc.properties["display_limits"] = display_limits
+        self.__display_limits = display_limits
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["display_limits"] = display_limits
         self.notify_set_property("display_limits", display_limits)
-        self.notify_set_property("display_range", self.display_range)
+        if self.data_item:
+            self.notify_set_property("display_range", self.display_range)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     display_limits = property(__get_display_limits, __set_display_limits)
 
     def __get_data_range(self):
@@ -180,47 +184,65 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     display_range = property(__get_display_range, __set_display_limits)
 
     def __get_y_min(self):
-        return self.__properties.get("y_min")
+        return self.__y_min
     def __set_y_min(self, y_min):
-        with self.property_changes() as pc:
-            pc.properties["y_min"] = y_min
+        self.__y_min = y_min
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["y_min"] = y_min
         self.notify_set_property("y_min", y_min)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     y_min = property(__get_y_min, __set_y_min)
 
     def __get_y_max(self):
-        return self.__properties.get("y_max")
+        return self.__y_max
     def __set_y_max(self, y_max):
-        with self.property_changes() as pc:
-            pc.properties["y_max"] = y_max
+        self.__y_max = y_max
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["y_max"] = y_max
         self.notify_set_property("y_max", y_max)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     y_max = property(__get_y_max, __set_y_max)
 
     def __get_left_channel(self):
-        return self.__properties.get("left_channel")
+        return self.__left_channel
     def __set_left_channel(self, left_channel):
-        with self.property_changes() as pc:
-            pc.properties["left_channel"] = left_channel
+        self.__left_channel = left_channel
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["left_channel"] = left_channel
         self.notify_set_property("left_channel", left_channel)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     left_channel = property(__get_left_channel, __set_left_channel)
 
     def __get_right_channel(self):
-        return self.__properties.get("right_channel")
+        return self.__right_channel
     def __set_right_channel(self, right_channel):
-        with self.property_changes() as pc:
-            pc.properties["right_channel"] = right_channel
+        self.__right_channel = right_channel
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict["right_channel"] = right_channel
         self.notify_set_property("right_channel", right_channel)
+        self.notify_listeners("display_changed", self)
+        self.__preview = None
     right_channel = property(__get_right_channel, __set_right_channel)
 
-    # message sent from data item. established using add/remove observer.
+    # message sent from data_item or graphics. established using add/remove observer.
     def property_changed(self, object, property, value):
         if property == "data_range":
             self.__preview = None
             self.notify_set_property(property, value)
-            self.notify_set_property("display_range", self.display_range)
+            if self.data_item:
+                self.notify_set_property("display_range", self.display_range)
         if object in self.__graphics:
-            with self.property_changes() as pc:
-                graphic_dict = pc.properties["graphics"][self.__graphics.index(object)]
-                graphic_dict[property] = value
+            if self.datastore:
+                with self.datastore:
+                    graphic_dict = self.datastore.storage_dict["graphics"][self.__graphics.index(object)]
+                    graphic_dict[property] = value
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
@@ -256,11 +278,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         graphic.add_ref()
         graphic.add_listener(self)
         graphic.add_observer(self)
-        with self.property_changes() as pc:
-            graphic_list = pc.properties.setdefault("graphics", list())
-            graphic_dict = dict()
-            graphic.write(graphic_dict)
-            graphic_list.append(graphic_dict)
+        if self.datastore:
+            with self.datastore:
+                graphic_list = self.datastore.storage_dict.setdefault("graphics", list())
+                graphic_dict = dict()
+                graphic.write(graphic_dict)
+                graphic_list.append(graphic_dict)
         self.__drawn_graphics.insert(before_index, graphic)
         self.notify_listeners("display_changed", self)
 
@@ -277,9 +300,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         graphic.remove_listener(self)
         graphic.remove_observer(self)
         graphic.remove_ref()
-        with self.property_changes() as pc:
-            graphic_list = pc.properties["graphics"]
-            del graphic_list[graphic_index]
+        if self.datastore:
+            with self.datastore:
+                graphic_list = self.datastore.storage_dict["graphics"]
+                del graphic_list[graphic_index]
 
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
