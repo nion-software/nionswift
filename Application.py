@@ -243,7 +243,7 @@ class Application(object):
                 version = 7
             if version == 7:
                 logging.debug("Updating database from version 7 to version 8.")
-                c.execute("SELECT DISTINCT(parent_uuid) FROM relationships WHERE key='calibrations'")
+                c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
                 parent_uuids = list()
                 for row in c.fetchall():
                     parent_uuids.append(row[0])
@@ -266,30 +266,42 @@ class Application(object):
                             calibration_dict[key] = value
                         spatial_calibration_list = properties.setdefault("spatial_calibrations", list())
                         spatial_calibration_list.append(calibration_dict)
-                    # update the properties
-                    properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
-                    c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
-                    c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
-                # find the intensity calibration items
-                c.execute("SELECT parent_uuid, item_uuid FROM items WHERE key='intrinsic_intensity_calibration'")
-                parent_item_pairs = list()
-                for row in c.fetchall():
-                    parent_item_pairs.append((row[0], row[1]))
-                for parent_item_pair in parent_item_pairs:
-                    parent_uuid, item_uuid = parent_item_pair
-                    # grab the existing properties from the data item
-                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='properties'", (parent_uuid, ))
+                    # find the intensity calibration items
+                    c.execute("SELECT item_uuid FROM items WHERE key='intrinsic_intensity_calibration' AND parent_uuid=?", (parent_uuid, ))
                     result = c.fetchone()
-                    properties = pickle.loads(str(result[0])) if result else dict()
-                    # find the spatial calibration relationships
-                    c.execute("SELECT key, value FROM properties WHERE uuid=?", (item_uuid, ))
-                    calibration_dict = dict()
-                    for row in c.fetchall():
-                        key = row[0]
-                        value = pickle.loads(str(row[1]))
-                        calibration_dict[key] = value
-                    if calibration_dict:
-                        properties["intensity_calibrations"] = calibration_dict
+                    if result is not None:
+                        item_uuid = result[0]
+                        # find the intensity calibration relationships
+                        c.execute("SELECT key, value FROM properties WHERE uuid=?", (item_uuid, ))
+                        calibration_dict = dict()
+                        for row in c.fetchall():
+                            key = row[0]
+                            value = pickle.loads(str(row[1]))
+                            calibration_dict[key] = value
+                        if calibration_dict:
+                            properties["intensity_calibrations"] = calibration_dict
+                    # look for the title
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='title'", (parent_uuid, ))
+                    result = c.fetchone()
+                    if result is not None:
+                        title = pickle.loads(str(result[0]))
+                        properties["title"] = title
+                    # look for the datetime_original
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='datetime_original'", (parent_uuid, ))
+                    result = c.fetchone()
+                    if result is not None:
+                        datetime_original = pickle.loads(str(result[0]))
+                        properties["datetime_original"] = datetime_original
+                    # look for the datetime_modified
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='datetime_modified'", (parent_uuid, ))
+                    result = c.fetchone()
+                    if result is not None:
+                        datetime_modified = pickle.loads(str(result[0]))
+                        properties["datetime_modified"] = datetime_modified
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key='title'", (parent_uuid, ))
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key='datetime_original'", (parent_uuid, ))
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key='datetime_modified'", (parent_uuid, ))
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key='param'", (parent_uuid, ))
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))

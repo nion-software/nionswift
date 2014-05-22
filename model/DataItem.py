@@ -102,20 +102,20 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "datetime_modified", "datetime_original", "properties", "source_file_path"]
+        self.storage_properties += ["properties", "source_file_path"]
         self.storage_relationships += ["operations", "displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
         self.closed = False
-        self.__title = None
         self.__source_file_path = None
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__datetime_original = Utility.get_current_datetime_item()
-        self.__datetime_modified = self.__datetime_original
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
         self.__properties = dict()
+        current_datetime_item = Utility.get_current_datetime_item()
+        self.__properties["datetime_original"] = current_datetime_item
+        self.__properties["datetime_modified"] = copy.deepcopy(current_datetime_item)
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
@@ -168,11 +168,8 @@ class DataItem(Storage.StorageBase):
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
-        title = datastore.get_property(item_node, "title")
         source_file_path = datastore.get_property(item_node, "source_file_path")
         properties = datastore.get_property(item_node, "properties")
-        datetime_modified = datastore.get_property(item_node, "datetime_modified")
-        datetime_original = datastore.get_property(item_node, "datetime_original")
         operations = datastore.get_items(item_node, "operations")
         displays = datastore.get_items(item_node, "displays")
         has_master_data = datastore.has_data(item_node, "master_data")
@@ -181,7 +178,6 @@ class DataItem(Storage.StorageBase):
         else:
             master_data_shape, master_data_dtype = None, None
         data_item = cls()
-        data_item.title = title
         data_item.source_file_path = source_file_path
         data_item.__properties = properties if properties else dict()
         data_item.__master_data_shape = master_data_shape
@@ -193,10 +189,6 @@ class DataItem(Storage.StorageBase):
             while len(data_item.displays):
                 data_item.displays.pop()
             data_item.displays.extend(displays)
-        if datetime_modified is not None:
-            data_item.datetime_modified = datetime_modified
-        if datetime_original is not None:
-            data_item.datetime_original = datetime_original
         return data_item
 
     # This gets called when reference count goes to 0, but before deletion.
@@ -213,13 +205,10 @@ class DataItem(Storage.StorageBase):
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
-        data_item_copy.title = self.title
         data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
-        data_item_copy.datetime_modified = copy.copy(self.datetime_modified)
-        data_item_copy.datetime_original = copy.copy(self.datetime_original)
         for operation in self.operations:
             data_item_copy.operations.append(copy.deepcopy(operation, memo))
         while len(data_item_copy.displays):
@@ -416,19 +405,27 @@ class DataItem(Storage.StorageBase):
     # date times
 
     def __get_datetime_modified(self):
-        return self.__datetime_modified
+        return self.__properties.get("datetime_modified")
     def __set_datetime_modified(self, datetime_modified):
-        if self.__datetime_modified != datetime_modified:
-            self.__datetime_modified = datetime_modified
+        if self.datetime_modified != datetime_modified:
+            with self.property_changes() as pc:
+                if datetime_modified is not None:
+                    pc.properties["datetime_modified"] = copy.deepcopy(datetime_modified)
+                else:
+                    del pc.properties["datetime_modified"]
             self.notify_set_property("datetime_modified", datetime_modified)
             self.notify_data_item_content_changed(set([METADATA]))
     datetime_modified = property(__get_datetime_modified, __set_datetime_modified)
 
     def __get_datetime_original(self):
-        return self.__datetime_original
+        return self.__properties.get("datetime_original")
     def __set_datetime_original(self, datetime_original):
-        if self.__datetime_original != datetime_original:
-            self.__datetime_original = datetime_original
+        if self.datetime_original != datetime_original:
+            with self.property_changes() as pc:
+                if datetime_original is not None:
+                    pc.properties["datetime_original"] = copy.deepcopy(datetime_original)
+                else:
+                    del pc.properties["datetime_original"]
             self.notify_set_property("datetime_original", datetime_original)
             self.notify_data_item_content_changed(set([METADATA]))
     datetime_original = property(__get_datetime_original, __set_datetime_original)
@@ -446,7 +443,7 @@ class DataItem(Storage.StorageBase):
     # access properties
 
     def __get_properties(self):
-        return self.__properties.copy()
+        return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
     def __grab_properties(self):
@@ -545,9 +542,13 @@ class DataItem(Storage.StorageBase):
 
     # title
     def __get_title(self):
-        return self.__title if self.__title else _("Untitled")
+        return self.__properties.get("title", _("Untitled"))
     def __set_title(self, value):
-        self.__title = value
+        with self.property_changes() as pc:
+            if value is not None:
+                pc.properties["title"] = unicode(copy.copy(value))
+            else:
+                del pc.properties["title"]
         self.notify_set_property("title", value)
     title = property(__get_title, __set_title)
 
@@ -981,14 +982,11 @@ class DataItem(Storage.StorageBase):
             applied or "burned in".
         """
         data_item_copy = DataItem()
-        data_item_copy.title = self.title
         data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
             property_accessor.properties.pop("data_source_uuid", None)
-        data_item_copy.datetime_original = Utility.get_current_datetime_item()
-        data_item_copy.datetime_modified = data_item_copy.datetime_original
         data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
         for index in xrange(len(self.spatial_shape)):
             data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
