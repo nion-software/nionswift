@@ -107,14 +107,17 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.define_property("intrinsic_intensity_calibration", Calibration.Calibration(), cls=Calibration.Calibration)
+        self.define_property("datetime_original")
+        self.define_property("datetime_modified")
+        self.define_property("title", _("Untitled"))
+        self.define_property("caption", unicode())
+        self.define_property("rating", 0)
+        self.define_property("flag", 0)
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__operations = list()
         self.__displays = list()
         self.__properties = dict()
-        current_datetime_item = Utility.get_current_datetime_item()
-        self.__properties["datetime_original"] = current_datetime_item
-        self.__properties["datetime_modified"] = copy.deepcopy(current_datetime_item)
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
@@ -137,6 +140,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
+        current_datetime_item = Utility.get_current_datetime_item()
+        self.datetime_original = current_datetime_item
+        self.datetime_modified = current_datetime_item
         self.__set_master_data(data)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
@@ -221,6 +227,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             property_accessor.properties.update(properties_copy)
         for operation in self.operations:
             data_item_copy.add_operation(copy.deepcopy(operation, memo))
+        data_item_copy.deepcopy_from(self, memo)
         # replace existing displays. TODO: remove this when we can handle data items without any displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display, memo))
@@ -305,12 +312,37 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 
+    def _validate_property(self, property_name, value):
+        if property_name == "title" or property_name == "caption":
+            return unicode(copy.copy(value))
+        elif property_name == "flag":
+            return max(min(int(value), 1), -1)
+        elif property_name == "rating":
+            return min(max(int(value), 0), 5)
+        else:
+            return super(DataItem, self)._validate_property(property_name, value)
+
     def _property_changed(self, property_name, value):
         if property_name == "intrinsic_intensity_calibration":
             with self.property_changes() as pc:
-                intensity_calibration_dict = pc.properties.setdefault("intrinsic_intensity_calibration", dict())
-                value.write_dict(intensity_calibration_dict)
+                value_dict = pc.properties.setdefault(property_name, dict())
+                value.write_dict(value_dict)
             self.notify_listeners("data_item_calibration_changed")
+        elif property_name == "datetime_original" or property_name == "datetime_modified":
+            with self.property_changes() as pc:
+                if value is not None:
+                    pc.properties[property_name] = copy.deepcopy(value)
+                else:
+                    del pc.properties[property_name]
+            self.notify_set_property(property_name, value)
+            self.notify_data_item_content_changed(set([METADATA]))
+        elif property_name == "title" or property_name == "caption" or property_name == "flag" or property_name == "rating":
+            with self.property_changes() as pc:
+                if value is not None:
+                    pc.properties[property_name] = copy.deepcopy(value)
+                else:
+                    del pc.properties[property_name]
+            self.notify_set_property(property_name, value)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
@@ -411,32 +443,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
-
-    def __get_datetime_modified(self):
-        return self.__properties.get("datetime_modified")
-    def __set_datetime_modified(self, datetime_modified):
-        if self.datetime_modified != datetime_modified:
-            with self.property_changes() as pc:
-                if datetime_modified is not None:
-                    pc.properties["datetime_modified"] = copy.deepcopy(datetime_modified)
-                else:
-                    del pc.properties["datetime_modified"]
-            self.notify_set_property("datetime_modified", datetime_modified)
-            self.notify_data_item_content_changed(set([METADATA]))
-    datetime_modified = property(__get_datetime_modified, __set_datetime_modified)
-
-    def __get_datetime_original(self):
-        return self.__properties.get("datetime_original")
-    def __set_datetime_original(self, datetime_original):
-        if self.datetime_original != datetime_original:
-            with self.property_changes() as pc:
-                if datetime_original is not None:
-                    pc.properties["datetime_original"] = copy.deepcopy(datetime_original)
-                else:
-                    del pc.properties["datetime_original"]
-            self.notify_set_property("datetime_original", datetime_original)
-            self.notify_data_item_content_changed(set([METADATA]))
-    datetime_original = property(__get_datetime_original, __set_datetime_original)
 
     def __get_datetime_original_as_string(self):
         datetime_original = self.datetime_original
@@ -608,45 +614,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             for operation_item in self.operations:
                 data_source.remove_operation_graphics_from_displays(operation_item.graphics)
         self.__set_data_source(None)
-
-    # title
-    def __get_title(self):
-        return self.__properties.get("title", _("Untitled"))
-    def __set_title(self, value):
-        with self.property_changes() as pc:
-            if value is not None:
-                pc.properties["title"] = unicode(copy.copy(value))
-            else:
-                del pc.properties["title"]
-        self.notify_set_property("title", value)
-    title = property(__get_title, __set_title)
-
-    # caption
-    def __get_caption(self):
-        return self.__properties.get("caption", unicode())
-    def __set_caption(self, value):
-        with self.property_changes() as pc:
-            pc.properties["caption"] = unicode(value)
-        self.notify_set_property("caption", value)
-    caption = property(__get_caption, __set_caption)
-
-    # flag
-    def __get_flag(self):
-        return self.__properties.get("flag", 0)
-    def __set_flag(self, value):
-        with self.property_changes() as pc:
-            pc.properties["flag"] = max(min(int(value), 1), -1)
-        self.notify_set_property("flag", value)
-    flag = property(__get_flag, __set_flag)
-
-    # rating
-    def __get_rating(self):
-        return self.__properties.get("rating", 0)
-    def __set_rating(self, value):
-        with self.property_changes() as pc:
-            pc.properties["rating"] = min(max(int(value), 0), 5)
-        self.notify_set_property("rating", value)
-    rating = property(__get_rating, __set_rating)
 
     # source file path
     def __get_source_file_path(self):
