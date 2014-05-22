@@ -121,9 +121,9 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         with data_item.ref():
             data_item.title = "data_item"
-            with data_item.property_changes() as property_accessor:
-                property_accessor.properties["one"] = 1
-                property_accessor.properties["two"] = 22
+            with data_item.open_metadata("test") as metadata:
+                metadata["one"] = 1
+                metadata["two"] = 22
             with data_item.data_ref() as data_ref:
                 data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
                 data_ref.master_data_updated()
@@ -141,8 +141,10 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertEqual(data_ref.master_data[0,0], 1)
                     self.assertEqual(data_copy_accessor.master_data[0,0], 0)
                 # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 15)  # temporary hack until properties are separated from metadata
+                self.assertEqual(len(data_item_copy.properties), 14)  # temporary hack until properties are separated from metadata
                 self.assertIsNot(data_item.properties, data_item_copy.properties)
+                self.assertEqual(len(data_item.get_metadata("test")), 2)
+                self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))
                 # make sure display counts match
                 self.assertEqual(len(data_item.displays), len(data_item_copy.displays))
                 self.assertEqual(len(data_item.operations), len(data_item_copy.operations))

@@ -352,7 +352,7 @@ class Workspace(object):
                 return False
             if data_item.is_live:
                 return True
-            if data_item.properties.get("hardware_source_id") and data_item.session_id == self.document_controller.document_model.session_id:
+            if data_item.get_metadata("hardware_source").get("hardware_source_id") and data_item.session_id == self.document_controller.document_model.session_id:
                 return True
             return False
 
@@ -539,8 +539,8 @@ class WorkspaceController(AbstractWorkspaceController):
 
             # to reuse, first verify that the hardware source id, if any, matches
             if data_item:
-                hardware_source_id = data_item.properties.get("hardware_source_id")
-                hardware_source_channel_id = data_item.properties["hardware_source_channel_id"]
+                hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
+                hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
                 if hardware_source_id != hardware_source.hardware_source_id or hardware_source_channel_id != channel:
                     data_item = None
             # if everything but session or live-ness matches, copy it and re-use.
@@ -562,9 +562,9 @@ class WorkspaceController(AbstractWorkspaceController):
                 data_item = DataItem.DataItem()
                 data_item.add_ref()  # this will be balanced in append_data_item
                 data_item.title = "%s.%s" % (hardware_source.display_name, channel)
-                with data_item.property_changes() as context:
-                    context.properties["hardware_source_id"] = hardware_source.hardware_source_id
-                    context.properties["hardware_source_channel_id"] = channel
+                with data_item.open_metadata("hardware_source") as metadata:
+                    metadata["hardware_source_id"] = hardware_source.hardware_source_id
+                    metadata["hardware_source_channel_id"] = channel
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
                 with self.__mutex:
                     self.__channel_activations.discard(channel)

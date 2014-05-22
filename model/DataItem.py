@@ -51,6 +51,16 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         return self.item
 
 
+class Metadata(dict):
+
+    def read_dict(self, storage_dict):
+        self.clear()
+        self.update(storage_dict)
+
+    def write_dict(self):
+        return copy.deepcopy(dict(self))
+
+
 class CalibrationList(object):
 
     def __init__(self):
@@ -193,17 +203,18 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             spatial_calibrations.list.extend([Calibration.Calibration() for i in xrange(len(Image.spatial_shape_from_shape_and_dtype(data.shape, data.dtype)))])
         self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
         self.define_property(Observable.Property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed))
-        self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_changed))
-        self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed))
+        self.define_property(Observable.Property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed))
+        self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed))
+        self.define_property(Observable.Property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_property_changed))
+        self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_property_changed))
+        self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
         self.define_property(Observable.Property("data_sources", DataSourceList(), make=DataSourceList))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
+        self.__metadata = dict()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__properties = properties if properties is not None else dict()
@@ -274,6 +285,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
         data_item.read_storage(data_item.vault)
+        for key in properties.keys():
+            if key not in data_item.property_names and key not in data_item.relationship_names:
+                data_item.__metadata.setdefault(key, dict()).update(properties[key])
         data_item.sync_intrinsic_spatial_calibrations()
         assert(len(data_item.displays) > 0)
         return data_item
@@ -397,8 +411,11 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.notify_data_item_content_changed(set([METADATA]))
         self.notify_listeners("data_item_calibration_changed")
 
-    def __metadata_changed(self, name, value):
+    def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
+        self.__metadata_changed()
+
+    def __metadata_changed(self):
         self.notify_data_item_content_changed(set([METADATA]))
 
     def __property_changed(self, name, value):
@@ -528,21 +545,45 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         return str()
     datetime_original_as_string = property(__get_datetime_original_as_string)
 
+    # access metadata
+
+    def get_metadata(self, name):
+        return copy.deepcopy(self.__metadata.get(name, dict()))
+
+    def open_metadata(self, name):
+        metadata = self.__metadata
+        metadata_changed = self.__metadata_changed
+        class MetadataContextManager(object):
+            def __init__(self, data_item, name):
+                self.__data_item = data_item
+                self.__metadata_copy = data_item.get_metadata(name)
+                self.__name = name
+            def __enter__(self):
+                return self.__metadata_copy
+            def __exit__(self, type, value, traceback):
+                if self.__metadata_copy is not None:
+                    metadata_group = metadata.setdefault(self.__name, dict())
+                    metadata_group.clear()
+                    metadata_group.update(self.__metadata_copy)
+                    self.__data_item.vault.set_value(self.__name, copy.deepcopy(metadata_group))
+                    metadata_changed()
+        return MetadataContextManager(self, name)
+
     # access properties
 
     def __get_properties(self):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
-    def grab_properties(self):
+    def __grab_properties(self):
         return self.__properties
-    def release_properties(self):
+    def __release_properties(self):
         self.notify_set_property("properties", self.__properties)
         self.notify_data_item_content_changed(set([METADATA]))
 
     def property_changes(self):
-        grab_properties = DataItem.grab_properties
-        release_properties = DataItem.release_properties
+        grab_properties = DataItem.__grab_properties
+        release_properties = DataItem.__release_properties
         class PropertyChangeContextManager(object):
             def __init__(self, data_item):
                 self.__data_item = data_item

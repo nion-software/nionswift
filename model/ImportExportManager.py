@@ -195,8 +195,8 @@ def update_data_item_from_data_element_1(data_item, data_element, external=False
             units = unicode(intensity_calibration["units"])
         # properties (general tags)
         if "properties" in data_element:
-            with data_item.property_changes() as context:
-                context.properties.update(data_element.get("properties"))
+            with data_item.open_metadata("hardware_source") as metadata:
+                metadata.update(data_element.get("properties"))
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
@@ -266,11 +266,11 @@ def create_data_element_from_data_item(data_item, include_data=True):
     if intensity_calibration is not None:
         intensity_calibration_element = { "origin": intensity_calibration.origin, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
         data_element["intensity_calibration"] = calibration_element
-    data_element["properties"] = copy.copy(data_item.properties)
-    data_element["title"] = copy.copy(data_item.title)
-    data_element["source_file_path"] = copy.copy(data_item.source_file_path)
-    data_element["datetime_modified"] = copy.copy(data_item.datetime_modified)
-    data_element["datetime_original"] = copy.copy(data_item.datetime_original)
+    data_element["properties"] = dict(data_item.get_metadata("hardware_source"))
+    data_element["title"] = data_item.title
+    data_element["source_file_path"] = data_item.source_file_path
+    data_element["datetime_modified"] = copy.deepcopy(data_item.datetime_modified)
+    data_element["datetime_original"] = copy.deepcopy(data_item.datetime_original)
     data_element["uuid"] = str(data_item.uuid)
     if data_item.has_data_source:
         data_element["data_source_uuid"] = str(data_item.data_source.uuid)

@@ -384,6 +384,18 @@ class Application(object):
                     if "data_source_uuid" in properties:
                         properties["data_sources"] = [properties["data_source_uuid"]]
                         del properties["data_source_uuid"]
+                    # migrate the metadata
+                    top_level_keys = ("metadata", "intrinsic_intensity_calibration", "intrinsic_spatial_calibrations", "datetime_original",
+                                      "datetime_modified", "title", "caption", "rating", "flag", "source_file_path", "session_id", "data_sources",
+                                      "operations", "displays")
+                    metadata = properties.get("metadata", dict())
+                    for key in properties.keys():
+                        if not key in top_level_keys:
+                            metadata_group = metadata.setdefault("hardware_source", dict())
+                            metadata_group[key] = properties[key]
+                            del properties[key]
+                    for key in metadata:
+                        properties[key] = metadata[key]
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))

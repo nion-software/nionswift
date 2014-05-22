@@ -235,7 +235,7 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                     rgba_image = numpy.where(numpy.less(array - nmin_new, nmax_new - nmin_new * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:
                     rgba_image = numpy.where(numpy.greater(array - nmin_new, nmax_new - nmin_new * underlimit), rgba_image, 0xFF0000FF)
-            else:
+            elif array.size:
                 nmin = data_range[0] if data_range else numpy.amin(array)
                 nmax = data_range[1] if data_range else numpy.amax(array)
                 # scalar data assigned to each component of rgb view
@@ -247,7 +247,8 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                     rgba_image = numpy.where(numpy.greater(array - nmin, (nmax - nmin) * underlimit), rgba_image, 0xFF0000FF)
         else:
             get_rgb_view(rgba_image)[:] = array[..., numpy.newaxis]  # scalar data assigned to each component of rgb view
-        get_alpha_view(rgba_image)[:] = 255
+        if rgba_image.size:
+            get_alpha_view(rgba_image)[:] = 255
         return rgba_image
     elif numpy.ndim(array) == 3:
         assert array.shape[2] in (3,4)  # rgb, rgba

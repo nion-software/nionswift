@@ -308,7 +308,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
                     drawing_context.fill_text(calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = self.display.data_item.properties
+                    data_item_properties = self.display.data_item.get_metadata("hardware_source")
                     info_items = list()
                     voltage = data_item_properties.get("extra_high_tension", 0)
                     if voltage:
