@@ -12,24 +12,23 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Storage
-from nion.swift.model import DataItemProcessor
 from nion.ui import Model
+from nion.ui import Observable
 from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
 
-class Display(Storage.StorageBase):
+class Display(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
         super(Display, self).__init__()
-        self.storage_properties += ["properties"]
-        self.storage_type = "display"
         self.__weak_data_item = None
         self.__properties = dict()
         self.__graphics = list()
@@ -47,9 +46,8 @@ class Display(Storage.StorageBase):
         self._set_data_item(None)
 
     @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        properties = datastore.get_property(item_node, "properties")
-        properties = properties if properties else dict()
+    def build(cls, storage_dict):
+        properties = storage_dict.get("properties", dict())
         graphic_list = properties.get("graphics", list())
         if "graphics" in properties:
             del properties["graphics"]  # these will be added back below
@@ -59,6 +57,9 @@ class Display(Storage.StorageBase):
             graphic_item = Graphics.build(graphic_dict)
             display.append_graphic(graphic_item)
         return display
+
+    def write(self, storage_dict):
+        storage_dict["properties"] = copy.deepcopy(self.properties)
 
     def __deepcopy__(self, memo):
         display_copy = Display()
@@ -85,10 +86,12 @@ class Display(Storage.StorageBase):
         if self.data_item:
             self.data_item.remove_observer(self)
             self.data_item.remove_listener(self)
+            self.storage_cache = None
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         if self.data_item:
             self.data_item.add_observer(self)
             self.data_item.add_listener(self)
+            self.storage_cache = self.data_item.storage_cache
 
     def __get_properties(self):
         return self.__properties.copy()

@@ -101,16 +101,15 @@ SOURCE = 4
 
 class DataItem(Storage.StorageBase):
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, create_display=True):
         super(DataItem, self).__init__()
         self.storage_properties += ["properties"]
-        self.storage_relationships += ["displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__operations = list()
-        self.displays = Storage.MutableRelationship(self, "displays")
+        self.__displays = list()
         self.__properties = dict()
         current_datetime_item = Utility.get_current_datetime_item()
         self.__properties["datetime_original"] = current_datetime_item
@@ -138,7 +137,8 @@ class DataItem(Storage.StorageBase):
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__set_master_data(data)
-        self.displays.append(Display.Display())  # always have one display, for now
+        if create_display:
+            self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
@@ -172,13 +172,15 @@ class DataItem(Storage.StorageBase):
         operation_list = properties.get("operations", list())
         if "operations" in properties:
             del properties["operations"]  # these will be added back below
-        displays = datastore.get_items(item_node, "displays")
+        display_list = properties.get("displays", list())
+        if "displays" in properties:
+            del properties["displays"]  # these will be added back below
         has_master_data = datastore.has_data(item_node, "master_data")
         if has_master_data:
             master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
         else:
             master_data_shape, master_data_dtype = None, None
-        data_item = cls()
+        data_item = DataItem(create_display=False)
         data_item.__properties = properties
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
@@ -186,11 +188,11 @@ class DataItem(Storage.StorageBase):
         for operation_dict in operation_list:
             operation_item = Operation.OperationItem.build(operation_dict)
             data_item.add_operation(operation_item)
-        if len(displays) > 0:
-            # replace existing displays. TODO: remove this once clients can handle data items without any displays
-            while len(data_item.displays):
-                data_item.displays.pop()
-            data_item.displays.extend(displays)
+        # replace existing displays. TODO: remove this when we can handle data items without any displays
+        for display_dict in display_list:
+            display_item = Display.Display.build(display_dict)
+            data_item.add_display(display_item)
+        assert(len(data_item.displays) > 0)
         return data_item
 
     # This gets called when reference count goes to 0, but before deletion.
@@ -199,23 +201,27 @@ class DataItem(Storage.StorageBase):
         self.__shared_thread_pool.close()
         for operation in self.operations:
             self.remove_operation(operation)
-        for display in copy.copy(self.displays):
-            self.displays.remove(display)
+        for display in self.displays:
+            self.remove_display(display)
         self.__set_data_source(None)
         self.__set_master_data(None)
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
-        data_item_copy = DataItem()
+        data_item_copy = DataItem(create_display=False)
         with data_item_copy.property_changes() as property_accessor:
+            properties_copy = self.properties
+            if "operations" in properties_copy:
+                del properties_copy["operations"]  # these will be added back below
+            if "displays" in properties_copy:
+                del properties_copy["displays"]  # these will be added back below
             property_accessor.properties.clear()
-            property_accessor.properties.update(self.properties)
+            property_accessor.properties.update(properties_copy)
         for operation in self.operations:
             data_item_copy.add_operation(copy.deepcopy(operation, memo))
-        while len(data_item_copy.displays):
-            data_item_copy.displays.pop()
+        # replace existing displays. TODO: remove this when we can handle data items without any displays
         for display in self.displays:
-            data_item_copy.displays.append(copy.deepcopy(display, memo))
+            data_item_copy.add_display(copy.deepcopy(display, memo))
         if self.has_master_data:
             with self.data_ref() as data_ref:
                 data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
@@ -468,6 +474,35 @@ class DataItem(Storage.StorageBase):
             properties = property(__get_properties)
         return PropertyChangeContextManager(self)
 
+    def add_display(self, display):
+        self.__displays.append(display)
+        display.add_ref()
+        display.add_listener(self)
+        display.add_observer(self)
+        with self.property_changes() as pc:
+            display_list = pc.properties.setdefault("displays", list())
+            display_dict = dict()
+            display.write(display_dict)
+            display_list.append(display_dict)
+        display._set_data_item(self)
+        self.notify_data_item_content_changed(set([DISPLAYS]))
+
+    def remove_display(self, display):
+        display_index = self.__displays.index(display)
+        self.__displays.remove(display)
+        self.notify_data_item_content_changed(set([DISPLAYS]))
+        display.remove_listener(self)
+        display.remove_observer(self)
+        display.remove_ref()
+        display._set_data_item(None)
+        with self.property_changes() as pc:
+            display_list = pc.properties["displays"]
+            del display_list[display_index]
+
+    def __get_displays(self):
+        return copy.copy(self.__displays)
+    displays = property(__get_displays)
+
     # call this when operations change or data souce changes
     # this allows operations to update their default values
     def sync_operations(self):
@@ -539,20 +574,10 @@ class DataItem(Storage.StorageBase):
             with self.property_changes() as pc:
                 operation_dict = pc.properties["operations"][self.__operations.index(object)]
                 operation_dict[property] = value
-
-    def notify_insert_item(self, key, value, before_index):
-        super(DataItem, self).notify_insert_item(key, value, before_index)
-        if key == "displays":
-            value.add_listener(self)
-            value._set_data_item(self)
-            self.notify_data_item_content_changed(set([DISPLAYS]))
-
-    def notify_remove_item(self, key, value, index):
-        super(DataItem, self).notify_remove_item(key, value, index)
-        if key == "displays":
-            value._set_data_item(None)
-            value.remove_listener(self)
-            self.notify_data_item_content_changed(set([DISPLAYS]))
+        elif object in self.__displays:
+            with self.property_changes() as pc:
+                display_dict = pc.properties["displays"][self.__displays.index(object)]
+                display_dict[property] = value
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
@@ -1017,8 +1042,10 @@ class DataItem(Storage.StorageBase):
         data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
         for index in xrange(len(self.spatial_shape)):
             data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
+        while len(data_item_copy.displays) > 0:
+            data_item_copy.remove_display(data_item_copy.displays[0])
         for display in self.displays:
-            data_item_copy.displays.append(copy.deepcopy(display))
+            data_item_copy.add_display(copy.deepcopy(display))
         # operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
             data_copy = numpy.copy(data_ref.data)

@@ -706,7 +706,7 @@ class DictDatastore(object):
         item_node = self.find_node(item)
         # write to it
         properties = item_node.setdefault("properties", {})
-        properties[key] = value
+        properties[key] = copy.deepcopy(value)
 
     def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
         if self.disconnected:
@@ -717,7 +717,7 @@ class DictDatastore(object):
         parent_node = self.find_node(parent)
         # insert new node in parent
         data_arrays = parent_node.setdefault("data_arrays", {})
-        data_arrays[key] = data
+        data_arrays[key] = copy.deepcopy(data)
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         pass
@@ -739,11 +739,9 @@ class DictDatastore(object):
             node = self.__node_map[uuid_]
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
-            from nion.swift.model import Display
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "display": Display.Display,
             }
             type = node["type"]
             if type in build_map:
@@ -1158,11 +1156,9 @@ class DbDatastore(object):
         if uuid_ not in self.__item_map:
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
-            from nion.swift.model import Display
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
-                "display": Display.Display,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
