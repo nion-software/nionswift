@@ -489,6 +489,6 @@ def factory(storage_dict):
     type = storage_dict["type"]
     graphic = build_map[type]() if type in build_map else None
     if graphic:
-        graphic.read(storage_dict)
+        graphic.read_storage(storage_dict)
         return graphic
     return None

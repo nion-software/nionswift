@@ -54,7 +54,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     @classmethod
     def build(cls, storage_dict):
         display = cls()
-        display.read(storage_dict)
+        display.read_storage(storage_dict)
         return display
 
     def add_shared_task(self, task_id, item, fn):
@@ -178,7 +178,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             with self.datastore:
                 item_list = self.datastore.storage_dict.setdefault(name, list())
                 item_dict = dict()
-                item.write(item_dict)
+                item.write_storage(item_dict)
                 item_list.append(item_dict)
         if name == "graphics":
             self.__drawn_graphics.insert(before_index, item)

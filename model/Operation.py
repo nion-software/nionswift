@@ -25,19 +25,9 @@ _ = gettext.gettext
 class LineProfileGraphic(Graphics.LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
+        self.define_property("width", 1.0)
         self.__width = 1.0
-    def read(self, storage_dict):
-        self.width = storage_dict.get("width", self.width)
-    def write(self, storage_dict):
-        super(LineProfileGraphic, self).write(storage_dict)
-        storage_dict["width"] = self.width
     # accessors
-    def __get_width(self):
-        return self.__width
-    def __set_width(self, width):
-        self.__width = width
-        self.notify_set_property("width", self.__width)
-    width = property(__get_width, __set_width)
     def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)

@@ -32,13 +32,13 @@ class Calibration(object):
     def __copy__(self):
         return type(self)(self.__origin, self.__scale, self.__units)
 
-    def read(self, storage_dict):
+    def read_dict(self, storage_dict):
         self.origin = storage_dict["origin"] if "origin" in storage_dict else None
         self.scale = storage_dict["scale"] if "scale" in storage_dict else None
         self.units = storage_dict["units"] if "units" in storage_dict else None
         return self  # for convenience
 
-    def write(self, storage_dict):
+    def write_dict(self, storage_dict):
         storage_dict["origin"] = self.origin
         storage_dict["scale"] = self.scale
         storage_dict["units"] = self.units

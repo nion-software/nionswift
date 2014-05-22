@@ -99,13 +99,14 @@ SOURCE = 4
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Storage.StorageBase):
+class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
 
     def __init__(self, data=None, create_display=True):
         super(DataItem, self).__init__()
         self.storage_properties += ["properties"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
+        self.define_property("intrinsic_intensity_calibration", Calibration.Calibration(), cls=Calibration.Calibration)
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__operations = list()
@@ -185,6 +186,7 @@ class DataItem(Storage.StorageBase):
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
+        data_item.read_storage(data_item.__properties)
         for operation_dict in operation_list:
             operation_item = Operation.OperationItem.build(operation_dict)
             data_item.add_operation(operation_item)
@@ -303,6 +305,13 @@ class DataItem(Storage.StorageBase):
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 
+    def _property_changed(self, property_name, value):
+        if property_name == "intrinsic_intensity_calibration":
+            with self.property_changes() as pc:
+                intensity_calibration_dict = pc.properties.setdefault("intrinsic_intensity_calibration", dict())
+                value.write_dict(intensity_calibration_dict)
+            self.notify_listeners("data_item_calibration_changed")
+
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
     def notify_data_item_content_changed(self, changes):
@@ -355,26 +364,18 @@ class DataItem(Storage.StorageBase):
             spatial_calibration_list = pc.properties.setdefault("spatial_calibrations", list())
             while len(spatial_calibration_list) <= dimension:
                 spatial_calibration_list.append(dict())
-            calibration.write(spatial_calibration_list[dimension])
+            calibration.write_dict(spatial_calibration_list[dimension])
         self.notify_listeners("data_item_calibration_changed")
 
     def set_intensity_calibration(self, calibration):
-        with self.property_changes() as pc:
-            intensity_calibration_dict = pc.properties.setdefault("intensity_calibration", dict())
-            calibration.write(intensity_calibration_dict)
-        self.notify_listeners("data_item_calibration_changed")
+        self.intrinsic_intensity_calibration = calibration
 
     def __get_intrinsic_calibrations(self):
         spatial_calibration_list = self.__properties.get("spatial_calibrations", list())
         while len(spatial_calibration_list) < len(self.spatial_shape):
             spatial_calibration_list.append(dict())
-        return [Calibration.Calibration().read(spatial_calibration_list[i]) for i in xrange(len(self.spatial_shape))]
+        return [Calibration.Calibration().read_dict(spatial_calibration_list[i]) for i in xrange(len(self.spatial_shape))]
     intrinsic_calibrations = property(__get_intrinsic_calibrations)
-
-    def __get_intrinsic_intensity_calibration(self):
-        intensity_calibration_dict = self.__properties.get("intensity_calibration", dict())
-        return Calibration.Calibration().read(intensity_calibration_dict)
-    intrinsic_intensity_calibration = property(__get_intrinsic_intensity_calibration)
 
     def __get_calculated_intensity_calibration(self):
         # data source calibrations override
@@ -495,7 +496,7 @@ class DataItem(Storage.StorageBase):
             display_dict = dict()
             display_list.append(display_dict)
             display.datastore = DataItem.Datastore(self, display_dict)
-            display.write(display.datastore.storage_dict)
+            display.write_storage(display.datastore.storage_dict)
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
@@ -533,7 +534,7 @@ class DataItem(Storage.StorageBase):
         with self.property_changes() as pc:
             operation_list = pc.properties.setdefault("operations", list())
             operation_dict = dict()
-            operation.write(operation_dict)
+            operation.write_storage(operation_dict)
             operation_list.append(operation_dict)
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))

@@ -310,7 +310,7 @@ class Application(object):
                             value = pickle.loads(str(row[1]))
                             calibration_dict[key] = value
                         if calibration_dict:
-                            properties["intensity_calibrations"] = calibration_dict
+                            properties["intrinsic_intensity_calibration"] = calibration_dict
                     # look for the title
                     c.execute("SELECT value FROM properties WHERE uuid=? AND key='title'", (parent_uuid, ))
                     result = c.fetchone()
