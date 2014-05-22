@@ -102,13 +102,12 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["properties", "source_file_path"]
+        self.storage_properties += ["properties"]
         self.storage_relationships += ["operations", "displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
         self.closed = False
-        self.__source_file_path = None
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.operations = Storage.MutableRelationship(self, "operations")
         self.displays = Storage.MutableRelationship(self, "displays")
@@ -168,7 +167,6 @@ class DataItem(Storage.StorageBase):
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
-        source_file_path = datastore.get_property(item_node, "source_file_path")
         properties = datastore.get_property(item_node, "properties")
         operations = datastore.get_items(item_node, "operations")
         displays = datastore.get_items(item_node, "displays")
@@ -178,7 +176,6 @@ class DataItem(Storage.StorageBase):
         else:
             master_data_shape, master_data_dtype = None, None
         data_item = cls()
-        data_item.source_file_path = source_file_path
         data_item.__properties = properties if properties else dict()
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
@@ -205,7 +202,6 @@ class DataItem(Storage.StorageBase):
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
-        data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)
@@ -581,11 +577,15 @@ class DataItem(Storage.StorageBase):
 
     # source file path
     def __get_source_file_path(self):
-        return self.__source_file_path
+        return self.__properties.get("source_file_path")
     def __set_source_file_path(self, value):
-        if self.__source_file_path != value:
-            self.__source_file_path = value
-            self.notify_set_property("source_file_path", self.__source_file_path)
+        if self.source_file_path != value:
+            with self.property_changes() as pc:
+                if value is not None:
+                    pc.properties["source_file_path"] = unicode(copy.copy(value))
+                else:
+                    del pc.properties["source_file_path"]
+            self.notify_set_property("source_file_path", self.source_file_path)
     source_file_path = property(__get_source_file_path, __set_source_file_path)
 
     # override from storage to watch for changes to this data item. notify observers.
@@ -982,7 +982,6 @@ class DataItem(Storage.StorageBase):
             applied or "burned in".
         """
         data_item_copy = DataItem()
-        data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
             property_accessor.properties.update(self.properties)

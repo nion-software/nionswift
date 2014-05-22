@@ -298,9 +298,16 @@ class Application(object):
                     if result is not None:
                         datetime_modified = pickle.loads(str(result[0]))
                         properties["datetime_modified"] = datetime_modified
+                    # look for the datetime_modified
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='source_file_path'", (parent_uuid, ))
+                    result = c.fetchone()
+                    if result is not None:
+                        source_file_path = pickle.loads(str(result[0]))
+                        properties["source_file_path"] = unicode(source_file_path)
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='title'", (parent_uuid, ))
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='datetime_original'", (parent_uuid, ))
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='datetime_modified'", (parent_uuid, ))
+                    c.execute("DELETE FROM properties WHERE uuid=? AND key='source_file_path'", (parent_uuid, ))
                     c.execute("DELETE FROM properties WHERE uuid=? AND key='param'", (parent_uuid, ))
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
