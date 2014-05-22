@@ -315,7 +315,7 @@ class TestDataItemClass(unittest.TestCase):
         # changing the param of the source should trigger a display changed message
         # but no data changed. nothing should change on the dependent items.
         map(Listener.reset, listeners)
-        data_item.param = 0.6
+        data_item.title = "new title"
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)

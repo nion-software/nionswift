@@ -255,33 +255,6 @@ class InfoInspectorSection(InspectorSection):
         self.add_widget_to_content(self.info_section_format_row)
 
 
-class ParamInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement param inspector.
-        Used for testing / example code.
-    """
-
-    def __init__(self, ui, data_item):
-        super(ParamInspectorSection, self).__init__(ui, _("Param"))
-        # ui
-        self.param_row = self.ui.create_row_widget()
-        param_label = self.ui.create_label_widget(_("Parameter"))
-        self.param_slider = self.ui.create_slider_widget()
-        self.param_slider.maximum = 100
-        self.param_slider.bind_value(Binding.PropertyBinding(data_item, "param", converter=Converter.FloatTo100Converter()))
-        self.param_field = self.ui.create_line_edit_widget()
-        self.param_field.bind_text(Binding.PropertyBinding(data_item, "param", converter=Converter.FloatToPercentStringConverter()))
-        self.param_row.add(param_label)
-        self.param_row.add_spacing(8)
-        self.param_row.add(self.param_slider)
-        self.param_row.add_spacing(8)
-        self.param_row.add(self.param_field)
-        self.param_row.add_stretch()
-        # add all of the rows to the section content
-        self.add_widget_to_content(self.param_row)
-
-
 class BoundSpatialCalibration(Observable.Observable):
 
     def __init__(self, data_item, spatial_index):
@@ -889,7 +862,6 @@ class DataItemInspector(object):
         content_widget.add_spacing(6)
 
         self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
-#       self.__inspectors.append(ParamInspectorSection(self.ui, data_item))
         self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
         if data_item.is_data_1d:
             self.__inspectors.append(LinePlotInspectorSection(self.ui, display))

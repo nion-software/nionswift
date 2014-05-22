@@ -102,14 +102,13 @@ class DataItem(Storage.StorageBase):
 
     def __init__(self, data=None):
         super(DataItem, self).__init__()
-        self.storage_properties += ["title", "param", "datetime_modified", "datetime_original", "properties", "source_file_path"]
+        self.storage_properties += ["title", "datetime_modified", "datetime_original", "properties", "source_file_path"]
         self.storage_relationships += ["operations", "displays"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
         self.register_dependent_key("master_data", "data_range")
         self.closed = False
         self.__title = None
-        self.__param = 0.5
         self.__source_file_path = None
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__datetime_original = Utility.get_current_datetime_item()
@@ -170,7 +169,6 @@ class DataItem(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         title = datastore.get_property(item_node, "title")
-        param = datastore.get_property(item_node, "param")
         source_file_path = datastore.get_property(item_node, "source_file_path")
         properties = datastore.get_property(item_node, "properties")
         datetime_modified = datastore.get_property(item_node, "datetime_modified")
@@ -184,7 +182,6 @@ class DataItem(Storage.StorageBase):
             master_data_shape, master_data_dtype = None, None
         data_item = cls()
         data_item.title = title
-        data_item.param = param
         data_item.source_file_path = source_file_path
         data_item.__properties = properties if properties else dict()
         data_item.__master_data_shape = master_data_shape
@@ -217,7 +214,6 @@ class DataItem(Storage.StorageBase):
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         data_item_copy.title = self.title
-        data_item_copy.param = self.param
         data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
@@ -581,15 +577,6 @@ class DataItem(Storage.StorageBase):
             pc.properties["rating"] = min(max(int(value), 0), 5)
         self.notify_set_property("rating", value)
     rating = property(__get_rating, __set_rating)
-
-    # param (for testing)
-    def __get_param(self):
-        return self.__param
-    def __set_param(self, value):
-        if self.__param != value:
-            self.__param = value
-            self.notify_set_property("param", self.__param)
-    param = property(__get_param, __set_param)
 
     # source file path
     def __get_source_file_path(self):
@@ -995,7 +982,6 @@ class DataItem(Storage.StorageBase):
         """
         data_item_copy = DataItem()
         data_item_copy.title = self.title
-        data_item_copy.param = self.param
         data_item_copy.source_file_path = self.source_file_path
         with data_item_copy.property_changes() as property_accessor:
             property_accessor.properties.clear()
