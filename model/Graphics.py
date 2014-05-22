@@ -121,16 +121,15 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
-        self.define_property("color", "#F00")
+        self.define_property(Observable.Property("color", "#F00", changed=self._property_changed))
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
         graphic = self.__class__()
         graphic.deepcopy_from(self, memo)
         memo[id(self)] = graphic
         return graphic
-    def _property_changed(self, property_name, value):
-        super(Graphic, self)._property_changed(property_name, value)
-        self.notify_set_property(property_name, value)
+    def _property_changed(self, name, value):
+        self.notify_set_property(name, value)
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0]-p2[0], 2)+pow(p1[1]-p2[1], 2)) < radius
@@ -190,22 +189,19 @@ class RectangleTypeGraphic(Graphic):
     def __init__(self, type, title):
         super(RectangleTypeGraphic, self).__init__(type)
         self.title = title
-        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)))
+        self.define_property(Observable.Property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed))
     # accessors
-    def _validate_property(self, property_name, value):
-        if property_name == "bounds":
-            # normalize
-            if value[1][0] < 0:  # height is negative
-                value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
-            if value[1][1] < 0:  # width is negative
-                value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
-            return copy.deepcopy(value)
-        return super(RectangleTypeGraphic, self)._validate_property(property_name, value)
-    def _property_changed(self, property_name, value):
-        super(RectangleTypeGraphic, self)._property_changed(property_name, value)
-        if property_name == "bounds":
-            self.notify_set_property("center", self.center)
-            self.notify_set_property("size", self.size)
+    def __validate_bounds(self, value):
+        # normalize
+        if value[1][0] < 0:  # height is negative
+            value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
+        if value[1][1] < 0:  # width is negative
+            value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
+        return copy.deepcopy(value)
+    def __bounds_changed(self, name, value):
+        self._property_changed(name, value)
+        self._property_changed("center", self.center)
+        self._property_changed("size", self.size)
     # dependent property center
     def __get_center(self):
         return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
@@ -355,10 +351,10 @@ class LineTypeGraphic(Graphic):
         super(LineTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property("start", (0.0, 0.0))
-        self.define_property("end", (1.0, 1.0))
-        self.define_property("start_arrow_enabled", False)
-        self.define_property("end_arrow_enabled", False)
+        self.define_property(Observable.Property("start", (0.0, 0.0), changed=self._property_changed))
+        self.define_property(Observable.Property("end", (1.0, 1.0), changed=self._property_changed))
+        self.define_property(Observable.Property("start_arrow_enabled", False, changed=self._property_changed))
+        self.define_property(Observable.Property("end_arrow_enabled", False, changed=self._property_changed))
     # accessors
     def __get_vector(self):
         return self.start, self.end

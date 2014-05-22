@@ -31,12 +31,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         super(Display, self).__init__()
         self.__weak_data_item = None
         self.__graphics = list()
-        self.define_property("display_calibrated_values", True)
-        self.define_property("display_limits")
-        self.define_property("y_min")
-        self.define_property("y_max")
-        self.define_property("left_channel")
-        self.define_property("right_channel")
+        self.define_property(Observable.Property("display_calibrated_values", True, changed=self.__property_changed))
+        self.define_property(Observable.Property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed))
+        self.define_property(Observable.Property("y_min", changed=self.__property_changed))
+        self.define_property(Observable.Property("y_max", changed=self.__property_changed))
+        self.define_property(Observable.Property("left_channel", changed=self.__property_changed))
+        self.define_property(Observable.Property("right_channel", changed=self.__property_changed))
         self.define_relationship("graphics", Graphics.factory)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
@@ -50,6 +50,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.__shared_thread_pool.close()
         self.about_to_delete_active()
         self._set_data_item(None)
+        self.undefine_properties()
 
     @classmethod
     def build(cls, storage_dict):
@@ -104,23 +105,22 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         return self.__drawn_graphics
     drawn_graphics = property(__get_drawn_graphics)
 
-    def _validate_property(self, property_name, value):
-        if property_name == "display_limits":
-            if value is not None:
-                return min(value[0], value[1]), max(value[0], value[1])
-        return super(Display, self)._validate_property(property_name, value)
+    def __validate_display_limits(self, value):
+        if value is not None:
+            return min(value[0], value[1]), max(value[0], value[1])
+        return value
 
-    def _property_changed(self, property_name, value):
-        super(Display, self)._property_changed(property_name, value)
-        if property_name == "display_limits":
-            for processor in self.__processors.values():
-                processor.data_item_changed()
+    def __display_limits_changed(self, name, value):
+        for processor in self.__processors.values():
+            processor.data_item_changed()
+        self.__property_changed(name, value)
+        self.notify_set_property("display_range", self.display_range)
+
+    def __property_changed(self, property_name, value):
         if self.datastore:
             with self.datastore:
                 self.datastore.storage_dict[property_name] = value
         self.notify_set_property(property_name, value)
-        if property_name == "display_limits":
-            self.notify_set_property("display_range", self.display_range)
         self.notify_listeners("display_changed", self)
         self.__preview = None
 

@@ -25,7 +25,7 @@ _ = gettext.gettext
 class LineProfileGraphic(Graphics.LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property("width", 1.0)
+        self.define_property(Observable.Property("width", 1.0))
         self.__width = 1.0
     # accessors
     def draw(self, ctx, mapping, is_selected=False):
@@ -75,9 +75,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
-        self.define_property("operation_id", operation_id, read_only=True)
-        self.define_property("enabled", True)
-        self.define_property("values", dict())
+        self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
+        self.define_property(Observable.Property("enabled", True))
+        self.define_property(Observable.Property("values", dict()))
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -134,10 +134,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         memo[id(self)] = deepcopy
         return deepcopy
 
-    def _property_changed(self, property_name, value):
-        super(OperationItem, self)._property_changed(property_name, value)
-        if property_name == "enabled":
-            self.notify_set_property(property_name, value)
+    def __enabled_changed(self, name, value):
+        self.notify_set_property(property_name, value)
 
     # get a property.
     def get_property(self, property_id, default_value=None):

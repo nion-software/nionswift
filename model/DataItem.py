@@ -106,13 +106,14 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.storage_properties += ["properties"]
         self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
-        self.define_property("intrinsic_intensity_calibration", Calibration.Calibration(), cls=Calibration.Calibration)
-        self.define_property("datetime_original")
-        self.define_property("datetime_modified")
-        self.define_property("title", _("Untitled"))
-        self.define_property("caption", unicode())
-        self.define_property("rating", 0)
-        self.define_property("flag", 0)
+        self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
+        self.define_property(Observable.Property("datetime_original", validate=self.__validate_datetime, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("datetime_modified", validate=self.__validate_datetime, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
+        self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__operations = list()
@@ -213,6 +214,7 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             self.remove_display(display)
         self.__set_data_source(None)
         self.__set_master_data(None)
+        self.undefine_properties()
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
@@ -312,37 +314,43 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 self.__clear_cached_data()
             self.notify_listeners("data_item_content_changed", self, changes)
 
-    def _validate_property(self, property_name, value):
-        if property_name == "title" or property_name == "caption":
-            return unicode(copy.copy(value))
-        elif property_name == "flag":
-            return max(min(int(value), 1), -1)
-        elif property_name == "rating":
-            return min(max(int(value), 0), 5)
-        else:
-            return super(DataItem, self)._validate_property(property_name, value)
+    def __validate_datetime(self, value):
+        return copy.deepcopy(value)
 
-    def _property_changed(self, property_name, value):
-        if property_name == "intrinsic_intensity_calibration":
-            with self.property_changes() as pc:
-                value_dict = pc.properties.setdefault(property_name, dict())
-                value.write_dict(value_dict)
-            self.notify_listeners("data_item_calibration_changed")
-        elif property_name == "datetime_original" or property_name == "datetime_modified":
-            with self.property_changes() as pc:
-                if value is not None:
-                    pc.properties[property_name] = copy.deepcopy(value)
-                else:
-                    del pc.properties[property_name]
-            self.notify_set_property(property_name, value)
-            self.notify_data_item_content_changed(set([METADATA]))
-        elif property_name == "title" or property_name == "caption" or property_name == "flag" or property_name == "rating":
-            with self.property_changes() as pc:
-                if value is not None:
-                    pc.properties[property_name] = copy.deepcopy(value)
-                else:
-                    del pc.properties[property_name]
-            self.notify_set_property(property_name, value)
+    def __validate_title(self, value):
+        return unicode(value)
+
+    def __validate_caption(self, value):
+        return unicode(value)
+
+    def __validate_flag(self, value):
+        return max(min(int(value), 1), -1)
+
+    def __validate_rating(self, value):
+        return min(max(int(value), 0), 5)
+
+    def __validate_source_file_path(self, value):
+        return unicode(value)
+
+    def __intrinsic_intensity_calibration_changed(self, name, value):
+        with self.property_changes() as pc:
+            value_dict = pc.properties.setdefault(name, dict())
+            value.write_dict(value_dict)
+        self.notify_set_property(name, value)
+        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_listeners("data_item_calibration_changed")
+
+    def __metadata_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.notify_data_item_content_changed(set([METADATA]))
+
+    def __property_changed(self, name, value):
+        with self.property_changes() as pc:
+            if value is not None:
+                pc.properties[name] = value
+            else:
+                del pc.properties[name]
+        self.notify_set_property(name, value)
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
@@ -614,19 +622,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             for operation_item in self.operations:
                 data_source.remove_operation_graphics_from_displays(operation_item.graphics)
         self.__set_data_source(None)
-
-    # source file path
-    def __get_source_file_path(self):
-        return self.__properties.get("source_file_path")
-    def __set_source_file_path(self, value):
-        if self.source_file_path != value:
-            with self.property_changes() as pc:
-                if value is not None:
-                    pc.properties["source_file_path"] = unicode(copy.copy(value))
-                else:
-                    del pc.properties["source_file_path"]
-            self.notify_set_property("source_file_path", self.source_file_path)
-    source_file_path = property(__get_source_file_path, __set_source_file_path)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
