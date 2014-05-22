@@ -180,13 +180,16 @@ SOURCE = 4
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
+class DataItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
 
     def __init__(self, data=None, properties=None, create_display=True):
         super(DataItem, self).__init__()
-        self.storage_properties += ["properties"]
-        self.storage_data_keys += ["master_data"]
         self.storage_type = "data-item"
+        self.__datastore = None
+        self.__weak_parents = []
+        self.__transaction_count = 0
+        self.__transaction_count_mutex = threading.RLock()
+        self.__uuid = uuid.uuid4()
         current_datetime_item = Utility.get_current_datetime_item()
         spatial_calibrations = CalibrationList()
         if data is not None:
@@ -359,6 +362,88 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             data_copy = numpy.copy(data_ref.data)
             data_item_copy.__set_master_data(data_copy)
         return data_item_copy
+
+    # uuid property. read only.
+    def __get_uuid(self):
+        return self.__uuid
+    uuid = property(__get_uuid)
+    # set is used by document controller
+    def _set_uuid(self, uuid):
+        self.__uuid = uuid
+
+    # Add a parent.
+    def add_parent(self, parent):
+        assert parent is not None
+        self.__weak_parents.append(weakref.ref(parent))
+
+    # Remove a parent.
+    def remove_parent(self, parent):
+        assert parent is not None
+        self.__weak_parents.remove(weakref.ref(parent))
+
+    # Return a copy of parents array
+    def get_weak_parents(self):
+        return self.__weak_parents  # TODO: Return a copy
+    def __get_parents(self):
+        return [weak_parent() for weak_parent in self.__weak_parents]
+    parents = property(__get_parents)
+
+    def __get_datastore(self):
+        return self.__datastore
+    def __set_datastore(self, datastore):
+        self.__datastore = datastore
+    datastore = property(__get_datastore, __set_datastore)
+
+    def _is_cache_delayed(self):
+        return self.__transaction_count > 0
+
+    def transaction(self):
+        class TransactionContextManager(object):
+            def __init__(self, object):
+                self.__object = object
+            def __enter__(self):
+                self.__object.begin_transaction()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__object.end_transaction()
+        return TransactionContextManager(self)
+
+    def __get_transaction_count(self):
+        return self.__transaction_count
+    transaction_count = property(__get_transaction_count)
+
+    def begin_transaction(self, count=1):
+        #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
+        assert count > 0
+        with self.__transaction_count_mutex:
+            self.__transaction_count += count
+
+    def end_transaction(self, count=1):
+        assert count > 0
+        with self.__transaction_count_mutex:
+            self.__transaction_count -= count
+            assert self.__transaction_count >= 0
+            transaction_count = self.__transaction_count
+        if transaction_count == 0:
+            self.spill_cache()
+            if self.datastore:
+                self.datastore.erase_data(self)
+                self.write_data()
+        #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
+
+    def write(self):
+        assert self.datastore is not None
+        self.datastore.set_property(self, "properties", self.__properties)
+        self.datastore.set_type(self, self.storage_type)
+        self.write_data()
+
+    def write_data(self):
+        assert self.datastore is not None
+        data, data_shape, data_dtype, reference_type, reference, file_datetime = self._get_master_data_data_reference()
+        if data is not None:  # data may be None for external references
+            self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
+        if reference_type:
+            self.datastore.set_data_reference(self, "master_data", data, data_shape, data_dtype, reference_type, reference)
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
@@ -608,7 +693,8 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     def __grab_properties(self):
         return self.__properties
     def __release_properties(self):
-        self.notify_set_property("properties", self.__properties)
+        if self.datastore:  # properties are not affected by transactions
+            self.datastore.set_property(self, "properties", self.__properties)
 
     def property_changes(self):
         grab_properties = DataItem.__grab_properties
@@ -885,6 +971,12 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 else:
                     self.__unload_master_data()
         return final_count
+
+    def notify_set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference, file_datetime):
+        if self.datastore and self.__transaction_count == 0:
+            self.datastore.set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference)
+            if data is not None:
+                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
 
     # used for testing
     def __is_data_loaded(self):

@@ -455,13 +455,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
             value.remove_parent(self)
         super(StorageBase, self).notify_remove_item(key, value, index)
 
-    # only used for testing
-    def _rewrite(self):
-        assert self.datastore is not None
-        assert self.__transaction_count == 0
-        self.datastore.erase_object(self)
-        self.write()
-
     def write(self):
         assert self.datastore is not None
         # assert self.__transaction_count == 0  # not always True, see test_insert_item_with_transaction
@@ -500,6 +493,13 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
                 self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
             if reference_type:
                 self.datastore.set_data_reference(self, resolved_data_key, data, data_shape, data_dtype, reference_type, reference)
+
+    # only used for testing
+    def rewrite_object(self):
+        assert self.datastore is not None
+        assert self.__transaction_count == 0
+        self.datastore.erase_object(self)
+        self.write()
 
     def rewrite_data(self):
         assert self.datastore is not None
