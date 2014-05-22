@@ -37,7 +37,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.define_property(Observable.Property("y_max", changed=self.__property_changed))
         self.define_property(Observable.Property("left_channel", changed=self.__property_changed))
         self.define_property(Observable.Property("right_channel", changed=self.__property_changed))
-        self.define_relationship("graphics", Graphics.factory)
+        self.define_relationship(Observable.Relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic))
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
@@ -173,20 +173,24 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             operation_graphic.remove_listener(self)
             self.__drawn_graphics.remove(operation_graphic)
 
-    def _inserted_item(self, name, before_index, item):
+    def __insert_graphic(self, name, before_index, item):
+        item.add_ref()
+        item.add_listener(self)
+        item.add_observer(self)
         if self.datastore:
             with self.datastore:
                 item_list = self.datastore.storage_dict.setdefault(name, list())
                 item_dict = dict()
                 item.write_storage(item_dict)
                 item_list.append(item_dict)
-        if name == "graphics":
-            self.__drawn_graphics.insert(before_index, item)
+        self.__drawn_graphics.insert(before_index, item)
         self.notify_listeners("display_changed", self)
 
-    def _removed_item(self, name, index, item):
-        if name == "graphics":
-            self.__drawn_graphics.remove(item)
+    def __remove_graphic(self, name, index, item):
+        item.remove_listener(self)
+        item.remove_observer(self)
+        item.remove_ref()
+        self.__drawn_graphics.remove(item)
         self.notify_listeners("display_changed", self)
         if self.datastore:
             with self.datastore:
