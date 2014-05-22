@@ -76,8 +76,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         super(OperationItem, self).__init__()
 
         self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
-        self.define_property(Observable.Property("enabled", True))
-        self.define_property(Observable.Property("values", dict()))
+        self.define_property(Observable.Property("enabled", True, changed=self.__enabled_changed))
+        self.define_property(Observable.Property("values", dict(), changed=self.__values_changed))
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -117,25 +117,24 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
             binding.close()
         self.__bindings = None
 
-    @classmethod
-    def build(cls, operation_dict):
-        operation_id = operation_dict["operation_id"]
-        operation_item = cls(operation_id)
-        operation_item.enabled = operation_dict.get("enabled", True)
-        values = operation_dict.get("values", dict())
-        # copy one by one to keep default values for missing keys
-        for key in values.keys():
-            operation_item.set_property(key, values[key])
-        return operation_item
-
     def __deepcopy__(self, memo):
         deepcopy = self.__class__(self.operation_id)
         deepcopy.deepcopy_from(self, memo)
         memo[id(self)] = deepcopy
         return deepcopy
 
+    def read_storage(self, storage_dict):
+        super(OperationItem, self).read_storage(storage_dict)
+        # update items one by one to update operation
+        for key in self.values.keys():
+            if self.operation:
+                setattr(self.operation, key, self.values[key])
+
     def __enabled_changed(self, name, value):
         self.notify_set_property(property_name, value)
+
+    def __values_changed(self, name, value):
+        self.notify_set_property("values", self.values)
 
     # get a property.
     def get_property(self, property_id, default_value=None):
@@ -613,3 +612,10 @@ OperationManager().register_operation("resample-operation", lambda: Resample2dOp
 OperationManager().register_operation("histogram-operation", lambda: HistogramOperation())
 OperationManager().register_operation("line-profile-operation", lambda: LineProfileOperation())
 OperationManager().register_operation("convert-to-scalar-operation", lambda: ConvertToScalarOperation())
+
+
+def operation_item_factory(storage_dict):
+    operation_id = storage_dict["operation_id"]
+    operation_item = OperationItem(operation_id)
+    operation_item.read_storage(storage_dict)
+    return operation_item

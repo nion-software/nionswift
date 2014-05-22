@@ -311,7 +311,7 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((4, 4)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.add_operation(dummy_operation)
@@ -323,6 +323,7 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5.2)
         with document_model.data_items[0].data_ref() as d:
             self.assertEqual(d.data[0, 0], 5.2)
 

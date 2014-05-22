@@ -114,9 +114,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_changed))
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
+        self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__operations = list()
         self.__displays = list()
         self.__properties = dict()
         self.__data_mutex = threading.RLock()
@@ -177,9 +177,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     def build(cls, datastore, item_node, uuid_):
         properties = datastore.get_property(item_node, "properties")
         properties = properties if properties else dict()
-        operation_list = properties.get("operations", list())
-        if "operations" in properties:
-            del properties["operations"]  # these will be added back below
         display_list = properties.get("displays", list())
         if "displays" in properties:
             del properties["displays"]  # these will be added back below
@@ -194,9 +191,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
         data_item.read_storage(data_item.__properties)
-        for operation_dict in operation_list:
-            operation_item = Operation.OperationItem.build(operation_dict)
-            data_item.add_operation(operation_item)
         # replace existing displays. TODO: remove this when we can handle data items without any displays
         for display_dict in display_list:
             display_item = Display.Display.build(display_dict)
@@ -215,20 +209,17 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         self.__set_data_source(None)
         self.__set_master_data(None)
         self.undefine_properties()
+        self.undefine_relationships()
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem(create_display=False)
         with data_item_copy.property_changes() as property_accessor:
             properties_copy = self.properties
-            if "operations" in properties_copy:
-                del properties_copy["operations"]  # these will be added back below
             if "displays" in properties_copy:
                 del properties_copy["displays"]  # these will be added back below
             property_accessor.properties.clear()
             property_accessor.properties.update(properties_copy)
-        for operation in self.operations:
-            data_item_copy.add_operation(copy.deepcopy(operation, memo))
         data_item_copy.deepcopy_from(self, memo)
         # replace existing displays. TODO: remove this when we can handle data items without any displays
         for display in self.displays:
@@ -540,24 +531,22 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 if operation.enabled:
                     data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
 
-    def add_operation(self, operation):
-        self.__operations.append(operation)
+    def __insert_operation(self, name, before_index, operation):
         operation.add_ref()
         operation.add_listener(self)
         operation.add_observer(self)
-        with self.property_changes() as pc:
-            operation_list = pc.properties.setdefault("operations", list())
-            operation_dict = dict()
-            operation.write_storage(operation_dict)
-            operation_list.append(operation_dict)
+        if not self._is_reading:
+            with self.property_changes() as pc:
+                operation_list = pc.properties.setdefault("operations", list())
+                operation_dict = dict()
+                operation.write_storage(operation_dict)
+                operation_list.append(operation_dict)
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         if self.data_source:
             self.data_source.add_operation_graphics_to_displays(operation.graphics)
 
-    def remove_operation(self, operation):
-        operation_index = self.__operations.index(operation)
-        self.__operations.remove(operation)
+    def __remove_operation(self, name, index, operation):
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         if self.data_source:
@@ -567,11 +556,13 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         operation.remove_ref()
         with self.property_changes() as pc:
             operation_list = pc.properties["operations"]
-            del operation_list[operation_index]
+            del operation_list[index]
 
-    def __get_operations(self):
-        return copy.copy(self.__operations)
-    operations = property(__get_operations)
+    def add_operation(self, operation):
+        self.append_item("operations", operation)
+
+    def remove_operation(self, operation):
+        self.remove_item("operations", operation)
 
     # this message comes from the operation.
     # by watching for changes to the operations relationship. when an operation
@@ -597,9 +588,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             display.remove_operation_graphics(operation_graphics)
 
     def property_changed(self, object, property, value):
-        if object in self.__operations:
+        if object in self.operations:
             with self.property_changes() as pc:
-                operation_dict = pc.properties["operations"][self.__operations.index(object)]
+                operation_dict = pc.properties["operations"][self.operations.index(object)]
                 operation_dict[property] = value
 
     # connect this item to its data source, if any. the lookup_data_item parameter
