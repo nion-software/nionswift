@@ -168,6 +168,7 @@ class DataItem(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         properties = datastore.get_property(item_node, "properties")
+        properties = properties if properties else dict()
         operation_list = properties.get("operations", list())
         if "operations" in properties:
             del properties["operations"]  # these will be added back below
@@ -178,7 +179,7 @@ class DataItem(Storage.StorageBase):
         else:
             master_data_shape, master_data_dtype = None, None
         data_item = cls()
-        data_item.__properties = properties if properties else dict()
+        data_item.__properties = properties
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data

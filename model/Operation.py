@@ -16,7 +16,6 @@ import scipy.ndimage.fourier
 from nion.swift.model import Calibration
 from nion.swift.model import Graphics
 from nion.swift.model import Image
-from nion.swift.model import Storage
 from nion.ui import Binding
 from nion.ui import Observable
 
@@ -26,8 +25,12 @@ _ = gettext.gettext
 class LineProfileGraphic(Graphics.LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.storage_properties += ["width"]
         self.__width = 1.0
+    def read(self, storage_dict):
+        self.width = storage_dict.get("width", self.width)
+    def write(self, storage_dict):
+        super(LineProfileGraphic, self).write(storage_dict)
+        storage_dict["width"] = self.width
     # accessors
     def __get_width(self):
         return self.__width
@@ -81,8 +84,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         """
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
-
-        # self.storage_properties += ["operation_id", "enabled", "values"]  # "dtype", "shape"
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there

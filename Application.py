@@ -243,6 +243,36 @@ class Application(object):
                 version = 7
             if version == 7:
                 logging.debug("Updating database from version 7 to version 8.")
+                c.execute("SELECT uuid FROM nodes WHERE type='display'")
+                parent_uuids = list()
+                for row in c.fetchall():
+                    parent_uuids.append(row[0])
+                for parent_uuid in parent_uuids:
+                    # grab the existing properties from the data item
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='properties'", (parent_uuid, ))
+                    result = c.fetchone()
+                    properties = pickle.loads(str(result[0])) if result else dict()
+                    # find the graphic relationships
+                    c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='graphics' ORDER BY item_index ASC", (parent_uuid, ))
+                    item_uuids = list()
+                    for row in c.fetchall():
+                        item_uuids.append(row[0])
+                    for index, item_uuid in enumerate(item_uuids):
+                        graphic_dict = dict()
+                        c.execute("SELECT type FROM nodes WHERE uuid=?", (item_uuid, ))
+                        result = c.fetchone()
+                        graphic_dict["type"] = result[0]
+                        c.execute("SELECT key, value FROM properties WHERE uuid=?", (item_uuid, ))
+                        for row in c.fetchall():
+                            key = row[0]
+                            value = pickle.loads(str(row[1]))
+                            graphic_dict[key] = value
+                        graphic_list = properties.setdefault("graphics", list())
+                        graphic_list.append(graphic_dict)
+                        c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
+                    # update the properties
+                    properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
                 c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
                 parent_uuids = list()
                 for row in c.fetchall():
@@ -266,6 +296,7 @@ class Application(object):
                             calibration_dict[key] = value
                         spatial_calibration_list = properties.setdefault("spatial_calibrations", list())
                         spatial_calibration_list.append(calibration_dict)
+                        c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                     # find the intensity calibration items
                     c.execute("SELECT item_uuid FROM items WHERE key='intrinsic_intensity_calibration' AND parent_uuid=?", (parent_uuid, ))
                     result = c.fetchone()
@@ -323,10 +354,10 @@ class Application(object):
                             operation_dict[key] = value
                         operation_list = properties.setdefault("operations", list())
                         operation_list.append(operation_dict)
+                        c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
-                    c.execute("DELETE FROM nodes WHERE uuid=?", (item_uuid, ))
                 c.execute("DELETE FROM relationships WHERE key='calibrations'")
                 c.execute("DELETE FROM relationships WHERE key='operations'")
                 c.execute("DELETE FROM items WHERE key='intrinsic_intensity_calibration'")

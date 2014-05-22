@@ -6,7 +6,8 @@ import math
 import numpy  # for arange
 
 # local libraries
-from nion.swift.model import Storage
+from nion.ui import Observable
+
 
 _ = gettext.gettext
 
@@ -114,11 +115,11 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Storage.StorageBase):
-    def __init__(self):
-        Storage.StorageBase.__init__(self)
-        self.storage_properties += ["color"]
+class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted):
+    def __init__(self, type):
+        super(Graphic, self).__init__()
         self.__color = "#F00"
+        self.__type = type
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
         graphic = self.__class__()
@@ -127,12 +128,11 @@ class Graphic(Storage.StorageBase):
         return graphic
     def deepcopy_from(self, graphic, memo):
         self.color = graphic.color
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        graphic = cls()
-        color = datastore.get_property(item_node, "color", graphic.color)  # red
-        graphic.color = color
-        return graphic
+    def read(self, storage_dict):
+        self.color = storage_dict.get("color", self.__color)  # red
+    def write(self, storage_dict):
+        storage_dict["type"] = self.__type
+        storage_dict["color"] = self.color
     # accessors
     def __get_color(self):
         return self.__color
@@ -198,22 +198,20 @@ class Graphic(Storage.StorageBase):
 
 
 class RectangleTypeGraphic(Graphic):
-    def __init__(self, storage_type, title):
-        super(RectangleTypeGraphic, self).__init__()
-        self.storage_type = storage_type
-        self.storage_properties += ["bounds"]
+    def __init__(self, type, title):
+        super(RectangleTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.__bounds = ((0.0, 0.0), (1.0, 1.0))
     def deepcopy_from(self, graphic, memo):
         super(RectangleTypeGraphic, self).deepcopy_from(graphic, memo)
         self.bounds = graphic.bounds
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        graphic = super(RectangleTypeGraphic, cls).build(datastore, item_node, uuid_)
-        bounds = datastore.get_property(item_node, "bounds", ((0.0, 0.0), (1.0, 1.0)))
-        graphic.bounds = bounds
-        return graphic
+    def read(self, storage_dict):
+        super(RectangleTypeGraphic, self).read(storage_dict)
+        self.bounds = storage_dict.get("bounds", self.__bounds)
+    def write(self, storage_dict):
+        super(RectangleTypeGraphic, self).write(storage_dict)
+        storage_dict["bounds"] = self.bounds
     # accessors
     def __get_bounds(self):
         return self.__bounds
@@ -375,10 +373,8 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 
 class LineTypeGraphic(Graphic):
-    def __init__(self, storage_type, title):
-        super(LineTypeGraphic, self).__init__()
-        self.storage_properties += ["start", "end", "start_arrow_enabled", "end_arrow_enabled"]
-        self.storage_type = storage_type
+    def __init__(self, type, title):
+        super(LineTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.__start = (0.0, 0.0)
@@ -389,18 +385,18 @@ class LineTypeGraphic(Graphic):
         super(LineTypeGraphic, self).deepcopy_from(line_graphic, memo)
         self.start = line_graphic.start
         self.end = line_graphic.end
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        graphic = super(LineTypeGraphic, cls).build(datastore, item_node, uuid_)
-        start = datastore.get_property(item_node, "start", (0.0, 0.0))
-        end = datastore.get_property(item_node, "end", (1.0, 1.0))
-        start_arrow_enabled = datastore.get_property(item_node, "start_arrow_enabled", False)
-        end_arrow_enabled = datastore.get_property(item_node, "end_arrow_enabled", False)
-        graphic.start = start
-        graphic.end = end
-        graphic.start_arrow_enabled = start_arrow_enabled
-        graphic.end_arrow_enabled = end_arrow_enabled
-        return graphic
+    def read(self, storage_dict):
+        super(LineTypeGraphic, self).read(storage_dict)
+        self.start = storage_dict.get("start", self.__start)
+        self.end = storage_dict.get("end", self.__end)
+        self.start_arrow_enabled = storage_dict.get("start_arrow_enabled", self.__start_arrow_enabled)
+        self.end_arrow_enabled = storage_dict.get("end_arrow_enabled", self.__end_arrow_enabled)
+    def write(self, storage_dict):
+        super(LineTypeGraphic, self).write(storage_dict)
+        storage_dict["start"] = self.start
+        storage_dict["end"] = self.end
+        storage_dict["start_arrow_enabled"] = self.start_arrow_enabled
+        storage_dict["end_arrow_enabled"] = self.end_arrow_enabled
     # accessors
     def __get_start(self):
         return self.__start
@@ -546,3 +542,18 @@ class LineGraphic(LineTypeGraphic):
         if is_selected:
             self.draw_marker(ctx, p1)
             self.draw_marker(ctx, p2)
+
+
+def build(storage_dict):
+    build_map = {
+        "line-graphic": LineGraphic,
+        "rect-graphic": RectangleGraphic,
+        "ellipse-graphic": EllipseGraphic
+    }
+    type = storage_dict["type"]
+    if type in build_map:
+        cls = build_map[type]
+        graphic = cls()
+        graphic.read(storage_dict)
+        return graphic
+    return None

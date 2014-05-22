@@ -4,6 +4,7 @@
 
 # standard libraries
 import copy
+import logging
 import gettext
 import weakref
 
@@ -11,6 +12,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Storage
@@ -27,11 +29,10 @@ class Display(Storage.StorageBase):
     def __init__(self):
         super(Display, self).__init__()
         self.storage_properties += ["properties"]
-        self.storage_relationships += ["graphics"]
         self.storage_type = "display"
         self.__weak_data_item = None
         self.__properties = dict()
-        self.__graphics = Storage.MutableRelationship(self, "graphics")
+        self.__graphics = list()
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
@@ -48,10 +49,15 @@ class Display(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         properties = datastore.get_property(item_node, "properties")
-        graphics = datastore.get_items(item_node, "graphics")
+        properties = properties if properties else dict()
+        graphic_list = properties.get("graphics", list())
+        if "graphics" in properties:
+            del properties["graphics"]  # these will be added back below
         display = cls()
-        display.__properties = properties if properties else dict()
-        display.extend_graphics(graphics)
+        display.__properties = properties
+        for graphic_dict in graphic_list:
+            graphic_item = Graphics.build(graphic_dict)
+            display.append_graphic(graphic_item)
         return display
 
     def __deepcopy__(self, memo):
@@ -203,25 +209,15 @@ class Display(Storage.StorageBase):
     right_channel = property(__get_right_channel, __set_right_channel)
 
     # message sent from data item. established using add/remove observer.
-    def property_changed(self, sender, property, value):
+    def property_changed(self, object, property, value):
         if property == "data_range":
             self.__preview = None
             self.notify_set_property(property, value)
             self.notify_set_property("display_range", self.display_range)
-
-    def notify_insert_item(self, key, value, before_index):
-        super(Display, self).notify_insert_item(key, value, before_index)
-        if key == "graphics":
-            self.__drawn_graphics.insert(before_index, value)
-            value.add_listener(self)
-            self.notify_listeners("display_changed", self)
-
-    def notify_remove_item(self, key, value, index):
-        super(Display, self).notify_remove_item(key, value, index)
-        if key == "graphics":
-            del self.__drawn_graphics[index]
-            value.remove_listener(self)
-            self.notify_listeners("display_changed", self)
+        if object in self.__graphics:
+            with self.property_changes() as pc:
+                graphic_dict = pc.properties["graphics"][self.__graphics.index(object)]
+                graphic_dict[property] = value
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
@@ -251,21 +247,41 @@ class Display(Storage.StorageBase):
         return copy.copy(self.__graphics)
     graphics = property(__get_graphics)
 
-    def insert_graphic(self, index, graphic):
+    def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """
-        self.__graphics.insert(index, graphic)
+        self.__graphics.insert(before_index, graphic)
+        graphic.add_ref()
+        graphic.add_listener(self)
+        graphic.add_observer(self)
+        with self.property_changes() as pc:
+            graphic_list = pc.properties.setdefault("graphics", list())
+            graphic_dict = dict()
+            graphic.write(graphic_dict)
+            graphic_list.append(graphic_dict)
+        self.__drawn_graphics.insert(before_index, graphic)
+        self.notify_listeners("display_changed", self)
 
     def append_graphic(self, graphic):
         """ Append a graphic """
-        self.__graphics.append(graphic)
+        self.insert_graphic(len(self.__graphics), graphic)
 
     def remove_graphic(self, graphic):
         """ Remove a graphic """
+        graphic_index = self.__graphics.index(graphic)
         self.__graphics.remove(graphic)
+        self.__drawn_graphics.remove(graphic)
+        self.notify_listeners("display_changed", self)
+        graphic.remove_listener(self)
+        graphic.remove_observer(self)
+        graphic.remove_ref()
+        with self.property_changes() as pc:
+            graphic_list = pc.properties["graphics"]
+            del graphic_list[graphic_index]
 
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
-        self.__graphics.extend(graphics)
+        for graphic in graphics:
+            self.append_graphic(graphic)
 
     # drawn graphics and the regular graphic items, plus those derived from the operation classes
     def __get_drawn_graphics(self):
@@ -276,7 +292,7 @@ class Display(Storage.StorageBase):
     def remove_drawn_graphic(self, drawn_graphic):
         """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
         if drawn_graphic in self.__graphics:
-            self.__graphics.remove(drawn_graphic)
+            self.remove_graphic(drawn_graphic)
         else:  # a synthesized graphic
             drawn_graphic.notify_remove_operation_graphic()
 

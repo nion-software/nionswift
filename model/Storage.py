@@ -725,14 +725,10 @@ class DictDatastore(object):
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             from nion.swift.model import Display
-            from nion.swift.model import Graphics
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
                 "display": Display.Display,
-                "line-graphic": Graphics.LineGraphic,
-                "rect-graphic": Graphics.RectangleGraphic,
-                "ellipse-graphic": Graphics.EllipseGraphic,
             }
             type = node["type"]
             if type in build_map:
@@ -1148,14 +1144,10 @@ class DbDatastore(object):
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             from nion.swift.model import Display
-            from nion.swift.model import Graphics
             build_map = {
                 "data-group": DataGroup.DataGroup,
                 "data-item": DataItem.DataItem,
                 "display": Display.Display,
-                "line-graphic": Graphics.LineGraphic,
-                "rect-graphic": Graphics.RectangleGraphic,
-                "ellipse-graphic": Graphics.EllipseGraphic,
             }
             c = self.conn.cursor()
             c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
