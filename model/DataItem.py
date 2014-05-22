@@ -51,16 +51,6 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         return self.item
 
 
-class Metadata(dict):
-
-    def read_dict(self, storage_dict):
-        self.clear()
-        self.update(storage_dict)
-
-    def write_dict(self):
-        return copy.deepcopy(dict(self))
-
-
 class CalibrationList(object):
 
     def __init__(self):
@@ -308,27 +298,66 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
-        # copying data item is tricky right now while properties and metadata are merged.
-        # deepcopy_from will do all of the heavy lifting, but there are extra items stored in
-        # properties that don't get copied by deepcopy. the strategy for now is to copy properties
-        # then remove anything that will get copied by deepcopy.
-        properties_copy = copy.deepcopy(self.properties)
-        for name in self.property_names:
-            if name in properties_copy:
-                del properties_copy[name]
-        for name in self.relationship_names:
-            if name in properties_copy:
-                del properties_copy[name]
-        data_item_copy = DataItem(properties=properties_copy, create_display=False)
-        data_item_copy.deepcopy_from(self, memo)
+        data_item_copy = DataItem(create_display=False)
+        # metadata
+        data_item_copy.copy_metadata_from(self)
+        # calibrations
+        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
+        data_item_copy.intrinsic_spatial_calibrations = self.intrinsic_spatial_calibrations
+        # displays
+        for display in self.displays:
+            data_item_copy.add_display(copy.deepcopy(display))
+        # operations
+        for operation in self.operations:
+            data_item_copy.add_operation(copy.deepcopy(operation))
+        # data sources
+        data_item_copy.data_sources = self.data_sources
+        # data.
         if self.has_master_data:
             with self.data_ref() as data_ref:
                 data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
         else:
             data_item_copy.__set_master_data(None)
-        # data source will be copied with properties and the connection established when
-        # this copy is inserted.
+        # the data source connection will be established when this copy is inserted.
         memo[id(self)] = data_item_copy
+        return data_item_copy
+
+    def copy_metadata_from(self, data_item):
+        self.datetime_original = data_item.datetime_original
+        self.datetime_modified = data_item.datetime_modified
+        self.title = data_item.title
+        self.caption = data_item.caption
+        self.rating = data_item.rating
+        self.flag = data_item.flag
+        self.session_id = data_item.session_id
+        self.source_file_path = data_item.source_file_path
+        for key in data_item.__metadata.keys():
+            with self.open_metadata(key) as metadata:
+                metadata.clear()
+                metadata.update(data_item.get_metadata(key))
+
+    def snapshot(self):
+        """
+            Take a snapshot and return a new data item. A snapshot is a copy of everything
+            except the data and operations which are replaced by new data with the operations
+            applied or "burned in".
+        """
+        data_item_copy = DataItem(create_display=False)
+        # metadata
+        data_item_copy.copy_metadata_from(self)
+        # calibrations
+        data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
+        for index in xrange(len(self.spatial_shape)):
+            data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
+        # displays
+        for display in self.displays:
+            data_item_copy.add_display(copy.deepcopy(display))
+        # data sources are NOT copied, since this is a snapshot of the data
+        data_item_copy.data_sources = DataSourceList()
+        # master data. operations are NOT copied, since this is a snapshot of the data
+        with self.data_ref() as data_ref:
+            data_copy = numpy.copy(data_ref.data)
+            data_item_copy.__set_master_data(data_copy)
         return data_item_copy
 
     def add_shared_task(self, task_id, item, fn):
@@ -344,8 +373,9 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
 
     def __get_live_status_as_string(self):
         if self.is_live:
-            frame_index_str = str(self.__properties.get("frame_index", str()))
-            partial_str = "{0:d}/{1:d}".format(self.__properties.get("valid_rows"), self.spatial_shape[-1]) if "valid_rows" in self.__properties else str()
+            live_metadata = self.get_metadata("hardware_source")
+            frame_index_str = str(live_metadata.get("frame_index", str()))
+            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.spatial_shape[-1]) if "valid_rows" in live_metadata else str()
             return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
     live_status_as_string = property(__get_live_status_as_string)
@@ -579,7 +609,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
         return self.__properties
     def __release_properties(self):
         self.notify_set_property("properties", self.__properties)
-        self.notify_data_item_content_changed(set([METADATA]))
 
     def property_changes(self):
         grab_properties = DataItem.__grab_properties
@@ -1072,30 +1101,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 if self.__cached_data is not None:
                     return self.__cached_data[pos[0], pos[1]]
         return None
-
-    def snapshot(self):
-        """
-            Take a snapshot and return a new data item. A snapshot is a copy of everything
-            except the data and operations which are replaced by new data with the operations
-            applied or "burned in".
-        """
-        data_item_copy = DataItem()
-        with data_item_copy.property_changes() as property_accessor:
-            property_accessor.properties.clear()
-            property_accessor.properties.update(self.properties)
-        data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
-        for index in xrange(len(self.spatial_shape)):
-            data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
-        while len(data_item_copy.displays) > 0:
-            data_item_copy.remove_display(data_item_copy.displays[0])
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display))
-        data_item_copy.data_sources = DataSourceList()
-        # operations are NOT copied, since this is a snapshot of the data
-        with self.data_ref() as data_ref:
-            data_copy = numpy.copy(data_ref.data)
-            data_item_copy.__set_master_data(data_copy)
-        return data_item_copy
 
 
 _computation_fns = list()

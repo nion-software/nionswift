@@ -597,6 +597,14 @@ class TestDataItemClass(unittest.TestCase):
             data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
             self.assertTrue(listener._display_changed)
 
+    def test_snapshot_should_copy_raw_metadata(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with data_item.open_metadata("test") as metadata:
+            metadata["one"] = 1
+        data_item_copy = data_item.snapshot()
+        self.assertEqual(data_item_copy.get_metadata("test")["one"], 1)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
