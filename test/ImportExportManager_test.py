@@ -22,6 +22,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_data_element(self):
         data_element = dict()
+        data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         with data_item.ref():
@@ -39,6 +40,7 @@ class TestImportExportManagerClass(unittest.TestCase):
 
     def test_sub_area_size_change(self):
         data_element = dict()
+        data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         with data_item.ref():

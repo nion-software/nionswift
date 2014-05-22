@@ -149,6 +149,13 @@ def create_data_item_from_data_element(data_element, external=False, data_file_p
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
 def update_data_item_from_data_element(data_item, data_element, external=False, data_file_path=None):
+    version = data_element["version"] if "version" in data_element else 1
+    if version == 1:
+        update_data_item_from_data_element_1(data_item, data_element, external, data_file_path)
+    else:
+        raise NotImplementedError("Data element version {:d} not supported.".format(version))
+
+def update_data_item_from_data_element_1(data_item, data_element, external=False, data_file_path=None):
     with data_item.data_item_changes():
         # file path
         # master data
@@ -285,6 +292,7 @@ class StandardImportExportHandler(ImportExportHandler):
             pass
         if data is not None:
             data_element = dict()
+            data_element["version"] = 1
             data_element["data"] = data
             if os.path.exists(path) or path.startswith(":"):  # check for colon is for testing
                 try:

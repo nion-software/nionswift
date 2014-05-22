@@ -19,7 +19,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
     def acquire_data_elements(self):
         SimpleHardwareSource.image += 1.0
         time.sleep(self.sleep)
-        data_element = { "data": SimpleHardwareSource.image }
+        data_element = { "version": 1, "data": SimpleHardwareSource.image }
         return [data_element]
 
     def set_from_properties(self, properties):
