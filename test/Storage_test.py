@@ -572,6 +572,101 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
+    def test_reloading_data_item_establishes_display_connection_to_storage(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        # save it out
+        storage_data = datastore.to_data()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify that properties read it correctly
+        self.assertIsNotNone(document_model.data_items[0].displays[0].datastore)
+        # clean up
+        document_controller.close()
+
+    def test_reloading_data_item_establishes_operation_connection_to_storage(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        invert_operation = Operation.OperationItem("invert-operation")
+        data_item.add_operation(invert_operation)
+        # save it out
+        storage_data = datastore.to_data()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify that properties read it correctly
+        self.assertIsNotNone(document_model.data_items[0].operations[0].datastore)
+        # clean up
+        document_controller.close()
+
+    def test_changes_to_operation_values_are_saved(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
+        data_item.add_operation(gaussian_operation)
+        gaussian_operation.set_property("sigma", 1.7)
+        # save it out
+        storage_data = datastore.to_data()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify that properties read it correctly
+        self.assertAlmostEqual(document_model.data_items[0].operations[0].get_property("sigma"), 1.7)
+        # clean up
+        document_controller.close()
+
+    def test_reloaded_line_profile_operation_generates_correct_graphics(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item2 = DataItem.DataItem()
+        document_model.append_data_item(data_item2)
+        line_profile_operation = Operation.OperationItem("line-profile-operation")
+        line_profile_operation.set_property("start", (0.1, 0.2))
+        line_profile_operation.set_property("end", (0.3, 0.4))
+        data_item2.add_operation(line_profile_operation)
+        data_item2.add_data_source(data_item)
+        # save it out
+        storage_data = datastore.to_data()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify that properties read it correctly
+        self.assertEqual(document_model.data_items[1].operations[0].values["start"], (0.1, 0.2))
+        self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
+        self.assertEqual(document_model.data_items[1].operations[0].graphics[0].start, (0.1, 0.2))
+        self.assertEqual(document_model.data_items[1].operations[0].graphics[0].end, (0.3, 0.4))
+        # clean up
+        document_controller.close()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

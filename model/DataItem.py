@@ -490,6 +490,8 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
                 display_list.append(display_dict)
                 display.datastore = DataItem.Datastore(self, display_dict)
                 display.write_storage(display.datastore.storage_dict)
+        else:
+            display.datastore = DataItem.Datastore(self, self.__properties["displays"][before_index])
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
@@ -527,8 +529,11 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
             with self.property_changes() as pc:
                 operation_list = pc.properties.setdefault("operations", list())
                 operation_dict = dict()
+                operation.datastore = DataItem.Datastore(self, operation_dict)
                 operation.write_storage(operation_dict)
                 operation_list.append(operation_dict)
+        else:
+            operation.datastore = DataItem.Datastore(self, self.__properties["operations"][before_index])
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         if self.data_source:
@@ -574,12 +579,6 @@ class DataItem(Storage.StorageBase, Observable.ActiveSerializable):
     def remove_operation_graphics_from_displays(self, operation_graphics):
         for display in self.displays:
             display.remove_operation_graphics(operation_graphics)
-
-    def property_changed(self, object, property, value):
-        if object in self.operations:
-            with self.property_changes() as pc:
-                operation_dict = pc.properties["operations"][self.operations.index(object)]
-                operation_dict[property] = value
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the

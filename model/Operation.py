@@ -25,8 +25,7 @@ _ = gettext.gettext
 class LineProfileGraphic(Graphics.LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property(Observable.Property("width", 1.0))
-        self.__width = 1.0
+        self.define_property(Observable.Property("width", 1.0, changed=self._property_changed))
     # accessors
     def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -76,8 +75,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         super(OperationItem, self).__init__()
 
         self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
-        self.define_property(Observable.Property("enabled", True, changed=self.__enabled_changed))
-        self.define_property(Observable.Property("values", dict(), changed=self.__values_changed))
+        self.define_property(Observable.Property("enabled", True, changed=self.__property_changed))
+        self.define_property(Observable.Property("values", dict(), changed=self.__property_changed))
+
+        self.datastore = None
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -130,11 +131,12 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
             if self.operation:
                 setattr(self.operation, key, self.values[key])
 
-    def __enabled_changed(self, name, value):
-        self.notify_set_property(property_name, value)
-
-    def __values_changed(self, name, value):
-        self.notify_set_property("values", self.values)
+    def __property_changed(self, name, value):
+        if self.datastore:
+            with self.datastore:
+                self.datastore.storage_dict[name] = value
+        self.notify_set_property(name, value)
+        self.notify_listeners("operation_changed", self)
 
     # get a property.
     def get_property(self, property_id, default_value=None):
@@ -149,10 +151,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # set a property.
     def set_property(self, property_id, value):
-        self.values[property_id] = value
+        values = self.values
+        values[property_id] = value
+        self.values = values
         if self.operation:
             setattr(self.operation, property_id, value)
-        self.notify_set_property("values", self.values)
 
     # update the default value for this operation.
     def __set_property_default(self, property_id, default_value):
@@ -208,11 +211,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.set_property(key, values[key])
-
-    # override and watch for changes to this object and notify listeners if it changes
-    def notify_set_property(self, key, value):
-        super(OperationItem, self).notify_set_property(key, value)
-        self.notify_listeners("operation_changed", self)
 
     def remove_operation_graphic(self, operation_graphic):
         self.notify_listeners("remove_operation_because_graphic_removed", self)

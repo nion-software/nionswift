@@ -119,7 +119,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.__preview = None
 
     def __get_data_range(self):
-        return self.data_item.data_range
+        return self.data_item.data_range if self.data_item else None
     data_range = property(__get_data_range)
 
     def __get_display_range(self):
