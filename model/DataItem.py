@@ -92,6 +92,8 @@ class DataItemVault(object):
         self.__properties = properties if properties is not None else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate
+        self.data_file_path = None
+        self.data_file_type = None
 
     def close(self):
         self.__weak_data_item = None
@@ -107,6 +109,9 @@ class DataItemVault(object):
     def __get_properties(self):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
+
+    def update_type(self):
+        self.data_item.datastore.set_type(self.data_item, self.data_item.storage_type)
 
     def update_properties(self):
         if self.__delegate:
@@ -126,6 +131,52 @@ class DataItemVault(object):
         item_list = self.storage_dict[name]
         del item_list[index]
         self.update_properties()
+
+    def get_data_file_path(self):
+        uuid_ = self.data_item.uuid
+        datetime_item = self.data_item.datetime_original
+        session_id = self.data_item.session_id
+        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
+        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
+        # also:
+        def encode(uuid_, alphabet):
+            result = str()
+            uuid_int = uuid_.int
+            while uuid_int:
+                uuid_int, digit = divmod(uuid_int, len(alphabet))
+                result += alphabet[digit]
+            return result
+        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+        datetime_item = datetime_item if datetime_item else Utility.get_current_datetime_item()
+        datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
+        datetime_ = datetime_ if datetime_ else datetime.datetime.now()
+        path_components = datetime_.strftime("%Y-%m-%d").split('-')
+        session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
+        path_components.append(session_id)
+        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+        return os.path.join(*path_components)
+
+    def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
+        if self.data_item.datastore is not None:
+            if data is not None:
+                data_file_path = self.get_data_file_path()
+                self.data_item.datastore.set_data_reference(self.data_item, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
+                file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+                self.data_item.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
+                self.data_file_type = "relative_file"
+                self.data_file_path = data_file_path
+            elif data_file_path is not None:
+                self.data_item.datastore.set_data_reference(self.data_item, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
+                self.data_file_type = "external_file"
+                self.data_file_path = data_file_path
+
+    def load_data(self):
+        assert self.data_item.has_master_data
+        reference_type, reference = self.data_item.datastore.get_data_reference(self.data_item.datastore.find_parent_node(self.data_item), "master_data")
+        return self.data_item.datastore.load_data_reference("master_data", reference_type, reference)
+
+    def can_reload_data(self):
+        return self.data_item.datastore is not None
 
     def set_value(self, name, value):
         self.storage_dict[name] = value
@@ -234,9 +285,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__master_data = None
         self.__master_data_shape = None
         self.__master_data_dtype = None
-        self.__master_data_reference_type = None  # used for temporary storage
-        self.__master_data_reference = None  # used for temporary storage
-        self.__master_data_file_datetime = None  # used for temporary storage
         self.master_data_save_event = threading.Event()
         self.__has_master_data = False
         self.__data_source = None
@@ -248,35 +296,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
-        self.__set_master_data(data)
         self.vault = DataItemVault(self, properties)
+        self.__set_master_data(data)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
-
-    @classmethod
-    def _get_data_file_path(cls, uuid_, datetime_item, session_id=None):
-        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
-        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
-        # also:
-        def encode(uuid_, alphabet):
-            result = str()
-            uuid_int = uuid_.int
-            while uuid_int:
-                uuid_int, digit = divmod(uuid_int, len(alphabet))
-                result += alphabet[digit]
-            return result
-        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        datetime_item = datetime_item if datetime_item else Utility.get_current_datetime_item()
-        datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
-        datetime_ = datetime_ if datetime_ else datetime.datetime.now()
-        path_components = datetime_.strftime("%Y-%m-%d").split('-')
-        session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
-        path_components.append(session_id)
-        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
-        return os.path.join(*path_components)
 
     @classmethod
     def build(cls, datastore, item_node, uuid_):
@@ -440,24 +466,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             transaction_count = self.__transaction_count
         if transaction_count == 0:
             self.spill_cache()
-            if self.datastore:
-                self.datastore.erase_data(self)
-                self.write_data()
+            self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+            self.master_data_save_event.set()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
-        assert self.datastore is not None
-        self.datastore.set_property(self, "properties", self.vault.properties)
-        self.datastore.set_type(self, self.storage_type)
-        self.write_data()
+        self.vault.update_type()
+        self.vault.update_properties()
+        self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+        self.master_data_save_event.set()
 
-    def write_data(self):
-        assert self.datastore is not None
-        data, data_shape, data_dtype, reference_type, reference, file_datetime = self._get_master_data_data_reference()
-        if data is not None:  # data may be None for external references
-            self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
-        if reference_type:
-            self.datastore.set_data_reference(self, "master_data", data, data_shape, data_dtype, reference_type, reference)
+    def get_data_file_info(self):
+        return self.vault.data_file_type, self.vault.data_file_path
 
     # access properties
 
@@ -881,35 +901,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
                 self.__master_data_dtype = data.dtype if data is not None else None
                 self.__has_master_data = data is not None
                 self.sync_intrinsic_spatial_calibrations()
-            data_file_path = DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
-            file_datetime = Utility.get_datetime_from_datetime_item(self.datetime_original)
-            # tell the database about it
+            # tell the vault about it
             if self.__master_data is not None:
-                # save these here so that if the data isn't immediately written out, these values can be returned
-                # from _get_master_data_data_reference when the data is written.
-                self.__master_data_reference_type = "relative_file"
-                self.__master_data_reference = data_file_path
-                self.__master_data_file_datetime = file_datetime
-                self.notify_set_data_reference("master_data", self.__master_data, self.__master_data.shape, self.__master_data.dtype, "relative_file", data_file_path, file_datetime)
+                if self.__transaction_count == 0:  # no race is possible here. just write it.
+                    self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data)
+                    self.master_data_save_event.set()
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
-
-    # accessor for storage subsystem.
-    def _get_master_data_data_reference(self):
-        reference_type = self.__master_data_reference_type # if self.__master_data_reference_type else "relative_file"
-        reference = self.__master_data_reference # if self.__master_data_reference else DataItem._get_data_file_path(self.uuid, self.datetime_original, session_id=self.session_id)
-        file_datetime = self.__master_data_file_datetime # if self.__master_data_file_datetime else Utility.get_datetime_from_datetime_item(self.datetime_original)
-        # when data items are initially created, they will have their data in memory.
-        # this method will be called when the data gets written out to disk.
-        # to ensure that the data gets unloaded, grab it here and release it.
-        # if no other object is holding a reference, the data will be unloaded from memory.
-        if self.__master_data is not None:
-            with self.data_ref() as d:
-                master_data = d.master_data
-        else:
-            master_data = None
-        self.master_data_save_event.set()
-        return master_data, self.__master_data_shape, self.__master_data_dtype, reference_type, reference, file_datetime
 
     def set_external_master_data(self, data_file_path, data_shape, data_dtype):
         with self.__data_mutex:
@@ -919,27 +917,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             self.__master_data_dtype = data_dtype
             self.__has_master_data = True
             self.sync_intrinsic_spatial_calibrations()
-            file_datetime = datetime.datetime.fromtimestamp(os.path.getmtime(data_file_path))
-        # save these here so that if the data isn't immediately written out, these values can be returned
-        # from _get_master_data_data_reference when the data is written.
-        self.__master_data_reference_type = "external_file"
-        self.__master_data_reference = data_file_path
-        self.__master_data_file_datetime = file_datetime
-        self.notify_set_data_reference("master_data", None, data_shape, data_dtype, "external_file", data_file_path, file_datetime)
+        # external files are sent to vault immediately since that does not take any time
+        self.source_file_path = data_file_path
+        self.vault.update_data(data_shape, data_dtype, data_file_path=data_file_path)
         self.notify_set_property("data_range", self.data_range)
         self.notify_data_item_content_changed(set([DATA]))
+        self.master_data_save_event.set()
 
     def __load_master_data(self):
         # load data from datastore if not present
-        if self.has_master_data and self.datastore and self.__master_data is None:
+        if self.has_master_data and self.__master_data is None and self.vault.can_reload_data():
             #logging.debug("loading %s", self)
-            reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self), "master_data")
-            self.__master_data = self.datastore.load_data_reference("master_data", reference_type, reference)
+            self.__master_data = self.vault.load_data()
 
     def __unload_master_data(self):
-        # unload data if it can be reloaded from datastore.
-        # data cannot be unloaded if transaction count > 0 or if there is no datastore.
-        if self.transaction_count == 0 and self.has_master_data and self.datastore:
+        # unload data if possible.
+        # data cannot be unloaded if transaction count > 0 or if there is no vault.
+        if self.transaction_count == 0 and self.has_master_data and self.vault.can_reload_data():
             self.__master_data = None
             self.__cached_data = None
             #logging.debug("unloading %s", self)
@@ -964,12 +958,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
                 else:
                     self.__unload_master_data()
         return final_count
-
-    def notify_set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference, file_datetime):
-        if self.datastore and self.__transaction_count == 0:
-            self.datastore.set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference)
-            if data is not None:
-                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
 
     # used for testing
     def __is_data_loaded(self):

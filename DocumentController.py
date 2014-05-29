@@ -740,6 +740,7 @@ class DocumentController(Observable.Broadcaster):
                                 if threaded:
                                     data_item.master_data_save_event.wait()
                                 else:
+                                    self.periodic()  # make sure periodic gets called at least once
                                     while not data_item.master_data_save_event.wait(0.05):
                                         self.periodic()
                                 data_item.decrement_data_ref_count()

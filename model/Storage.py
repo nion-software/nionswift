@@ -14,7 +14,7 @@ import uuid
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.ui import Observable
@@ -825,6 +825,9 @@ class TestDataReferenceHandler(object):
         #logging.debug("load data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
             return self.data[reference]
+        elif reference_type == "external_file":
+            if os.path.exists(reference):
+                return numpy.zeros((20, 20), dtype=numpy.float)
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
