@@ -18,6 +18,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Storage
@@ -583,7 +584,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertEqual(document_model.data_items[0].displays[0].vault.data_item, document_model.data_items[0])
+        self.assertEqual(document_model.data_items[0].displays[0].vault.delegate, document_model.data_items[0].vault)
         # clean up
         document_controller.close()
 
@@ -605,7 +606,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertIsNotNone(document_model.data_items[0].operations[0].vault.data_item, document_model.data_items[0])
+        self.assertIsNotNone(document_model.data_items[0].operations[0].vault.delegate, document_model.data_items[0].vault)
         # clean up
         document_controller.close()
 
@@ -659,6 +660,30 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
         self.assertEqual(document_model.data_items[1].operations[0].graphics[0].start, (0.1, 0.2))
         self.assertEqual(document_model.data_items[1].operations[0].graphics[0].end, (0.3, 0.4))
+        # clean up
+        document_controller.close()
+
+    def test_reloaded_graphics_load_properly(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        rect_graphic = Graphics.RectangleGraphic()
+        rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.displays[0].append_graphic(rect_graphic)
+        # save it out
+        storage_data = datastore.to_data()
+        document_controller.close()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify
+        self.assertEqual(len(document_model.data_items[0].displays[0].graphics), 1)
         # clean up
         document_controller.close()
 

@@ -87,9 +87,11 @@ class DataSourceList(object):
 
 class DataItemVault(object):
 
-    def __init__(self, data_item, storage_dict):
-        self.__weak_data_item = weakref.ref(data_item)
-        self.storage_dict = storage_dict
+    def __init__(self, data_item=None, properties=None, storage_dict=None, delegate=None):
+        self.__weak_data_item = weakref.ref(data_item) if data_item is not None else None
+        self.__properties = properties if properties is not None else dict()
+        self.storage_dict = storage_dict if storage_dict is not None else self.__properties
+        self.__delegate = delegate
 
     def close(self):
         self.__weak_data_item = None
@@ -98,26 +100,40 @@ class DataItemVault(object):
         return self.__weak_data_item() if self.__weak_data_item else None
     data_item = property(__get_data_item)
 
+    def __get_delegate(self):
+        return self.__delegate
+    delegate = property(__get_delegate)
+
+    def __get_properties(self):
+        return copy.deepcopy(self.__properties)
+    properties = property(__get_properties)
+
+    def update_properties(self):
+        if self.__delegate:
+            self.__delegate.update_properties()
+        elif self.data_item.datastore:
+            self.data_item.datastore.set_property(self.data_item, "properties", self.__properties)
+
     def insert_item(self, name, before_index, item):
-        with self.data_item.property_changes() as pc:
-            item_list = self.storage_dict.setdefault(name, list())
-            item_dict = dict()
-            item_list.insert(before_index, item_dict)
-            item.vault = DataItemVault(self.data_item, item_dict)
-            item.write_storage(DataItemVault(self.data_item, item_dict))
+        item_list = self.storage_dict.setdefault(name, list())
+        item_dict = dict()
+        item_list.insert(before_index, item_dict)
+        item.vault = DataItemVault(delegate=self, storage_dict=item_dict)
+        item.write_storage(DataItemVault(delegate=self, storage_dict=item_dict))
+        self.update_properties()
 
     def remove_item(self, name, index, item):
-        with self.data_item.property_changes() as pc:
-            item_list = self.storage_dict[name]
-            del item_list[index]
+        item_list = self.storage_dict[name]
+        del item_list[index]
+        self.update_properties()
 
     def set_value(self, name, value):
-        with self.data_item.property_changes() as pc:
-            self.storage_dict[name] = value
+        self.storage_dict[name] = value
+        self.update_properties()
 
     def get_vault_for_item(self, name, index):
         storage_dict = self.storage_dict[name][index]
-        return DataItemVault(self.data_item, storage_dict)
+        return DataItemVault(delegate=self, storage_dict=storage_dict)
 
     def has_value(self, name):
         return name in self.storage_dict
@@ -127,7 +143,7 @@ class DataItemVault(object):
 
     def get_item_vaults(self, name):
         if name in self.storage_dict:
-            return [DataItemVault(self.data_item, storage_dict) for storage_dict in self.storage_dict[name]]
+            return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
 
 
@@ -210,7 +226,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__metadata = dict()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__properties = properties if properties is not None else dict()
         self.__data_mutex = threading.RLock()
         self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
@@ -234,7 +249,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__set_master_data(data)
-        self.vault = DataItemVault(self, self.__properties)
+        self.vault = DataItemVault(self, properties)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
@@ -273,7 +288,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         else:
             master_data_shape, master_data_dtype = None, None
         data_item = DataItem(properties=properties, create_display=False)
-        data_item.__properties = properties
         data_item.__master_data_shape = master_data_shape
         data_item.__master_data_dtype = master_data_dtype
         data_item.__has_master_data = has_master_data
@@ -433,7 +447,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def write(self):
         assert self.datastore is not None
-        self.datastore.set_property(self, "properties", self.__properties)
+        self.datastore.set_property(self, "properties", self.vault.properties)
         self.datastore.set_type(self, self.storage_type)
         self.write_data()
 
@@ -444,6 +458,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
         if reference_type:
             self.datastore.set_data_reference(self, "master_data", data, data_shape, data_dtype, reference_type, reference)
+
+    # access properties
+
+    def __get_properties(self):
+        return self.vault.properties
+    properties = property(__get_properties)
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
@@ -683,33 +703,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
                     self.__data_item.vault.set_value(self.__name, copy.deepcopy(metadata_group))
                     metadata_changed()
         return MetadataContextManager(self, name)
-
-    # access properties
-
-    def __get_properties(self):
-        return copy.deepcopy(self.__properties)
-    properties = property(__get_properties)
-
-    def __grab_properties(self):
-        return self.__properties
-    def __release_properties(self):
-        if self.datastore:  # properties are not affected by transactions
-            self.datastore.set_property(self, "properties", self.__properties)
-
-    def property_changes(self):
-        grab_properties = DataItem.__grab_properties
-        release_properties = DataItem.__release_properties
-        class PropertyChangeContextManager(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __enter__(self):
-                return self
-            def __exit__(self, type, value, traceback):
-                release_properties(self.__data_item)
-            def __get_properties(self):
-                return grab_properties(self.__data_item)
-            properties = property(__get_properties)
-        return PropertyChangeContextManager(self)
 
     def __insert_display(self, name, before_index, display):
         display.add_ref()
