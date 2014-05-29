@@ -24,6 +24,129 @@ from nion.swift.model import Utility
 _ = gettext.gettext
 
 
+class DataItemVault(object):
+
+    """ Vaults should be stateless so that we can switch them in data items without repercussions. """
+
+    def __init__(self, datastore=None, data_item_uuid=None, properties=None, storage_dict=None, delegate=None):
+        self.datastore = datastore
+        properties = datastore.get_root_property(data_item_uuid, "properties") if data_item_uuid else properties
+        self.__properties = properties if properties else dict()
+        self.storage_dict = storage_dict if storage_dict is not None else self.__properties
+        self.__delegate = delegate  # a delegate item vault for updating properties
+        self.data_file_path = None
+        self.data_file_type = None
+
+    def __get_data_item(self):
+        return self.__weak_data_item() if self.__weak_data_item else None
+    def __set_data_item(self, data_item):
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+    data_item = property(__get_data_item, __set_data_item)
+
+    def __get_delegate(self):
+        return self.__delegate
+    delegate = property(__get_delegate)
+
+    def __get_properties(self):
+        return copy.deepcopy(self.__properties)
+    properties = property(__get_properties)
+
+    def update_properties(self):
+        if self.__delegate:
+            self.__delegate.update_properties()
+        elif self.datastore:
+            self.datastore.set_root_property(self.data_item.uuid, "properties", self.__properties)
+
+    def insert_item(self, name, before_index, item):
+        item_list = self.storage_dict.setdefault(name, list())
+        item_dict = dict()
+        item_list.insert(before_index, item_dict)
+        item.vault = DataItemVault(delegate=self, storage_dict=item_dict)
+        item.write_storage(DataItemVault(delegate=self, storage_dict=item_dict))
+        self.update_properties()
+
+    def remove_item(self, name, index, item):
+        item_list = self.storage_dict[name]
+        del item_list[index]
+        self.update_properties()
+
+    def get_data_file_path(self):
+        uuid_ = self.data_item.uuid
+        datetime_item = self.data_item.datetime_original
+        session_id = self.data_item.session_id
+        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
+        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
+        # also:
+        def encode(uuid_, alphabet):
+            result = str()
+            uuid_int = uuid_.int
+            while uuid_int:
+                uuid_int, digit = divmod(uuid_int, len(alphabet))
+                result += alphabet[digit]
+            return result
+        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+        datetime_item = datetime_item if datetime_item else Utility.get_current_datetime_item()
+        datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
+        datetime_ = datetime_ if datetime_ else datetime.datetime.now()
+        path_components = datetime_.strftime("%Y-%m-%d").split('-')
+        session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
+        path_components.append(session_id)
+        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+        return os.path.join(*path_components)
+
+    def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
+        if self.datastore is not None:
+            if data is not None:
+                data_file_path = self.get_data_file_path()
+                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
+                file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+                self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
+                self.data_file_type = "relative_file"
+                self.data_file_path = data_file_path
+            elif data_file_path is not None:
+                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
+                self.data_file_type = "external_file"
+                self.data_file_path = data_file_path
+
+    def load_data(self):
+        assert self.data_item.has_master_data
+        reference_type, reference = self.datastore.get_root_data_reference(self.data_item.uuid, "master_data")
+        return self.datastore.load_data_reference("master_data", reference_type, reference)
+
+    def __can_reload_data(self):
+        return self.datastore is not None
+    can_reload_data = property(__can_reload_data)
+
+    def set_value(self, name, value):
+        self.storage_dict[name] = value
+        self.update_properties()
+
+    def get_vault_for_item(self, name, index):
+        storage_dict = self.storage_dict[name][index]
+        return DataItemVault(delegate=self, storage_dict=storage_dict)
+
+    def has_value(self, name):
+        return name in self.storage_dict
+
+    def get_value(self, name):
+        return self.storage_dict[name]
+
+    def get_item_vaults(self, name):
+        if name in self.storage_dict:
+            return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
+        return list()
+
+    def get_master_data_info(self):
+        if not self.datastore:
+            return False, None, None
+        has_master_data = self.datastore.has_root_data(self.data_item.uuid, "master_data")
+        if has_master_data:
+            master_data_shape, master_data_dtype = self.datastore.get_root_data_shape_and_dtype(self.data_item.uuid, "master_data")
+        else:
+            master_data_shape, master_data_dtype = None, None
+        return has_master_data, master_data_shape, master_data_dtype
+
+
 class DbDataItemVault(object):
 
     def __init__(self, document_model, datastore, storage_cache):
@@ -41,7 +164,7 @@ class DbDataItemVault(object):
         data_item_uuids = self.__datastore.find_root_item_uuids("data-item")
         data_items = list()
         for index, data_item_uuid in enumerate(data_item_uuids):
-            vault = DataItem.DataItemVault(self.__datastore, data_item_uuid)
+            vault = DataItemVault(self.__datastore, data_item_uuid)
             data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
             data_item.add_ref()
@@ -67,6 +190,8 @@ class DbDataItemVault(object):
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
         # keep storage up-to-date
+        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
+        data_item.vault.data_item = data_item
         data_item.vault.datastore = self.__datastore
         self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
         data_item.storage_cache = self.__storage_cache
@@ -86,7 +211,8 @@ class DbDataItemVault(object):
         del self.__data_items[index]
         # keep storage up-to-date
         self.__datastore.remove_root_item_uuid("data-item", data_item.uuid)
-        data_item.vault.datastore = None
+        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
+        #data_item.vault.datastore = None
         data_item.__storage_cache = None
         # unlisten to data item
         data_item.remove_listener(document_model)
