@@ -694,10 +694,9 @@ class DictDatastore(object):
     def find_parent_node(self, item):
         return self.__node_map[item.uuid]
 
-    def build_item(self, uuid_):
+    def build_item(self, uuid_, node):
         item = None
         if uuid_ not in self.__item_map:
-            node = self.__node_map[uuid_]
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             build_map = {
@@ -706,7 +705,7 @@ class DictDatastore(object):
             }
             type = node["type"]
             if type in build_map:
-                item = build_map[type].build(self, node, uuid_)
+                item = build_map[type].build(self, node)
                 item._set_uuid(uuid_)
             if item:
                 self.__item_map[uuid_] = item
@@ -728,14 +727,17 @@ class DictDatastore(object):
     def get_item(self, parent_node, key, default_value=None):
         items = parent_node["items"] if "items" in parent_node else dict()
         if key in items:
-            return self.build_item(items[key])
+            uuid_ = items[key]
+            node = self.__node_map[uuid_]
+            return self.build_item(uuid_, node)
         else:
             return default_value
 
-    def get_items(self, parent_node, key):
+    def get_items(self, parent_node, key, builder=None):
+        builder = builder if builder else self.build_item
         relationships = parent_node["relationships"] if "relationships" in parent_node else {}
         if key in relationships:
-            return [self.build_item(uuid) for uuid in relationships[key]]
+            return [builder(uuid, self.__node_map[uuid]) for uuid in relationships[key]]
         else:
             return []
 
@@ -1115,9 +1117,10 @@ class DbDatastore(object):
             return c.fetchone()[0]
         return 0  # no version, it's zero
 
-    def build_item(self, uuid_):
+    def build_item(self, uuid_, node):
+        uuid_str = str(uuid_)
         item = None
-        if uuid_ not in self.__item_map:
+        if uuid_str not in self.__item_map:
             from nion.swift.model import DataGroup
             from nion.swift.model import DataItem
             build_map = {
@@ -1125,18 +1128,17 @@ class DbDatastore(object):
                 "data-item": DataItem.DataItem,
             }
             c = self.conn.cursor()
-            c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_, ))
+            c.execute("SELECT type FROM nodes WHERE uuid=?", (uuid_str, ))
             type = c.fetchone()[0]
             if type in build_map:
-                item_node = uuid_  # use uuid as item_node reference
-                item = build_map[type].build(self, item_node, uuid_)
-                item._set_uuid(uuid.UUID(uuid_))
+                item = build_map[type].build(self, node)
+                item._set_uuid(uuid_)
             if item:
-                self.__item_map[uuid_] = item
+                self.__item_map[uuid_str] = item
             else:
-                logging.debug("Unable to build %s (%s)", type, uuid_)
+                logging.debug("Unable to build %s (%s)", type, uuid_str)
         else:
-            item = self.__item_map[uuid_]
+            item = self.__item_map[uuid_str]
         return item
 
     def has_data(self, parent_node, key):
@@ -1159,7 +1161,8 @@ class DbDatastore(object):
         c.execute("SELECT item_uuid FROM items WHERE parent_uuid=? AND key=?", (str(parent_node), key, ))
         value_row = c.fetchone()
         if value_row is not None:
-            item = self.build_item(value_row[0])
+            uuid_str = value_row[0]
+            item = self.build_item(uuid.UUID(uuid_str), uuid_str)
             return item
         return default_value
 
@@ -1198,12 +1201,14 @@ class DbDatastore(object):
                 index += 1
         self.conn.commit()
 
-    def get_items(self, parent_node, key):
+    def get_items(self, parent_node, key, builder=None):
+        builder = builder if builder else self.build_item
         c = self.conn.cursor()
         c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key=? ORDER BY item_index ASC", (str(parent_node), key, ))
         items = []
         for row in c.fetchall():
-            item = self.build_item(row[0])
+            uuid_str = row[0]
+            item = builder(uuid.UUID(uuid_str), uuid_str)
             if item:
                 # this should be fixed in the integrity check, but until that
                 # is fully implemented, just skip it.
@@ -1381,10 +1386,6 @@ class DbDatastoreProxy(object):
     def get_version(self):
         self.__queue.join()
         return self.__datastore.get_version()
-
-    def build_item(self, uuid_):
-        self.__queue.join()
-        return self.__datastore.build_item(uuid_)
 
     def has_data(self, parent_node, key):
         self.__queue.join()

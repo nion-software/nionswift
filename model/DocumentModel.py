@@ -38,7 +38,11 @@ class DbDataItemVault(object):
     def read_data_items(self):
         document_model = self.__weak_document_model()
         parent_node, uuid = self.__datastore.find_root_node("document")
-        data_items = self.__datastore.get_items(parent_node, "data_items")
+        def build_data_item(uuid_, item_node):
+            data_item = DataItem.DataItem.build(self.__datastore, item_node)
+            data_item._set_uuid(uuid_)
+            return data_item
+        data_items = self.__datastore.get_items(parent_node, "data_items", build_data_item)
         for index, data_item in enumerate(data_items):
             data_item.add_ref()
             self.__data_items.insert(index, data_item)

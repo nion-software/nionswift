@@ -89,7 +89,7 @@ class DataGroup(Storage.StorageBase):
         return self.title if self.title else _("Untitled")
 
     @classmethod
-    def build(cls, datastore, item_node, uuid_):
+    def build(cls, datastore, item_node):
         title = datastore.get_property(item_node, "title")
         data_item_uuids = datastore.get_property(item_node, "data_item_uuids")
         data_groups = datastore.get_items(item_node, "data_groups")

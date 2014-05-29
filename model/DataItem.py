@@ -305,7 +305,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
 
     @classmethod
-    def build(cls, datastore, item_node, uuid_):
+    def build(cls, datastore, item_node):
         properties = datastore.get_property(item_node, "properties")
         properties = properties if properties else dict()
         has_master_data = datastore.has_data(item_node, "master_data")
