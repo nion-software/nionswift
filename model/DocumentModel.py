@@ -19,6 +19,7 @@ from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
+from nion.swift.model import Utility
 
 _ = gettext.gettext
 
@@ -37,16 +38,18 @@ class DbDataItemVault(object):
 
     def read_data_items(self):
         document_model = self.__weak_document_model()
-        parent_node, uuid = self.__datastore.find_root_node("document")
-        def build_data_item(uuid_, item_node):
-            vault = DataItem.DataItemVault(self.__datastore, item_node)
-            data_item = DataItem.DataItem(vault=vault, create_display=False)
+        data_item_uuids = self.__datastore.find_root_item_uuids("data-item")
+        data_items = list()
+        for index, data_item_uuid in enumerate(data_item_uuids):
+            vault = DataItem.DataItemVault(self.__datastore, data_item_uuid)
+            data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
-            data_item._set_uuid(uuid_)
-            return data_item
-        data_items = self.__datastore.get_items(parent_node, "data_items", build_data_item)
-        for index, data_item in enumerate(data_items):
             data_item.add_ref()
+            data_items.append(data_item)
+        def sort_by_date_key(data_item):
+            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+        data_items.sort(key=sort_by_date_key)
+        for data_item in data_items:
             self.__data_items.insert(index, data_item)
             data_item.sync_intrinsic_spatial_calibrations()
             data_item.storage_cache = self.__storage_cache
@@ -65,8 +68,9 @@ class DbDataItemVault(object):
         self.__data_items.insert(before_index, data_item)
         # keep storage up-to-date
         data_item.vault.datastore = self.__datastore
-        self.__datastore.insert_item(document_model, "data_items", data_item, before_index)
+        self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
         data_item.storage_cache = self.__storage_cache
+        data_item.write()
         # be a listener. why?
         data_item.add_listener(document_model)
         document_model.notify_listeners("data_item_inserted", document_model, data_item, before_index, False)
@@ -81,7 +85,7 @@ class DbDataItemVault(object):
         # do actual removal
         del self.__data_items[index]
         # keep storage up-to-date
-        self.__datastore.remove_item(document_model, "data_items", index)
+        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid)
         data_item.vault.datastore = None
         data_item.__storage_cache = None
         # unlisten to data item

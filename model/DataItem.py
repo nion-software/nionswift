@@ -87,10 +87,9 @@ class DataSourceList(object):
 
 class DataItemVault(object):
 
-    def __init__(self, datastore=None, item_node=None, storage_dict=None, delegate=None):
+    def __init__(self, datastore=None, data_item_uuid=None, storage_dict=None, delegate=None):
         self.datastore = datastore
-        self.__item_node = item_node
-        properties = datastore.get_property(item_node, "properties") if item_node else None
+        properties = datastore.get_root_property(data_item_uuid, "properties") if data_item_uuid else None
         self.__properties = properties if properties else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
@@ -114,14 +113,11 @@ class DataItemVault(object):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
-    def update_type(self):
-        self.datastore.set_type(self.data_item, self.data_item.storage_type)
-
     def update_properties(self):
         if self.__delegate:
             self.__delegate.update_properties()
         elif self.datastore:
-            self.datastore.set_property(self.data_item, "properties", self.__properties)
+            self.datastore.set_root_property(self.data_item.uuid, "properties", self.__properties)
 
     def insert_item(self, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
@@ -164,23 +160,24 @@ class DataItemVault(object):
         if self.datastore is not None:
             if data is not None:
                 data_file_path = self.get_data_file_path()
-                self.datastore.set_data_reference(self.data_item, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
+                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
                 file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
                 self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
                 self.data_file_type = "relative_file"
                 self.data_file_path = data_file_path
             elif data_file_path is not None:
-                self.datastore.set_data_reference(self.data_item, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
+                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
                 self.data_file_type = "external_file"
                 self.data_file_path = data_file_path
 
     def load_data(self):
         assert self.data_item.has_master_data
-        reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self.data_item), "master_data")
+        reference_type, reference = self.datastore.get_root_data_reference(self.data_item.uuid, "master_data")
         return self.datastore.load_data_reference("master_data", reference_type, reference)
 
-    def can_reload_data(self):
+    def __can_reload_data(self):
         return self.datastore is not None
+    can_reload_data = property(__can_reload_data)
 
     def set_value(self, name, value):
         self.storage_dict[name] = value
@@ -204,9 +201,9 @@ class DataItemVault(object):
     def get_master_data_info(self):
         if not self.datastore:
             return False, None, None
-        has_master_data = self.datastore.has_data(self.__item_node, "master_data")
+        has_master_data = self.datastore.has_root_data(self.data_item.uuid, "master_data")
         if has_master_data:
-            master_data_shape, master_data_dtype = self.datastore.get_data_shape_and_dtype(self.__item_node, "master_data")
+            master_data_shape, master_data_dtype = self.datastore.get_root_data_shape_and_dtype(self.data_item.uuid, "master_data")
         else:
             master_data_shape, master_data_dtype = None, None
         return has_master_data, master_data_shape, master_data_dtype
@@ -263,15 +260,14 @@ SOURCE = 4
 
 class DataItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
 
-    def __init__(self, data=None, vault=None, create_display=True):
+    def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.vault = vault if vault else DataItemVault()
         self.vault.data_item = self
-        self.storage_type = "data-item"
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
-        self.__uuid = uuid.uuid4()
+        self.__uuid = item_uuid if item_uuid else uuid.uuid4()
         current_datetime_item = Utility.get_current_datetime_item()
         spatial_calibrations = CalibrationList()
         if data is not None:
@@ -465,7 +461,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
-        self.vault.update_type()
         self.vault.update_properties()
         self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
         self.master_data_save_event.set()
@@ -920,14 +915,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __load_master_data(self):
         # load data from vault if data is not already loaded
-        if self.has_master_data and self.__master_data is None and self.vault.can_reload_data():
+        if self.has_master_data and self.__master_data is None and self.vault.can_reload_data:
             #logging.debug("loading %s", self)
             self.__master_data = self.vault.load_data()
 
     def __unload_master_data(self):
         # unload data if possible.
         # data cannot be unloaded if transaction count > 0 or if there is no vault.
-        if self.transaction_count == 0 and self.has_master_data and self.vault.can_reload_data():
+        if self.transaction_count == 0 and self.has_master_data and self.vault.can_reload_data:
             self.__master_data = None
             self.__cached_data = None
             #logging.debug("unloading %s", self)

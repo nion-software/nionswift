@@ -725,7 +725,7 @@ class DictDatastore(object):
         return "relationships" in parent_node and key in parent_node["relationships"]
 
     def get_item(self, parent_node, key, default_value=None):
-        items = parent_node["items"] if "items" in parent_node else dict()
+        items = parent_node.get("items", {})
         if key in items:
             uuid_ = items[key]
             node = self.__node_map[uuid_]
@@ -735,14 +735,14 @@ class DictDatastore(object):
 
     def get_items(self, parent_node, key, builder=None):
         builder = builder if builder else self.build_item
-        relationships = parent_node["relationships"] if "relationships" in parent_node else {}
+        relationships = parent_node.get("relationships", {})
         if key in relationships:
             return [builder(uuid, self.__node_map[uuid]) for uuid in relationships[key]]
         else:
             return []
 
     def get_property(self, parent_node, key, default_value=None):
-        properties = parent_node["properties"] if "properties" in parent_node else {}
+        properties = parent_node.get("properties", {})
         if key in properties:
             return properties[key]
         else:
@@ -755,7 +755,7 @@ class DictDatastore(object):
         return self.get_data_direct(reference, key)
 
     def get_data_direct(self, parent_node, key):
-        data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
+        data_items = parent_node.get("data_arrays", {})
         if key in data_items:
             data = data_items[key]
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
@@ -764,13 +764,86 @@ class DictDatastore(object):
             return None
 
     def get_data_shape_and_dtype(self, parent_node, key):
-        data_items = parent_node["data_arrays"] if "data_arrays" in parent_node else {}
+        data_items = parent_node.get("data_arrays", {})
         if key in data_items:
             data = data_items[key]
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
             return data.shape, data.dtype
         else:
             return None
+
+    # alternate, direct interface to db
+
+    def find_root_item_uuids(self, key):
+        item_uuids = []
+        for item_uuid in self.__node_map.keys():
+            item_node = self.__node_map[item_uuid]
+            if item_node["type"] == key:
+                item_uuids.append(item_uuid)
+        return item_uuids
+
+    def add_root_item_uuid(self, key, item_uuid):
+        if self.disconnected:
+            return
+        # make a node in storage
+        item_node = self.__make_node(item_uuid)
+        item_node["type"] = key
+        # add reference count
+        self.__add_node_ref(item_uuid)
+
+    def remove_root_item_uuid(self, key, item_uuid):
+        if self.disconnected:
+            return
+        self.__remove_node_ref(item_uuid)
+
+    def get_root_property(self, item_uuid, key):
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # return the property
+        properties = item_node.get("properties", {})
+        if key in properties:
+            return properties[key]
+        return None
+
+    def set_root_property(self, item_uuid, key, value):
+        if self.disconnected:
+            return
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # write to it
+        properties = item_node.setdefault("properties", {})
+        properties[key] = copy.deepcopy(value)
+
+    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+        if self.disconnected:
+            return
+        if data is None:
+            return
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # insert new node in parent
+        data_arrays = item_node.setdefault("data_arrays", {})
+        data_arrays[key] = copy.deepcopy(data)
+        item_node.setdefault("data_shapes", {})[key] = data_shape
+        item_node.setdefault("data_dtypes", {})[key] = data_dtype
+
+    def get_root_data_reference(self, item_uuid, key):
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # return reference_type, reference
+        return "embedded", item_node
+
+    def has_root_data(self, item_uuid, key):
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # figure out if we have data
+        return "data" in item_node.get("data_arrays", {})
+
+    def get_root_data_shape_and_dtype(self, item_uuid, key):
+        # get the item node
+        item_node = self.__node_map[item_uuid]
+        # return shape, dtype
+        return item_node.get("data_shapes", {}).get(key), item_node.get("data_dtypes", {}).get(key)
 
 
 
@@ -1247,6 +1320,61 @@ class DbDatastore(object):
         c = self.conn.cursor()
         return db_get_data_shape_and_dtype(c, parent_node, key)
 
+    # alternate, direct interface to db
+
+    def find_root_item_uuids(self, key):
+        c = self.conn.cursor()
+        c.execute("SELECT uuid FROM nodes WHERE type=?", (key, ))
+        item_uuids = []
+        for row in c.fetchall():
+            item_uuids.append(uuid.UUID(row[0]))
+        return item_uuids
+
+    def add_root_item_uuid(self, key, item_uuid):
+        if not self.disconnected:
+            c = self.conn.cursor()
+            node = self.__make_node(item_uuid, key)
+            self.__add_node_ref(item_uuid)
+            self.conn.commit()
+
+    def remove_root_item_uuid(self, key, item_uuid):
+        if not self.disconnected:
+            self.__remove_node_ref(item_uuid)
+            self.conn.commit()
+
+    def get_root_property(self, item_uuid, key):
+        c = self.conn.cursor()
+        c.execute("SELECT value FROM properties WHERE uuid=? AND key=?", (str(item_uuid), key, ))
+        value_row = c.fetchone()
+        if value_row is not None:
+            return pickle.loads(str(value_row[0]))
+        return None
+
+    def set_root_property(self, item_uuid, key, value):
+        if not self.disconnected:
+            c = self.conn.cursor()
+            self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item_uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
+            self.conn.commit()
+
+    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+        if not self.disconnected:
+            c = self.conn.cursor()
+            db_write_data_reference(c, item_uuid, key, data_shape, data_dtype, reference_type, reference)
+            self.conn.commit()
+
+    def get_root_data_reference(self, item_uuid, key):
+        c = self.conn.cursor()
+        return db_get_data_reference(c, item_uuid, key)
+
+    def has_root_data(self, item_uuid, key):
+        c = self.conn.cursor()
+        c.execute("SELECT COUNT(*) FROM data_references WHERE uuid=? AND key=?", (str(item_uuid), key, ))
+        return c.fetchone()[0] > 0
+
+    def get_root_data_shape_and_dtype(self, item_uuid, key):
+        c = self.conn.cursor()
+        return db_get_data_shape_and_dtype(c, item_uuid, key)
+
 
 class DbDatastoreProxy(object):
 
@@ -1430,6 +1558,48 @@ class DbDatastoreProxy(object):
     def get_data_shape_and_dtype(self, parent_node, key):
         self.__queue.join()
         return self.__datastore.get_data_shape_and_dtype(parent_node, key)
+
+    # alternate, direct interface to db
+
+    def find_root_item_uuids(self, key):
+        self.__queue.join()
+        return self.__datastore.find_root_item_uuids(key)
+
+    def add_root_item_uuid(self, key, item_uuid):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.add_root_item_uuid, self.__datastore, key, item_uuid), event, "add_root_item_uuid"))
+        #event.wait()
+
+    def remove_root_item_uuid(self, key, item_uuid):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.remove_root_item_uuid, self.__datastore, key, item_uuid), event, "remove_root_item_uuid"))
+        #event.wait()
+
+    def get_root_property(self, item_uuid, key):
+        self.__queue.join()
+        return self.__datastore.get_root_property(item_uuid, key)
+
+    def set_root_property(self, item_uuid, key, value):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.set_root_property, self.__datastore, item_uuid, key, value), event, "set_root_property"))
+        #event.wait()
+
+    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.set_root_data_reference, self.__datastore, item_uuid, key, data, data_shape, data_dtype, reference_type, reference), event, "set_root_data_reference"))
+        #event.wait()
+
+    def get_root_data_reference(self, item_uuid, key):
+        self.__queue.join()
+        return self.__datastore.get_root_data_reference(item_uuid, key)
+
+    def has_root_data(self, item_uuid, key):
+        self.__queue.join()
+        return self.__datastore.has_root_data(item_uuid, key)
+
+    def get_root_data_shape_and_dtype(self, item_uuid, key):
+        self.__queue.join()
+        return self.__datastore.get_root_data_shape_and_dtype(item_uuid, key)
 
 
 class DictStorageCache(object):

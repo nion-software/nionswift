@@ -428,9 +428,23 @@ class Application(object):
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'data_item_uuids', ?)", (parent_uuid, data_item_uuids_data))
                     for item_uuid in item_uuids:
                         c.execute("UPDATE nodes SET refcount=refcount-1 WHERE uuid = ?", (str(item_uuid), ))
+                    c.execute("DELETE FROM relationships WHERE parent_uuid=? AND key='data_items'", (parent_uuid, ))
+                c.execute("SELECT uuid FROM nodes WHERE type='document'")
+                parent_uuids = list()
+                for row in c.fetchall():
+                    parent_uuids.append(row[0])
+                for parent_uuid in parent_uuids:
+                    # find the data item relationships
+                    c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='data_items' ORDER BY item_index ASC", (parent_uuid, ))
+                    item_uuids = list()
+                    for row in c.fetchall():
+                        item_uuids.append(uuid.UUID(row[0]))
+                    for item_uuid in item_uuids:
+                        c.execute("UPDATE nodes SET refcount=refcount-1 WHERE uuid = ?", (str(item_uuid), ))
+                    c.execute("DELETE FROM relationships WHERE parent_uuid=? AND key='data_items'", (parent_uuid, ))
                 c.execute("UPDATE version SET version = ?", (9, ))
                 datastore.conn.commit()
-                version = 8
+                version = 9
             # NOTE: version must be changed here and in Storage.py
             if version > 9:
                 logging.debug("Database too new, version %s", version)
