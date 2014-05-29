@@ -23,16 +23,81 @@ from nion.swift.model import Storage
 _ = gettext.gettext
 
 
+class DbDataItemVault(object):
+
+    def __init__(self, document_model, datastore, storage_cache):
+        self.__weak_document_model = weakref.ref(document_model)
+        self.__datastore = datastore
+        self.__storage_cache = storage_cache
+        self.__data_items = list()
+
+    def __get_data_items(self):
+        return self.__data_items
+    data_items = property(__get_data_items)
+
+    def read_data_items(self):
+        document_model = self.__weak_document_model()
+        parent_node, uuid = self.__datastore.find_root_node("document")
+        data_items = self.__datastore.get_items(parent_node, "data_items")
+        for index, data_item in enumerate(data_items):
+            data_item.add_ref()
+            self.__data_items.insert(index, data_item)
+            data_item.datastore = self.__datastore
+            data_item.storage_cache = self.__storage_cache
+            data_item.add_listener(document_model)
+
+    def insert(self, before_index, data_item):
+        # TODO: move the tail into the caller area
+        # this comes from MutableRelationship, StorageBase, and DocumentModel.notify_insert_item
+        assert data_item is not None
+        assert data_item not in self.__data_items
+        assert before_index <= len(self.__data_items) and before_index >= 0
+        document_model = self.__weak_document_model()
+        # ref count
+        data_item.add_ref()
+        # insert in internal list
+        self.__data_items.insert(before_index, data_item)
+        # keep storage up-to-date
+        data_item.datastore = self.__datastore
+        self.__datastore.insert_item(document_model, "data_items", data_item, before_index)
+        data_item.storage_cache = self.__storage_cache
+        # be a listener. why?
+        data_item.add_listener(document_model)
+        document_model.notify_listeners("data_item_inserted", document_model, data_item, before_index, False)
+
+    def remove(self, data_item):
+        # TODO: move the tail into the caller area
+        # this comes from MutableRelationship, StorageBase, and DocumentModel.notify_remove_item
+        assert data_item is not None
+        assert data_item in self.__data_items
+        document_model = self.__weak_document_model()
+        index = self.__data_items.index(data_item)
+        # do actual removal
+        del self.__data_items[index]
+        # keep storage up-to-date
+        self.__datastore.remove_item(document_model, "data_items", index)
+        data_item.datastore = None
+        data_item.__storage_cache = None
+        # unlisten to data item
+        data_item.remove_listener(document_model)
+        # update data item count
+        document_model.notify_listeners("data_item_removed", document_model, data_item, index, False)
+        if data_item.get_observer_count(document_model) == 0:  # ugh?
+            document_model.notify_listeners("data_item_deleted", data_item)
+        # ref count
+        data_item.remove_ref()
+
+
 class DocumentModel(Storage.StorageBase):
 
     def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
-        self.storage_relationships += ["data_groups", "data_items"]
+        self.__data_item_vault = DbDataItemVault(self, datastore, self.storage_cache)
+        self.storage_relationships += ["data_groups"]
         self.storage_type = "document"
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.__data_items = Storage.MutableRelationship(self, "data_items")
         self.session_id = None
         self.start_new_session()
         if self.datastore.initialized:
@@ -53,12 +118,11 @@ class DocumentModel(Storage.StorageBase):
         parent_node, uuid = self.datastore.find_root_node("document")
         self._set_uuid(uuid)
         data_groups = self.datastore.get_items(parent_node, "data_groups")
-        data_items = self.datastore.get_items(parent_node, "data_items")
+        self.__data_item_vault.read_data_items()
         # now update the fields on self, disconnecting the datastore
         # to prevent writing them back out to the database.
         self.datastore.disconnected = True
-        self.__data_items.extend(data_items)
-        for data_item in self.__data_items:
+        for data_item in self.__data_item_vault.data_items:
             data_item.connect_data_source(self.get_data_item_by_uuid)
         for data_group in data_groups:
             self.append_data_group(data_group)
@@ -70,10 +134,10 @@ class DocumentModel(Storage.StorageBase):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
     def append_data_item(self, data_item):
-        self.insert_data_item(len(self.__data_items), data_item)
+        self.insert_data_item(len(self.data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
-        self.__data_items.insert(before_index, data_item)
+        self.__data_item_vault.insert(before_index, data_item)
         data_item.connect_data_source(self.get_data_item_by_uuid)
 
     def remove_data_item(self, data_item):
@@ -84,10 +148,10 @@ class DocumentModel(Storage.StorageBase):
             if other_data_item.data_source == data_item:
                 self.remove_data_item(other_data_item)
         data_item.disconnect_data_source()
-        self.__data_items.remove(data_item)
+        self.__data_item_vault.remove(data_item)
 
     def __get_data_items(self):
-        return tuple(self.__data_items)
+        return tuple(self.__data_item_vault.data_items)
     data_items = property(__get_data_items)
 
     def get_dependent_data_items(self, parent_data_item):
@@ -158,30 +222,6 @@ class DocumentModel(Storage.StorageBase):
             with lena_image_source.data_ref() as data_ref:
                 data_ref.master_data = scipy.misc.lena()
             self.append_data_item(lena_image_source)
-
-    # override from StorageBase.
-    def notify_insert_item(self, key, item, before_index):
-        super(DocumentModel, self).notify_insert_item(key, item, before_index)
-        if key == "data_items":
-            # an item was inserted, start observing
-            data_item = item
-            # become a listener of every data item.
-            # TODO: Document why document model is a listener of data items
-            data_item.add_listener(self)
-            self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
-
-    # override from StorageBase
-    def notify_remove_item(self, key, item, index):
-        super(DocumentModel, self).notify_remove_item(key, item, index)
-        if key == "data_items":
-            # item will be removed, stop observing
-            data_item = item
-            # unlisten to data item
-            data_item.remove_listener(self)
-            # update data item count
-            self.notify_listeners("data_item_removed", self, data_item, index, False)
-            if data_item.get_observer_count(self) == 0:  # ugh?
-                self.notify_listeners("data_item_deleted", data_item)
 
     # this message comes from a data item when it wants to be removed from the document. ugh.
     def request_remove_data_item(self, data_item):

@@ -316,9 +316,7 @@ class DataPanel(Panel.Panel):
                 data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
                 data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
                 if data_item:
-                    data_item_copy = copy.deepcopy(data_item)
-                    self.document_controller.document_model.append_data_item(data_item_copy)
-                    data_group.append_data_item(data_item_copy)
+                    data_group.append_data_item(data_item)
                     return action
                 return self.item_model_controller.NONE
             if mime_data.has_format("text/data_group_uuid"):
