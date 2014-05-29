@@ -87,11 +87,13 @@ class DataSourceList(object):
 
 class DataItemVault(object):
 
-    def __init__(self, data_item=None, properties=None, storage_dict=None, delegate=None):
-        self.__weak_data_item = weakref.ref(data_item) if data_item is not None else None
-        self.__properties = properties if properties is not None else dict()
+    def __init__(self, datastore=None, item_node=None, storage_dict=None, delegate=None):
+        self.datastore = datastore
+        self.__item_node = item_node
+        properties = datastore.get_property(item_node, "properties") if item_node else None
+        self.__properties = properties if properties else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
-        self.__delegate = delegate
+        self.__delegate = delegate  # a delegate item vault for updating properties
         self.data_file_path = None
         self.data_file_type = None
 
@@ -100,7 +102,9 @@ class DataItemVault(object):
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
+    def __set_data_item(self, data_item):
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+    data_item = property(__get_data_item, __set_data_item)
 
     def __get_delegate(self):
         return self.__delegate
@@ -111,13 +115,13 @@ class DataItemVault(object):
     properties = property(__get_properties)
 
     def update_type(self):
-        self.data_item.datastore.set_type(self.data_item, self.data_item.storage_type)
+        self.datastore.set_type(self.data_item, self.data_item.storage_type)
 
     def update_properties(self):
         if self.__delegate:
             self.__delegate.update_properties()
-        elif self.data_item.datastore:
-            self.data_item.datastore.set_property(self.data_item, "properties", self.__properties)
+        elif self.datastore:
+            self.datastore.set_property(self.data_item, "properties", self.__properties)
 
     def insert_item(self, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
@@ -157,26 +161,26 @@ class DataItemVault(object):
         return os.path.join(*path_components)
 
     def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
-        if self.data_item.datastore is not None:
+        if self.datastore is not None:
             if data is not None:
                 data_file_path = self.get_data_file_path()
-                self.data_item.datastore.set_data_reference(self.data_item, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
+                self.datastore.set_data_reference(self.data_item, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
                 file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-                self.data_item.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
+                self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
                 self.data_file_type = "relative_file"
                 self.data_file_path = data_file_path
             elif data_file_path is not None:
-                self.data_item.datastore.set_data_reference(self.data_item, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
+                self.datastore.set_data_reference(self.data_item, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
                 self.data_file_type = "external_file"
                 self.data_file_path = data_file_path
 
     def load_data(self):
         assert self.data_item.has_master_data
-        reference_type, reference = self.data_item.datastore.get_data_reference(self.data_item.datastore.find_parent_node(self.data_item), "master_data")
-        return self.data_item.datastore.load_data_reference("master_data", reference_type, reference)
+        reference_type, reference = self.datastore.get_data_reference(self.datastore.find_parent_node(self.data_item), "master_data")
+        return self.datastore.load_data_reference("master_data", reference_type, reference)
 
     def can_reload_data(self):
-        return self.data_item.datastore is not None
+        return self.datastore is not None
 
     def set_value(self, name, value):
         self.storage_dict[name] = value
@@ -196,6 +200,16 @@ class DataItemVault(object):
         if name in self.storage_dict:
             return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
+
+    def get_master_data_info(self):
+        if not self.datastore:
+            return False, None, None
+        has_master_data = self.datastore.has_data(self.__item_node, "master_data")
+        if has_master_data:
+            master_data_shape, master_data_dtype = self.datastore.get_data_shape_and_dtype(self.__item_node, "master_data")
+        else:
+            master_data_shape, master_data_dtype = None, None
+        return has_master_data, master_data_shape, master_data_dtype
 
 
 # data items will represents a numpy array. the numpy array
@@ -249,10 +263,11 @@ SOURCE = 4
 
 class DataItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
 
-    def __init__(self, data=None, properties=None, create_display=True):
+    def __init__(self, data=None, vault=None, create_display=True):
         super(DataItem, self).__init__()
+        self.vault = vault if vault else DataItemVault()
+        self.vault.data_item = self
         self.storage_type = "data-item"
-        self.__datastore = None
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
@@ -282,11 +297,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__cached_data = None
         self.__cached_data_dirty = True
         # master data shape and dtype are always valid if there is no data source.
+        has_master_data, master_data_shape, master_data_dtype = self.vault.get_master_data_info()
+        self.__has_master_data = has_master_data
         self.__master_data = None
-        self.__master_data_shape = None
-        self.__master_data_dtype = None
+        self.__master_data_shape = master_data_shape
+        self.__master_data_dtype = master_data_dtype
         self.master_data_save_event = threading.Event()
-        self.__has_master_data = False
         self.__data_source = None
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
@@ -296,34 +312,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
-        self.vault = DataItemVault(self, properties)
-        self.__set_master_data(data)
+        if data is not None:
+            self.__set_master_data(data)
+        self.read_storage(self.vault)
+        properties = self.vault.properties
+        for key in properties.keys():
+            if key not in self.property_names and key not in self.relationship_names:
+                self.__metadata.setdefault(key, dict()).update(properties[key])
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
-
-    @classmethod
-    def build(cls, datastore, item_node):
-        properties = datastore.get_property(item_node, "properties")
-        properties = properties if properties else dict()
-        has_master_data = datastore.has_data(item_node, "master_data")
-        if has_master_data:
-            master_data_shape, master_data_dtype = datastore.get_data_shape_and_dtype(item_node, "master_data")
-        else:
-            master_data_shape, master_data_dtype = None, None
-        data_item = DataItem(properties=properties, create_display=False)
-        data_item.__master_data_shape = master_data_shape
-        data_item.__master_data_dtype = master_data_dtype
-        data_item.__has_master_data = has_master_data
-        data_item.read_storage(data_item.vault)
-        for key in properties.keys():
-            if key not in data_item.property_names and key not in data_item.relationship_names:
-                data_item.__metadata.setdefault(key, dict()).update(properties[key])
-        data_item.sync_intrinsic_spatial_calibrations()
-        assert(len(data_item.displays) > 0)
-        return data_item
 
     # This gets called when reference count goes to 0, but before deletion.
     def about_to_delete(self):
@@ -427,12 +427,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __get_parents(self):
         return [weak_parent() for weak_parent in self.__weak_parents]
     parents = property(__get_parents)
-
-    def __get_datastore(self):
-        return self.__datastore
-    def __set_datastore(self, datastore):
-        self.__datastore = datastore
-    datastore = property(__get_datastore, __set_datastore)
 
     def _is_cache_delayed(self):
         return self.__transaction_count > 0
@@ -925,7 +919,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.master_data_save_event.set()
 
     def __load_master_data(self):
-        # load data from datastore if not present
+        # load data from vault if data is not already loaded
         if self.has_master_data and self.__master_data is None and self.vault.can_reload_data():
             #logging.debug("loading %s", self)
             self.__master_data = self.vault.load_data()

@@ -39,14 +39,16 @@ class DbDataItemVault(object):
         document_model = self.__weak_document_model()
         parent_node, uuid = self.__datastore.find_root_node("document")
         def build_data_item(uuid_, item_node):
-            data_item = DataItem.DataItem.build(self.__datastore, item_node)
+            vault = DataItem.DataItemVault(self.__datastore, item_node)
+            data_item = DataItem.DataItem(vault=vault, create_display=False)
+            assert(len(data_item.displays) > 0)
             data_item._set_uuid(uuid_)
             return data_item
         data_items = self.__datastore.get_items(parent_node, "data_items", build_data_item)
         for index, data_item in enumerate(data_items):
             data_item.add_ref()
             self.__data_items.insert(index, data_item)
-            data_item.datastore = self.__datastore
+            data_item.sync_intrinsic_spatial_calibrations()
             data_item.storage_cache = self.__storage_cache
             data_item.add_listener(document_model)
 
@@ -62,7 +64,7 @@ class DbDataItemVault(object):
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
         # keep storage up-to-date
-        data_item.datastore = self.__datastore
+        data_item.vault.datastore = self.__datastore
         self.__datastore.insert_item(document_model, "data_items", data_item, before_index)
         data_item.storage_cache = self.__storage_cache
         # be a listener. why?
@@ -80,7 +82,7 @@ class DbDataItemVault(object):
         del self.__data_items[index]
         # keep storage up-to-date
         self.__datastore.remove_item(document_model, "data_items", index)
-        data_item.datastore = None
+        data_item.vault.datastore = None
         data_item.__storage_cache = None
         # unlisten to data item
         data_item.remove_listener(document_model)
