@@ -74,12 +74,14 @@ _ = gettext.gettext
 class DataGroup(Storage.StorageBase):
     def __init__(self):
         super(DataGroup, self).__init__()
-        self.storage_properties += ["title"]
-        self.storage_relationships += ["data_groups", "data_items"]
+        self.storage_properties += ["title", "data_item_uuids"]
+        self.storage_relationships += ["data_groups"]
         self.storage_type = "data-group"
         self.__title = None
+        self.__data_item_uuids = list()
+        self.__get_data_item_by_uuid = None
         self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.__data_items = Storage.MutableRelationship(self, "data_items")
+        self.__data_items = list()
         self.__counted_data_items = collections.Counter()
         self.__moving = False  # ugh
 
@@ -89,68 +91,93 @@ class DataGroup(Storage.StorageBase):
     @classmethod
     def build(cls, datastore, item_node, uuid_):
         title = datastore.get_property(item_node, "title")
+        data_item_uuids = datastore.get_property(item_node, "data_item_uuids")
         data_groups = datastore.get_items(item_node, "data_groups")
-        data_items = datastore.get_items(item_node, "data_items")
         data_group = cls()
         data_group.title = title
         data_group.data_groups.extend(data_groups)
-        for data_item in data_items:
-            data_group.append_data_item(data_item)
+        data_group.__data_item_uuids = data_item_uuids
         return data_group
 
     # This gets called when reference count goes to 0, but before deletion.
     def about_to_delete(self):
         for data_group in copy.copy(self.data_groups):
             self.data_groups.remove(data_group)
-        for data_item in copy.copy(self.data_items):
-            self.remove_data_item(data_item)
         super(DataGroup, self).about_to_delete()
 
     def __deepcopy__(self, memo):
         data_group_copy = DataGroup()
         data_group_copy.title = self.title
+        data_group_copy.__data_item_uuids = self.__data_item_uuids
         # data groups get deep copied
         for data_group in self.data_groups:
-            data_group_copy.data_groups.append(copy.deepcopy(data_group, memo))
-        # data items do not get deep copied since they are only references anyway
-        for data_item in self.data_items:
-            data_group_copy.append_data_item(data_item)
+            data_group_copy.append_data_group(copy.deepcopy(data_group, memo))
         memo[id(self)] = data_group_copy
         return data_group_copy
 
+    def connect_data_items(self, lookup_data_item):
+        for data_group in self.data_groups:
+            data_group.connect_data_items(lookup_data_item)
+        for data_item_uuid in self.__data_item_uuids:
+            data_item = lookup_data_item(data_item_uuid)
+            if data_item is None:
+                import logging
+                logging.debug("data_item not found %s", data_item_uuid)
+            assert data_item is not None
+            self.__data_items.append(data_item)
+        self.__get_data_item_by_uuid = lookup_data_item
+
+    def disconnect_data_items(self):
+        for data_group in self.data_groups:
+            data_group.disconnect_data_items()
+        self.__get_data_item_by_uuid = None
+
     def append_data_item(self, data_item):
-        self.__data_items.append(data_item)
+        self.insert_data_item(len(self.__data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
+        assert data_item not in self.__data_items
         self.__data_items.insert(before_index, data_item)
+        self.notify_listeners("data_item_inserted", self, data_item, before_index, self.__moving)
+        self.update_counted_data_items(collections.Counter([data_item]))
+        self.__data_item_uuids.insert(before_index, data_item.uuid)
+        self.notify_set_property("data_item_uuids", self.__data_item_uuids)
 
     def remove_data_item(self, data_item):
+        index = self.__data_items.index(data_item)
         self.__data_items.remove(data_item)
+        self.subtract_counted_data_items(collections.Counter([data_item]))
+        self.notify_listeners("data_item_removed", self, data_item, index, self.__moving)
+        self.__data_item_uuids.remove(data_item.uuid)
+        self.notify_set_property("data_item_uuids", self.__data_item_uuids)
 
     def __get_data_items(self):
         return tuple(self.__data_items)
     data_items = property(__get_data_items)
 
-    # smart groups don't participate in the storage model directly. so allow
-    # listeners an alternative way of hearing about data items being inserted
-    # or removed via data_item_inserted and data_item_removed messages.
+    def append_data_group(self, data_group):
+        self.insert_data_group(len(self.data_groups), data_group)
+
+    def insert_data_group(self, before_index, data_group):
+        self.data_groups.insert(before_index, data_group)
+        if self.__get_data_item_by_uuid:
+            data_group.connect_data_items(self.__get_data_item_by_uuid)
+
+    def remove_data_group(self, data_group):
+        data_group.disconnect_data_items()
+        self.data_groups.remove(data_group)
 
     # override from StorageBase.
     # watch for insertions to data_items and data_groups so that smart filters get updated.
     def notify_insert_item(self, key, value, before_index):
         super(DataGroup, self).notify_insert_item(key, value, before_index)
-        if key == "data_items":
-            self.notify_listeners("data_item_inserted", self, value, before_index, self.__moving)
-            self.update_counted_data_items(collections.Counter([value]))
         if key == "data_groups":
             self.update_counted_data_items(value.counted_data_items)
+
     # override from StorageBase
     # watch for removals from data_items and data_groups so that smart filters get updated.
     def notify_remove_item(self, key, value, index):
         super(DataGroup, self).notify_remove_item(key, value, index)
-        if key == "data_items":
-            self.subtract_counted_data_items(collections.Counter([value]))
-            self.notify_listeners("data_item_removed", self, value, index, self.__moving)
         if key == "data_groups":
             self.subtract_counted_data_items(value.counted_data_items)
 
@@ -161,6 +188,11 @@ class DataGroup(Storage.StorageBase):
         self.__title = value
         self.notify_set_property("title", value)
     title = property(__get_title, __set_title)
+
+    # data_item_uuids
+    def __get_data_item_uuids(self):
+        return tuple(self.__data_item_uuids)
+    data_item_uuids = property(__get_data_item_uuids)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items

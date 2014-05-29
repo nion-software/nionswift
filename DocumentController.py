@@ -463,13 +463,13 @@ class DocumentController(Observable.Broadcaster):
     def add_group(self):
         data_group = DataGroup.DataGroup()
         data_group.title = _("Untitled Group")
-        self.document_model.data_groups.insert(0, data_group)
+        self.document_model.insert_data_group(0, data_group)
 
     def remove_data_group_from_container(self, data_group, container):
         data_group_empty = len(data_group.data_items) == 0 and len(data_group.data_groups) == 0
         if data_group_empty:
             assert data_group in container.data_groups
-            container.data_groups.remove(data_group)
+            container.remove_data_group(data_group)
 
     def add_line_graphic(self):
         display = self.selected_display

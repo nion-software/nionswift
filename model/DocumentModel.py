@@ -46,7 +46,7 @@ class DocumentModel(Storage.StorageBase):
         while len(self.data_items) > 0:
             self.remove_data_item(self.data_items[-1])
         for data_group in copy.copy(self.data_groups):
-            self.data_groups.remove(data_group)
+            self.remove_data_group(data_group)
 
     def __read(self):
         # first read the items
@@ -57,10 +57,13 @@ class DocumentModel(Storage.StorageBase):
         # now update the fields on self, disconnecting the datastore
         # to prevent writing them back out to the database.
         self.datastore.disconnected = True
-        self.data_groups.extend(data_groups)
         self.__data_items.extend(data_items)
         for data_item in self.__data_items:
             data_item.connect_data_source(self.get_data_item_by_uuid)
+        for data_group in data_groups:
+            self.append_data_group(data_group)
+        for data_group in self.data_groups:
+            data_group.connect_data_items(self.get_data_item_by_uuid)
         self.datastore.disconnected = False
 
     def start_new_session(self):
@@ -90,12 +93,22 @@ class DocumentModel(Storage.StorageBase):
     def get_dependent_data_items(self, parent_data_item):
         return [data_item for data_item in self.data_items if data_item.data_source == parent_data_item]
 
+    def append_data_group(self, data_group):
+        self.insert_data_group(len(self.data_groups), data_group)
+
+    def insert_data_group(self, before_index, data_group):
+        self.data_groups.insert(before_index, data_group)
+
+    def remove_data_group(self, data_group):
+        data_group.disconnect_data_items()
+        self.data_groups.remove(data_group)
+
     def create_default_data_groups(self):
         # ensure there is at least one group
         if len(self.data_groups) < 1:
             data_group = DataGroup.DataGroup()
             data_group.title = _("My Data")
-            self.data_groups.append(data_group)
+            self.append_data_group(data_group)
 
     def create_sample_images(self, resources_path):
         if True:
@@ -358,5 +371,5 @@ class DocumentModel(Storage.StorageBase):
             # we create a new group
             data_group = DataGroup.DataGroup()
             data_group.title = group_name
-            self.data_groups.insert(0, data_group)
+            self.insert_data_group(0, data_group)
         return data_group

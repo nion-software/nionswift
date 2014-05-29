@@ -53,7 +53,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             data_group = DataGroup.DataGroup()
-            document_model.data_groups.append(data_group)
+            document_model.append_data_group(data_group)
             data_group.append_data_item(data_item1)
             data_group.append_data_item(data_item2)
             self.assertEqual(data_group.counted_data_items[data_item1], 1)

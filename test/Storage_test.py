@@ -55,7 +55,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data_item2 = DataItem.DataItem(scipy.misc.lena())
         document_controller.document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -68,6 +68,8 @@ class TestStorageClass(unittest.TestCase):
         data_item2b.add_data_source(data_item2)
         data_group.append_data_item(data_item2a)
         data_group.append_data_item(data_item2b)
+        document_controller.document_model.append_data_item(data_item2a)
+        document_controller.document_model.append_data_item(data_item2b)
         image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
         document_controller.selected_image_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
@@ -169,7 +171,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
         with data_item.data_ref() as data_ref:
@@ -194,7 +196,7 @@ class TestStorageClass(unittest.TestCase):
             # add the data group first so that if datastore is not disconnected,
             # writes will happen immediately to the database.
             data_group = DataGroup.DataGroup()
-            document_model.data_groups.append(data_group)
+            document_model.append_data_group(data_group)
             datastore.disconnected = True
             datastore._throttling = 0.004  # 4ms
             for i in xrange(10):
@@ -223,7 +225,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         thread = threading.Thread(target=self.update_data, args=[data_item])
         thread.start()
         thread.join()
@@ -244,28 +246,26 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        # insert two items at beginning. this generates primary key error unless key updating is carefully handled
-        data_item4 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_model.append_data_item(data_item4)
-        document_controller.document_model.data_groups[0].insert_data_item(0, data_item4)
-        data_item5 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_model.append_data_item(data_item5)
-        document_controller.document_model.data_groups[0].insert_data_item(0, data_item5)
+        # insert and append items
+        data_group1 = DataGroup.DataGroup()
+        data_group2 = DataGroup.DataGroup()
+        data_group3 = DataGroup.DataGroup()
+        document_controller.document_model.data_groups[0].append_data_group(data_group1)
+        document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
+        document_controller.document_model.data_groups[0].append_data_group(data_group3)
         c = datastore.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 4", (str(document_controller.document_model.data_groups[0].uuid), ))
-        self.assertEqual(c.fetchone()[0], 5)
+        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_groups' AND item_index BETWEEN 0 and 2", (str(document_controller.document_model.data_groups[0].uuid), ))
+        self.assertEqual(c.fetchone()[0], 3)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
-        data_item6 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_model.append_data_item(data_item6)
-        document_controller.document_model.data_groups[0].insert_data_item(1, data_item6)
-        data_item7 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        document_model.append_data_item(data_item7)
-        document_controller.document_model.data_groups[0].insert_data_item(1, data_item7)
-        document_controller.document_model.data_groups[0].remove_data_item(document_controller.document_model.data_groups[0].data_items[2])
+        data_group4 = DataGroup.DataGroup()
+        data_group5 = DataGroup.DataGroup()
+        document_controller.document_model.data_groups[0].insert_data_group(1, data_group4)
+        document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
+        document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
         # make sure indexes are in sequence still
         c = datastore.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_items' AND item_index BETWEEN 0 and 5", (str(document_controller.document_model.data_groups[0].uuid), ))
-        self.assertEqual(c.fetchone()[0], 6)
+        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_groups' AND item_index BETWEEN 0 and 3", (str(document_controller.document_model.data_groups[0].uuid), ))
+        self.assertEqual(c.fetchone()[0], 4)
 
     def test_copy_data_group(self):
         db_name = ":memory:"
@@ -274,19 +274,19 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
-        document_controller.document_model.data_groups.append(data_group1)
+        document_controller.document_model.append_data_group(data_group1)
         data_group1a = DataGroup.DataGroup()
-        data_group1.data_groups.append(data_group1a)
+        data_group1.append_data_group(data_group1a)
         data_group1b = DataGroup.DataGroup()
-        data_group1.data_groups.append(data_group1b)
+        data_group1.append_data_group(data_group1b)
         data_group2 = DataGroup.DataGroup()
-        document_controller.document_model.data_groups.append(data_group2)
+        document_controller.document_model.append_data_group(data_group2)
         data_group2a = DataGroup.DataGroup()
-        data_group2.data_groups.append(data_group2a)
+        data_group2.append_data_group(data_group2a)
         data_group2b = DataGroup.DataGroup()
-        data_group2.data_groups.append(data_group2b)
+        data_group2.append_data_group(data_group2b)
         data_group2b1 = DataGroup.DataGroup()
-        data_group2b.data_groups.append(data_group2b1)
+        data_group2b.append_data_group(data_group2b1)
         data_group2_copy = copy.deepcopy(data_group2)
         data_group2_copy.add_ref()
         data_group2_copy.remove_ref()
@@ -320,7 +320,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_model.add_ref()
         data_group = DataGroup.DataGroup()
-        document_model.data_groups.append(data_group)
+        document_model.append_data_group(data_group)
         data_item = DataItem.DataItem()
         data_item.title = 'title'
         with data_item.transaction():

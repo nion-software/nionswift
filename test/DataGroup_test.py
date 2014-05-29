@@ -31,7 +31,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_group.append_data_item(data_item1)
             data_group2 = DataGroup.DataGroup()
-            data_group.data_groups.append(data_group2)
+            data_group.append_data_group(data_group2)
             # attempt to copy
             data_group_copy = copy.deepcopy(data_group)
             with data_group_copy.ref():
@@ -45,7 +45,7 @@ class TestDataGroupClass(unittest.TestCase):
             data_group.append_data_item(data_item)
             data_group_copy = copy.deepcopy(data_group)
             with data_group_copy.ref():
-                self.assertEqual(data_item, data_group_copy.data_items[0])
+                self.assertEqual(data_item.uuid, data_group_copy.data_item_uuids[0])
 
     def test_counted_data_items(self):
         # TODO: split test_counted_data_items into separate tests
@@ -53,7 +53,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
-        document_model.data_groups.append(data_group)
+        document_model.append_data_group(data_group)
         self.assertEqual(len(data_group.counted_data_items), 0)
         self.assertEqual(len(document_model.data_items), 0)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -156,8 +156,6 @@ class TestDataGroupClass(unittest.TestCase):
             data_item_child = DataItem.DataItem()
             data_item_child.add_data_source(data_item)
             document_model.append_data_item(data_item_child)
-
-# TODO: add test for smart group updated when calibration changes (use smart group of pixel < 1nm)
 
 if __name__ == '__main__':
     unittest.main()

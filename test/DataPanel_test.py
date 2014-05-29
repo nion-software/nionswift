@@ -39,7 +39,7 @@ class TestDataPanelClass(unittest.TestCase):
         #   data_item3
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_model.data_groups.append(data_group)
+        document_model.append_data_group(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -92,8 +92,8 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.title = "parent_data_group"
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        parent_data_group.data_groups.append(data_group)
-        document_controller.document_model.data_groups.append(parent_data_group)
+        parent_data_group.append_data_group(data_group)
+        document_controller.document_model.append_data_group(parent_data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -138,15 +138,15 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.title = "parent_data_group"
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "Group 1"
-        parent_data_group.data_groups.append(data_group1)
+        parent_data_group.append_data_group(data_group1)
         document_model.append_data_item(data_item1)
         data_group1.append_data_item(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group2.title = "Group 2"
-        parent_data_group.data_groups.append(data_group2)
+        parent_data_group.append_data_group(data_group2)
         document_model.append_data_item(data_item2)
         data_group2.append_data_item(data_item2)
-        document_controller.document_model.data_groups.append(parent_data_group)
+        document_controller.document_model.append_data_group(parent_data_group)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
@@ -258,7 +258,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -281,7 +281,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -302,7 +302,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -324,7 +324,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         data_group.append_data_item(data_item1)
@@ -365,7 +365,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.title = "data_item"
         data_group = DataGroup.DataGroup()
-        document_controller.document_model.data_groups.append(data_group)
+        document_controller.document_model.append_data_group(data_group)
         document_model.append_data_item(data_item)
         data_group.append_data_item(data_item)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
@@ -383,11 +383,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1.title = "Green 1"
         document_model.append_data_item(data_item1)
         data_group1.append_data_item(data_item1)
-        document_controller.document_model.data_groups.append(data_group1)
+        document_controller.document_model.append_data_group(data_group1)
         green_group = DataGroup.DataGroup()
         green_group.title = "green_group"
         green_group.append_data_item(data_item1)
-        document_controller.document_model.data_groups.insert(0, green_group)
+        document_controller.document_model.insert_data_group(0, green_group)
         self.assertEqual(len(green_group.data_items), 1)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
@@ -406,8 +406,8 @@ class TestDataPanelClass(unittest.TestCase):
         green_group = DataGroup.DataGroup()
         green_group.title = "green_group"
         green_group.append_data_item(data_item1)
-        document_controller.document_model.data_groups.insert(0, green_group)
-        document_controller.document_model.data_groups.append(data_group1)
+        document_controller.document_model.insert_data_group(0, green_group)
+        document_controller.document_model.append_data_group(data_group1)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         self.assertTrue(data_item1 in data_group1.data_items)

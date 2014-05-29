@@ -327,9 +327,9 @@ class DataPanel(Panel.Panel):
                 if data_group:
                     data_group_copy = copy.deepcopy(data_group)
                     if row >= 0:
-                        container.data_groups.insert(row, data_group_copy)
+                        container.insert_data_group(row, data_group_copy)
                     else:
-                        container.data_groups.append(data_group_copy)
+                        container.append_data_group(data_group_copy)
                     return action
             return self.item_model_controller.NONE
 
