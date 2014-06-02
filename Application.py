@@ -466,13 +466,14 @@ class Application(object):
                     if result is not None:
                         properties["master_data_shape"] = pickle.loads(str(result[0]))
                         properties["master_data_dtype"] = str(pickle.loads(str(result[1])))
-                        existing_reference = result[2]
+                        existing_reference = os.path.splitext(result[2])[0]
+                    c.execute("UPDATE data_references SET reference=? WHERE uuid=? AND key='master_data'", (existing_reference, str(parent_uuid), ))
                     properties["uuid"] = str(parent_uuid)
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
                     # write properties to a file
-                    def get_data_file_path(uuid_, datetime_item, session_id):
+                    def get_default_reference(uuid_, datetime_item, session_id):
                         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
                         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
                         # also:
@@ -490,16 +491,16 @@ class Application(object):
                         path_components = datetime_.strftime("%Y-%m-%d").split('-')
                         session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
                         path_components.append(session_id)
-                        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+                        path_components.append("data_" + encoded_uuid_str)
                         return os.path.join(*path_components)
                     if existing_reference:
                         data_file_path = existing_reference
                     else:
-                        data_file_path = get_data_file_path(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
-                    data_file_path = os.path.splitext(data_file_path)[0] + ".mtd"
+                        data_file_path = get_default_reference(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
+                    reference = os.path.splitext(data_file_path)[0]
                     file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                     data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
-                    data_reference_handler.write_properties(properties, "relative_file", data_file_path, file_datetime)
+                    data_reference_handler.write_properties(properties, "relative_file", reference, file_datetime)
                 c.execute("UPDATE version SET version = ?", (10, ))
                 datastore.conn.commit()
                 version = 10
@@ -579,36 +580,97 @@ class Application(object):
         Test.run_all_tests()
 
 
+class MtdHandler(object):
+
+    def __init__(self, data_dir):
+        self.__data_dir = data_dir
+
+    def get_reference(self, file_path):
+        relative_file = os.path.relpath(file_path, self.__data_dir)
+        return os.path.splitext(relative_file)[0]
+
+    def is_matching(self, filename):
+        return filename.endswith(".mtd")
+
+    def write_data(self, reference, data, file_datetime):
+        assert data is not None
+        data_file_path = reference + ".nsdata"
+        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
+        #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+        pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
+        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+        os.utime(absolute_file_path, (time.time(), timestamp))
+
+    def write_properties(self, reference, properties, file_datetime):
+        data_file_path = reference + ".mtd"
+        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
+        #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
+        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+        with open(absolute_file_path, "w") as fp:
+            json.dump(properties, fp)
+        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+        os.utime(absolute_file_path, (time.time(), timestamp))
+
+    def read_properties(self, reference):
+        data_file_path = reference + ".mtd"
+        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
+        with open(absolute_file_path) as fp:
+            properties = json.load(fp)
+            item_uuid = uuid.UUID(properties["uuid"])
+        return item_uuid, properties
+
+    def read_data(self, reference):
+        data_file_path = reference + ".nsdata"
+        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
+        #logging.debug("READ data file %s", absolute_file_path)
+        if os.path.isfile(absolute_file_path):
+            return pickle.load(open(absolute_file_path, "rb"))
+        return None
+
+    def remove(self, reference):
+        for suffix in ["mtd", "nsdata"]:
+            data_file_path = reference + "." + suffix
+            absolute_file_path = os.path.join(self.__data_dir, data_file_path)
+            #logging.debug("DELETE data file %s", absolute_file_path)
+            if os.path.isfile(absolute_file_path):
+                os.remove(absolute_file_path)
+
+
 class DataReferenceHandler(object):
 
     def __init__(self, ui, workspace_dir):
         self.ui = ui
         self.workspace_dir = workspace_dir
+        self.__data_dir = os.path.join(self.workspace_dir, "Nion Swift Data")
+        self.__file_handler = MtdHandler(self.__data_dir)
+        assert self.workspace_dir
+
+    def find_data_item_tuples(self):
+        tuples = []
+        #logging.debug("data_dir %s", self.__data_dir)
+        for root, dirs, files in os.walk(self.__data_dir):
+            data_files = [os.path.join(root, data_file) for data_file in filter(self.__file_handler.is_matching, files)]
+            for data_file in data_files:
+                reference_type = "relative_file"
+                reference = self.__file_handler.get_reference(data_file)
+                item_uuid, properties = self.__file_handler.read_properties(reference)
+                tuples.append((item_uuid, properties, reference_type, reference))
+                #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
+        return tuples
 
     def load_data_reference(self, reference_type, reference):
         #logging.debug("load data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
-            assert self.workspace_dir
-            data_file_path = reference
-            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("READ data file %s", absolute_file_path)
-            if os.path.isfile(absolute_file_path):
-                return pickle.load(open(absolute_file_path, "rb"))
+            return self.__file_handler.read_data(reference)
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         #logging.debug("write data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
-            assert data is not None
-            data_file_path = reference
-            data_file_datetime = file_datetime
-            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-            pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
-            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-            os.utime(absolute_file_path, (time.time(), timestamp))
+            self.__file_handler.write_data(reference, data, file_datetime)
         else:
             logging.debug("Cannot write master data %s %s", reference_type, reference)
             raise NotImplementedError()
@@ -616,16 +678,7 @@ class DataReferenceHandler(object):
     def write_properties(self, properties, reference_type, reference, file_datetime):
         #logging.debug("write data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
-            data_file_path = reference
-            data_file_datetime = file_datetime
-            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-            with open(absolute_file_path, "w") as fp:
-                json.dump(properties, fp)
-            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-            os.utime(absolute_file_path, (time.time(), timestamp))
+            self.__file_handler.write_properties(reference, properties, file_datetime)
         else:
             logging.debug("Cannot write properties %s %s", reference_type, reference)
             raise NotImplementedError()
@@ -633,11 +686,7 @@ class DataReferenceHandler(object):
     def remove_data_reference(self, reference_type, reference):
         #logging.debug("remove data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
-            data_file_path = reference
-            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("DELETE data file %s", absolute_file_path)
-            if os.path.isfile(absolute_file_path):
-                os.remove(absolute_file_path)
+            self.__file_handler.remove(reference)
         else:
             logging.debug("Cannot remove master data %s %s", reference_type, reference)
             raise NotImplementedError()

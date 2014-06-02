@@ -131,7 +131,7 @@ class DataItemMemoryVault(object):
         del item_list[index]
         self.update_properties()
 
-    def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
+    def update_data(self, data_shape, data_dtype, data=None):
         pass
 
     def set_value(self, name, value):
@@ -406,13 +406,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             transaction_count = self.__transaction_count
         if transaction_count == 0:
             self.spill_cache()
-            self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+            self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
             self.master_data_save_event.set()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
         self.vault.update_properties()
-        self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+        self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
         self.master_data_save_event.set()
 
     def get_data_file_info(self):

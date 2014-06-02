@@ -73,7 +73,7 @@ class DataItemVault(object):
         del item_list[index]
         self.update_properties()
 
-    def get_data_file_path(self):
+    def get_default_reference(self):
         uuid_ = self.data_item.uuid
         datetime_item = self.data_item.datetime_original
         session_id = self.data_item.session_id
@@ -94,24 +94,20 @@ class DataItemVault(object):
         path_components = datetime_.strftime("%Y-%m-%d").split('-')
         session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
         path_components.append(session_id)
-        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+        path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
 
     def ensure_reference_valid(self):
         if not self.reference:
             self.reference_type = "relative_file"
-            self.reference = self.get_data_file_path()
+            self.reference = self.get_default_reference()
 
-    def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
+    def update_data(self, data_shape, data_dtype, data=None):
         if self.datastore is not None:
             if data is not None:
                 self.ensure_reference_valid()
-                data_file_path = self.reference
-                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
                 file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-                self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
-                self.reference_type = "relative_file"
-                self.reference = data_file_path
+                self.datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data

@@ -707,7 +707,7 @@ class DictDatastore(object):
         item_properties = item_node.setdefault("properties", {})
         item_properties["properties"] = copy.deepcopy(properties)  # ugh
 
-    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+    def set_root_data(self, item_uuid, data, data_shape, data_dtype, reference, file_datetime):
         if self.disconnected:
             return
         if data is None:
@@ -715,9 +715,10 @@ class DictDatastore(object):
         # get the item node
         item_node = self.__node_map[item_uuid]
         # insert new node in parent
+        key = "master_data"
         data_arrays = item_node.setdefault("data_arrays", {})
         data_arrays[key] = copy.deepcopy(data)
-        item_node.setdefault("reference_types", {})[key] = reference_type
+        item_node.setdefault("reference_types", {})[key] = "relative_file"
         item_node.setdefault("references", {})[key] = reference
         item_node.setdefault("data_shapes", {})[key] = data_shape
         item_node.setdefault("data_dtypes", {})[key] = data_dtype
@@ -779,6 +780,9 @@ class TestDataReferenceHandler(object):
 
     def from_data(self, data):
         self.data = copy.copy(data)
+
+    def find_data_item_tuples(self):
+        return None
 
     def load_data_reference(self, reference_type, reference):
         #logging.debug("load data reference %s %s", reference_type, reference)
@@ -1190,24 +1194,9 @@ class DbDatastore(object):
     # alternate, direct interface to db
 
     def find_data_item_tuples(self):
-        tuples = []
-        workspace_dir = self.data_reference_handler.workspace_dir if hasattr(self.data_reference_handler, "workspace_dir") else None
-        if workspace_dir:
-            data_dir = os.path.join(self.data_reference_handler.workspace_dir, "Nion Swift Data")
-            #logging.debug("data_dir %s", data_dir)
-            for root, dirs, files in os.walk(data_dir):
-                mtd_files = [os.path.join(root, mtd_file) for mtd_file in filter(lambda filename: filename.endswith(".mtd"), files)]
-                for mtd_file in mtd_files:
-                    with open(mtd_file) as fp:
-                        properties = json.load(fp)
-                        item_uuid_str = properties["uuid"]
-                        mtd_relative_file = os.path.relpath(mtd_file, data_dir)
-                        source_file_path = properties.get("source_file_path")
-                        reference_type = "relative_file"
-                        reference = os.path.splitext(mtd_relative_file)[0] + ".nsdata"
-                        tuples.append((uuid.UUID(item_uuid_str), properties, reference_type, reference))
-                        #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
-        else:
+        tuples = self.data_reference_handler.find_data_item_tuples()
+        if tuples is None:
+            tuples = list()
             c = self.conn.cursor()
             c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
             for row in c.fetchall():
@@ -1252,14 +1241,14 @@ class DbDatastore(object):
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item_uuid), "properties", sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
         # write to the file too
-        data_file_path = os.path.splitext(reference)[0] + ".mtd"
-        self.write_properties(properties, "relative_file", data_file_path, file_datetime)
+        self.write_properties(properties, "relative_file", reference, file_datetime)
 
-    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+    def set_root_data(self, item_uuid, data, data_shape, data_dtype, reference, file_datetime):
         if not self.disconnected:
             c = self.conn.cursor()
-            db_write_data_reference(c, item_uuid, key, data_shape, data_dtype, reference_type, reference)
+            db_write_data_reference(c, item_uuid, "master_data", data_shape, data_dtype, "relative_file", reference)
             self.conn.commit()
+        self.write_data_reference(data, "relative_file", reference, file_datetime)
 
     def get_root_data_reference(self, item_uuid, key):
         c = self.conn.cursor()
@@ -1465,9 +1454,9 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.set_root_properties, self.__datastore, item_uuid, properties, reference, file_datetime), event, "set_root_properties"))
         #event.wait()
 
-    def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
+    def set_root_data(self, item_uuid, data, data_shape, data_dtype, reference, file_datetime):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_root_data_reference, self.__datastore, item_uuid, key, data, data_shape, data_dtype, reference_type, reference), event, "set_root_data_reference"))
+        self.__queue.put((functools.partial(DbDatastore.set_root_data, self.__datastore, item_uuid, data, data_shape, data_dtype, reference, file_datetime), event, "set_root_data"))
         #event.wait()
 
     def get_root_data_reference(self, item_uuid, key):
