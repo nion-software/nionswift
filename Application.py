@@ -32,6 +32,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
+from nion.swift.model import Utility
 
 _ = gettext.gettext
 
@@ -78,6 +79,7 @@ class Application(object):
         documents_dir = self.ui.get_document_location()
         workspace_dir = os.path.join(documents_dir, "Nion Swift Workspace")
         workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
+        self.workspace_dir = workspace_dir
         db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
         cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
         create_new_document = not os.path.exists(db_filename)
@@ -467,6 +469,33 @@ class Application(object):
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
+                    # write properties to a file
+                    def get_data_file_path(uuid_, datetime_item, session_id):
+                        # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
+                        # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
+                        # also:
+                        def encode(uuid_, alphabet):
+                            result = str()
+                            uuid_int = uuid_.int
+                            while uuid_int:
+                                uuid_int, digit = divmod(uuid_int, len(alphabet))
+                                result += alphabet[digit]
+                            return result
+                        encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
+                        datetime_item = datetime_item if datetime_item else Utility.get_current_datetime_item()
+                        datetime_ = Utility.get_datetime_from_datetime_item(datetime_item)
+                        datetime_ = datetime_ if datetime_ else datetime.datetime.now()
+                        path_components = datetime_.strftime("%Y-%m-%d").split('-')
+                        session_id = session_id if session_id else datetime_.strftime("%Y%m%d-000000")
+                        path_components.append(session_id)
+                        path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
+                        return os.path.join(*path_components)
+                    data_file_path = get_data_file_path(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
+                    data_file_path = os.path.splitext(data_file_path)[0] + ".mtd"
+                    file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
+                    data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
+                    data_reference_handler.write_properties(properties, "relative_file", data_file_path, file_datetime)
+                    logging.debug(data_file_path)
                 c.execute("UPDATE version SET version = ?", (10, ))
                 datastore.conn.commit()
                 version = 10
