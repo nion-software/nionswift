@@ -199,18 +199,6 @@ class Cacheable(object):
 # will be removed when the reference count goes to zero.
 #
 
-"""
-    Users are able to suspend immediate writing of objects to the database
-    using begin/end transaction methods.
-
-    Begin/end transaction will also function on items and relationships.
-
-    If an item disappears during a transaction, it will remain in the database
-    until this object ends its transaction, at which point it will be removed
-    if it is not referenced by anything else.
-"""
-
-
 class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Cacheable):
 
     def __init__(self):
@@ -219,12 +207,9 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
         self.storage_properties = []
         self.storage_relationships = []
         self.storage_items = []
-        self.storage_data_keys = []
         self.storage_type = None
         self.__reverse_aliases = dict()
         self.__weak_parents = []
-        self.__transaction_count = 0
-        self.__transaction_count_mutex = threading.RLock()
         self.__uuid = uuid.uuid4()
 
     def __del__(self):
@@ -294,42 +279,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
                 item.storage_cache = storage_cache
         super(StorageBase, self).set_storage_cache(storage_cache)
 
-    def _is_cache_delayed(self):
-        return self.__transaction_count > 0
-
-    def transaction(self):
-        class TransactionContextManager(object):
-            def __init__(self, object):
-                self.__object = object
-            def __enter__(self):
-                self.__object.begin_transaction()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__object.end_transaction()
-        return TransactionContextManager(self)
-
-    def __get_transaction_count(self):
-        return self.__transaction_count
-    transaction_count = property(__get_transaction_count)
-
-    def begin_transaction(self, count=1):
-        #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
-        assert count > 0
-        with self.__transaction_count_mutex:
-            self.__transaction_count += count
-
-    def end_transaction(self, count=1):
-        assert count > 0
-        with self.__transaction_count_mutex:
-            self.__transaction_count -= count
-            assert self.__transaction_count >= 0
-            transaction_count = self.__transaction_count
-        if transaction_count == 0:
-            self.spill_cache()
-            if self.datastore:
-                self.rewrite_data()
-        #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
-
     def get_storage_property(self, key):
         if hasattr(self, key):
             return getattr(self, key)
@@ -349,18 +298,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
             return getattr(self, "_get_" + key)()
         logging.debug("get_storage_item: %s missing %s", self, key)
         raise NotImplementedError()
-
-    def get_storage_data_reference(self, key):
-        if hasattr(self, key + "_data_reference"):
-            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, key + "_data_reference")
-        elif hasattr(self, "get_" + key + "_data_reference"):
-            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, "get_" + key + "_data_reference")()
-        elif hasattr(self, "_get_" + key + "_data_reference"):
-            data, data_shape, data_dtype, reference_type, reference, file_datetime = getattr(self, "_get_" + key + "_data_reference")()
-        else:
-            logging.debug("get_storage_data: %s missing %s", self, key + "_data_reference")
-            raise NotImplementedError()
-        return data, data_shape, data_dtype, reference_type, reference, file_datetime
 
     def get_storage_relationship_count(self, key):
         relationship = self.get_storage_relationship(key)
@@ -389,7 +326,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
 
     def notify_set_property(self, key, value):
         if key in self.storage_properties:
-            if self.datastore:  # properties are not affected by transactions
+            if self.datastore:
                 resolved_key = self.__reverse_aliases.get(key, key)
                 self.datastore.set_property(self, resolved_key, value)
         super(StorageBase, self).notify_set_property(key, value)
@@ -397,7 +334,7 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
     def notify_set_item(self, key, item):
         if key in self.storage_items:
             assert item is not None
-            if self.datastore:  # items are not affected by transactions
+            if self.datastore:
                 item.datastore = self.datastore
                 resolved_key = self.__reverse_aliases.get(key, key)
                 self.datastore.set_item(self, resolved_key, item)
@@ -412,7 +349,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
             item = self.get_storage_item(key)
             if item:
                 if self.datastore:
-                    # items are not affected by transactions
                     resolved_key = self.__reverse_aliases.get(key, key)
                     self.datastore.clear_item(self, resolved_key)
                     item.datastore = None
@@ -421,19 +357,10 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
                 item.remove_parent(self)
         super(StorageBase, self).notify_clear_item(key)
 
-    def notify_set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference, file_datetime):
-        if self.datastore and self.__transaction_count == 0:
-            self.datastore.set_data_reference(self, key, data, data_shape, data_dtype, reference_type, reference)
-            if data is not None:
-                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
-        for observer in self.observers:
-            if observer and getattr(observer, "data_set", None):
-                observer.data_set(self, key, data)
-
     def notify_insert_item(self, key, value, before_index):
         if key in self.storage_relationships:
             assert value is not None
-            if self.datastore:  # items are not affected by transactions
+            if self.datastore:
                 value.datastore = self.datastore
                 resolved_key = self.__reverse_aliases.get(key, key)
                 self.datastore.insert_item(self, resolved_key, value, before_index)
@@ -446,7 +373,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
         if key in self.storage_relationships:
             assert value is not None
             if self.datastore:
-                # items are not affected by transactions
                 resolved_key = self.__reverse_aliases.get(key, key)
                 self.datastore.remove_item(self, resolved_key, index)
                 value.datastore = None
@@ -457,7 +383,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
 
     def write(self):
         assert self.datastore is not None
-        # assert self.__transaction_count == 0  # not always True, see test_insert_item_with_transaction
         for property_key in self.storage_properties:
             value = self.get_storage_property(property_key)
             if value:
@@ -480,32 +405,15 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
                 item.storage_cache = self.storage_cache
                 resolved_relationship_key = self.__reverse_aliases.get(relationship_key, relationship_key)
                 self.datastore.insert_item(self, resolved_relationship_key, item, index)
-        self.write_data()
         if self.datastore:
             self.datastore.set_type(self, self.storage_type)
-
-    def write_data(self):
-        assert self.datastore is not None
-        for data_key in self.storage_data_keys:
-            data, data_shape, data_dtype, reference_type, reference, file_datetime = self.get_storage_data_reference(data_key)
-            resolved_data_key = self.__reverse_aliases.get(data_key, data_key)
-            if data is not None:  # data may be None for external references
-                self.datastore.write_data_reference(data, reference_type, reference, file_datetime)
-            if reference_type:
-                self.datastore.set_data_reference(self, resolved_data_key, data, data_shape, data_dtype, reference_type, reference)
 
     # only used for testing
     def rewrite_object(self):
         assert self.datastore is not None
-        assert self.__transaction_count == 0
         self.datastore.erase_object(self)
         self.write()
 
-    def rewrite_data(self):
-        assert self.datastore is not None
-        assert self.__transaction_count == 0
-        self.datastore.erase_data(self)
-        self.write_data()
 
 # design considerations: fast, threaded, future proof, object oriented items
 # two techniques:
@@ -589,15 +497,6 @@ class DictDatastore(object):
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
 
-    def erase_data(self, parent):
-        if self.disconnected:
-            return
-        # get the parent node
-        parent_node = self.find_node(parent)
-        # insert new node in parent
-        if "data_arrays" in parent_node:
-            del parent_node["data_arrays"]
-
     def set_type(self, item, type):
         if self.disconnected:
             return
@@ -668,17 +567,6 @@ class DictDatastore(object):
         # write to it
         properties = item_node.setdefault("properties", {})
         properties[key] = copy.deepcopy(value)
-
-    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
-        if self.disconnected:
-            return
-        if data is None:
-            return
-        # get the parent node
-        parent_node = self.find_node(parent)
-        # insert new node in parent
-        data_arrays = parent_node.setdefault("data_arrays", {})
-        data_arrays[key] = copy.deepcopy(data)
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         pass
@@ -1096,10 +984,6 @@ class DbDatastore(object):
             self.data_reference_handler.remove_data_reference(row[0], row[1])
         self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(uuid_), ))
 
-    def erase_data(self, object):
-        c = self.conn.cursor()
-        self.__erase_data_reference(c, object.uuid)
-
     def set_type(self, item, type):
         if not self.disconnected:
             c = self.conn.cursor()
@@ -1164,12 +1048,6 @@ class DbDatastore(object):
         if not self.disconnected:
             c = self.conn.cursor()
             self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
-            self.conn.commit()
-
-    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
-        if not self.disconnected:
-            c = self.conn.cursor()
-            db_write_data_reference(c, parent.uuid, key, data_shape, data_dtype, reference_type, reference)
             self.conn.commit()
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
@@ -1460,11 +1338,6 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.erase_object, self.__datastore, object), event, "erase_object"))
         #event.wait()
 
-    def erase_data(self, object):
-        event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.erase_data, self.__datastore, object), event, "erase_data"))
-        #event.wait()
-
     def set_type(self, item, type):
         event = threading.Event()
         self.__queue.put((functools.partial(DbDatastore.set_type, self.__datastore, item, type), event, "set_type"))
@@ -1493,11 +1366,6 @@ class DbDatastoreProxy(object):
     def set_property(self, item, key, value):
         event = threading.Event()
         self.__queue.put((functools.partial(DbDatastore.set_property, self.__datastore, item, key, value), event, "set_property"))
-        #event.wait()
-
-    def set_data_reference(self, parent, key, data, data_shape, data_dtype, reference_type, reference):
-        event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_data_reference, self.__datastore, parent, key, data, data_shape, data_dtype, reference_type, reference), event, "set_data_reference"))
         #event.wait()
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
