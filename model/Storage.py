@@ -683,6 +683,9 @@ class DictDatastore(object):
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         pass
 
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        pass
+
     # NOTE: parent_nodes are dicts for this class
 
     def find_root_node(self, type):
@@ -913,6 +916,9 @@ class TestDataReferenceHandler(object):
         else:
             logging.debug("Cannot write master data %s %s", reference_type, reference)
             raise NotImplementedError()
+
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        pass
 
     def remove_data_reference(self, reference_type, reference):
         #logging.debug("remove data reference %s %s", reference_type, reference)
@@ -1168,6 +1174,9 @@ class DbDatastore(object):
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         self.data_reference_handler.write_data_reference(data, reference_type, reference, file_datetime)
+
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        self.data_reference_handler.write_properties(properties, reference_type, reference, file_datetime)
 
     # NOTE: parent_nodes are uuid strings for this class
 
@@ -1494,6 +1503,11 @@ class DbDatastoreProxy(object):
     def write_data_reference(self, data, reference_type, reference, file_datetime):
         event = threading.Event()
         self.__queue.put((functools.partial(DbDatastore.write_data_reference, self.__datastore, data, reference_type, reference, file_datetime), event, "write_data_reference"))
+        #event.wait()
+
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        event = threading.Event()
+        self.__queue.put((functools.partial(DbDatastore.write_properties, self.__datastore, properties, reference_type, reference, file_datetime), event, "write_properties"))
         #event.wait()
 
     def destroy_node_ref(self, uuid_):

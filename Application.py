@@ -3,6 +3,7 @@ import calendar
 import copy
 import datetime
 import gettext
+import json
 import logging
 import os
 import cPickle as pickle
@@ -552,7 +553,6 @@ class DataReferenceHandler(object):
             assert data is not None
             data_file_path = reference
             data_file_datetime = file_datetime
-            data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
             absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
             #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
             Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
@@ -566,11 +566,29 @@ class DataReferenceHandler(object):
             logging.debug("Cannot write master data %s %s", reference_type, reference)
             raise NotImplementedError()
 
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        #logging.debug("write data reference %s %s", reference_type, reference)
+        if reference_type == "relative_file":
+            data_file_path = reference
+            data_file_datetime = file_datetime
+            absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
+            #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
+            Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+            with open(absolute_file_path, "w") as fp:
+                json.dump(properties, fp)
+            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+            timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            os.utime(absolute_file_path, (time.time(), timestamp))
+        elif reference_type == "external_file":
+            pass
+        else:
+            logging.debug("Cannot write properties %s %s", reference_type, reference)
+            raise NotImplementedError()
+
     def remove_data_reference(self, reference_type, reference):
         #logging.debug("remove data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
             data_file_path = reference
-            data_directory = os.path.join(self.workspace_dir, "Nion Swift Data")
             absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
