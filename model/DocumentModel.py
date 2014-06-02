@@ -36,6 +36,7 @@ class DataItemVault(object):
         self.__delegate = delegate  # a delegate item vault for updating properties
         self.data_file_path = None
         self.data_file_type = None
+        self.__weak_data_item = None
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
