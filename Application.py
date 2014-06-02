@@ -446,8 +446,31 @@ class Application(object):
                 c.execute("UPDATE version SET version = ?", (9, ))
                 datastore.conn.commit()
                 version = 9
+            if version == 9:
+                logging.debug("Updating database from version 9 to version 10.")
+                c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
+                parent_uuids = list()
+                for row in c.fetchall():
+                    parent_uuids.append(row[0])
+                for parent_uuid in parent_uuids:
+                    # grab the existing properties from the data item
+                    c.execute("SELECT value FROM properties WHERE uuid=? AND key='properties'", (parent_uuid, ))
+                    result = c.fetchone()
+                    properties = pickle.loads(str(result[0])) if result else dict()
+                    # read the data shape and dtype, if any
+                    c.execute("SELECT shape, dtype FROM data_references WHERE uuid=? AND key='master_data'", (str(parent_uuid), ))
+                    result = c.fetchone()
+                    if result is not None:
+                        properties["master_data_shape"] = pickle.loads(str(result[0]))
+                        properties["master_data_dtype"] = str(pickle.loads(str(result[1])))
+                    # update the properties
+                    properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
+                    c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
+                c.execute("UPDATE version SET version = ?", (10, ))
+                datastore.conn.commit()
+                version = 10
             # NOTE: version must be changed here and in Storage.py
-            if version > 9:
+            if version > 10:
                 logging.debug("Database too new, version %s", version)
                 sys.exit()
             datastore.conn.commit()

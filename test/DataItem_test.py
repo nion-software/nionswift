@@ -141,7 +141,7 @@ class TestDataItemClass(unittest.TestCase):
                     self.assertEqual(data_ref.master_data[0,0], 1)
                     self.assertEqual(data_copy_accessor.master_data[0,0], 0)
                 # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 14)  # temporary hack until properties are separated from metadata
+                self.assertEqual(len(data_item_copy.properties), 16)
                 self.assertIsNot(data_item.properties, data_item_copy.properties)
                 self.assertEqual(len(data_item.get_metadata("test")), 2)
                 self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))

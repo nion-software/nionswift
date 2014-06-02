@@ -212,16 +212,26 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
-        self.vault = vault if vault else DataItemMemoryVault()
-        self.vault.data_item = self
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.__uuid = item_uuid if item_uuid else uuid.uuid4()
+        self.vault = vault if vault else DataItemMemoryVault()
+        self.vault.data_item = self
+        has_master_data = data is not None
+        master_data_shape = data.shape if has_master_data else None
+        master_data_dtype = data.dtype if has_master_data else None
         current_datetime_item = Utility.get_current_datetime_item()
         spatial_calibrations = CalibrationList()
         if data is not None:
             spatial_calibrations.list.extend([Calibration.Calibration() for i in xrange(len(Image.spatial_shape_from_shape_and_dtype(data.shape, data.dtype)))])
+        class DtypeToStringConverter(object):
+            def convert(self, value):
+                return str(value) if value is not None else None
+            def convert_back(self, value):
+                return numpy.dtype(value) if value is not None else None
+        self.define_property(Observable.Property("master_data_shape", master_data_shape, changed=self.__property_changed))
+        self.define_property(Observable.Property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed))
         self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
         self.define_property(Observable.Property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed))
         self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed))
@@ -242,12 +252,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__get_data_mutex = threading.RLock()
         self.__cached_data = None
         self.__cached_data_dirty = True
-        # master data shape and dtype are always valid if there is no data source.
-        has_master_data, master_data_shape, master_data_dtype = self.vault.get_master_data_info()
-        self.__has_master_data = has_master_data
+        # master data shape and dtype are cached to avoid loading data.
         self.__master_data = None
-        self.__master_data_shape = master_data_shape
-        self.__master_data_dtype = master_data_dtype
         self.master_data_save_event = threading.Event()
         self.__data_source = None
         self.__data_ref_count = 0
@@ -405,13 +411,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             transaction_count = self.__transaction_count
         if transaction_count == 0:
             self.spill_cache()
-            self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+            self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
             self.master_data_save_event.set()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
         self.vault.update_properties()
-        self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
+        self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data, data_file_path=self.source_file_path)
         self.master_data_save_event.set()
 
     def get_data_file_info(self):
@@ -835,14 +841,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
                     self.remove_cached_value("master_data_shape")
                     self.remove_cached_value("master_data_dtype")
                 self.__master_data = data
-                self.__master_data_shape = data.shape if data is not None else None
-                self.__master_data_dtype = data.dtype if data is not None else None
-                self.__has_master_data = data is not None
+                self.master_data_shape = data.shape if data is not None else None
+                self.master_data_dtype = data.dtype if data is not None else None
                 self.sync_intrinsic_spatial_calibrations()
             # tell the vault about it
             if self.__master_data is not None:
                 if self.__transaction_count == 0:  # no race is possible here. just write it.
-                    self.vault.update_data(self.__master_data_shape, self.__master_data_dtype, data=self.__master_data)
+                    self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
                     self.master_data_save_event.set()
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
@@ -851,9 +856,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         with self.__data_mutex:
             self.set_cached_value("master_data_shape", data_shape)
             self.set_cached_value("master_data_dtype", data_dtype)
-            self.__master_data_shape = data_shape
-            self.__master_data_dtype = data_dtype
-            self.__has_master_data = True
+            self.master_data_shape = data_shape
+            self.master_data_dtype = data_dtype
             self.sync_intrinsic_spatial_calibrations()
         # external files are sent to vault immediately since that does not take any time
         self.source_file_path = data_file_path
@@ -903,7 +907,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     is_data_loaded = property(__is_data_loaded)
 
     def __get_has_master_data(self):
-        return self.__has_master_data
+        return self.master_data_shape is not None and self.master_data_dtype is not None
     has_master_data = property(__get_has_master_data)
 
     def __get_has_data_source(self):
@@ -948,7 +952,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __get_root_data_shape_and_dtype(self):
         with self.__data_mutex:
             if self.has_master_data:
-                return self.__master_data_shape, self.__master_data_dtype
+                return self.master_data_shape, self.master_data_dtype
             if self.has_data_source:
                 return self.data_source.data_shape_and_dtype
         return None, None
@@ -996,8 +1000,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
             if self.has_master_data:
-                data_shape = self.__master_data_shape
-                data_dtype = self.__master_data_dtype
+                data_shape = self.master_data_shape
+                data_dtype = self.master_data_dtype
             elif self.has_data_source:
                 data_shape = self.data_source.data_shape
                 data_dtype = self.data_source.data_dtype
