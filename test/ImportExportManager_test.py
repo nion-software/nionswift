@@ -66,7 +66,7 @@ class TestImportExportManagerClass(unittest.TestCase):
             handler.write(None, data_item, file_path, "ndata")
         self.assertTrue(os.path.exists(file_path))
         try:
-            data_items = handler.read_data_items(None, "ndata", file_path, False)
+            data_items = handler.read_data_items(None, "ndata", file_path)
             self.assertEqual(len(data_items), 1)
             data_item = data_items[0]
             with data_item.ref():

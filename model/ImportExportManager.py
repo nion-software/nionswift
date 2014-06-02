@@ -34,7 +34,7 @@ class ImportExportHandler(object):
         return True
 
     # return data items
-    def read_data_items(self, ui, extension, file_path, external):
+    def read_data_items(self, ui, extension, file_path):
         data_items = list()
         if os.path.exists(file_path) or file_path.startswith(":"):  # check for colon is for testing
             data_elements = self.read_data_elements(ui, extension, file_path)
@@ -45,7 +45,7 @@ class ImportExportHandler(object):
                         title, _ = os.path.splitext(filename)
                         data_element["title"] = title
                     data_element["filepath"] = file_path
-                    data_item = create_data_item_from_data_element(data_element, external, file_path)
+                    data_item = create_data_item_from_data_element(data_element, file_path)
                     data_items.append(data_item)
         return data_items
 
@@ -104,14 +104,14 @@ class ImportExportManager(object):
         return writers
 
     # read file, return data items
-    def read_data_items(self, ui, path, external=False):
+    def read_data_items(self, ui, path):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = string.lower(extension)
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
-                    return io_handler.read_data_items(ui, extension, path, external)
+                    return io_handler.read_data_items(ui, extension, path)
         return None
 
     # read file, return data elements
@@ -139,45 +139,41 @@ class ImportExportManager(object):
 # data element is a dict which can be processed into a data item
 # when this method returns, the data item has not been added to a document. therefore, the
 # data is still loaded into memory, but with a data ref count of zero.
-def create_data_item_from_data_element(data_element, external=False, data_file_path=None):
+def create_data_item_from_data_element(data_element, data_file_path=None):
     data_item = DataItem.DataItem()
-    update_data_item_from_data_element(data_item, data_element, external, data_file_path)
+    update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
 
 
 # update an existing data item with a data element.
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
-def update_data_item_from_data_element(data_item, data_element, external=False, data_file_path=None):
+def update_data_item_from_data_element(data_item, data_element, data_file_path=None):
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
-        update_data_item_from_data_element_1(data_item, data_element, external, data_file_path)
+        update_data_item_from_data_element_1(data_item, data_element, data_file_path)
     else:
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
-def update_data_item_from_data_element_1(data_item, data_element, external=False, data_file_path=None):
+def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
     with data_item.data_item_changes():
         # file path
         # master data
-        if external:
+        if data_file_path is not None:
+            data_item.source_file_path = data_file_path
+        with data_item.data_ref() as data_ref:
             data = data_element["data"]
-            data_item.set_external_master_data(data_file_path, data.shape, data.dtype)
-        else:
-            if data_file_path is not None:
-                data_item.source_file_path = data_file_path
-            with data_item.data_ref() as data_ref:
-                data = data_element["data"]
-                sub_area = data_element.get("sub_area")
-                data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
-                if data_matches and data_ref.master_data is not None and sub_area is not None:
-                    top = sub_area[0][0]
-                    bottom = sub_area[0][0] + sub_area[1][0]
-                    left = sub_area[0][1]
-                    right = sub_area[0][1] + sub_area[1][1]
-                    data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
-                    data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
-                else:
-                    data_ref.master_data = data
+            sub_area = data_element.get("sub_area")
+            data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
+            if data_matches and data_ref.master_data is not None and sub_area is not None:
+                top = sub_area[0][0]
+                bottom = sub_area[0][0] + sub_area[1][0]
+                left = sub_area[0][1]
+                right = sub_area[0][1] + sub_area[1][1]
+                data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
+            else:
+                data_ref.master_data = data
         # spatial calibrations
         if "spatial_calibrations" in data_element:
             spatial_calibrations = data_element.get("spatial_calibrations")

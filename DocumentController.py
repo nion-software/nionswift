@@ -661,10 +661,10 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, external=False, threaded=True, completion_fn=None):
+    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
 
         # this function will be called on a thread to receive files in the background.
-        def receive_files_on_thread(file_paths, data_group, index, external, completion_fn):
+        def receive_files_on_thread(file_paths, data_group, index, completion_fn):
 
             received_data_items = list()
 
@@ -691,8 +691,7 @@ class DocumentController(Observable.Broadcaster):
                     task.update_progress(_("Importing item {}.").format(file_index + 1),
                                          (file_index + 1, len(file_paths)), task_data)
                     try:
-                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path,
-                                                                                               external=external)
+                        data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
 
                         if data_items is not None:
 
@@ -760,10 +759,10 @@ class DocumentController(Observable.Broadcaster):
                 return received_data_items
 
         if threaded:
-            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, external, completion_fn)).start()
+            threading.Thread(target=receive_files_on_thread, args=(file_paths, data_group, index, completion_fn)).start()
             return None
         else:
-            return receive_files_on_thread(file_paths, data_group, index, external, completion_fn)
+            return receive_files_on_thread(file_paths, data_group, index, completion_fn)
 
     # this helps avoid circular imports
     def create_selected_data_item_binding(self):

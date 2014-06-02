@@ -784,9 +784,6 @@ class TestDataReferenceHandler(object):
         #logging.debug("load data reference %s %s", reference_type, reference)
         if reference_type == "relative_file":
             return self.data[reference]
-        elif reference_type == "external_file":
-            if os.path.exists(reference):
-                return numpy.zeros((20, 20), dtype=numpy.float)
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
@@ -1206,12 +1203,8 @@ class DbDatastore(object):
                         item_uuid_str = properties["uuid"]
                         mtd_relative_file = os.path.relpath(mtd_file, data_dir)
                         source_file_path = properties.get("source_file_path")
-                        if False and source_file_path:
-                            reference_type = "external_file"
-                            reference = source_file_path
-                        else:
-                            reference_type = "relative_file"
-                            reference = os.path.splitext(mtd_relative_file)[0] + ".nsdata"
+                        reference_type = "relative_file"
+                        reference = os.path.splitext(mtd_relative_file)[0] + ".nsdata"
                         tuples.append((uuid.UUID(item_uuid_str), properties, reference_type, reference))
                         #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
         else:

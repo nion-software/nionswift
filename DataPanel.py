@@ -783,18 +783,18 @@ class DataPanel(Panel.Panel):
         if data_item in self.data_item_model_controller.data_items:
             self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
-    def library_model_receive_files(self, file_paths, index, external=False, threaded=True):
+    def library_model_receive_files(self, file_paths, index, threaded=True):
         def receive_files_complete(received_data_items):
             def select_library_all():
                 self.update_data_panel_selection(DataPanelSelection(data_item=received_data_items[0]))
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
-        self.document_controller.receive_files(file_paths, None, index, external, threaded, receive_files_complete)
+        self.document_controller.receive_files(file_paths, None, index, threaded, receive_files_complete)
         return True
 
-    # receive files dropped into the data group. default is to embed files (external=True), not link.
+    # receive files dropped into the data group.
     # this message comes from the data group model, which is why it is named the way it is.
-    def data_group_model_receive_files(self, file_paths, data_group, index, external=False, threaded=True):
+    def data_group_model_receive_files(self, file_paths, data_group, index, threaded=True):
         def receive_files_complete(received_data_items):
             def select_data_group_and_data_item():
                 self.update_data_panel_selection(DataPanelSelection(data_group=data_group, data_item=received_data_items[0]))
@@ -803,5 +803,5 @@ class DataPanel(Panel.Panel):
                     self.queue_task(select_data_group_and_data_item)
                 else:
                     select_data_group_and_data_item()
-        self.document_controller.receive_files(file_paths, data_group, index, external, threaded, receive_files_complete)
+        self.document_controller.receive_files(file_paths, data_group, index, threaded, receive_files_complete)
         return True

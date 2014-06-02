@@ -497,61 +497,6 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
-    def test_data_item_loads_data_from_external_file(self):
-        db_name = ":memory:"
-        current_working_directory = os.getcwd()
-        workspace_dir = os.path.join(current_working_directory, "__Test")
-        Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(self.app.ui, workspace_dir)
-        try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
-            storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
-            data_item = DataItem.DataItem()
-            data_file_path = os.path.join(current_working_directory, "Graphics/scroll_gem.png")
-            data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.app.ui, data_file_path)
-            data_item.set_external_master_data(data_file_path, data_elements[0]["data"].shape, data_elements[0]["data"].dtype)
-            document_model.append_data_item(data_item)
-            with data_item.data_ref() as data_ref:
-                self.assertIsNotNone(data_ref.data)
-            document_model.remove_ref()
-        finally:
-            #logging.debug("rmtree %s", workspace_dir)
-            shutil.rmtree(workspace_dir)
-
-    def test_document_with_external_data_item_can_reload_data_after_reloading_document(self):
-        db_name = ":memory:"
-        current_working_directory = os.getcwd()
-        workspace_dir = os.path.join(current_working_directory, "__Test")
-        Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(self.app.ui, workspace_dir)
-        try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
-            storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            data_item = DataItem.DataItem()
-            data_file_path = os.path.join(current_working_directory, "Graphics/scroll_gem.png")
-            data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.app.ui, data_file_path)
-            data_item.set_external_master_data(data_file_path, data_elements[0]["data"].shape, data_elements[0]["data"].dtype)
-            document_model.append_data_item(data_item)
-            storage_data = datastore.to_data()
-            document_controller.close()
-            # read it back
-            datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
-            storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-            # verify drawn_graphics reload
-            with document_model.data_items[0].data_ref() as data_ref:
-                self.assertIsNotNone(data_ref.data)
-            # clean up
-            document_controller.close()
-        finally:
-            #logging.debug("rmtree %s", workspace_dir)
-            shutil.rmtree(workspace_dir)
-
     def test_reloading_data_item_with_display_builds_drawn_graphics_properly(self):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)

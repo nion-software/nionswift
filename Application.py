@@ -594,14 +594,6 @@ class DataReferenceHandler(object):
             #logging.debug("READ data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 return pickle.load(open(absolute_file_path, "rb"))
-        elif reference_type == "external_file":
-            if os.path.exists(reference):
-                data_elements = ImportExportManager.ImportExportManager().read_data_elements(self.ui, reference)
-            else:
-                data_elements = None
-            # assume bad data here
-            if data_elements is not None and len(data_elements) > 0 and "data" in data_elements[0]:
-                return data_elements[0]["data"]
         return None
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
@@ -617,8 +609,6 @@ class DataReferenceHandler(object):
             # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
             timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
             os.utime(absolute_file_path, (time.time(), timestamp))
-        elif reference_type == "external_file":
-            pass
         else:
             logging.debug("Cannot write master data %s %s", reference_type, reference)
             raise NotImplementedError()
@@ -636,8 +626,6 @@ class DataReferenceHandler(object):
             # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
             timestamp = calendar.timegm(data_file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
             os.utime(absolute_file_path, (time.time(), timestamp))
-        elif reference_type == "external_file":
-            pass
         else:
             logging.debug("Cannot write properties %s %s", reference_type, reference)
             raise NotImplementedError()
@@ -650,8 +638,6 @@ class DataReferenceHandler(object):
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
-        elif reference_type == "external_file":
-            pass
         else:
             logging.debug("Cannot remove master data %s %s", reference_type, reference)
             raise NotImplementedError()

@@ -112,10 +112,6 @@ class DataItemVault(object):
                 self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
                 self.reference_type = "relative_file"
                 self.reference = data_file_path
-            elif data_file_path is not None:
-                self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
-                self.reference_type = "external_file"
-                self.reference = data_file_path
 
     def load_data(self):
         assert self.data_item.has_master_data
@@ -330,7 +326,7 @@ class DocumentModel(Storage.StorageBase):
                             return True
                     return False
                 if not source_file_path_in_document(sample_path):
-                    data_items = handler.read_data_items(None, "ndata1", sample_path, False)
+                    data_items = handler.read_data_items(None, "ndata1", sample_path)
                     for data_item in data_items:
                         #__, file_name = os.path.split(sample_path)
                         #title, __ = os.path.splitext(file_name)

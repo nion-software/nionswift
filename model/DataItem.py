@@ -847,20 +847,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
 
-    def set_external_master_data(self, data_file_path, data_shape, data_dtype):
-        with self.__data_mutex:
-            self.set_cached_value("master_data_shape", data_shape)
-            self.set_cached_value("master_data_dtype", data_dtype)
-            self.master_data_shape = data_shape
-            self.master_data_dtype = data_dtype
-            self.sync_intrinsic_spatial_calibrations()
-        # external files are sent to vault immediately since that does not take any time
-        self.source_file_path = data_file_path
-        self.vault.update_data(data_shape, data_dtype, data_file_path=data_file_path)
-        self.notify_set_property("data_range", self.data_range)
-        self.notify_data_item_content_changed(set([DATA]))
-        self.master_data_save_event.set()
-
     def __load_master_data(self):
         # load data from vault if data is not already loaded
         if self.has_master_data and self.__master_data is None and self.vault.can_reload_data:

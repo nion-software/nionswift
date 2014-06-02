@@ -370,7 +370,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         self.assertIsNone(data_panel.data_item)
-        data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, external=False, threaded=False)
+        data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
         self.assertEqual(data_panel.data_item, data_group.data_items[0])
 
     def test_data_panel_remove_group(self):
