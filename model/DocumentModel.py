@@ -34,9 +34,15 @@ class DataItemVault(object):
         self.__properties = properties if properties else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
-        self.data_file_path = None
-        self.data_file_type = None
         self.__weak_data_item = None
+        # reference type and reference indicate how to save/load data and properties
+        self.reference_type = None
+        self.reference = None
+        if data_item_uuid:
+            reference_type, reference = self.datastore.get_root_data_reference(data_item_uuid, "master_data")
+            if reference:
+                self.reference_type = reference_type
+                self.reference = reference
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
@@ -57,6 +63,11 @@ class DataItemVault(object):
             self.__delegate.update_properties()
         elif self.datastore:
             self.datastore.set_root_property(self.data_item.uuid, "properties", self.__properties)
+            # write to the file too
+            self.ensure_data_file_path()
+            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+            data_file_path = os.path.splitext(self.reference)[0] + ".mtd"
+            self.datastore.write_properties(self.__properties, "relative_file", data_file_path, file_datetime)
 
     def insert_item(self, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
@@ -95,24 +106,29 @@ class DataItemVault(object):
         path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
         return os.path.join(*path_components)
 
+    def ensure_data_file_path(self):
+        if not self.reference:
+            self.reference_type = "relative_file"
+            self.reference = self.get_data_file_path()
+
     def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
         if self.datastore is not None:
             if data is not None:
-                data_file_path = self.get_data_file_path()
+                self.ensure_data_file_path()
+                data_file_path = self.reference
                 self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
                 file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
                 self.datastore.write_data_reference(data, "relative_file", data_file_path, file_datetime)
-                self.data_file_type = "relative_file"
-                self.data_file_path = data_file_path
+                self.reference_type = "relative_file"
+                self.reference = data_file_path
             elif data_file_path is not None:
                 self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", None, data_shape, data_dtype, "external_file", data_file_path)
-                self.data_file_type = "external_file"
-                self.data_file_path = data_file_path
+                self.reference_type = "external_file"
+                self.reference = data_file_path
 
     def load_data(self):
         assert self.data_item.has_master_data
-        reference_type, reference = self.datastore.get_root_data_reference(self.data_item.uuid, "master_data")
-        return self.datastore.load_data_reference("master_data", reference_type, reference)
+        return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
 
     def __can_reload_data(self):
         return self.datastore is not None

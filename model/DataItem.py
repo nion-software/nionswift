@@ -93,8 +93,8 @@ class DataItemMemoryVault(object):
         self.__properties = properties if properties else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
-        self.data_file_path = None
-        self.data_file_type = None
+        self.reference = None
+        self.reference_type = None
         self.can_reload_data = False
 
     def close(self):
@@ -415,7 +415,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.master_data_save_event.set()
 
     def get_data_file_info(self):
-        return self.vault.data_file_type, self.vault.data_file_path
+        return self.vault.reference_type, self.vault.reference
 
     # access properties
 

@@ -428,8 +428,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(data_item.has_master_data)
             self.assertIsNone(data_item.data_shape)
             self.assertIsNone(data_item.data_dtype)
-            self.assertIsNone(reference_type)
-            self.assertIsNone(reference)
+            self.assertEqual(reference_type, "relative_file")
+            self.assertIsNotNone(reference)
             document_model.remove_ref()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
