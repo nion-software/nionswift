@@ -56,12 +56,9 @@ class DataItemVault(object):
         if self.__delegate:
             self.__delegate.update_properties()
         elif self.datastore:
-            self.datastore.set_root_property(self.data_item.uuid, "properties", self.__properties)
-            # write to the file too
-            self.ensure_data_file_path()
+            self.ensure_reference_valid()
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            data_file_path = os.path.splitext(self.reference)[0] + ".mtd"
-            self.datastore.write_properties(self.__properties, "relative_file", data_file_path, file_datetime)
+            self.datastore.set_root_properties(self.data_item.uuid, self.__properties, self.reference, file_datetime)
 
     def insert_item(self, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
@@ -100,7 +97,7 @@ class DataItemVault(object):
         path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
         return os.path.join(*path_components)
 
-    def ensure_data_file_path(self):
+    def ensure_reference_valid(self):
         if not self.reference:
             self.reference_type = "relative_file"
             self.reference = self.get_data_file_path()
@@ -108,7 +105,7 @@ class DataItemVault(object):
     def update_data(self, data_shape, data_dtype, data=None, data_file_path=None):
         if self.datastore is not None:
             if data is not None:
-                self.ensure_data_file_path()
+                self.ensure_reference_valid()
                 data_file_path = self.reference
                 self.datastore.set_root_data_reference(self.data_item.uuid, "master_data", data, data_shape, data_dtype, "relative_file", data_file_path)
                 file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)

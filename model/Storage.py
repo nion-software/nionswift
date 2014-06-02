@@ -698,14 +698,14 @@ class DictDatastore(object):
             return properties[key]
         return None
 
-    def set_root_property(self, item_uuid, key, value):
+    def set_root_properties(self, item_uuid, properties, reference, file_datetime):
         if self.disconnected:
             return
         # get the item node
         item_node = self.__node_map[item_uuid]
         # write to it
-        properties = item_node.setdefault("properties", {})
-        properties[key] = copy.deepcopy(value)
+        item_properties = item_node.setdefault("properties", {})
+        item_properties["properties"] = copy.deepcopy(properties)  # ugh
 
     def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
         if self.disconnected:
@@ -1253,11 +1253,14 @@ class DbDatastore(object):
             return pickle.loads(str(value_row[0]))
         return None
 
-    def set_root_property(self, item_uuid, key, value):
+    def set_root_properties(self, item_uuid, properties, reference, file_datetime):
         if not self.disconnected:
             c = self.conn.cursor()
-            self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item_uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), ))
+            self.execute(c, "INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, ?, ?)", (str(item_uuid), "properties", sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL)), ))
             self.conn.commit()
+        # write to the file too
+        data_file_path = os.path.splitext(reference)[0] + ".mtd"
+        self.write_properties(properties, "relative_file", data_file_path, file_datetime)
 
     def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
         if not self.disconnected:
@@ -1464,9 +1467,9 @@ class DbDatastoreProxy(object):
         self.__queue.join()
         return self.__datastore.get_root_property(item_uuid, key)
 
-    def set_root_property(self, item_uuid, key, value):
+    def set_root_properties(self, item_uuid, properties, reference, file_datetime):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.set_root_property, self.__datastore, item_uuid, key, value), event, "set_root_property"))
+        self.__queue.put((functools.partial(DbDatastore.set_root_properties, self.__datastore, item_uuid, properties, reference, file_datetime), event, "set_root_properties"))
         #event.wait()
 
     def set_root_data_reference(self, item_uuid, key, data, data_shape, data_dtype, reference_type, reference):
