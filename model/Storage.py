@@ -4,8 +4,9 @@ import copy
 import cPickle as pickle
 import functools
 import logging
-import Queue
+import json
 import os
+import Queue
 import sqlite3
 import StringIO
 import threading
@@ -1193,13 +1194,35 @@ class DbDatastore(object):
 
     def find_data_item_tuples(self):
         tuples = []
-        c = self.conn.cursor()
-        c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
-        for row in c.fetchall():
-            item_uuid = uuid.UUID(row[0])
-            properties = self.get_root_property(item_uuid, "properties")
-            reference_type, reference = self.get_root_data_reference(item_uuid, "master_data")
-            tuples.append((item_uuid, properties, reference_type, reference))
+        workspace_dir = self.data_reference_handler.workspace_dir if hasattr(self.data_reference_handler, "workspace_dir") else None
+        if workspace_dir:
+            data_dir = os.path.join(self.data_reference_handler.workspace_dir, "Nion Swift Data")
+            #logging.debug("data_dir %s", data_dir)
+            for root, dirs, files in os.walk(data_dir):
+                mtd_files = [os.path.join(root, mtd_file) for mtd_file in filter(lambda filename: filename.endswith(".mtd"), files)]
+                for mtd_file in mtd_files:
+                    with open(mtd_file) as fp:
+                        properties = json.load(fp)
+                        item_uuid_str = properties["uuid"]
+                        mtd_relative_file = os.path.relpath(mtd_file, data_dir)
+                        source_file_path = properties.get("source_file_path")
+                        if False and source_file_path:
+                            reference_type = "external_file"
+                            reference = source_file_path
+                        else:
+                            reference_type = "relative_file"
+                            reference = os.path.splitext(mtd_relative_file)[0] + ".nsdata"
+                        tuples.append((uuid.UUID(item_uuid_str), properties, reference_type, reference))
+                        #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
+        else:
+            c = self.conn.cursor()
+            c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
+            for row in c.fetchall():
+                item_uuid = uuid.UUID(row[0])
+                properties = self.get_root_property(item_uuid, "properties")
+                reference_type, reference = self.get_root_data_reference(item_uuid, "master_data")
+                tuples.append((item_uuid, properties, reference_type, reference))
+                #logging.debug("TWO %s", (item_uuid, properties, reference_type, reference))
         return tuples
 
     def find_root_item_uuids(self, key):

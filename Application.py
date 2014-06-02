@@ -460,11 +460,13 @@ class Application(object):
                     result = c.fetchone()
                     properties = pickle.loads(str(result[0])) if result else dict()
                     # read the data shape and dtype, if any
-                    c.execute("SELECT shape, dtype FROM data_references WHERE uuid=? AND key='master_data'", (str(parent_uuid), ))
+                    c.execute("SELECT shape, dtype, reference FROM data_references WHERE uuid=? AND key='master_data'", (str(parent_uuid), ))
                     result = c.fetchone()
+                    existing_reference = None
                     if result is not None:
                         properties["master_data_shape"] = pickle.loads(str(result[0]))
                         properties["master_data_dtype"] = str(pickle.loads(str(result[1])))
+                        existing_reference = result[2]
                     properties["uuid"] = str(parent_uuid)
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
@@ -490,12 +492,14 @@ class Application(object):
                         path_components.append(session_id)
                         path_components.append("master_data_" + encoded_uuid_str + ".nsdata")
                         return os.path.join(*path_components)
-                    data_file_path = get_data_file_path(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
+                    if existing_reference:
+                        data_file_path = existing_reference
+                    else:
+                        data_file_path = get_data_file_path(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
                     data_file_path = os.path.splitext(data_file_path)[0] + ".mtd"
                     file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                     data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
                     data_reference_handler.write_properties(properties, "relative_file", data_file_path, file_datetime)
-                    logging.debug(data_file_path)
                 c.execute("UPDATE version SET version = ?", (10, ))
                 datastore.conn.commit()
                 version = 10
@@ -587,7 +591,7 @@ class DataReferenceHandler(object):
             assert self.workspace_dir
             data_file_path = reference
             absolute_file_path = os.path.join(self.workspace_dir, "Nion Swift Data", data_file_path)
-            #logging.debug("READ data file %s for %s", absolute_file_path, key)
+            #logging.debug("READ data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 return pickle.load(open(absolute_file_path, "rb"))
         elif reference_type == "external_file":
