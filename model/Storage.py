@@ -664,13 +664,15 @@ class DictDatastore(object):
 
     # alternate, direct interface to db
 
-    def find_root_item_uuids(self, key):
-        item_uuids = []
+    def find_data_item_tuples(self):
+        tuples = []
         for item_uuid in self.__node_map.keys():
             item_node = self.__node_map[item_uuid]
-            if item_node["type"] == key:
-                item_uuids.append(item_uuid)
-        return item_uuids
+            if item_node["type"] == "data-item":
+                properties = self.get_root_property(item_uuid, "properties")
+                reference_type, reference = self.get_root_data_reference(item_uuid, "master_data")
+                tuples.append((item_uuid, properties, reference_type, reference))
+        return tuples
 
     def add_root_item_uuid(self, key, item_uuid):
         if self.disconnected:
@@ -1189,6 +1191,17 @@ class DbDatastore(object):
 
     # alternate, direct interface to db
 
+    def find_data_item_tuples(self):
+        tuples = []
+        c = self.conn.cursor()
+        c.execute("SELECT uuid FROM nodes WHERE type='data-item'")
+        for row in c.fetchall():
+            item_uuid = uuid.UUID(row[0])
+            properties = self.get_root_property(item_uuid, "properties")
+            reference_type, reference = self.get_root_data_reference(item_uuid, "master_data")
+            tuples.append((item_uuid, properties, reference_type, reference))
+        return tuples
+
     def find_root_item_uuids(self, key):
         c = self.conn.cursor()
         c.execute("SELECT uuid FROM nodes WHERE type=?", (key, ))
@@ -1410,9 +1423,9 @@ class DbDatastoreProxy(object):
 
     # alternate, direct interface to db
 
-    def find_root_item_uuids(self, key):
+    def find_data_item_tuples(self):
         self.__queue.join()
-        return self.__datastore.find_root_item_uuids(key)
+        return self.__datastore.find_data_item_tuples()
 
     def add_root_item_uuid(self, key, item_uuid):
         event = threading.Event()

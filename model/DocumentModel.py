@@ -28,21 +28,15 @@ class DataItemVault(object):
 
     """ Vaults should be stateless so that we can switch them in data items without repercussions. """
 
-    def __init__(self, datastore=None, data_item_uuid=None, properties=None, storage_dict=None, delegate=None):
+    def __init__(self, datastore=None, properties=None, reference_type=None, reference=None, storage_dict=None, delegate=None):
         self.datastore = datastore
-        properties = datastore.get_root_property(data_item_uuid, "properties") if data_item_uuid else properties
         self.__properties = properties if properties else dict()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
         self.__weak_data_item = None
         # reference type and reference indicate how to save/load data and properties
-        self.reference_type = None
-        self.reference = None
-        if data_item_uuid:
-            reference_type, reference = self.datastore.get_root_data_reference(data_item_uuid, "master_data")
-            if reference:
-                self.reference_type = reference_type
-                self.reference = reference
+        self.reference_type = reference_type
+        self.reference = reference
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
@@ -168,10 +162,10 @@ class DbDataItemVault(object):
 
     def read_data_items(self):
         document_model = self.__weak_document_model()
-        data_item_uuids = self.__datastore.find_root_item_uuids("data-item")
+        data_item_tuples = self.__datastore.find_data_item_tuples()
         data_items = list()
-        for index, data_item_uuid in enumerate(data_item_uuids):
-            vault = DataItemVault(self.__datastore, data_item_uuid)
+        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
+            vault = DataItemVault(self.__datastore, properties=properties, reference_type=reference_type, reference=reference)
             data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
             data_item.add_ref()
@@ -179,7 +173,7 @@ class DbDataItemVault(object):
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         data_items.sort(key=sort_by_date_key)
-        for data_item in data_items:
+        for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.sync_intrinsic_spatial_calibrations()
             data_item.storage_cache = self.__storage_cache
@@ -196,7 +190,8 @@ class DbDataItemVault(object):
         data_item.add_ref()
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
-        # keep storage up-to-date
+        # keep storage up-to-date. transform from memory vault to new vault.
+        # references do not need to be updated since they will be written later.
         data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
         data_item.vault.data_item = data_item
         data_item.vault.datastore = self.__datastore
