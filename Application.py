@@ -469,7 +469,8 @@ class Application(object):
                         properties["master_data_shape"] = pickle.loads(str(result[0]))
                         properties["master_data_dtype"] = str(pickle.loads(str(result[1])))
                         existing_reference = os.path.splitext(result[2])[0]
-                    c.execute("UPDATE data_references SET reference=? WHERE uuid=? AND key='master_data'", (existing_reference, str(parent_uuid), ))
+                        existing_reference = existing_reference.replace("master_", "")
+                        c.execute("UPDATE data_references SET reference=? WHERE uuid=? AND key='master_data'", (existing_reference, str(parent_uuid), ))
                     properties["uuid"] = str(parent_uuid)
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
@@ -503,6 +504,12 @@ class Application(object):
                     file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                     data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
                     data_reference_handler.write_properties(properties, "relative_file", reference, file_datetime)
+                    if existing_reference:
+                        nsdata_path = os.path.join(workspace_dir, "Nion Swift Data", existing_reference.replace("data_", "master_data_") + ".nsdata")
+                        logging.debug(nsdata_path)
+                        data = pickle.load(open(nsdata_path, "rb"))
+                        data_reference_handler.write_data_reference(data, "relative_file", reference, file_datetime)
+                        os.remove(nsdata_path)
                 c.execute("UPDATE version SET version = ?", (10, ))
                 datastore.conn.commit()
                 version = 10
@@ -731,7 +738,7 @@ class DataReferenceHandler(object):
         self.ui = ui
         self.workspace_dir = workspace_dir
         self.__data_dir = os.path.join(self.workspace_dir, "Nion Swift Data")
-        self.__file_handler = MtdHandler(self.__data_dir)
+        self.__file_handler = Ndata2Handler(self.__data_dir)
         assert self.workspace_dir
 
     def find_data_item_tuples(self):

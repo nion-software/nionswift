@@ -393,7 +393,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 reference_type, reference = data_item.get_data_file_info()
                 self.assertEqual(reference_type, "relative_file")
-                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".nsdata")
+                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata2")
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
                 storage_data = datastore.to_data()
@@ -449,16 +449,18 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             # write data with transaction
+            handler = Application.Ndata2Handler(os.path.join(current_working_directory, "__Test", "Nion Swift Data"))
             with data_item.transaction():
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 reference = data_item.vault.get_default_reference()
-                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".nsdata")
-                # make sure it does NOT exist during the transaction
-                self.assertFalse(os.path.exists(data_file_path))
+                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata2")
+                # make sure data does NOT exist during the transaction
+                self.assertIsNone(handler.read_data(reference))
             # make sure it DOES exist after the transaction
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
+            self.assertIsNotNone(handler.read_data(reference))
             document_model.remove_ref()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -482,7 +484,7 @@ class TestStorageClass(unittest.TestCase):
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
-            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".nsdata")
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata2")
             # make sure it get written to disk
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
