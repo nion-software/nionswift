@@ -153,16 +153,6 @@ class DataItemVault(object):
             return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
 
-    def get_master_data_info(self):
-        if not self.datastore:
-            return False, None, None
-        has_master_data = self.datastore.has_root_data(self.data_item.uuid, "master_data")
-        if has_master_data:
-            master_data_shape, master_data_dtype = self.datastore.get_root_data_shape_and_dtype(self.data_item.uuid, "master_data")
-        else:
-            master_data_shape, master_data_dtype = None, None
-        return has_master_data, master_data_shape, master_data_dtype
-
 
 class DbDataItemVault(object):
 

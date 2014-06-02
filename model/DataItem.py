@@ -155,9 +155,6 @@ class DataItemMemoryVault(object):
             return [DataItemMemoryVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
 
-    def get_master_data_info(self):
-        return False, None, None
-
 
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come

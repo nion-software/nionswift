@@ -726,18 +726,6 @@ class DictDatastore(object):
         # return reference_type, reference
         return item_node.get("reference_types", {}).get(key), item_node.get("references", {}).get(key)
 
-    def has_root_data(self, item_uuid, key):
-        # get the item node
-        item_node = self.__node_map[item_uuid]
-        # figure out if we have data
-        return "data" in item_node.get("data_arrays", {})
-
-    def get_root_data_shape_and_dtype(self, item_uuid, key):
-        # get the item node
-        item_node = self.__node_map[item_uuid]
-        # return shape, dtype
-        return item_node.get("data_shapes", {}).get(key), item_node.get("data_dtypes", {}).get(key)
-
 
 
 def db_make_directory_if_needed(directory_path):
@@ -1245,15 +1233,6 @@ class DbDatastore(object):
         c = self.conn.cursor()
         return db_get_data_reference(c, item_uuid, key)
 
-    def has_root_data(self, item_uuid, key):
-        c = self.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM data_references WHERE uuid=? AND key=?", (str(item_uuid), key, ))
-        return c.fetchone()[0] > 0
-
-    def get_root_data_shape_and_dtype(self, item_uuid, key):
-        c = self.conn.cursor()
-        return db_get_data_shape_and_dtype(c, item_uuid, key)
-
 
 class DbDatastoreProxy(object):
 
@@ -1462,14 +1441,6 @@ class DbDatastoreProxy(object):
     def get_root_data_reference(self, item_uuid, key):
         self.__queue.join()
         return self.__datastore.get_root_data_reference(item_uuid, key)
-
-    def has_root_data(self, item_uuid, key):
-        self.__queue.join()
-        return self.__datastore.has_root_data(item_uuid, key)
-
-    def get_root_data_shape_and_dtype(self, item_uuid, key):
-        self.__queue.join()
-        return self.__datastore.get_root_data_shape_and_dtype(item_uuid, key)
 
 
 class DictStorageCache(object):
