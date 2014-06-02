@@ -718,6 +718,17 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
+    def test_new_data_item_stores_uuid_and_data_info_in_properties_immediately(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        self.assertTrue("master_data_shape" in data_item.properties)
+        self.assertTrue("master_data_dtype" in data_item.properties)
+        self.assertTrue("uuid" in data_item.properties)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -215,7 +215,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
-        self.__uuid = item_uuid if item_uuid else uuid.uuid4()
+        self.uuid = item_uuid if item_uuid else uuid.uuid4()
         self.vault = vault if vault else DataItemMemoryVault()
         self.vault.data_item = self
         has_master_data = data is not None
@@ -266,11 +266,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_master_data(data)
+        # uuid is handled specially for performance reasons
+        if self.vault.has_value("uuid"):
+            self.uuid = uuid.UUID(self.vault.get_value("uuid"))
         self.read_storage(self.vault)
         properties = self.vault.properties
         for key in properties.keys():
-            if key not in self.property_names and key not in self.relationship_names:
+            if key not in self.property_names and key not in self.relationship_names and key not in ("uuid"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
+        # uuid is handled specially for performance reasons
+        if "uuid" not in properties:
+            self.vault.set_value("uuid", str(self.uuid))
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
@@ -353,14 +359,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             data_copy = numpy.copy(data_ref.data)
             data_item_copy.__set_master_data(data_copy)
         return data_item_copy
-
-    # uuid property. read only.
-    def __get_uuid(self):
-        return self.__uuid
-    uuid = property(__get_uuid)
-    # set is used by document controller
-    def _set_uuid(self, uuid):
-        self.__uuid = uuid
 
     # Add a parent.
     def add_parent(self, parent):

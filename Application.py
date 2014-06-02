@@ -463,6 +463,7 @@ class Application(object):
                     if result is not None:
                         properties["master_data_shape"] = pickle.loads(str(result[0]))
                         properties["master_data_dtype"] = str(pickle.loads(str(result[1])))
+                    properties["uuid"] = str(parent_uuid)
                     # update the properties
                     properties_data = sqlite3.Binary(pickle.dumps(properties, pickle.HIGHEST_PROTOCOL))
                     c.execute("INSERT OR REPLACE INTO properties (uuid, key, value) VALUES (?, 'properties', ?)", (parent_uuid, properties_data))
