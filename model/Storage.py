@@ -438,6 +438,7 @@ class DictDatastore(object):
         self.__node_map = node_map if node_map else {}
         # item map is used during item construction.
         self.__item_map = {}
+        self.__data_map = {}
         self.initialized = node_map is not None
         self.disconnected = False
 
@@ -492,7 +493,17 @@ class DictDatastore(object):
                 for item_uuid in list:
                     self.__remove_node_ref(item_uuid)
                 del relationships[relationship_key]
+            # remove data
+            self.__erase_data_reference(uuid_)
+            # delete the node itself
             del self.__node_map[uuid_]
+
+    def __erase_data_reference(self, uuid_):
+        item_node = self.__node_map[uuid_]
+        reference_type = item_node.get("reference_types", {}).get("master_data")
+        reference = item_node.get("references", {}).get("master_data")
+        if reference and reference in self.__data_map:
+            del self.__data_map[reference]
 
     def erase_object(self, object):
         self.__remove_node_ref(object.uuid, True)
@@ -643,25 +654,13 @@ class DictDatastore(object):
         return "embedded", parent_node
 
     def load_data_reference(self, key, reference_type, reference):
-        return self.get_data_direct(reference, key)
-
-    def get_data_direct(self, parent_node, key):
-        data_items = parent_node.get("data_arrays", {})
-        if key in data_items:
-            data = data_items[key]
-            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            return data
-        else:
-            return None
+        return self.__data_map.get(reference)
 
     def get_data_shape_and_dtype(self, parent_node, key):
-        data_items = parent_node.get("data_arrays", {})
-        if key in data_items:
-            data = data_items[key]
-            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
+        data = self.__data_map.get(reference)
+        if data is not None:
             return data.shape, data.dtype
-        else:
-            return None
+        return None
 
     # alternate, direct interface to db
 
@@ -715,14 +714,17 @@ class DictDatastore(object):
         # insert new node in parent
         data_arrays = item_node.setdefault("data_arrays", {})
         data_arrays[key] = copy.deepcopy(data)
+        item_node.setdefault("reference_types", {})[key] = reference_type
+        item_node.setdefault("references", {})[key] = reference
         item_node.setdefault("data_shapes", {})[key] = data_shape
         item_node.setdefault("data_dtypes", {})[key] = data_dtype
+        self.__data_map[reference] = copy.deepcopy(data)
 
     def get_root_data_reference(self, item_uuid, key):
         # get the item node
         item_node = self.__node_map[item_uuid]
         # return reference_type, reference
-        return "embedded", item_node
+        return item_node.get("reference_types", {}).get(key), item_node.get("references", {}).get(key)
 
     def has_root_data(self, item_uuid, key):
         # get the item node
@@ -1193,16 +1195,6 @@ class DbDatastore(object):
     def load_data_reference(self, key, reference_type, reference):
         return self.data_reference_handler.load_data_reference(reference_type, reference)
 
-    # for testing
-    def get_data_direct(self, parent_node, key):
-        c = self.conn.cursor()
-        c.execute("SELECT data FROM data_references WHERE uuid=? AND key=?", (parent_node, key, ))
-        data_row = c.fetchone()
-        if data_row:
-            return pickle.loads(str(data_row[0]))
-        else:
-            return None
-
     def get_data_shape_and_dtype(self, parent_node, key):
         c = self.conn.cursor()
         return db_get_data_shape_and_dtype(c, parent_node, key)
@@ -1432,10 +1424,6 @@ class DbDatastoreProxy(object):
     def load_data_reference(self, key, reference_type, reference):
         self.__queue.join()
         return self.__datastore.load_data_reference(key, reference_type, reference)
-
-    def get_data_direct(self, parent_node, key):
-        self.__queue.join()
-        return self.__datastore.get_data_direct(parent_node, key)
 
     def get_data_shape_and_dtype(self, parent_node, key):
         self.__queue.join()
