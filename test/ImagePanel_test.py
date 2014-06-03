@@ -424,7 +424,7 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_moves_horizontal_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width - 1
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_canvas_item.begin_tracking_horizontal(Geometry.IntPoint(x=320, y=465), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465))
         line_plot_canvas_item.end_tracking()
@@ -443,80 +443,58 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertAlmostEqual(self.image_panel.display.y_min, 0.0 + offset)
         self.assertAlmostEqual(self.image_panel.display.y_max, 1.0 + offset)
 
-    def test_mouse_tracking_horizontal_shrink_with_origin_at_left(self):
+    def test_mouse_tracking_shrink_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width - 1
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        offset = Geometry.IntSize(width=-96, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset)
+        line_plot_canvas_item.end_tracking()
+        channel_per_pixel = 1024.0 / plot_width
+        self.assertEqual(self.image_panel.display.left_channel, int(round(512 - int(plot_width * 0.5) * 10 * channel_per_pixel)))
+        self.assertEqual(self.image_panel.display.right_channel, int(round(512 + int(plot_width * 0.5) * 10 * channel_per_pixel)))
+
+    def test_mouse_tracking_expand_scale_by_10_around_center(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        offset = Geometry.IntSize(width=96, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset)
+        line_plot_canvas_item.end_tracking()
+        channel_per_pixel = 1024.0 / plot_width
+        # self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
+        self.assertEqual(self.image_panel.display.left_channel, int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.image_panel.display.right_channel, int(round(512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
+
+    def test_mouse_tracking_shrink_scale_by_10_around_non_center(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + 200, y=465)
-        offset = Geometry.IntSize(width=-40, height=0)
+        offset = Geometry.IntSize(width=-96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset)
         line_plot_canvas_item.end_tracking()
-        scaling = float(pos.x - plot_left) / float(pos.x + offset.width - plot_left)
-        self.assertEqual(self.image_panel.display.left_channel, 0)
-        self.assertEqual(self.image_panel.display.right_channel, 1024 * scaling)
+        channel_per_pixel = 1024.0 / plot_width
+        self.assertEqual(self.image_panel.display.left_channel, int(round(200 * channel_per_pixel - 200 * 10 * channel_per_pixel)))
+        self.assertEqual(self.image_panel.display.right_channel, int(round(200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)))
 
-    def test_mouse_tracking_horizontal_shrink_with_origin_in_middle(self):
+    def test_mouse_tracking_expand_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width - 1
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
-        # adjust image panel display and trigger layout
-        self.image_panel.display.left_channel = -512
-        self.image_panel.display.right_channel = 512
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
-        # now stretch 1/2 + 100 to 1/2 + 150
-        pos = Geometry.IntPoint(x=plot_left + 300 + 100, y=465)
-        offset = Geometry.IntSize(width=50, height=0)
+        pos = Geometry.IntPoint(x=plot_left + 400, y=465)
+        offset = Geometry.IntSize(width=96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset)
         line_plot_canvas_item.end_tracking()
-        relative_x = pos.x - plot_width/2.0 - plot_left
-        scaling = float(relative_x) / float(relative_x + offset.width)
-        self.assertEqual(self.image_panel.display.left_channel, int(-512 * scaling))
-        self.assertEqual(self.image_panel.display.right_channel, int(512 * scaling))
-
-    def test_mouse_tracking_horizontal_shrink_with_origin_at_200(self):
-        line_plot_canvas_item = self.setup_line_plot()
-        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width - 1
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
-        # adjust image panel display and trigger layout
-        self.image_panel.display.left_channel = -200
-        self.image_panel.display.right_channel = 824
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
-        # now stretch 1/2 + 100 to 1/2 + 150
-        pos = Geometry.IntPoint(x=plot_left + 200 + 100, y=465)
-        offset = Geometry.IntSize(width=50, height=0)
-        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
-        relative_x = pos.x - plot_width * 200.0/1024 - plot_left
-        scaling = float(relative_x) / float(relative_x + offset.width)
-        self.assertEqual(self.image_panel.display.left_channel, int(-200 * scaling))
-        self.assertEqual(self.image_panel.display.right_channel, int(824 * scaling))
-
-    def test_mouse_tracking_horizontal_shrink_with_calibrated_origin_at_200(self):
-        line_plot_canvas_item = self.setup_line_plot()
-        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width - 1
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
-        data_item = self.image_panel.display.data_item
-        # adjust image panel display and trigger layout
-        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
-        spatial_calibration_0.origin = -200.0
-        data_item.set_spatial_calibration(0, spatial_calibration_0)
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
-        # now stretch 1/2 + 100 to 1/2 + 150
-        pos = Geometry.IntPoint(x=plot_left + 200 + 100, y=465)
-        offset = Geometry.IntSize(width=50, height=0)
-        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
-        relative_x = pos.x - plot_width * 200.0/1024 - plot_left
-        scaling = float(relative_x) / float(relative_x + offset.width)
-        self.assertEqual(self.image_panel.display.left_channel, int(-200 * scaling + 200))
-        self.assertEqual(self.image_panel.display.right_channel, int(824 * scaling + 200))
+        channel_per_pixel = 1024.0 / plot_width
+        self.assertEqual(self.image_panel.display.left_channel, int(round(400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)))
+        self.assertEqual(self.image_panel.display.right_channel, int(round(400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)))
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_bottom(self):
         line_plot_canvas_item = self.setup_line_plot()

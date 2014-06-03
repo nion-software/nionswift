@@ -1,6 +1,7 @@
 # standard libraries
 import gettext
 import logging
+import math
 import numbers
 import uuid
 
@@ -559,19 +560,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_start_pos = pos
         self.__tracking_start_left_channel = self.line_graph_canvas_item.drawn_left_channel
         self.__tracking_start_right_channel = self.line_graph_canvas_item.drawn_right_channel
-        self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / (plot_rect.width - 1)
-        self.__tracking_start_calibrated_data_left = self.line_graph_canvas_item.calibrated_data_left
-        self.__tracking_start_calibrated_data_right = self.line_graph_canvas_item.calibrated_data_right
-        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
-        if 0.0 >= self.__tracking_start_calibrated_data_left and 0.0 <= self.__tracking_start_calibrated_data_right:
-            calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_right - self.__tracking_start_calibrated_data_left) / (plot_rect.width - 1)
-            origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_left) / calibrated_unit_per_pixel
-            origin_offset_channel = self.__tracking_start_left_channel + origin_offset_pixels * self.__tracking_start_drawn_channel_per_pixel
-            self.__tracking_start_origin_pixel = origin_offset_pixels
-            self.__tracking_start_origin_channel = origin_offset_channel
-        else:
-            self.__tracking_start_origin_pixel = 0
-            self.__tracking_start_origin_channel = self.__tracking_start_left_channel
+        self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / plot_rect.width
+        self.__tracking_start_origin_pixel = self.__tracking_start_pos.x - plot_rect.left
+        self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
     def begin_tracking_vertical(self, pos, rescale):
         plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
@@ -598,11 +589,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__tracking_horizontal:
             if self.__tracking_rescale:
                 plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
-                origin_pixel = self.__tracking_start_origin_pixel + plot_rect.left
-                channel_offset = self.__tracking_start_drawn_channel_per_pixel * (self.__tracking_start_pos.x - origin_pixel)
-                new_drawn_channel_per_pixel = channel_offset / (pos.x - origin_pixel)
-                self.__display.left_channel = int(self.__tracking_start_origin_channel - new_drawn_channel_per_pixel * (self.__tracking_start_origin_pixel))
-                self.__display.right_channel = int(self.__tracking_start_origin_channel + new_drawn_channel_per_pixel * (plot_rect.width - 1 - self.__tracking_start_origin_pixel))
+                pixel_offset_x = pos.x - self.__tracking_start_pos.x
+                scaling = math.pow(10, pixel_offset_x/96.0)  # 10x per inch of travel, assume 96dpi
+                new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
+                self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
+                self.__display.right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
             else:
                 delta = pos - self.__tracking_start_pos
                 self.__display.left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
