@@ -68,6 +68,27 @@ def scaled(image, size, method='linear'):
     return None
 
 
+def rebin_1d(src, len):
+    src_len = src.shape[0]
+    if len < src_len:
+        # create linear bins
+        ss = numpy.linspace(0, len, len+1) * float(src_len) / len
+        # create some useful row and column values using meshgrid
+        ix, iy = numpy.meshgrid(numpy.linspace(0, src_len-1, src_len), numpy.linspace(0, len-1, len))
+        ix = ix.astype(numpy.int32)
+        iy = iy.astype(numpy.int32)
+        # basic idea here is to multiply low window by high window to get the window for each bin; then sum the transpose to do the actual binning
+        # result is scaled to keep amplitude the same.
+        return sum((numpy.maximum(numpy.minimum(ss[iy+1] - ix, 1.0), 0.0) * numpy.minimum(numpy.maximum(ix+1 - ss[iy], 0), 1.0) * src).transpose()) * len / src_len
+    else:
+        # linear
+        result = numpy.empty((len, ), dtype=numpy.double)
+        index = numpy.linspace(0, src_len-1, len).astype(numpy.int32)
+        result[:] = src[index]
+        return result
+    return src
+
+
 def get_byte_view(rgba_image):
     return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (-1, ))
 

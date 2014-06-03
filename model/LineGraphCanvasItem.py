@@ -20,6 +20,7 @@ import numpy
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import Geometry
+from nion.swift.model import Image
 
 _ = gettext.gettext
 
@@ -165,7 +166,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.data_info = None
         self.draw_grid = True
         self.draw_frame = True
-        self.background_color = "#EEE"
+        self.background_color = "#FFF"
         self.font_size = 12
         self.drawn_data_per_pixel = None
         self.drawn_data_min = None
@@ -247,7 +248,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.move_to(plot_origin_x, y)
                     drawing_context.line_to(plot_origin_x + plot_width, y)
                     drawing_context.line_width = 1
-                    drawing_context.stroke_style = '#888'
+                    drawing_context.stroke_style = '#DDD'
                     drawing_context.stroke()
                 drawing_context.restore()
 
@@ -259,7 +260,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.move_to(x, plot_origin_y)
                     drawing_context.line_to(x, plot_origin_y + plot_height)
                 drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
+                drawing_context.stroke_style = '#DDD'
                 drawing_context.stroke()
             drawing_context.restore()
 
@@ -270,35 +271,28 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - drawn_data_min) / drawn_data_range)
                 baseline = min(plot_origin_y + plot_height, baseline)
                 baseline = max(plot_origin_y, baseline)
-                drawing_context.move_to(plot_origin_x, baseline)
-                for i in xrange(0, plot_width, 2):
+                # rebin so that data_width corresponds to plot width
+                binned_length = int(data_info.data.shape[0] * plot_width / data_width)
+                binned_data = Image.rebin_1d(data_info.data, binned_length)
+                binned_left = int(data_left * plot_width / data_width)
+                binned_width = int(data_width * plot_width / data_width)
+                # draw the plot
+                for i in xrange(0, plot_width):
                     px = plot_origin_x + i
-                    data_index = int(data_left + data_width * float(i) / plot_width)
-                    data_value = float(data_info.data[data_index]) if data_index >= raw_data_left and data_index < raw_data_right else 0.0
+                    binned_index = binned_left + i
+                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
                     # plot_origin_y is the TOP of the drawing
                     # py extends DOWNWARDS
                     py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
                     py = max(plot_origin_y, py)
                     py = min(plot_origin_y + plot_height, py)
+                    drawing_context.move_to(px, baseline)
                     drawing_context.line_to(px, py)
-                    px = min(px + 2, plot_origin_x + plot_width)
-                    drawing_context.line_to(px, py)
-                # finish off last line
-                px = plot_origin_x + plot_width
-                data_index = data_right - 1
-                data_value = float(data_info.data[data_index]) if data_index >= raw_data_left and data_index < raw_data_right else 0.0
-                py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
-                drawing_context.line_to(plot_origin_x + plot_width, baseline)
             else:
                 drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
                 drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-            drawing_context.close_path()
-            drawing_context.fill_style = '#AFA'
-            drawing_context.fill()
-            drawing_context.line_width = 0.5
-            drawing_context.line_cap = 'round'
-            drawing_context.line_join = 'round'
-            drawing_context.stroke_style = '#040'
+            drawing_context.line_width = 1.0
+            drawing_context.stroke_style = '#1E90FF'  # dodger blue
             drawing_context.stroke()
             if self.draw_frame:
                 drawing_context.begin_path()

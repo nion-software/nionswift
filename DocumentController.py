@@ -541,6 +541,13 @@ class DocumentController(Observable.Broadcaster):
             self.set_data_item_selection(data_item, source_data_item=source_data_item)
         return data_item
 
+    def add_data(self, data, title=None):
+        if title is None:
+            r = random.randint(100000,999999)
+            r_var = _("Data") + " %d" % r
+        data_element = { "data": data, "title": title }
+        return self.add_data_element(data_element)
+
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = self.selected_data_item
         if data_item:

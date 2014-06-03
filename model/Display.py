@@ -274,10 +274,10 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
         line_graph_canvas_item.draw_captions = False
         line_graph_canvas_item.draw_grid = False
-        line_graph_canvas_item.draw_frame = False
+        line_graph_canvas_item.draw_frame = True
         line_graph_canvas_item.background_color = "#EEEEEE"
         line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data_info = LineGraphCanvasItem.LineGraphDataInfo(data)
+        line_graph_canvas_item.data_info = LineGraphCanvasItem.LineGraphDataInfo(data, data_left=0, data_right=data.shape[0])
         line_graph_canvas_item.update_layout((0, 0), (height, width))
         drawing_context = ui.create_offscreen_drawing_context()
         line_graph_canvas_item._repaint(drawing_context)
