@@ -571,6 +571,48 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertAlmostEqual(self.image_panel.display.y_min, -0.2 * scaling + 0.2)
         self.assertAlmostEqual(self.image_panel.display.y_max, 0.8 * scaling + 0.2)
 
+    def test_mouse_tracking_vertical_drag_down_does_not_go_negative(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        # adjust image panel display and trigger layout
+        self.image_panel.display.y_min = -0.5
+        self.image_panel.display.y_max = 0.5
+        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
+        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        # now stretch way past top
+        pos = Geometry.IntPoint(x=30, y=20)
+        offset = Geometry.IntSize(width=0, height=plot_height)
+        line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset)
+        line_plot_canvas_item.end_tracking()
+        relative_y = (plot_bottom - plot_height/2.0) - pos.y
+        scaling = plot_height
+        new_drawn_data_per_pixel = 1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
+        self.assertAlmostEqual(self.image_panel.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.image_panel.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
+
+    def test_mouse_tracking_vertical_drag_up_does_not_go_negative(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        # adjust image panel display and trigger layout
+        self.image_panel.display.y_min = -0.5
+        self.image_panel.display.y_max = 0.5
+        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
+        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        # now stretch way past top
+        pos = Geometry.IntPoint(x=30, y=plot_height-20)
+        offset = Geometry.IntSize(width=0, height=-plot_height)
+        line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset)
+        line_plot_canvas_item.end_tracking()
+        relative_y = (plot_bottom - plot_height/2.0) - pos.y
+        scaling = plot_height
+        new_drawn_data_per_pixel = -1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
+        self.assertAlmostEqual(self.image_panel.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
+        self.assertAlmostEqual(self.image_panel.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
+
 
 if __name__ == '__main__':
     unittest.main()

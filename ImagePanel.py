@@ -604,7 +604,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
                 origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
                 data_offset = self.__tracking_start_drawn_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
-                new_drawn_data_per_pixel = data_offset / (origin_y - pos.y)
+                pixel_offset = origin_y - pos.y
+                pixel_offset = max(pixel_offset, 1) if origin_y > self.__tracking_start_pos.y else min(pixel_offset, -1)
+                new_drawn_data_per_pixel = data_offset / pixel_offset
                 data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * (self.__tracking_start_origin_y)
                 data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
                 self.__display.y_min = data_min
