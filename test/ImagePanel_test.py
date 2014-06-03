@@ -613,6 +613,23 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertAlmostEqual(self.image_panel.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
         self.assertAlmostEqual(self.image_panel.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
 
+    def test_combined_horizontal_drag_and_expand_works_nominally(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        line_plot_canvas_item.mouse_pressed(plot_left, 430, Test.KeyboardModifiers(control=True))
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers(control=True))
+        # trigger layout. necessary so that drawn values get updated. bad architecture!
+        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
+        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        # continue
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_position_changed(plot_left+196, 430, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+116, 190, Test.KeyboardModifiers())
+        channel_per_pixel = 1024.0/10 / plot_width
+        self.assertEqual(self.image_panel.display.left_channel, int(0 - channel_per_pixel * 100))
+        self.assertEqual(self.image_panel.display.right_channel, int(int(1024/10.0) - channel_per_pixel * 100))
+
 
 if __name__ == '__main__':
     unittest.main()

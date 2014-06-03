@@ -520,6 +520,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # x,y already have transform applied
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
+        new_rescale = modifiers.control
+        if self.__tracking_horizontal and self.__tracking_rescale != new_rescale:
+            self.end_tracking()
+            self.begin_tracking_horizontal(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
+        elif self.__tracking_vertical and self.__tracking_rescale != new_rescale:
+            self.end_tracking()
+            self.begin_tracking_vertical(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
         return self.continue_tracking(Geometry.IntPoint(x=x, y=y))
 
     def mouse_pressed(self, x, y, modifiers):
