@@ -665,6 +665,25 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
+    def test_reloaded_empty_data_groups_load_properly(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_group = DataGroup.DataGroup()
+        document_model.append_data_group(data_group)
+        # save it out
+        storage_data = datastore.to_data()
+        document_controller.close()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # clean up
+        document_controller.close()
+
     def test_new_data_item_stores_uuid_and_data_info_in_properties_immediately(self):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)

@@ -96,7 +96,7 @@ class DataGroup(Storage.StorageBase):
         data_group = cls()
         data_group.title = title
         data_group.data_groups.extend(data_groups)
-        data_group.__data_item_uuids = data_item_uuids
+        data_group.__data_item_uuids = data_item_uuids if data_item_uuids is not None else list()
         return data_group
 
     # This gets called when reference count goes to 0, but before deletion.
