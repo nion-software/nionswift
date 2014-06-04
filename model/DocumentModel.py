@@ -52,6 +52,19 @@ class DataItemVault(object):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
+    def set_properties_low_level(self, uuid_, properties, file_datetime):
+        """ Only used to migrate data """
+        if self.datastore:
+            assert self.reference is not None
+            self.__properties = properties
+            self.datastore.set_root_properties(uuid_, self.__properties, self.reference, file_datetime)
+
+    def load_data_low_level(self):
+        return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
+
+    def set_value_low_level(self, name, value):
+        self.storage_dict[name] = value
+
     def update_properties(self):
         if self.__delegate:
             self.__delegate.update_properties()
@@ -155,6 +168,33 @@ class DbDataItemVault(object):
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             vault = DataItemVault(self.__datastore, properties=properties, reference_type=reference_type, reference=reference)
+            current_version = 2
+            version = properties.get("version", 0)
+            if version == 1:
+                if "spatial_calibrations" in properties:
+                    properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
+                    del properties["spatial_calibrations"]
+                if "intensity_calibration" in properties:
+                    properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
+                    del properties["intensity_calibration"]
+                if "data_source_uuid" in properties:
+                    # for now, this is not translated into v2. it was an extra item.
+                    del properties["data_source_uuid"]
+                if "properties" in properties:
+                    old_properties = properties["properties"]
+                    new_properties = properties.setdefault("hardware_source", dict())
+                    new_properties.update(copy.deepcopy(old_properties))
+                    del properties["properties"]
+                temp_data = vault.load_data_low_level()
+                if temp_data is not None:
+                    properties["master_data_dtype"] = str(temp_data.dtype)
+                    properties["master_data_shape"] = temp_data.shape
+                properties["displays"] = [{}]
+                properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                vault.set_value_low_level("version", current_version)
+                vault.set_value_low_level("reader_version", current_version)
+                vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
+                logging.info("Updated %s", vault.reference)
             data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
             data_item.add_ref()

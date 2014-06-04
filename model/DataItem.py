@@ -266,10 +266,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         # uuid is handled specially for performance reasons
         if self.vault.has_value("uuid"):
             self.uuid = uuid.UUID(self.vault.get_value("uuid"))
+        # version handling
+        current_version = 2
+        properties = self.vault.properties
+        version = properties.get("version", 0)
+        reader_version = properties.get("reader_version", 0)
+        if version != current_version:
+            self.vault.set_value("version", current_version)
+        if reader_version != current_version:
+            self.vault.set_value("reader_version", current_version)
         self.read_storage(self.vault)
         properties = self.vault.properties
         for key in properties.keys():
-            if key not in self.property_names and key not in self.relationship_names and key not in ("uuid"):
+            if key not in self.property_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
         # uuid is handled specially for performance reasons
         if "uuid" not in properties:

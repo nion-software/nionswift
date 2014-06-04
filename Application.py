@@ -29,6 +29,7 @@ from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift import SessionPanel
+from nion.swift import NDataHandler
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
@@ -589,90 +590,6 @@ class Application(object):
         Test.run_all_tests()
 
 
-class Ndata2Handler(object):
-
-    def __init__(self, data_dir):
-        self.__data_dir = data_dir
-
-    def get_reference(self, file_path):
-        relative_file = os.path.relpath(file_path, self.__data_dir)
-        return os.path.splitext(relative_file)[0]
-
-    def is_matching(self, filename):
-        return filename.endswith(".ndata2")
-
-    def write_data(self, reference, data, file_datetime):
-        assert data is not None
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        item_uuid, properties = self.read_properties(reference) if os.path.exists(absolute_file_path) else dict()
-        with open(absolute_file_path, "wb") as fp:
-            numpy.save(fp, data)
-            pos = fp.tell()
-            json.dump(properties, fp)
-            fp.write(struct.pack('q', pos))
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def write_properties(self, reference, properties, file_datetime):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        exists = os.path.exists(absolute_file_path)
-        mode = "r+b" if exists else "w+b"
-        with open(absolute_file_path, mode) as fp:
-            if exists:
-                fp.seek(-8, os.SEEK_END)
-                pos = struct.unpack('q', fp.read(8))[0]
-            else:
-                pos = 0
-            fp.seek(pos)
-            json.dump(properties, fp)
-            fp.write(struct.pack('q', pos))
-            fp.truncate()
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def read_properties(self, reference):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        with open(absolute_file_path, "rb") as fp:
-            fp.seek(-8, os.SEEK_END)
-            pos_end = fp.tell()
-            pos = struct.unpack('q', fp.read(8))[0]
-            fp.seek(pos)
-            json_properties = fp.read(pos_end - pos)
-            properties = json.loads(json_properties)
-        item_uuid = uuid.UUID(properties["uuid"])
-        return item_uuid, properties
-
-    def read_data(self, reference):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("READ data file %s", absolute_file_path)
-        with open(absolute_file_path, "rb") as fp:
-            fp.seek(-8, os.SEEK_END)
-            pos = struct.unpack('q', fp.read(8))[0]
-            if pos > 0:
-                fp.seek(0)
-                return numpy.load(fp)
-            return None
-        return None
-
-    def remove(self, reference):
-        for suffix in ["ndata2"]:
-            data_file_path = reference + "." + suffix
-            absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-            #logging.debug("DELETE data file %s", absolute_file_path)
-            if os.path.isfile(absolute_file_path):
-                os.remove(absolute_file_path)
-
-
 class MtdHandler(object):
 
     def __init__(self, data_dir):
@@ -738,7 +655,7 @@ class DataReferenceHandler(object):
         self.ui = ui
         self.workspace_dir = workspace_dir
         self.__data_dir = os.path.join(self.workspace_dir, "Nion Swift Data")
-        self.__file_handler = Ndata2Handler(self.__data_dir)
+        self.__file_handler = NDataHandler.NDataHandler(self.__data_dir)
         assert self.workspace_dir
 
     def find_data_item_tuples(self):
