@@ -504,13 +504,17 @@ class Application(object):
                     reference = os.path.splitext(data_file_path)[0]
                     file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                     data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
+                    if "session_uuid" in properties.get("hardware_source", dict()):
+                        del properties.get("hardware_source")["session_uuid"]
+                    properties = NDataHandler.clean_dict(properties)
                     data_reference_handler.write_properties(properties, "relative_file", reference, file_datetime)
                     if existing_reference:
                         nsdata_path = os.path.join(workspace_dir, "Nion Swift Data", existing_reference.replace("data_", "master_data_") + ".nsdata")
-                        logging.debug(nsdata_path)
-                        data = pickle.load(open(nsdata_path, "rb"))
-                        data_reference_handler.write_data_reference(data, "relative_file", reference, file_datetime)
-                        os.remove(nsdata_path)
+                        logging.info(nsdata_path)
+                        if os.path.exists(nsdata_path):
+                            data = pickle.load(open(nsdata_path, "rb"))
+                            data_reference_handler.write_data_reference(data, "relative_file", reference, file_datetime)
+                            os.remove(nsdata_path)
                 c.execute("UPDATE version SET version = ?", (10, ))
                 datastore.conn.commit()
                 version = 10

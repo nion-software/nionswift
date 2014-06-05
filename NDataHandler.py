@@ -333,3 +333,34 @@ class NDataHandler(object):
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
+
+
+def clean_dict(d):
+    for key in d:
+        d[key] = clean_item(d[key])
+    return d
+
+
+def clean_list(l):
+    for index, item in enumerate(l):
+        l[index] = clean_item(item)
+    return l
+
+
+def clean_tuple(t):
+    l = []
+    for item in t:
+        l.append(clean_item(item))
+    return tuple(l)
+
+
+def clean_item(i):
+    if type(i) == dict:
+        return clean_dict(i)
+    elif type(i) == list:
+        return clean_list(i)
+    elif type(i) == tuple:
+        return clean_tuple(i)
+    elif type(i) == numpy.float32:
+        return float(i)
+    return i

@@ -184,6 +184,8 @@ class DbDataItemVault(object):
                     old_properties = properties["properties"]
                     new_properties = properties.setdefault("hardware_source", dict())
                     new_properties.update(copy.deepcopy(old_properties))
+                    if "session_uuid" in new_properties:
+                        del new_properties["session_uuid"]
                     del properties["properties"]
                 temp_data = vault.load_data_low_level()
                 if temp_data is not None:
