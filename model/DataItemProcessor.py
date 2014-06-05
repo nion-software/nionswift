@@ -46,7 +46,7 @@ class DataItemProcessor(object):
             data_item = self.get_data_item()
             if not data_item.closed and (data_item.has_master_data or data_item.has_data_source):
                 def load_data_on_thread():
-                    time.sleep(0.2)
+                    time.sleep(0.5)
                     with data_item.data_ref() as data_ref:
                         data = data_ref.data
                         if data is not None:  # for data to load and make sure it has data

@@ -6,6 +6,7 @@ import gettext
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import Image
 from nion.ui import CanvasItem
 from nion.ui import ThreadPool
 
@@ -28,35 +29,34 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
         right = self.display_limits[1]
 
         # draw left display limit
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.move_to(left * canvas_width, 1)
-        drawing_context.line_to(left * canvas_width, canvas_height-1)
-        drawing_context.line_width = 2
-        drawing_context.stroke_style = "#000"
-        drawing_context.stroke()
-        drawing_context.restore()
+        if left > 0.0:
+            drawing_context.save()
+            drawing_context.begin_path()
+            drawing_context.move_to(left * canvas_width, 1)
+            drawing_context.line_to(left * canvas_width, canvas_height-1)
+            drawing_context.line_width = 2
+            drawing_context.stroke_style = "#000"
+            drawing_context.stroke()
+            drawing_context.restore()
 
         # draw right display limit
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.move_to(right * canvas_width, 1)
-        drawing_context.line_to(right * canvas_width, canvas_height-1)
-        drawing_context.line_width = 2
-        drawing_context.stroke_style = "#FFF"
-        drawing_context.stroke()
-        drawing_context.restore()
+        if right < 1.0:
+            drawing_context.save()
+            drawing_context.begin_path()
+            drawing_context.move_to(right * canvas_width, 1)
+            drawing_context.line_to(right * canvas_width, canvas_height-1)
+            drawing_context.line_width = 2
+            drawing_context.stroke_style = "#FFF"
+            drawing_context.stroke()
+            drawing_context.restore()
 
         # draw border
         drawing_context.save()
         drawing_context.begin_path()
-        drawing_context.move_to(0,0)
-        drawing_context.line_to(canvas_width,0)
+        drawing_context.move_to(0,canvas_height)
         drawing_context.line_to(canvas_width,canvas_height)
-        drawing_context.line_to(0,canvas_height)
-        drawing_context.close_path()
         drawing_context.line_width = 1
-        drawing_context.stroke_style = "#000"
+        drawing_context.stroke_style = "#444"
         drawing_context.stroke()
         drawing_context.restore()
 
@@ -107,16 +107,12 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # draw the histogram itself
             drawing_context.save()
             drawing_context.begin_path()
-            drawing_context.move_to(0, canvas_height)
-            drawing_context.line_to(0, canvas_height * (1 - self.data[0]))
-            for i in xrange(1,canvas_width,2):
-                drawing_context.line_to(i, canvas_height * (1 - self.data[int(len(self.data)*float(i)/canvas_width)]))
-            drawing_context.line_to(canvas_width, canvas_height)
-            drawing_context.close_path()
-            drawing_context.fill_style = "#888"
-            drawing_context.fill()
+            binned_data = Image.rebin_1d(self.data, int(canvas_width)) if int(canvas_width) != self.data.shape[0] else self.data
+            for i in xrange(canvas_width):
+                drawing_context.move_to(i, canvas_height)
+                drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))
             drawing_context.line_width = 1
-            drawing_context.stroke_style = "#00F"
+            drawing_context.stroke_style = "#444"
             drawing_context.stroke()
             drawing_context.restore()
 

@@ -217,7 +217,7 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __init__(self, display):
         super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
-        self.bins = 256
+        self.bins = 320
 
     def item_property_changed(self, key, value):
         """ Called directly from data item. """
