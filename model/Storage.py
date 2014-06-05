@@ -684,7 +684,7 @@ class DictDatastore(object):
         # add reference count
         self.__add_node_ref(item_uuid)
 
-    def remove_root_item_uuid(self, key, item_uuid):
+    def remove_root_item_uuid(self, key, item_uuid, reference_type, reference):
         if self.disconnected:
             return
         self.__remove_node_ref(item_uuid)
@@ -1222,10 +1222,16 @@ class DbDatastore(object):
             self.__add_node_ref(item_uuid)
             self.conn.commit()
 
-    def remove_root_item_uuid(self, key, item_uuid):
+    def remove_root_item_uuid(self, key, item_uuid, reference_type, reference):
         if not self.disconnected:
-            self.__remove_node_ref(item_uuid)
+            c = self.conn.cursor()
+            # remove properties, node, data_reference
+            self.execute(c, "DELETE FROM properties WHERE uuid = ?", (str(item_uuid), ))
+            self.execute(c, "DELETE FROM nodes WHERE uuid = ?", (str(item_uuid), ))
+            self.execute(c, "DELETE FROM data_references WHERE uuid = ?", (str(item_uuid), ))
             self.conn.commit()
+            # and the file
+            self.data_reference_handler.remove_data_reference(reference_type, reference)
 
     def get_root_property(self, item_uuid, key):
         c = self.conn.cursor()
@@ -1248,7 +1254,8 @@ class DbDatastore(object):
             c = self.conn.cursor()
             db_write_data_reference(c, item_uuid, "master_data", data_shape, data_dtype, "relative_file", reference)
             self.conn.commit()
-        self.write_data_reference(data, "relative_file", reference, file_datetime)
+        if data is not None:
+            self.write_data_reference(data, "relative_file", reference, file_datetime)
 
     def get_root_data_reference(self, item_uuid, key):
         c = self.conn.cursor()
@@ -1440,9 +1447,9 @@ class DbDatastoreProxy(object):
         self.__queue.put((functools.partial(DbDatastore.add_root_item_uuid, self.__datastore, key, item_uuid), event, "add_root_item_uuid"))
         #event.wait()
 
-    def remove_root_item_uuid(self, key, item_uuid):
+    def remove_root_item_uuid(self, key, item_uuid, reference_type, reference):
         event = threading.Event()
-        self.__queue.put((functools.partial(DbDatastore.remove_root_item_uuid, self.__datastore, key, item_uuid), event, "remove_root_item_uuid"))
+        self.__queue.put((functools.partial(DbDatastore.remove_root_item_uuid, self.__datastore, key, item_uuid, reference_type, reference), event, "remove_root_item_uuid"))
         #event.wait()
 
     def get_root_property(self, item_uuid, key):

@@ -697,6 +697,58 @@ class TestStorageClass(unittest.TestCase):
         self.assertTrue("master_data_dtype" in data_item.properties)
         self.assertTrue("uuid" in data_item.properties)
 
+    def test_deleting_dependent_after_deleting_source_succeeds(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        db_name = os.path.join(workspace_dir, "Data.nswrk")
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            data_item = DataItem.DataItem()
+            with data_item.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem()
+            document_model.append_data_item(data_item2)
+            data_item2.add_data_source(data_item)
+            reference_type, reference = data_item.get_data_file_info()
+            reference_type, reference2 = data_item2.get_data_file_info()
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
+            data2_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference2 + ".ndata")
+            # make sure assumptions are correct
+            self.assertTrue(os.path.exists(data_file_path))
+            self.assertTrue(os.path.isfile(data_file_path))
+            self.assertTrue(os.path.exists(data2_file_path))
+            self.assertTrue(os.path.isfile(data2_file_path))
+            # make sure original file gets deleted
+            document_model.remove_data_item(data_item)
+            self.assertFalse(os.path.exists(data_file_path))
+            self.assertFalse(os.path.isfile(data_file_path))
+            self.assertTrue(os.path.exists(data2_file_path))
+            self.assertTrue(os.path.isfile(data2_file_path))
+            # clean up
+            document_model.remove_ref()
+            # read it back
+            data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model.add_ref()
+            self.assertEqual(len(document_model.data_items), 1)
+            self.assertTrue(os.path.isfile(data2_file_path))
+            # make sure dependent gets deleted
+            document_model.remove_data_item(document_model.data_items[0])
+            self.assertFalse(os.path.exists(data2_file_path))
+            # clean up
+            document_model.remove_ref()
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

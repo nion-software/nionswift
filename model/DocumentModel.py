@@ -117,10 +117,9 @@ class DataItemVault(object):
 
     def update_data(self, data_shape, data_dtype, data=None):
         if self.datastore is not None:
-            if data is not None:
-                self.ensure_reference_valid()
-                file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-                self.datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
+            self.ensure_reference_valid()
+            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+            self.datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data
@@ -243,7 +242,7 @@ class DbDataItemVault(object):
         # do actual removal
         del self.__data_items[index]
         # keep storage up-to-date
-        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid)
+        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
         data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
         #data_item.vault.datastore = None
         data_item.__storage_cache = None
