@@ -235,22 +235,21 @@ class HistogramPanel(Panel.Panel):
         self.stats_column1_label = self.ui.create_label_widget()
         self.stats_column2_label = self.ui.create_label_widget()
         self.stats_column1.add(self.stats_column1_label)
-        self.stats_column1.add_stretch()
         self.stats_column2.add(self.stats_column2_label)
-        self.stats_column2.add_stretch()
 
-        stats_section = self.ui.create_row_widget(properties={"spacing": 6})
+        stats_section = self.ui.create_row_widget()
         stats_section.add_spacing(13)
         stats_section.add(self.stats_column1)
         stats_section.add_stretch()
         stats_section.add(self.stats_column2)
         stats_section.add_spacing(13)
 
-        column = self.ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3})
+        column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3})
         column.add(self.root_canvas_item.canvas_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)
+        column.add_stretch()
 
         self.widget = column
 
