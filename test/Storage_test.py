@@ -398,6 +398,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.exists(data_file_path))
                 self.assertTrue(os.path.isfile(data_file_path))
                 storage_data = datastore.to_data()
+            datastore.close()
             # make sure the data reloads
             datastore = Storage.DbDatastore(data_reference_handler, db_name, storage_data=storage_data)
             storage_cache = Storage.DbStorageCache(db_name)
@@ -408,6 +409,7 @@ class TestStorageClass(unittest.TestCase):
                 # and then make sure the data file gets removed on disk when removed
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data_file_path))
+            datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -431,7 +433,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNone(data_item.data_dtype)
             self.assertEqual(reference_type, "relative_file")
             self.assertIsNotNone(reference)
+            # clean up
             document_model.remove_ref()
+            datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -462,7 +466,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
             self.assertIsNotNone(handler.read_data(reference))
+            # clean up
             document_model.remove_ref()
+            datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -495,7 +501,9 @@ class TestStorageClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             # make sure it get removed from disk
             self.assertFalse(os.path.exists(data_file_path))
+            # clean up
             document_model.remove_ref()
+            datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -745,6 +753,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(os.path.exists(data2_file_path))
             # clean up
             document_model.remove_ref()
+            datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
