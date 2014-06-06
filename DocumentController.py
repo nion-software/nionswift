@@ -41,6 +41,8 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
+        if app:
+            self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), os.path.splitext(os.path.split(app.workspace_dir)[1])[0])
         self.workspace = None
         self.app = app
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
