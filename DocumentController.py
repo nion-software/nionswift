@@ -114,9 +114,25 @@ class DocumentController(Observable.Broadcaster):
 
         self.help_menu = self.document_window.add_menu(_("Help"))
 
-        self.new_action = self.file_menu.add_menu_item(_("New"), lambda: self.new_window("library"), key_sequence="new")
+        self.workspace_menu = self.ui.create_sub_menu(self.document_window)
+
+        if self.app:
+            recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
+            for file_path in recent_workspace_file_paths:
+                root_path, file_name = os.path.split(file_path)
+                name, ext = os.path.splitext(file_name)
+                self.workspace_menu.add_menu_item(name, lambda file_path=file_path: self.app.switch_workspace(file_path))
+            if len(recent_workspace_file_paths) > 0:
+                self.workspace_menu.add_separator()
+            self.workspace_menu.add_menu_item(_("Other..."), self.app.other_workspace)
+            self.workspace_menu.add_menu_item(_("New..."), self.app.new_workspace)
+            self.workspace_menu.add_menu_item(_("Clear"), self.app.clear_workspaces)
+
+        self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
-        self.close_action = self.file_menu.add_menu_item(_("Close"), lambda: self.document_window.close(), key_sequence="close")
+        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.document_window.close(), key_sequence="close")
+        self.file_menu.add_separator()
+        self.new_action = self.file_menu.add_sub_menu(_("Switch Workspace"), self.workspace_menu)
         self.file_menu.add_separator()
         self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
         self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_file())
