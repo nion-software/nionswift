@@ -1,3 +1,7 @@
+"""
+    A module for handle .ndata files for Swift.
+"""
+
 import binascii
 import calendar
 import datetime
@@ -10,14 +14,32 @@ import struct
 import time
 import uuid
 
-from nion.swift.model import Storage
-
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
 # https://issues.apache.org/jira/browse/COMPRESS-210
 # http://proger.i-forge.net/MS-DOS_date_and_time_format/OFz
 
+
+def make_directory_if_needed(directory_path):
+    """
+        Make the directory path, if needed.
+    """
+    if os.path.exists(directory_path):
+        if not os.path.isdir(directory_path):
+            raise OSError("Path is not a directory:", directory_path)
+    else:
+        os.makedirs(directory_path)
+
+
 def npy_len_and_crc32(data):
+    """
+        Calculate the length and crc32 for a npy file.
+
+        Uses internal npy format routines to write the magic header to a string
+        and then uses binascii to calculate the remaining checksum on the data.
+
+        :param data: the numpy data array to checksum.
+    """
     header = StringIO.StringIO()
     header.write(numpy.lib.format.magic(1, 0))
     numpy.lib.format.write_array_header_1_0(header, numpy.lib.format.header_data_from_array_1_0(data))
@@ -25,7 +47,18 @@ def npy_len_and_crc32(data):
     crc32 = binascii.crc32(data.data, binascii.crc32(header.getvalue())) & 0xFFFFFFFF
     return data_len, crc32
 
-def write_data(fp, name, writer, data_len, crc32, dt):
+
+def write_local_file(fp, name, writer, data_len, crc32, dt):
+    """
+        Writes a zip file local file header structure at the current file position
+
+        :param fp: the file point to which to write the header
+        :param name: the name of the file
+        :param writer: a function taking an fp parameter to do the writing
+        :param data_len: the length of data that will be written to the archive
+        :param crc32: the crc32 of the data to be written
+        :param dt: the datetime to write to the archive
+    """
     fp.write(struct.pack('I', 0x04034b50))  # local file header
     fp.write(struct.pack('H', 10))          # extract version (default)
     fp.write(struct.pack('H', 0))           # general purpose bits
@@ -42,7 +75,18 @@ def write_data(fp, name, writer, data_len, crc32, dt):
     fp.write(name)
     writer(fp)
 
+
 def write_directory_data(fp, offset, name, data_len, crc32, dt):
+    """
+        Write a zip fie directory entry at the current file position
+
+        :param fp: the file point to which to write the header
+        :param offset: the offset of the associated local file header
+        :param name: the name of the file
+        :param data_len: the length of data that will be written to the archive
+        :param crc32: the crc32 of the data to be written
+        :param dt: the datetime to write to the archive
+    """
     fp.write(struct.pack('I', 0x02014b50))  # central directory header
     fp.write(struct.pack('H', 10))          # made by version (default)
     fp.write(struct.pack('H', 10))          # extract version (default)
@@ -64,7 +108,16 @@ def write_directory_data(fp, offset, name, data_len, crc32, dt):
     fp.write(struct.pack('I', offset))      # relative offset of file header
     fp.write(name)
 
+
 def write_end_of_directory(fp, dir_size, dir_offset, count):
+    """
+        Write zip file end of directory header at the current file position
+
+        :param fp: the file point to which to write the header
+        :param dir_size: the total size of the directory
+        :param dir_offset: the start of the first directory header
+        :param count: the count of files
+    """
     fp.write(struct.pack('I', 0x06054b50))  # central directory header
     fp.write(struct.pack('H', 0))           # disk number
     fp.write(struct.pack('H', 0))           # disk number
@@ -74,7 +127,23 @@ def write_end_of_directory(fp, dir_size, dir_offset, count):
     fp.write(struct.pack('I', dir_offset))  # central directory offset
     fp.write(struct.pack('H', 0))           # comment len
 
+
 def write_zip_fp(fp, data, properties, dir_data_list=None):
+    """
+        Write custom zip file of data and properties to fp
+
+        :param fp: the file point to which to write the header
+        :param data: the data to write to the file; may be None
+        :param properties: the properties to write to the file; may be None
+        :param dir_data_list: optional list of directory header information structures
+
+        If dir_data_list is specified, data should be None and properties should
+        be specified. Then the existing data structure will be left alone and only
+        the directory headers and end of directory header will be written.
+
+        Otherwise, if both data and properties are specified, both are written
+        out in full.
+    """
     # dir_data_list has the format: local file record offset, name, data length, crc32
     dir_data_list = list() if dir_data_list is None else dir_data_list
     dt = datetime.datetime.now()
@@ -82,7 +151,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         offset_data = fp.tell()
         data_len, crc32 = npy_len_and_crc32(data)
         writer = lambda fp: numpy.save(fp, data)
-        write_data(fp, "data.npy", writer, data_len, crc32, dt)
+        write_local_file(fp, "data.npy", writer, data_len, crc32, dt)
         dir_data_list.append((offset_data, "data.npy", data_len, crc32))
     if properties is not None:
         json_io = StringIO.StringIO()
@@ -92,7 +161,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         json_crc32 = binascii.crc32(json_str) & 0xFFFFFFFF
         writer = lambda fp: fp.write(json_str)
         offset_json = fp.tell()
-        write_data(fp, "metadata.json", writer, json_len, json_crc32, dt)
+        write_local_file(fp, "metadata.json", writer, json_len, json_crc32, dt)
         dir_data_list.append((offset_json, "metadata.json", json_len, json_crc32))
     dir_offset = fp.tell()
     for offset, name, data_len, crc32 in dir_data_list:
@@ -101,11 +170,40 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
     write_end_of_directory(fp, dir_size, dir_offset, len(dir_data_list))
     fp.truncate()
 
+
 def write_zip(file_path, data, properties):
+    """
+        Write custom zip file to the file path
+
+        :param file_path: the file to which to write the zip file
+        :param data: the data to write to the file; may be None
+        :param properties: the properties to write to the file; may be None
+
+        See write_zip_fp.
+    """
     with open(file_path, "wb") as fp:
         write_zip_fp(fp, data, properties)
 
+
 def parse_zip(fp):
+    """
+        Parse the zip file headers at fp
+
+        :param fp: the file pointer from which to parse the zip file
+        :return: A tuple of local files, directory headers, and end of central directory
+
+        The local files are dictionary where the keys are the local file offset and the
+        values are each a tuple consisting of the name, data position, data length, and crc32.
+
+        The directory headers are a dictionary where the keys are the names of the files
+        and the values are a tuple consisting of the directory header position, and the
+        associated local file position.
+
+        The end of central directory is a tuple consisting of the location of the end of
+        central directory header and the location of the first directory header.
+
+        This method will seek to location 0 of fp and leave fp at end of file.
+    """
     local_files = {}
     dir_files = {}
     fp.seek(0)
@@ -142,13 +240,45 @@ def parse_zip(fp):
             break
     return local_files, dir_files, eocd
 
+
 def read_data(fp, local_files, dir_files, name):
+    """
+        Read a numpy data array from the zip file
+
+        :param fp: a file pointer
+        :param local_files: the local files structure
+        :param dir_files: the directory headers
+        :param name: the name of the data file to read
+        :return: the numpy data array, if found
+
+        The file pointer will be at a location following the
+        local file entry after this method.
+
+        The local_files and dir_files should be passed from
+        the results of parse_zip.
+    """
     if name in dir_files:
         fp.seek(local_files[dir_files[name][1]][1])
         return numpy.load(fp)
     return None
 
+
 def read_json(fp, local_files, dir_files, name):
+    """
+        Read json properties from the zip file
+
+        :param fp: a file pointer
+        :param local_files: the local files structure
+        :param dir_files: the directory headers
+        :param name: the name of the json file to read
+        :return: the json properites as a dictionary, if found
+
+        The file pointer will be at a location following the
+        local file entry after this method.
+
+        The local_files and dir_files should be passed from
+        the results of parse_zip.
+    """
     if name in dir_files:
         json_pos = local_files[dir_files[name][1]][1]
         json_len = local_files[dir_files[name][1]][2]
@@ -157,7 +287,18 @@ def read_json(fp, local_files, dir_files, name):
         return json.loads(json_properties)
     return None
 
+
 def rewrite_zip(file_path, properties):
+    """
+        Rewrite the json properties in the zip file
+
+        :param file_path: the file path to the zip file
+        :param properties: the updated properties to write to the zip file
+
+        This method will attempt to keep the data file within the zip
+        file intact without rewriting it. However, if the data file is not the
+        first item in the zip file, this method will rewrite it.
+    """
     with open(file_path, "r+b") as fp:
         local_files, dir_files, eocd = parse_zip(fp)
         # check to make sure directory has two files, named data.npy and metadata.json, and that data.npy is first
@@ -177,128 +318,86 @@ def rewrite_zip(file_path, properties):
             fp.seek(0)
             write_zip_fp(fp, data, properties)
 
-#d = numpy.zeros((16, ), dtype=numpy.double)
-#d[:] = numpy.linspace(0, 1, 16)
-
-#write_zip("test.zip", d, {"abc": 4, "def": "string"})
-
-#rewrite_zip("test.zip", {"abc": 5, "def": "string2"})
-
-
-
-class NData2Handler(object):
-
-    def __init__(self, data_dir):
-        self.__data_dir = data_dir
-
-    def get_reference(self, file_path):
-        relative_file = os.path.relpath(file_path, self.__data_dir)
-        return os.path.splitext(relative_file)[0]
-
-    def is_matching(self, filename):
-        return filename.endswith(".ndata2")
-
-    def write_data(self, reference, data, file_datetime):
-        assert data is not None
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        item_uuid, properties = self.read_properties(reference) if os.path.exists(absolute_file_path) else dict()
-        with open(absolute_file_path, "wb") as fp:
-            numpy.save(fp, data)
-            pos = fp.tell()
-            json.dump(properties, fp)
-            fp.write(struct.pack('q', pos))
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def write_properties(self, reference, properties, file_datetime):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        exists = os.path.exists(absolute_file_path)
-        mode = "r+b" if exists else "w+b"
-        with open(absolute_file_path, mode) as fp:
-            if exists:
-                fp.seek(-8, os.SEEK_END)
-                pos = struct.unpack('q', fp.read(8))[0]
-            else:
-                pos = 0
-            fp.seek(pos)
-            json.dump(properties, fp)
-            fp.write(struct.pack('q', pos))
-            fp.truncate()
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def read_properties(self, reference):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        with open(absolute_file_path, "rb") as fp:
-            fp.seek(-8, os.SEEK_END)
-            pos_end = fp.tell()
-            pos = struct.unpack('q', fp.read(8))[0]
-            fp.seek(pos)
-            json_properties = fp.read(pos_end - pos)
-            properties = json.loads(json_properties)
-        item_uuid = uuid.UUID(properties["uuid"])
-        return item_uuid, properties
-
-    def read_data(self, reference):
-        data_file_path = reference + ".ndata2"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("READ data file %s", absolute_file_path)
-        with open(absolute_file_path, "rb") as fp:
-            fp.seek(-8, os.SEEK_END)
-            pos = struct.unpack('q', fp.read(8))[0]
-            if pos > 0:
-                fp.seek(0)
-                return numpy.load(fp)
-            return None
-        return None
-
-    def remove(self, reference):
-        for suffix in ["ndata2"]:
-            data_file_path = reference + "." + suffix
-            absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-            #logging.debug("DELETE data file %s", absolute_file_path)
-            if os.path.isfile(absolute_file_path):
-                os.remove(absolute_file_path)
-
 
 class NDataHandler(object):
+    """
+        A handler object for ndata files.
+
+        ndata files are a zip file consisting of data.npy file and a metadata.json file.
+        Both files must be uncompressed.
+
+        The handler will read zip files where the metadata.json file is the first of the
+        two files; however it will always make sure data is the first file upon writing.
+
+        The handler is meant to be fully independent so that it can easily be plugged into
+        earlier versions of Swift as it evolves.
+
+        :param data_dir: The basic directory from which reference are based
+
+        TODO: Move NDataHandler into a plug-in
+    """
 
     def __init__(self, data_dir):
         self.__data_dir = data_dir
 
     def get_reference(self, file_path):
+        """
+            Return a reference for the file path.
+
+            :param file_path: the absolute file path for ndata file
+            :return: the reference string for the file
+
+            The absolute file path should refer to a file within the data directory
+            of this object.
+        """
         relative_file = os.path.relpath(file_path, self.__data_dir)
         return os.path.splitext(relative_file)[0]
 
-    def is_matching(self, filename):
-        return filename.endswith(".ndata")
+    def is_matching(self, file_path):
+        """
+            Return whether the given absolute file path is an ndata file.
+        """
+        if file_path.endswith(".ndata") and os.path.exists(file_path):
+            with open(file_path, "r+b") as fp:
+                local_files, dir_files, eocd = parse_zip(fp)
+                contains_data = "data.npy" in dir_files
+                contains_metadata = "metadata.json" in dir_files
+                file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
+                # TODO: make sure ndata isn't compressed, or handle it
+                return len(dir_files) == file_count and file_count > 0
+        return False
 
     def write_data(self, reference, data, file_datetime):
+        """
+            Write data to the ndata file specified by reference.
+
+            :param reference: the reference to which to write
+            :param data: the numpy array data to write
+            :param file_datetime: the datetime for the file
+        """
         assert data is not None
         data_file_path = reference + ".ndata"
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
         #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        item_uuid, properties = self.read_properties(reference) if os.path.exists(absolute_file_path) else dict()
+        make_directory_if_needed(os.path.dirname(absolute_file_path))
+        _, properties = self.read_properties(reference) if os.path.exists(absolute_file_path) else dict()
         write_zip(absolute_file_path, data, properties)
         # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
         timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
         os.utime(absolute_file_path, (time.time(), timestamp))
 
     def write_properties(self, reference, properties, file_datetime):
+        """
+            Write properties to the ndata file specified by reference.
+
+            :param reference: the reference to which to write
+            :param properties: the dict to write to the file
+            :param file_datetime: the datetime for the file
+        """
         data_file_path = reference + ".ndata"
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
         #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
+        make_directory_if_needed(os.path.dirname(absolute_file_path))
         exists = os.path.exists(absolute_file_path)
         if exists:
             rewrite_zip(absolute_file_path, properties)
@@ -309,6 +408,12 @@ class NDataHandler(object):
         os.utime(absolute_file_path, (time.time(), timestamp))
 
     def read_properties(self, reference):
+        """
+            Read properties from the ndata file reference
+
+            :param reference: the reference from which to read
+            :return: a tuple of the item_uuid and a dict of the properties
+        """
         data_file_path = reference + ".ndata"
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
         with open(absolute_file_path, "rb") as fp:
@@ -318,6 +423,12 @@ class NDataHandler(object):
         return item_uuid, properties
 
     def read_data(self, reference):
+        """
+            Read data from the ndata file reference
+
+            :param reference: the reference from which to read
+            :return: a numpy array of the data; maybe None
+        """
         data_file_path = reference + ".ndata"
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
         #logging.debug("READ data file %s", absolute_file_path)
@@ -327,40 +438,14 @@ class NDataHandler(object):
         return None
 
     def remove(self, reference):
+        """
+            Remove the ndata file reference
+
+            :param reference: the reference to remove
+        """
         for suffix in ["ndata"]:
             data_file_path = reference + "." + suffix
             absolute_file_path = os.path.join(self.__data_dir, data_file_path)
             #logging.debug("DELETE data file %s", absolute_file_path)
             if os.path.isfile(absolute_file_path):
                 os.remove(absolute_file_path)
-
-
-def clean_dict(d):
-    for key in d:
-        d[key] = clean_item(d[key])
-    return d
-
-
-def clean_list(l):
-    for index, item in enumerate(l):
-        l[index] = clean_item(item)
-    return l
-
-
-def clean_tuple(t):
-    l = []
-    for item in t:
-        l.append(clean_item(item))
-    return tuple(l)
-
-
-def clean_item(i):
-    if type(i) == dict:
-        return clean_dict(i)
-    elif type(i) == list:
-        return clean_list(i)
-    elif type(i) == tuple:
-        return clean_tuple(i)
-    elif type(i) == numpy.float32:
-        return float(i)
-    return i

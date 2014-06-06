@@ -506,7 +506,7 @@ class Application(object):
                     data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
                     if "session_uuid" in properties.get("hardware_source", dict()):
                         del properties.get("hardware_source")["session_uuid"]
-                    properties = NDataHandler.clean_dict(properties)
+                    properties = ImportExportManager.clean_dict(properties)
                     data_reference_handler.write_properties(properties, "relative_file", reference, file_datetime)
                     if existing_reference:
                         nsdata_path = os.path.join(workspace_dir, "Nion Swift Data", existing_reference.replace("data_", "master_data_") + ".nsdata")
@@ -594,65 +594,6 @@ class Application(object):
         Test.run_all_tests()
 
 
-class MtdHandler(object):
-
-    def __init__(self, data_dir):
-        self.__data_dir = data_dir
-
-    def get_reference(self, file_path):
-        relative_file = os.path.relpath(file_path, self.__data_dir)
-        return os.path.splitext(relative_file)[0]
-
-    def is_matching(self, filename):
-        return filename.endswith(".mtd")
-
-    def write_data(self, reference, data, file_datetime):
-        assert data is not None
-        data_file_path = reference + ".nsdata"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        pickle.dump(data, open(absolute_file_path, "wb"), pickle.HIGHEST_PROTOCOL)
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def write_properties(self, reference, properties, file_datetime):
-        data_file_path = reference + ".mtd"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-        Storage.db_make_directory_if_needed(os.path.dirname(absolute_file_path))
-        with open(absolute_file_path, "w") as fp:
-            json.dump(properties, fp)
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
-
-    def read_properties(self, reference):
-        data_file_path = reference + ".mtd"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        with open(absolute_file_path) as fp:
-            properties = json.load(fp)
-            item_uuid = uuid.UUID(properties["uuid"])
-        return item_uuid, properties
-
-    def read_data(self, reference):
-        data_file_path = reference + ".nsdata"
-        absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-        #logging.debug("READ data file %s", absolute_file_path)
-        if os.path.isfile(absolute_file_path):
-            return pickle.load(open(absolute_file_path, "rb"))
-        return None
-
-    def remove(self, reference):
-        for suffix in ["mtd", "nsdata"]:
-            data_file_path = reference + "." + suffix
-            absolute_file_path = os.path.join(self.__data_dir, data_file_path)
-            #logging.debug("DELETE data file %s", absolute_file_path)
-            if os.path.isfile(absolute_file_path):
-                os.remove(absolute_file_path)
-
-
 class DataReferenceHandler(object):
 
     def __init__(self, ui, workspace_dir):
@@ -666,7 +607,8 @@ class DataReferenceHandler(object):
         tuples = []
         #logging.debug("data_dir %s", self.__data_dir)
         for root, dirs, files in os.walk(self.__data_dir):
-            data_files = [os.path.join(root, data_file) for data_file in filter(self.__file_handler.is_matching, files)]
+            absolute_file_paths = [os.path.join(root, data_file) for data_file in files]
+            data_files = filter(self.__file_handler.is_matching, absolute_file_paths)
             for data_file in data_files:
                 reference_type = "relative_file"
                 reference = self.__file_handler.get_reference(data_file)

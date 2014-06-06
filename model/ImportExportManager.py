@@ -19,6 +19,37 @@ from nion.swift.model import Image
 from nion.swift.model import Utility
 
 
+def clean_dict(d):
+    for key in d:
+        d[key] = clean_item(d[key])
+    return d
+
+
+def clean_list(l):
+    for index, item in enumerate(l):
+        l[index] = clean_item(item)
+    return l
+
+
+def clean_tuple(t):
+    l = []
+    for item in t:
+        l.append(clean_item(item))
+    return tuple(l)
+
+
+def clean_item(i):
+    if type(i) == dict:
+        return clean_dict(i)
+    elif type(i) == list:
+        return clean_list(i)
+    elif type(i) == tuple:
+        return clean_tuple(i)
+    elif type(i) == numpy.float32:
+        return float(i)
+    return i
+
+
 class ImportExportIncompatibleDataError(Exception):
     pass
 
