@@ -662,8 +662,12 @@ class DataReferenceHandler(object):
             for data_file in data_files:
                 reference_type = "relative_file"
                 reference = self.__file_handler.get_reference(data_file)
-                item_uuid, properties = self.__file_handler.read_properties(reference)
-                tuples.append((item_uuid, properties, reference_type, reference))
+                try:
+                    item_uuid, properties = self.__file_handler.read_properties(reference)
+                    tuples.append((item_uuid, properties, reference_type, reference))
+                except Exception, e:
+                    logging.error("Exception reading file: %s", data_file)
+                    logging.error(str(e))
                 #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
         return tuples
 
