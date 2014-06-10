@@ -5,6 +5,7 @@
 import binascii
 import calendar
 import datetime
+import logging
 import json
 import numpy
 import numpy.lib.format
