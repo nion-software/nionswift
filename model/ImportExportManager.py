@@ -3,6 +3,7 @@ import copy
 import cStringIO
 import datetime
 import json
+import logging
 import os
 import re
 import string
@@ -19,35 +20,71 @@ from nion.swift.model import Image
 from nion.swift.model import Utility
 
 
-def clean_dict(d):
-    for key in d:
-        d[key] = clean_item(d[key])
+def clean_dict(d0):
+    """
+        Return a json-clean dict. Will log info message for failures.
+    """
+    d = dict()
+    for key in d0:
+        cleaned_item = clean_item(d0[key])
+        if cleaned_item is None:
+            logging.info("  in dict for key %s", key)
+        else:
+            d[key] = cleaned_item
     return d
 
 
-def clean_list(l):
-    for index, item in enumerate(l):
-        l[index] = clean_item(item)
+def clean_list(l0):
+    """
+        Return a json-clean list. Will log info message for failures.
+    """
+    l = list()
+    for index, item in enumerate(l0):
+        cleaned_item = clean_item(item)
+        if cleaned_item is None:
+            logging.info("  in list at original index %s", index)
+        else:
+            l.append(cleaned_item)
     return l
 
 
-def clean_tuple(t):
-    l = []
-    for item in t:
-        l.append(clean_item(item))
-    return tuple(l)
+def clean_tuple(t0):
+    """
+        Return a json-clean tuple. Will log info message for failures.
+    """
+    t = []
+    for index, item in enumerate(t0):
+        cleaned_item = clean_item(item)
+        if cleaned_item is None:
+            logging.info("  in tuple at original index %s", index)
+        else:
+            t.append(cleaned_item)
+    return tuple(t)
 
 
 def clean_item(i):
-    if type(i) == dict:
+    """
+        Return a json-clean item or None. Will log info message for failure.
+    """
+    itype = type(i)
+    if itype == dict:
         return clean_dict(i)
-    elif type(i) == list:
+    elif itype == list:
         return clean_list(i)
-    elif type(i) == tuple:
+    elif itype == tuple:
         return clean_tuple(i)
-    elif type(i) == numpy.float32:
+    elif itype == numpy.float32:
         return float(i)
-    return i
+    elif itype == float:
+        return i
+    elif itype == str or itype == unicode:
+        return i
+    elif itype == int or itype == long:
+        return i
+    elif itype == bool:
+        return i
+    logging.info("Unable to handle type %s", itype)
+    return None
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -55,6 +92,13 @@ class ImportExportIncompatibleDataError(Exception):
 
 
 class ImportExportHandler(object):
+
+    """
+        A base class for implementing import/export handlers.
+
+        :param name: the localized name for the handler; will appear in file dialogs
+        :param extensions: the list of handled extensions; do not include leading dots
+    """
 
     # Extensions should not include a period.
     def __init__(self, name, extensions):
@@ -103,9 +147,8 @@ class ImportExportHandler(object):
 
 class ImportExportManager(object):
     __metaclass__ = Utility.Singleton
-
     """
-    Keeps track of import/export plugins.
+        Tracks import/export plugins.
     """
     def __init__(self):
         # we store a of dicts dicts containing extensions,
@@ -223,7 +266,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # properties (general tags)
         if "properties" in data_element:
             with data_item.open_metadata("hardware_source") as metadata:
-                metadata.update(data_element.get("properties"))
+                metadata.update(clean_dict(data_element.get("properties")))
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
