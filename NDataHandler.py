@@ -358,13 +358,17 @@ class NDataHandler(object):
             Return whether the given absolute file path is an ndata file.
         """
         if file_path.endswith(".ndata") and os.path.exists(file_path):
-            with open(file_path, "r+b") as fp:
-                local_files, dir_files, eocd = parse_zip(fp)
-                contains_data = "data.npy" in dir_files
-                contains_metadata = "metadata.json" in dir_files
-                file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
-                # TODO: make sure ndata isn't compressed, or handle it
-                return len(dir_files) == file_count and file_count > 0
+            try:
+                with open(file_path, "r+b") as fp:
+                    local_files, dir_files, eocd = parse_zip(fp)
+                    contains_data = "data.npy" in dir_files
+                    contains_metadata = "metadata.json" in dir_files
+                    file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
+                    # TODO: make sure ndata isn't compressed, or handle it
+                    return len(dir_files) == file_count and file_count > 0
+            except Exception, e:
+                logging.error("Exception parsing ndata file: %s", file_path)
+                logging.error(str(e))
         return False
 
     def write_data(self, reference, data, file_datetime):

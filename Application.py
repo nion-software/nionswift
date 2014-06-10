@@ -525,6 +525,11 @@ class Application(object):
                 reference = os.path.splitext(data_file_path)[0]
                 file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                 data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
+                if existing_reference and "data_sources" in properties:
+                    history = properties.setdefault("history", dict())
+                    history_list = history.setdefault("list", list())
+                    history_list.append(properties["data_sources"])
+                    del properties["data_sources"]
                 if "session_uuid" in properties.get("hardware_source", dict()):
                     del properties.get("hardware_source")["session_uuid"]
                 properties = ImportExportManager.clean_dict(properties)
