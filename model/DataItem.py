@@ -681,8 +681,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __remove_display(self, name, index, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
-        display.remove_ref()
         display._set_data_item(None)
+        display.remove_ref()
 
     def add_display(self, display):
         self.append_item("displays", display)
@@ -704,6 +704,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         operation.add_ref()
         operation.add_listener(self)
         operation.add_observer(self)
+        operation._set_data_item(self)
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         if self.data_source:
@@ -716,6 +717,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             self.data_source.remove_operation_graphics_from_displays(operation.graphics)
         operation.remove_listener(self)
         operation.remove_observer(self)
+        operation._set_data_item(None)
         operation.remove_ref()
 
     def add_operation(self, operation):

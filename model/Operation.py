@@ -3,6 +3,7 @@ import copy
 import gettext
 import logging
 import math
+import weakref
 
 # third party libraries
 import numpy
@@ -74,6 +75,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
+        self.__weak_data_item = None
+
         self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
         self.define_property(Observable.Property("enabled", True, changed=self.__property_changed))
         self.define_property(Observable.Property("values", dict(), changed=self.__property_changed))
@@ -115,6 +118,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         for binding in self.__bindings:
             binding.close()
         self.__bindings = None
+        self._set_data_item(None)
+        self.undefine_properties()
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__(self.operation_id)
@@ -128,6 +133,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
         for key in self.values.keys():
             if self.operation:
                 setattr(self.operation, key, self.values[key])
+
+    def __get_data_item(self):
+        return self.__weak_data_item() if self.__weak_data_item else None
+    data_item = property(__get_data_item)
+
+    # called from data item when added/removed.
+    def _set_data_item(self, data_item):
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -364,6 +377,24 @@ class Crop2dOperation(Operation):
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
 
+class Slice3dOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Slice"), "property": "slice", "type": "slice-field", "default": 0 }
+        ]
+        super(Slice3dOperation, self).__init__(_("Slice"), "slice-operation", description)
+        self.slice = 0
+
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return data_shape[1:], data_dtype
+
+    def process(self, data):
+        shape = data.shape
+        slice = self.get_property("slice")
+        return data[slice,:].copy()
+
+
 class Resample2dOperation(Operation):
 
     def __init__(self):
@@ -567,6 +598,38 @@ class OperationPropertyBinding(Binding.Binding):
                 self.__values = copy.copy(self.source.values)
 
 
+class SliceOperationPropertyBinding(Binding.Binding):
+
+    """
+        Binds to a property of an operation item.
+
+        This object records the 'values' property of the operation. Then it
+        watches for changes to 'values' which match the watched property.
+        """
+
+    def __init__(self, source, property_name, converter=None):
+        super(SliceOperationPropertyBinding, self).__init__(source,  converter)
+        self.__property_name = property_name
+        def validate_and_set(value):
+            value = min(value, self.source.data_item.spatial_shape[0])
+            value = max(value, 0)
+            self.source.set_property(self.__property_name, value)
+        self.source_setter = validate_and_set
+        self.source_getter = lambda: self.source.get_property(self.__property_name)
+        # use this to know when a specific property changes
+        self.__values = copy.copy(source.values)
+
+    # thread safe
+    def property_changed(self, sender, property, property_value):
+        if sender == self.source and property == "values":
+            values = property_value
+            new_value = values.get(self.__property_name)
+            old_value = self.__values.get(self.__property_name)
+            if new_value != old_value:
+                self.update_target(new_value)
+                self.__values = copy.copy(self.source.values)
+
+
 class OperationPropertyToGraphicBinding(OperationPropertyBinding):
 
     """
@@ -601,6 +664,7 @@ OperationManager().register_operation("inverse-fft-operation", lambda: IFFTOpera
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
 OperationManager().register_operation("crop-operation", lambda: Crop2dOperation())
+OperationManager().register_operation("slice-operation", lambda: Slice3dOperation())
 OperationManager().register_operation("resample-operation", lambda: Resample2dOperation())
 OperationManager().register_operation("histogram-operation", lambda: HistogramOperation())
 OperationManager().register_operation("line-profile-operation", lambda: LineProfileOperation())

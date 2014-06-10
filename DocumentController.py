@@ -164,6 +164,7 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
         self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
+        self.processing_menu.add_menu_item(_("Slice"), lambda: self.processing_slice())
         self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
         self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
@@ -606,10 +607,17 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
-        if data_item:
+        if data_item and len(data_item.spatial_shape) == 2:
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
+
+    def processing_slice(self, select=True):
+        data_item = self.selected_data_item
+        if data_item and len(data_item.spatial_shape) == 3:
+            operation = Operation.OperationItem("slice-operation")
+            operation.set_property("slice", 0)
+            return self.add_processing_operation(operation, prefix=_("Slice of "), select=select)
 
     def processing_line_profile(self, select=True):
         data_item = self.selected_data_item

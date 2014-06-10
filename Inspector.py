@@ -842,6 +842,22 @@ class OperationsInspectorSection(InspectorSection):
                 row_widget.add_stretch()
                 operation_widget.add_spacing(4)
                 operation_widget.add(row_widget)
+            elif type == "slice-field":
+                row_widget = self.ui.create_row_widget()
+                label_widget = self.ui.create_label_widget(name)
+                line_edit_widget = self.ui.create_line_edit_widget()
+                slider_widget = self.ui.create_slider_widget()
+                slider_widget.maximum = operation.data_item.spatial_shape[0]
+                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
+                line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
+                row_widget.add(label_widget)
+                row_widget.add_spacing(8)
+                row_widget.add(slider_widget)
+                row_widget.add_spacing(8)
+                row_widget.add(line_edit_widget)
+                row_widget.add_stretch()
+                operation_widget.add_spacing(4)
+                operation_widget.add(row_widget)
 
         column = self.ui.create_column_widget()
         column.add_spacing(4)
