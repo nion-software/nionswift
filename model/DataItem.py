@@ -209,7 +209,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
-        self.__weak_parents = []
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.uuid = item_uuid if item_uuid else uuid.uuid4()
@@ -365,23 +364,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             data_copy = numpy.copy(data_ref.data)
             data_item_copy.__set_master_data(data_copy)
         return data_item_copy
-
-    # Add a parent.
-    def add_parent(self, parent):
-        assert parent is not None
-        self.__weak_parents.append(weakref.ref(parent))
-
-    # Remove a parent.
-    def remove_parent(self, parent):
-        assert parent is not None
-        self.__weak_parents.remove(weakref.ref(parent))
-
-    # Return a copy of parents array
-    def get_weak_parents(self):
-        return self.__weak_parents  # TODO: Return a copy
-    def __get_parents(self):
-        return [weak_parent() for weak_parent in self.__weak_parents]
-    parents = property(__get_parents)
 
     def _is_cache_delayed(self):
         return self.__transaction_count > 0
