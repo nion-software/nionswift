@@ -435,7 +435,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(reference)
             # clean up
             document_model.remove_ref()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
             datastore.close()
+            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -740,6 +744,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.isfile(data2_file_path))
             # clean up
             document_model.remove_ref()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
+            datastore.close()
+            datastore = None
             # read it back
             data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
@@ -753,7 +762,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(os.path.exists(data2_file_path))
             # clean up
             document_model.remove_ref()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
             datastore.close()
+            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)

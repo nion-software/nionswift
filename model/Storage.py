@@ -829,7 +829,8 @@ class DbDatastore(object):
             self.create()
 
     def close(self):
-        pass
+        self.conn.close()
+        self.conn = None
 
     def __get_initialized(self):
         c = self.conn.cursor()
@@ -1275,7 +1276,7 @@ class DbDatastoreProxy(object):
         self.__started_event.wait()
 
     def close(self):
-        self.__queue.put(None)
+        self.__queue.put((None, None, None))
         self.__queue.join()
 
     def __get_initialized(self):
@@ -1317,6 +1318,8 @@ class DbDatastoreProxy(object):
             self.__queue.task_done()
             if not item:
                 break
+        self.__datastore.close()
+        self.__datastore = None
 
     def to_data(self):
         self.__queue.join()
@@ -1513,7 +1516,8 @@ class DbStorageCache(object):
         self.__started_event.wait()
 
     def close(self):
-        self.queue.put(None)
+        self.queue.put((None, None, None, None))
+        self.queue.join()
 
     def __run(self, cache_filename):
         self.conn = sqlite3.connect(cache_filename)
@@ -1547,6 +1551,8 @@ class DbStorageCache(object):
             self.queue.task_done()
             if not item:
                 break
+        self.conn.close()
+        self.conn = None
 
     def create(self):
         with self.conn:
