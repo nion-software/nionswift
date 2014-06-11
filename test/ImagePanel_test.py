@@ -408,7 +408,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.display = data_item_1d.displays[0]
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
         # trigger layout
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
+        self.image_panel.line_plot_canvas_item.wait_for_paint()  # force paint_display_on_thread to finish before _repaint
+        #self.image_panel.line_plot_canvas_item.paint_display_on_thread()
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         return self.image_panel.line_plot_canvas_item
 
