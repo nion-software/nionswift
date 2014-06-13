@@ -420,6 +420,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__display is None:
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
+        self.__paint_thread.trigger()
 
     def wait_for_paint(self):
         self.__paint_thread.trigger(wait=True)
