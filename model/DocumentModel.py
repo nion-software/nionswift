@@ -205,7 +205,6 @@ class DbDataItemVault(object):
         data_items.sort(key=sort_by_date_key)
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
-            data_item.sync_intrinsic_spatial_calibrations()
             data_item.storage_cache = self.__storage_cache
             data_item.add_listener(document_model)
 

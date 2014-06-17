@@ -219,8 +219,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         master_data_dtype = data.dtype if has_master_data else None
         current_datetime_item = Utility.get_current_datetime_item()
         spatial_calibrations = CalibrationList()
-        if data is not None:
-            spatial_calibrations.list.extend([Calibration.Calibration() for i in xrange(len(Image.spatial_shape_from_shape_and_dtype(data.shape, data.dtype)))])
         class DtypeToStringConverter(object):
             def convert(self, value):
                 return str(value) if value is not None else None
@@ -262,6 +260,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_master_data(data)
+            self.sync_intrinsic_spatial_calibrations()
         # uuid is handled specially for performance reasons
         if self.vault.has_value("uuid"):
             self.uuid = uuid.UUID(self.vault.get_value("uuid"))
@@ -563,7 +562,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __intrinsic_spatial_calibrations_changed(self, name, value):
         self.notify_data_item_content_changed(set([METADATA]))
         self.notify_listeners("data_item_calibration_changed")
-
 
     def set_intensity_calibration(self, calibration):
         self.intrinsic_intensity_calibration = calibration
