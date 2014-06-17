@@ -158,12 +158,12 @@ class DataItemMemoryVault(object):
 
 class IntermediateDataItem(object):
     def __init__(self, data_accessor, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
-        self.data_accessor = data_accessor
+        self.__data_accessor = data_accessor
         self.data_shape_and_dtype = data_shape_and_dtype
         self.calculated_intensity_calibration = intensity_calibration
         self.calculated_calibrations = spatial_calibrations
     def __get_data(self):
-        return self.data_accessor.data
+        return self.__data_accessor.data
     data = property(__get_data)
 
 
@@ -601,12 +601,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __get_calculated_intensity_calibration(self):
         data_inputs = self.data_inputs
-        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
-        intensity_calibrations = [data_input.calculated_intensity_calibration for data_input in data_inputs]
+        # apply operations
         for operation in self.operations:
-            intensity_calibrations = operation.get_processed_intensity_calibrations(data_shapes_and_dtypes, intensity_calibrations)
-            data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
-        return intensity_calibrations[0] if len(intensity_calibrations) == 1 else None
+            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
+        return data_inputs[0].calculated_intensity_calibration if len(data_inputs) == 1 else None
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
 
     # call this when data changes. this makes sure that the right number
@@ -627,13 +625,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # operation.
     def __get_calculated_calibrations(self):
         data_inputs = self.data_inputs
-        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
-        spatial_calibrations_list = [data_input.calculated_calibrations for data_input in data_inputs]
-        for operation_item in self.operations:
-            if operation_item.enabled:
-                spatial_calibrations_list = operation_item.get_processed_calibration_lists(data_shapes_and_dtypes, spatial_calibrations_list)
-                data_shapes_and_dtypes = operation_item.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
-        return spatial_calibrations_list[0] if len(spatial_calibrations_list) == 1 else None
+        # apply operations
+        for operation in self.operations:
+            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
+        return data_inputs[0].calculated_calibrations if len(data_inputs) == 1 else None
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
@@ -694,10 +689,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # this allows operations to update their default values
     def sync_operations(self):
         data_inputs = self.data_inputs
-        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
+        # apply operations
         for operation in self.operations:
+            data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
             operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
-            data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
+            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
 
     def __insert_operation(self, name, before_index, operation):
         operation.add_ref()
@@ -958,10 +954,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             # however, it SHOULD happen under the 'get data mutex' to prevent it from
             # being calculated simulataneously more than once.
             with self.__get_data_mutex:
-                data_list = [data_input.data for data_input in self.data_inputs]
-                for operation in reversed(self.operations):
-                    data_list = operation.process_data_list(data_list)
-                data = data_list[0] if len(data_list) == 1 else None
+                data_inputs = self.data_inputs
+                # apply operations
+                for operation in self.operations:
+                    data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
+                data = data_inputs[0].data if len(data_inputs) == 1 else None
                 self.__get_data_range_for_data(data)
             with self.__data_mutex:
                 self.__cached_data = data
@@ -992,11 +989,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
-            data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in self.data_inputs]
+            data_inputs = self.data_inputs
             # apply operations
             for operation in self.operations:
-                data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
-            return data_shapes_and_dtypes[0] if len(data_shapes_and_dtypes) == 1 else (None, None)
+                data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
+            return data_inputs[0].data_shape_and_dtype if len(data_inputs) == 1 else (None, None)
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):

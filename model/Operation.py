@@ -191,32 +191,16 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # calibrations
 
-    def get_processed_calibration_lists(self, data_shapes_and_dtypes, calibration_lists):
-        if len(data_shapes_and_dtypes) == 1 and len(calibration_lists) == 1:
-            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
-            calibration_list = calibration_lists[0]
-            if self.operation:
-                calibration_list = self.operation.get_processed_spatial_calibrations(data_shape, data_dtype, calibration_list)
-            return [calibration_list]
-        return []
-
-    def get_processed_intensity_calibrations(self, data_shapes_and_dtypes, intensity_calibrations):
-        if len(data_shapes_and_dtypes) == 1 and len(intensity_calibrations) == 1:
-            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
-            intensity_calibration = intensity_calibrations[0]
-            if self.operation:
-                intensity_calibration = self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
-            return [intensity_calibration]
-        return []
-
-    # data shape and type
-    def get_processed_data_shapes_and_dtypes(self, data_shapes_and_dtypes):
-        if len(data_shapes_and_dtypes) == 1:
-            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
-            if self.operation:
-                return [self.operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)]
-            return [(data_shape, data_dtype)]
-        return []
+    def get_processed_intermediate_data_items(self, data_inputs):
+        if self.operation:
+            return self.operation.get_processed_intermediate_data_items(data_inputs)
+        else:
+            class CopyOperation(Operation):
+                def __init__(self):
+                    super(CopyOperation, self).__init__("Intermediate Copy", "intermediate-copy")
+                def process(self, data):
+                    return data.copy()
+            return CopyOperation().get_processed_intermediate_data_items(data_inputs)
 
     # default value handling.
     def update_data_shapes_and_dtypes(self, data_shapes_and_dtypes):
@@ -264,6 +248,57 @@ class Operation(object):
     # this method should always return a new copy of data
     def process(self, data):
         raise NotImplementedError()
+
+    # return the processed data inputs
+    def get_processed_intermediate_data_items(self, data_inputs):
+
+        class ProcessedDataItem(object):
+
+            """
+                Constructs an object that is able to perform operation and return results.
+
+                Delays the calculation until it is requested using closures.
+            """
+
+            def __init__(self, operation, data_inputs):
+                self.__operation = operation
+                self.__data_inputs = data_inputs
+
+            def __get_data_shape_and_dtype(self):
+                assert len(self.__data_inputs) == 1
+                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
+                input_data_shape = input_data_shape_and_dtype[0]
+                input_data_dtype = input_data_shape_and_dtype[1]
+                return self.__operation.get_processed_data_shape_and_dtype(input_data_shape, input_data_dtype)
+            data_shape_and_dtype = property(__get_data_shape_and_dtype)
+
+            def __get_calculated_intensity_calibration(self):
+                assert len(self.__data_inputs) == 1
+                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
+                input_data_shape = input_data_shape_and_dtype[0]
+                input_data_dtype = input_data_shape_and_dtype[1]
+                input_intensity_calibration = self.__data_inputs[0].calculated_intensity_calibration
+                return self.__operation.get_processed_intensity_calibration(input_data_shape, input_data_dtype, input_intensity_calibration)
+            calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
+
+            def __get_calculated_calibrations(self):
+                assert len(self.__data_inputs) == 1
+                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
+                input_data_shape = input_data_shape_and_dtype[0]
+                input_data_dtype = input_data_shape_and_dtype[1]
+                input_spatial_calibrations = self.__data_inputs[0].calculated_calibrations
+                return self.__operation.get_processed_spatial_calibrations(input_data_shape, input_data_dtype, input_spatial_calibrations)
+            calculated_calibrations = property(__get_calculated_calibrations)
+
+            def __get_data(self):
+                assert len(self.__data_inputs) == 1
+                return self.__operation.get_processed_data(self.__data_inputs[0].data)
+            data = property(__get_data)
+
+        if len(data_inputs) == 1:
+            return [ProcessedDataItem(self, data_inputs)]
+
+        return []
 
     # public method to do processing. double check that data is a copy and not the original.
     def get_processed_data(self, data):
