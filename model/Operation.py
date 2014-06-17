@@ -174,11 +174,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
                     self.set_property(property_id, default_value)
 
     # clients call this to perform processing
-    def process_data(self, data):
-        if self.operation:
-            return self.operation.get_processed_data(data)
-        else:
-            return data.copy()
+    def process_data_list(self, data_list):
+        if len(data_list) == 1:
+            data = data_list[0]
+            if self.operation:
+                return [self.operation.get_processed_data(data)]
+            else:
+                return [data.copy()]
+        return []
 
     # graphics
 
@@ -188,30 +191,41 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # calibrations
 
-    def get_processed_calibrations(self, data_shape, data_dtype, source_calibrations):
-        if self.operation:
-            return self.operation.get_processed_spatial_calibrations(data_shape, data_dtype, source_calibrations)
-        else:
-            return source_calibrations
+    def get_processed_calibration_lists(self, data_shapes_and_dtypes, calibration_lists):
+        if len(data_shapes_and_dtypes) == 1 and len(calibration_lists) == 1:
+            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
+            calibration_list = calibration_lists[0]
+            if self.operation:
+                calibration_list = self.operation.get_processed_spatial_calibrations(data_shape, data_dtype, calibration_list)
+            return [calibration_list]
+        return []
 
-    def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
-        if self.operation:
-            return self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
-        else:
-            return intensity_calibration
+    def get_processed_intensity_calibrations(self, data_shapes_and_dtypes, intensity_calibrations):
+        if len(data_shapes_and_dtypes) == 1 and len(intensity_calibrations) == 1:
+            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
+            intensity_calibration = intensity_calibrations[0]
+            if self.operation:
+                intensity_calibration = self.operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
+            return [intensity_calibration]
+        return []
 
     # data shape and type
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        if self.operation:
-            return self.operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return data_shape, data_dtype
+    def get_processed_data_shapes_and_dtypes(self, data_shapes_and_dtypes):
+        if len(data_shapes_and_dtypes) == 1:
+            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
+            if self.operation:
+                return [self.operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)]
+            return [(data_shape, data_dtype)]
+        return []
 
     # default value handling.
-    def update_data_shape_and_dtype(self, data_shape, data_dtype):
-        if self.operation:
-            default_values = self.operation.property_defaults_for_data_shape_and_dtype(data_shape, data_dtype)
-            for property, default_value in default_values.iteritems():
-                self.__set_property_default(property, default_value)
+    def update_data_shapes_and_dtypes(self, data_shapes_and_dtypes):
+        if len(data_shapes_and_dtypes) == 1:
+            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
+            if self.operation:
+                default_values = self.operation.property_defaults_for_data_shape_and_dtype(data_shape, data_dtype)
+                for property, default_value in default_values.iteritems():
+                    self.__set_property_default(property, default_value)
 
     def deepcopy_from(self, operation_item, memo):
         super(OperationItem, self).deepcopy_from(operation_item, memo)
@@ -260,7 +274,7 @@ class Operation(object):
             assert(id(new_data.base) != id(data))
         return new_data
 
-    # calibrations
+    # spatial calibrations
     def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
         return spatial_calibrations
 

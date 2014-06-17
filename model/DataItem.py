@@ -156,11 +156,20 @@ class DataItemMemoryVault(object):
         return list()
 
 
+class IntermediateDataItem(object):
+    def __init__(self, data_accessor, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
+        self.data_accessor = data_accessor
+        self.data_shape_and_dtype = data_shape_and_dtype
+        self.calculated_intensity_calibration = intensity_calibration
+        self.calculated_calibrations = spatial_calibrations
+    def __get_data(self):
+        return self.data_accessor.data
+    data = property(__get_data)
+
+
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
 # from another data item (data source).
-
-# thumbnail: a small representation of this data item
 
 # displays: list of displays for this data item
 
@@ -206,6 +215,26 @@ SOURCE = 4
 # time zone name is for display only and has no specified format
 
 class DataItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
+
+    """
+        Data items consist of input data, metadata, operations, and output data.
+
+        Data items contain input data, which is a list of either other data items or intrinsic
+        data. Intrinsic data consists of an ndarray and calibrations.
+
+        Data items contain operations which act on the input data to form new data. Inputs are
+        tracked so that operations can be automatically re-applied when the inputs change.
+
+        Data items contain output data which is the input data after the operations have been
+        applied.
+
+        Data items contain metadata which describes the output data.
+
+        Data items contain displays which store display information. Displays are a special form of
+        metadata.
+
+        Operations are applied when inputs change, resulting in new output data.
+    """
 
     def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
@@ -571,18 +600,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     intrinsic_calibrations = property(__get_intrinsic_calibrations)
 
     def __get_calculated_intensity_calibration(self):
-        # data source calibrations override
-        if self.data_source:
-            intensity_calibration = self.data_source.calculated_intensity_calibration
-        else:
-            intensity_calibration = self.intrinsic_intensity_calibration
-        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
-        if data_shape is not None and data_dtype is not None:
-            for operation in self.operations:
-                if operation.enabled:
-                    intensity_calibration = operation.get_processed_intensity_calibration(data_shape, data_dtype, intensity_calibration)
-                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return intensity_calibration
+        data_inputs = self.data_inputs
+        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
+        intensity_calibrations = [data_input.calculated_intensity_calibration for data_input in data_inputs]
+        for operation in self.operations:
+            intensity_calibrations = operation.get_processed_intensity_calibrations(data_shapes_and_dtypes, intensity_calibrations)
+            data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
+        return intensity_calibrations[0] if len(intensity_calibrations) == 1 else None
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
 
     # call this when data changes. this makes sure that the right number
@@ -602,18 +626,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
-        # data source calibrations override
-        if self.data_source:
-            calibrations = self.data_source.calculated_calibrations
-        else:
-            calibrations = self.intrinsic_calibrations
-        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
-        if data_shape is not None and data_dtype is not None:
-            for operation_item in self.operations:
-                if operation_item.enabled:
-                    calibrations = operation_item.get_processed_calibrations(data_shape, data_dtype, calibrations)
-                    data_shape, data_dtype = operation_item.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-        return calibrations
+        data_inputs = self.data_inputs
+        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
+        spatial_calibrations_list = [data_input.calculated_calibrations for data_input in data_inputs]
+        for operation_item in self.operations:
+            if operation_item.enabled:
+                spatial_calibrations_list = operation_item.get_processed_calibration_lists(data_shapes_and_dtypes, spatial_calibrations_list)
+                data_shapes_and_dtypes = operation_item.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
+        return spatial_calibrations_list[0] if len(spatial_calibrations_list) == 1 else None
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
@@ -673,12 +693,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # call this when operations change or data souce changes
     # this allows operations to update their default values
     def sync_operations(self):
-        data_shape, data_dtype = self.__get_root_data_shape_and_dtype()
-        if data_shape is not None and data_dtype is not None:
-            for operation in self.operations:
-                operation.update_data_shape_and_dtype(data_shape, data_dtype)
-                if operation.enabled:
-                    data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
+        data_inputs = self.data_inputs
+        data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
+        for operation in self.operations:
+            operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
+            data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
 
     def __insert_operation(self, name, before_index, operation):
         operation.add_ref()
@@ -919,15 +938,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             return data_ref.data
     data = property(__get_data_immediate)
 
-    # get the root data shape and dtype without causing calculation to occur if possible.
-    def __get_root_data_shape_and_dtype(self):
-        with self.__data_mutex:
-            if self.has_master_data:
-                return self.master_data_shape, self.master_data_dtype
-            if self.has_data_source:
-                return self.data_source.data_shape_and_dtype
-        return None, None
-
     def __clear_cached_data(self):
         with self.__data_mutex:
             self.__cached_data_dirty = True
@@ -941,50 +951,52 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             #import traceback
             #traceback.print_stack()
             pass
-        self.__data_mutex.acquire()
-        if self.__cached_data_dirty or self.__cached_data is None:
-            self.__data_mutex.release()
+        with self.__data_mutex:
+            is_dirty = self.__cached_data_dirty or self.__cached_data is None
+        if is_dirty:
+            # this SHOULD NOT happen under the 'data mutex'. it can take a long time.
+            # however, it SHOULD happen under the 'get data mutex' to prevent it from
+            # being calculated simulataneously more than once.
             with self.__get_data_mutex:
-                # this should NOT happen under the data mutex. it can take a long time.
-                data = None
-                if self.has_master_data:
-                    data = self.__master_data
-                if data is None:
-                    if self.data_source:
-                        with self.data_source.data_ref() as data_ref:
-                            # this can be a lengthy operation
-                            data = data_ref.data
-                operations = self.operations
-                if len(operations) and data is not None:
-                    # apply operations
-                    if data is not None:
-                        for operation in reversed(operations):
-                            data = operation.process_data(data)
+                data_list = [data_input.data for data_input in self.data_inputs]
+                for operation in reversed(self.operations):
+                    data_list = operation.process_data_list(data_list)
+                data = data_list[0] if len(data_list) == 1 else None
                 self.__get_data_range_for_data(data)
             with self.__data_mutex:
                 self.__cached_data = data
                 self.__cached_data_dirty = False
-        else:
-            self.__data_mutex.release()
         return self.__cached_data
+
+    def __get_data_inputs(self):
+        """ Returns a copy of the data inputs """
+        data_inputs = []
+        if self.has_master_data:
+
+            class IntermediateDataAccessor(object):
+                def __init__(self, data_item):
+                    self.__data_item = data_item
+                def __get_data(self):
+                    with self.__data_item.data_ref() as data_ref:
+                        return data_ref.master_data
+                data = property(__get_data)
+
+            data_inputs.append(IntermediateDataItem(IntermediateDataAccessor(self),
+                                                    (self.master_data_shape, self.master_data_dtype),
+                                                    copy.deepcopy(self.intrinsic_intensity_calibration),
+                                                    copy.deepcopy(self.intrinsic_calibrations)))
+        elif self.has_data_source:
+            data_inputs.append(self.data_source)
+        return data_inputs
+    data_inputs = property(__get_data_inputs)
 
     def __get_data_shape_and_dtype(self):
         with self.__data_mutex:
-            if self.has_master_data:
-                data_shape = self.master_data_shape
-                data_dtype = self.master_data_dtype
-            elif self.has_data_source:
-                data_shape = self.data_source.data_shape
-                data_dtype = self.data_source.data_dtype
-            else:
-                data_shape = None
-                data_dtype = None
+            data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in self.data_inputs]
             # apply operations
-            if data_shape is not None:
-                for operation in self.operations:
-                    if operation.enabled:
-                        data_shape, data_dtype = operation.get_processed_data_shape_and_dtype(data_shape, data_dtype)
-            return data_shape, data_dtype
+            for operation in self.operations:
+                data_shapes_and_dtypes = operation.get_processed_data_shapes_and_dtypes(data_shapes_and_dtypes)
+            return data_shapes_and_dtypes[0] if len(data_shapes_and_dtypes) == 1 else (None, None)
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):
@@ -1023,8 +1035,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     data_shape = property(__get_data_shape)
 
     def __get_spatial_shape(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        if data_shape_and_dtype:
+            data_shape, data_dtype = self.data_shape_and_dtype
+            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+        return None
     spatial_shape = property(__get_spatial_shape)
 
     def __get_data_dtype(self):
