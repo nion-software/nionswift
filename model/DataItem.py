@@ -71,7 +71,7 @@ class CalibrationList(object):
         return list
 
 
-class DataSourceList(object):
+class DataSourceUuidList(object):
 
     def __init__(self):
         self.list = list()
@@ -238,8 +238,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
-        self.__data_sources = DataSourceList()
-        self.define_property(Observable.Property("data_sources", DataSourceList(), make=DataSourceList))
+        self.define_property(Observable.Property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources"))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
         self.__metadata = dict()
@@ -278,7 +277,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.read_storage(self.vault)
         properties = self.vault.properties
         for key in properties.keys():
-            if key not in self.property_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
+            if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
         # uuid is handled specially for performance reasons
         if "uuid" not in properties:
@@ -317,7 +316,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         for operation in self.operations:
             data_item_copy.add_operation(copy.deepcopy(operation))
         # data sources
-        data_item_copy.data_sources = self.data_sources
+        data_item_copy.data_source_uuid_list = self.data_source_uuid_list
         # data.
         if self.has_master_data:
             with self.data_ref() as data_ref:
@@ -359,7 +358,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
         # data sources are NOT copied, since this is a snapshot of the data
-        data_item_copy.data_sources = DataSourceList()
+        data_item_copy.data_source_uuid_list = DataSourceUuidList()
         # master data. operations are NOT copied, since this is a snapshot of the data
         with self.data_ref() as data_ref:
             data_copy = numpy.copy(data_ref.data)
@@ -737,8 +736,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # display graphics for this items operations. direct data source is used for testing.
     def connect_data_source(self, lookup_data_item=None, direct_data_source=None):
         assert lookup_data_item or direct_data_source
-        data_sources = self.data_sources
-        data_source_uuid_str = data_sources.list[0] if len(data_sources.list) == 1 else None
+        data_source_uuid_list = self.data_source_uuid_list
+        data_source_uuid_str = data_source_uuid_list.list[0] if len(data_source_uuid_list.list) == 1 else None
         data_source = lookup_data_item(uuid.UUID(data_source_uuid_str)) if data_source_uuid_str and lookup_data_item else direct_data_source
         self.__set_data_source(data_source)
         if data_source:
@@ -802,16 +801,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # add a reference to the given data source
     def add_data_source(self, data_source):
         self.session_id = data_source.session_id
-        data_sources = self.data_sources
-        data_sources.list.append(str(data_source.uuid))
-        self.data_sources = data_sources
+        data_source_uuid_list = self.data_source_uuid_list
+        data_source_uuid_list.list.append(str(data_source.uuid))
+        self.data_source_uuid_list = data_source_uuid_list
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
-        data_sources = self.data_sources
-        assert str(data_source.uuid) in data_sources.list
-        data_sources.list.remove(str(data_source.uuid))
-        self.data_sources = data_sources
+        data_source_uuid_list = self.data_source_uuid_list
+        assert str(data_source.uuid) in data_source_uuid_list.list
+        data_source_uuid_list.list.remove(str(data_source.uuid))
+        self.data_source_uuid_list = data_source_uuid_list
         self.session_id = None
 
     def __get_master_data(self):
