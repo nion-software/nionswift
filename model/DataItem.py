@@ -238,6 +238,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed))
         self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
         self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
+        self.__data_sources = DataSourceList()
         self.define_property(Observable.Property("data_sources", DataSourceList(), make=DataSourceList))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
@@ -802,15 +803,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def add_data_source(self, data_source):
         self.session_id = data_source.session_id
         data_sources = self.data_sources
-        assert len(data_sources.list) == 0
         data_sources.list.append(str(data_source.uuid))
         self.data_sources = data_sources
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
         data_sources = self.data_sources
-        assert len(data_sources.list) == 1 and data_sources.list[0] == data_source
-        del data_sources.list[0]
+        assert str(data_source.uuid) in data_sources.list
+        data_sources.list.remove(str(data_source.uuid))
         self.data_sources = data_sources
         self.session_id = None
 

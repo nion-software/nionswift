@@ -604,6 +604,33 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy = data_item.snapshot()
         self.assertEqual(data_item_copy.get_metadata("test")["one"], 1)
 
+    def test_data_item_allows_adding_of_two_data_sources(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        with document_model.ref():
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            data_item = DataItem.DataItem()
+            data_item.add_data_source(data_item1)
+            data_item.add_data_source(data_item2)
+            document_model.append_data_item(data_item)
+
+    def test_data_item_allows_remove_second_of_two_data_sources(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        with document_model.ref():
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            data_item = DataItem.DataItem()
+            data_item.add_data_source(data_item1)
+            data_item.add_data_source(data_item2)
+            document_model.append_data_item(data_item)
+            data_item.remove_data_source(data_item2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

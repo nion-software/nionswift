@@ -309,13 +309,17 @@ class DocumentModel(Storage.StorageBase):
         data_item.connect_data_source(self.get_data_item_by_uuid)
 
     def remove_data_item(self, data_item):
+        # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
                 data_group.remove_data_item(data_item)
+        # remove data items that are entirely dependent on data item being removed
         for other_data_item in copy.copy(self.data_items):
             if other_data_item.data_source == data_item:
                 self.remove_data_item(other_data_item)
+        # disconnect the data source
         data_item.disconnect_data_source()
+        # remove it from the vault
         self.__data_item_vault.remove(data_item)
 
     def __get_data_items(self):

@@ -1350,12 +1350,9 @@ class ImagePanel(Panel.Panel):
     # this message comes from the document model.
     def data_item_deleted(self, deleted_data_item):
         data_item = self.get_displayed_data_item()
-        while data_item is not None:
-            # if our item gets deleted, clear the selection
-            if deleted_data_item == data_item:
-                self.__set_display(None)
-                break
-            data_item = data_item.data_source
+        # if our item gets deleted, clear the selection
+        if deleted_data_item == data_item:
+            self.__set_display(None)
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __begin_drag(self):
