@@ -75,6 +75,8 @@ def clean_item(i):
         return clean_tuple(i)
     elif itype == numpy.float32:
         return float(i)
+    elif itype == numpy.float64:
+        return float(i)
     elif itype == float:
         return i
     elif itype == str or itype == unicode:
