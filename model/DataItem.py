@@ -35,7 +35,8 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         #logging.debug("Calculating statistics %s", self)
         mean = numpy.mean(data)
         std = numpy.std(data)
-        data_min, data_max = self.item.data_range
+        data_range = self.item.data_range
+        data_min, data_max = data_range if data_range is not None else None, None
         all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max }
         global _computation_fns
         for computation_fn in _computation_fns:
@@ -157,11 +158,24 @@ class DataItemMemoryVault(object):
 
 
 class IntermediateDataItem(object):
-    def __init__(self, data_accessor, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
-        self.__data_accessor = data_accessor
+
+    def __init__(self, data_item, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
+        super(IntermediateDataItem, self).__init__()
+
+        class IntermediateDataAccessor(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __get_data(self):
+                with self.__data_item.data_ref() as data_ref:
+                    return data_ref.master_data
+            data = property(__get_data)
+
+        self.__data_item = data_item
+        self.__data_accessor = IntermediateDataAccessor(data_item)
         self.data_shape_and_dtype = data_shape_and_dtype
         self.calculated_intensity_calibration = intensity_calibration
         self.calculated_calibrations = spatial_calibrations
+
     def __get_data(self):
         return self.__data_accessor.data
     data = property(__get_data)
@@ -214,7 +228,7 @@ SOURCE = 4
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
+class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
 
     """
         Data items consist of input data, metadata, operations, and output data.
@@ -278,7 +292,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         # master data shape and dtype are cached to avoid loading data.
         self.__master_data = None
         self.master_data_save_event = threading.Event()
-        self.__data_source = None
+        self.__data_sources = []
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__data_item_change_mutex = threading.RLock()
@@ -315,20 +329,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
-
-    # This gets called when reference count goes to 0, but before deletion.
-    def about_to_delete(self):
-        self.closed = True
-        self.__shared_thread_pool.close()
-        for operation in self.operations:
-            self.remove_operation(operation)
-        for display in self.displays:
-            self.remove_display(display)
-        self.__set_data_source(None)
-        self.__set_master_data(None)
-        self.undefine_properties()
-        self.undefine_relationships()
-        super(DataItem, self).about_to_delete()
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem(create_display=False)
@@ -600,11 +600,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     intrinsic_calibrations = property(__get_intrinsic_calibrations)
 
     def __get_calculated_intensity_calibration(self):
-        data_inputs = self.data_inputs
-        # apply operations
-        for operation in self.operations:
-            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
-        return data_inputs[0].calculated_intensity_calibration if len(data_inputs) == 1 else None
+        data_outputs = self.data_outputs
+        return data_outputs[0].calculated_intensity_calibration if len(data_outputs) == 1 else None
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
 
     # call this when data changes. this makes sure that the right number
@@ -624,11 +621,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
-        data_inputs = self.data_inputs
-        # apply operations
-        for operation in self.operations:
-            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
-        return data_inputs[0].calculated_calibrations if len(data_inputs) == 1 else None
+        data_outputs = self.data_outputs
+        return data_outputs[0].calculated_calibrations if len(data_outputs) == 1 else None
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
@@ -668,7 +662,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         return MetadataContextManager(self, name)
 
     def __insert_display(self, name, before_index, display):
-        display.add_ref()
         display.add_listener(self)
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
@@ -677,7 +670,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display._set_data_item(None)
-        display.remove_ref()
 
     def add_display(self, display):
         self.append_item("displays", display)
@@ -696,24 +688,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
 
     def __insert_operation(self, name, before_index, operation):
-        operation.add_ref()
         operation.add_listener(self)
         operation.add_observer(self)
         operation._set_data_item(self)
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
-        if self.data_source:
-            self.data_source.add_operation_graphics_to_displays(operation.graphics)
+        for data_source in self.__data_sources:
+            data_source.add_operation_graphics_to_displays(operation.graphics)
 
     def __remove_operation(self, name, index, operation):
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
-        if self.data_source:
-            self.data_source.remove_operation_graphics_from_displays(operation.graphics)
+        for data_source in self.__data_sources:
+            data_source.remove_operation_graphics_from_displays(operation.graphics)
         operation.remove_listener(self)
         operation.remove_observer(self)
         operation._set_data_item(None)
-        operation.remove_ref()
 
     def add_operation(self, operation):
         self.append_item("operations", operation)
@@ -747,24 +737,32 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
     # display graphics for this items operations. direct data source is used for testing.
-    def connect_data_source(self, lookup_data_item=None, direct_data_source=None):
-        assert lookup_data_item or direct_data_source
-        data_source_uuid_list = self.data_source_uuid_list
-        data_source_uuid_str = data_source_uuid_list.list[0] if len(data_source_uuid_list.list) == 1 else None
-        data_source = lookup_data_item(uuid.UUID(data_source_uuid_str)) if data_source_uuid_str and lookup_data_item else direct_data_source
-        self.__set_data_source(data_source)
-        if data_source:
-            for operation_item in self.operations:
-                data_source.add_operation_graphics_to_displays(operation_item.graphics)
+    def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None):
+        if direct_data_sources is not None:
+            data_items = direct_data_sources
+        else:
+            data_items = [lookup_data_item(uuid.UUID(data_source_uuid_str)) for data_source_uuid_str in self.data_source_uuid_list.list]
+        with self.__data_mutex:
+            for data_source in data_items:
+                if data_source is not None:
+                    assert isinstance(data_source, DataItem)
+                    # we will receive data_item_content_changed from data_source
+                    data_source.add_listener(self)
+                    self.__data_sources.append(data_source)
+                    for operation_item in self.operations:
+                        data_source.add_operation_graphics_to_displays(operation_item.graphics)
+            self.sync_operations()
+        self.data_item_content_changed(None, set([SOURCE]))
 
     # disconnect this item from its data source. also removes the graphics for this
     # items operations.
-    def disconnect_data_source(self):
-        data_source = self.data_source
-        if data_source:
-            for operation_item in self.operations:
-                data_source.remove_operation_graphics_from_displays(operation_item.graphics)
-        self.__set_data_source(None)
+    def disconnect_data_sources(self):
+        with self.__data_mutex:
+            for data_source in copy.copy(self.__data_sources):
+                data_source.remove_listener(self)
+                for operation_item in self.operations:
+                    data_source.remove_operation_graphics_from_displays(operation_item.graphics)
+                self.__data_sources.remove(data_source)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
@@ -778,41 +776,21 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
     # data_item_content_changed comes from data sources to indicate that data
-    # has changed. the connection is established in __set_data_source.
+    # has changed. the connection is established via add_listener.
     def data_item_content_changed(self, data_source, changes):
         self.sync_intrinsic_spatial_calibrations()
-        assert data_source == self.data_source
         # we don't care about display changes to the data source; only data changes.
         if DATA in changes:
             # propogate to listeners
             self.notify_data_item_content_changed(changes)
 
-    # use a property here to correct add_ref/remove_ref
-    # also manage connection to data source.
-    # data_source is a caching value only. it is not part of the model.
     def __get_data_source(self):
-        return self.__data_source
-    def __set_data_source(self, data_source):
-        assert data_source is None or not self.has_master_data  # can't have master data and data source
-        if self.__data_source:
-            with self.__data_mutex:
-                self.__data_source.remove_listener(self)
-                self.__data_source.remove_ref()
-                self.__data_source = None
-                self.sync_operations()
-        if data_source:
-            with self.__data_mutex:
-                assert isinstance(data_source, DataItem)
-                self.__data_source = data_source
-                # we will receive data_item_content_changed from data_source
-                self.__data_source.add_listener(self)
-                self.__data_source.add_ref()
-                self.sync_operations()
-            self.data_item_content_changed(self.__data_source, set([SOURCE]))
+        return self.__data_sources[0] if len(self.__data_sources) == 1 else None
     data_source = property(__get_data_source)
 
     # add a reference to the given data source
     def add_data_source(self, data_source):
+        assert len(self.__data_sources) == 0  # for now we assume that this is only called before data sources are connected
         self.session_id = data_source.session_id
         data_source_uuid_list = self.data_source_uuid_list
         data_source_uuid_list.list.append(str(data_source.uuid))
@@ -820,6 +798,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
+        #assert len(self.__data_sources) == 0  # for now we assume that this is only called before data sources are connected
         data_source_uuid_list = self.data_source_uuid_list
         assert str(data_source.uuid) in data_source_uuid_list.list
         data_source_uuid_list.list.remove(str(data_source.uuid))
@@ -832,7 +811,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         with self.data_item_changes():
             assert not self.closed or data is None
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            assert data is None or self.__data_source is None  # can't have master data and data source
+            assert data is None or len(self.__data_sources) == 0  # can't have master data and data source
             with self.__data_mutex:
                 if data is not None:
                     self.set_cached_value("master_data_shape", data.shape)
@@ -871,20 +850,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
             if initial_count == 0:
-                if self.__data_source:
-                    self.__data_source.increment_data_ref_count()
-                else:
-                    self.__load_master_data()
+                for data_source in self.__data_sources:
+                    data_source.increment_data_ref_count()
+                self.__load_master_data()
         return initial_count+1
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
             if final_count == 0:
-                if self.__data_source:
-                    self.__data_source.decrement_data_ref_count()
-                else:
-                    self.__unload_master_data()
+                for data_source in self.__data_sources:
+                    data_source.decrement_data_ref_count()
+                self.__unload_master_data()
         return final_count
 
     # used for testing
@@ -895,10 +872,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
     def __get_has_master_data(self):
         return self.master_data_shape is not None and self.master_data_dtype is not None
     has_master_data = property(__get_has_master_data)
-
-    def __get_has_data_source(self):
-        return self.__data_source is not None
-    has_data_source = property(__get_has_data_source)
 
     # grab a data reference as a context manager. the object
     # returned defines data and master_data properties. reading data
@@ -954,11 +927,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
             # however, it SHOULD happen under the 'get data mutex' to prevent it from
             # being calculated simulataneously more than once.
             with self.__get_data_mutex:
-                data_inputs = self.data_inputs
-                # apply operations
-                for operation in self.operations:
-                    data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
-                data = data_inputs[0].data if len(data_inputs) == 1 else None
+                data_outputs = self.data_outputs
+                data = data_outputs[0].data if len(data_outputs) == 1 else None
                 self.__get_data_range_for_data(data)
             with self.__data_mutex:
                 self.__cached_data = data
@@ -969,31 +939,26 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Observable.Referen
         """ Returns a copy of the data inputs """
         data_inputs = []
         if self.has_master_data:
-
-            class IntermediateDataAccessor(object):
-                def __init__(self, data_item):
-                    self.__data_item = data_item
-                def __get_data(self):
-                    with self.__data_item.data_ref() as data_ref:
-                        return data_ref.master_data
-                data = property(__get_data)
-
-            data_inputs.append(IntermediateDataItem(IntermediateDataAccessor(self),
+            data_inputs.append(IntermediateDataItem(self,
                                                     (self.master_data_shape, self.master_data_dtype),
                                                     copy.deepcopy(self.intrinsic_intensity_calibration),
                                                     copy.deepcopy(self.intrinsic_calibrations)))
-        elif self.has_data_source:
-            data_inputs.append(self.data_source)
+        data_inputs.extend(copy.copy(self.__data_sources))
         return data_inputs
     data_inputs = property(__get_data_inputs)
 
-    def __get_data_shape_and_dtype(self):
+    def __get_data_outputs(self):
         with self.__data_mutex:
             data_inputs = self.data_inputs
-            # apply operations
+             # apply operations
             for operation in self.operations:
                 data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
-            return data_inputs[0].data_shape_and_dtype if len(data_inputs) == 1 else (None, None)
+            return data_inputs
+    data_outputs = property(__get_data_outputs)
+
+    def __get_data_shape_and_dtype(self):
+        data_outputs = self.data_outputs
+        return data_outputs[0].data_shape_and_dtype if len(data_outputs) == 1 else (None, None)
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):

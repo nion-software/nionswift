@@ -1,4 +1,5 @@
 # standard libraries
+import gc
 import unittest
 import weakref
 
@@ -85,6 +86,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = None
         data_item = None
         document_model = None
+        gc.collect()
         self.assertIsNone(weak_data_item())
 
     def test_flat_data_groups(self):

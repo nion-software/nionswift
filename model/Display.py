@@ -24,7 +24,7 @@ from nion.ui import ThreadPool
 _ = gettext.gettext
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Storage.Cacheable, Observable.ActiveSerializable):
+class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
@@ -44,12 +44,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
-
-    def about_to_delete(self):
-        self.__shared_thread_pool.close()
-        self.about_to_delete_active()
-        self._set_data_item(None)
-        self.undefine_properties()
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
@@ -159,7 +153,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
             self.__drawn_graphics.remove(operation_graphic)
 
     def __insert_graphic(self, name, before_index, item):
-        item.add_ref()
         item.add_listener(self)
         item.add_observer(self)
         self.__drawn_graphics.insert(before_index, item)
@@ -168,7 +161,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Observable.Referenc
     def __remove_graphic(self, name, index, item):
         item.remove_listener(self)
         item.remove_observer(self)
-        item.remove_ref()
         self.__drawn_graphics.remove(item)
         self.notify_listeners("display_changed", self)
 

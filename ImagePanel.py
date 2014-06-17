@@ -237,12 +237,14 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
 
-        if self.display:
+        display = self.display
 
-            widget_mapping = WidgetMapping(self.display.data_item.spatial_shape, (0, 0), self.canvas_size)
+        if display:
+
+            widget_mapping = WidgetMapping(display.data_item.spatial_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
-            for graphic_index, graphic in enumerate(self.display.drawn_graphics):
+            for graphic_index, graphic in enumerate(display.drawn_graphics):
                 graphic.draw(drawing_context, widget_mapping, self.graphic_selection.contains(graphic_index))
             drawing_context.restore()
 
@@ -271,7 +273,9 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
 
-        if self.display:
+        display = self.display
+
+        if display:
 
             # canvas size
             canvas_width = self.canvas_size[1]
@@ -282,13 +286,13 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
-            if self.display.data_item.is_calibrated and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
-                calibrations = self.display.data_item.calculated_calibrations
+            if display.data_item.is_calibrated and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
+                calibrations = display.data_item.calculated_calibrations
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
-                widget_mapping = WidgetMapping(self.display.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
-                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / self.display.data_item.spatial_shape[0]
+                widget_mapping = WidgetMapping(display.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / display.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
                     calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[0].scale)
@@ -309,7 +313,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
                     drawing_context.fill_text(calibrations[0].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = self.display.data_item.get_metadata("hardware_source")
+                    data_item_properties = display.data_item.get_metadata("hardware_source")
                     info_items = list()
                     voltage = data_item_properties.get("extra_high_tension", 0)
                     if voltage:
@@ -1331,7 +1335,6 @@ class ImagePanel(Panel.Panel):
             self.__drawn_graphics_binding.close()
             self.__drawn_graphics_binding = None
             self.__display.remove_listener(self)
-            self.__display.remove_ref()
         self.__display = display
         self.display_changed(self.__display)
         self.image_canvas_item.image_canvas_mode = "fit"
@@ -1339,7 +1342,6 @@ class ImagePanel(Panel.Panel):
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
-            self.__display.add_ref()
             self.__display.add_listener(self)
             self.__drawn_graphics_binding = Binding.ListBinding(self.__display, "drawn_graphics")
             self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)

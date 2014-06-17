@@ -179,7 +179,6 @@ class DataPanel(Panel.Panel):
                 if isinstance(object, DataGroup.DataGroup):
                     object.remove_listener(self)
                     object.remove_observer(self)
-                    object.remove_ref()
             self.document_controller.document_model.remove_observer(self)
             self.item_model_controller.close()
             self.item_model_controller = None
@@ -227,7 +226,6 @@ class DataPanel(Panel.Panel):
                 self.__mapping[object] = item
                 object.add_observer(self)
                 object.add_listener(self)
-                object.add_ref()
                 self.item_model_controller.end_insert()
                 # recursively insert items that already exist
                 data_groups = object.data_groups
@@ -245,7 +243,6 @@ class DataPanel(Panel.Panel):
                 self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
                 object.remove_listener(self)
                 object.remove_observer(self)
-                object.remove_ref()
                 parent_item.remove_child(parent_item.children[index])
                 self.__mapping.pop(object)
                 self.item_model_controller.end_remove()
@@ -445,7 +442,6 @@ class DataPanel(Panel.Panel):
         def __data_item_inserted(self, data_item, before_index):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
-            data_item.add_ref()
             self.__data_items.append(data_item)
             # do the insert
             properties = {
@@ -465,7 +461,6 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.end_remove()
             # remove the listener.
             data_item.remove_listener(self)
-            data_item.remove_ref()
             self.__data_items.remove(data_item)
 
         def item_mime_data(self, row):

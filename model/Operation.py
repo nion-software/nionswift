@@ -65,7 +65,7 @@ class LineProfileGraphic(Graphics.LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ActiveSerializable):
+class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ActiveSerializable):
     """
         OperationItem represents an operation on numpy data array.
         Pass in a description during construction. The description
@@ -110,16 +110,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Re
             graphic.add_listener(self)
             self.__graphics.append(graphic)
             self.__bindings.append(OperationPropertyToGraphicBinding(self, "bounds", graphic, "bounds"))
-
-    def about_to_delete(self):
-        for graphic in self.__graphics:
-            graphic.remove_listener(self)
-        self.__graphics = None
-        for binding in self.__bindings:
-            binding.close()
-        self.__bindings = None
-        self._set_data_item(None)
-        self.undefine_properties()
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__(self.operation_id)
@@ -261,6 +251,7 @@ class Operation(object):
             """
 
             def __init__(self, operation, data_inputs):
+                super(ProcessedDataItem, self).__init__()
                 self.__operation = operation
                 self.__data_inputs = data_inputs
 

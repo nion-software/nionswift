@@ -103,7 +103,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         # stopping acquisition should not clear session
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        document_model.add_ref()
         workspace_controller = DummyWorkspaceController()
         source = SimpleHardwareSource(0.01)
         self.assertEqual(source.frame_index, 0)
@@ -113,7 +112,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         source.abort_playing()
         source.data_buffer.current_snapshot = 0
         source.close()
-        document_model.remove_ref()
 
 if __name__ == '__main__':
     unittest.main()

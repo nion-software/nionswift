@@ -519,7 +519,6 @@ class WorkspaceController(AbstractWorkspaceController):
         # be careful about binding the parameter. cannot use 'data_item' directly.
         def append_data_item(append_data_item):
             document_model.append_data_item(append_data_item)
-            append_data_item.remove_ref()
         def activate_data_item(data_item_to_activate):
             if self.document_controller:
                 self.document_controller.set_data_item_selection(data_item_to_activate)
@@ -554,13 +553,11 @@ class WorkspaceController(AbstractWorkspaceController):
                 do_copy = True
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
-                data_item_copy.add_ref()  # this will be balanced in append_data_item
                 data_item.session_id = self.session_id  # immediately update the session id
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
-                data_item.add_ref()  # this will be balanced in append_data_item
                 data_item.title = "%s.%s" % (hardware_source.display_name, channel)
                 with data_item.open_metadata("hardware_source") as metadata:
                     metadata["hardware_source_id"] = hardware_source.hardware_source_id

@@ -117,7 +117,7 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ActiveSerializable):
+class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ActiveSerializable):
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)

@@ -193,19 +193,18 @@ class TestStorageClass(unittest.TestCase):
         datastore = Storage.DbDatastoreProxy(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        with document_model.ref():
-            # add the data group first so that if datastore is not disconnected,
-            # writes will happen immediately to the database.
-            data_group = DataGroup.DataGroup()
-            document_model.append_data_group(data_group)
-            datastore.disconnected = True
-            datastore._throttling = 0.004  # 4ms
-            for i in xrange(10):
-                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                data_group.append_data_item(data_item)
-            datastore.disconnected = False
-            self.assertEqual(len(datastore.get_items(datastore.find_parent_node(data_group), "data_items")), 0)
+        # add the data group first so that if datastore is not disconnected,
+        # writes will happen immediately to the database.
+        data_group = DataGroup.DataGroup()
+        document_model.append_data_group(data_group)
+        datastore.disconnected = True
+        datastore._throttling = 0.004  # 4ms
+        for i in xrange(10):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_group.append_data_item(data_item)
+        datastore.disconnected = False
+        self.assertEqual(len(datastore.get_items(datastore.find_parent_node(data_group), "data_items")), 0)
 
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
@@ -289,8 +288,6 @@ class TestStorageClass(unittest.TestCase):
         data_group2b1 = DataGroup.DataGroup()
         data_group2b.append_data_group(data_group2b1)
         data_group2_copy = copy.deepcopy(data_group2)
-        data_group2_copy.add_ref()
-        data_group2_copy.remove_ref()
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
         datastore = Storage.DictDatastore()
@@ -319,7 +316,6 @@ class TestStorageClass(unittest.TestCase):
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        document_model.add_ref()
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
         data_item = DataItem.DataItem()
@@ -330,12 +326,10 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_group.append_data_item(data_item)
         storage_data = datastore.to_data()
-        document_model.remove_ref()
         # make sure it reloads
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        document_model.add_ref()
         datastore.set_root(document_model)
         document_model.write()
         data_group = document_model.data_groups[0]
@@ -353,8 +347,6 @@ class TestStorageClass(unittest.TestCase):
         data_item3.begin_transaction()
         data_item3.end_transaction()
         data_item2.end_transaction()
-        # clean up
-        document_model.remove_ref()
 
     def test_data_item_should_store_modifications_within_transactions(self):
         reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
@@ -362,18 +354,16 @@ class TestStorageClass(unittest.TestCase):
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        with document_model.ref():
-            data_item = DataItem.DataItem()
-            document_model.append_data_item(data_item)
-            with data_item.transaction():
-                data_item.datetime_original = reference_date
-            storage_data = datastore.to_data()
+        data_item = DataItem.DataItem()
+        document_model.append_data_item(data_item)
+        with data_item.transaction():
+            data_item.datetime_original = reference_date
+        storage_data = datastore.to_data()
         # make sure it reloads
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        with document_model.ref():
-            self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
+        self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
 
     def test_data_writes_to_and_reloads_from_file(self):
         reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
@@ -386,29 +376,27 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            with document_model.ref():
-                data_item = DataItem.DataItem()
-                data_item.datetime_original = reference_date
-                with data_item.data_ref() as data_ref:
-                    data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-                document_model.append_data_item(data_item)
-                reference_type, reference = data_item.get_data_file_info()
-                self.assertEqual(reference_type, "relative_file")
-                data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
-                self.assertTrue(os.path.exists(data_file_path))
-                self.assertTrue(os.path.isfile(data_file_path))
-                storage_data = datastore.to_data()
+            data_item = DataItem.DataItem()
+            data_item.datetime_original = reference_date
+            with data_item.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            document_model.append_data_item(data_item)
+            reference_type, reference = data_item.get_data_file_info()
+            self.assertEqual(reference_type, "relative_file")
+            data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
+            self.assertTrue(os.path.exists(data_file_path))
+            self.assertTrue(os.path.isfile(data_file_path))
+            storage_data = datastore.to_data()
             datastore.close()
             # make sure the data reloads
             datastore = Storage.DbDatastore(data_reference_handler, db_name, storage_data=storage_data)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            with document_model.ref():
-                with document_model.data_items[0].data_ref() as data_ref:
-                    self.assertIsNotNone(data_ref.data)
-                # and then make sure the data file gets removed on disk when removed
-                document_model.remove_data_item(document_model.data_items[0])
-                self.assertFalse(os.path.exists(data_file_path))
+            with document_model.data_items[0].data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
+            # and then make sure the data file gets removed on disk when removed
+            document_model.remove_data_item(document_model.data_items[0])
+            self.assertFalse(os.path.exists(data_file_path))
             datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -424,7 +412,6 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
@@ -434,7 +421,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(reference_type, "relative_file")
             self.assertIsNotNone(reference)
             # clean up
-            document_model.remove_ref()
             document_model = None
             storage_cache.close()
             storage_cache = None
@@ -454,7 +440,6 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             # write data with transaction
@@ -471,7 +456,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.isfile(data_file_path))
             self.assertIsNotNone(handler.read_data(reference))
             # clean up
-            document_model.remove_ref()
             datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -488,7 +472,6 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
             data_item = DataItem.DataItem()
             data_item.datetime_original = reference_date
             with data_item.data_ref() as data_ref:
@@ -506,7 +489,6 @@ class TestStorageClass(unittest.TestCase):
             # make sure it get removed from disk
             self.assertFalse(os.path.exists(data_file_path))
             # clean up
-            document_model.remove_ref()
             datastore.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -719,7 +701,6 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
             data_item = DataItem.DataItem()
             with data_item.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -743,7 +724,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data2_file_path))
             self.assertTrue(os.path.isfile(data2_file_path))
             # clean up
-            document_model.remove_ref()
             document_model = None
             storage_cache.close()
             storage_cache = None
@@ -754,14 +734,12 @@ class TestStorageClass(unittest.TestCase):
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-            document_model.add_ref()
             self.assertEqual(len(document_model.data_items), 1)
             self.assertTrue(os.path.isfile(data2_file_path))
             # make sure dependent gets deleted
             document_model.remove_data_item(document_model.data_items[0])
             self.assertFalse(os.path.exists(data2_file_path))
             # clean up
-            document_model.remove_ref()
             document_model = None
             storage_cache.close()
             storage_cache = None

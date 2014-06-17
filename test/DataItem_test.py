@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import gc
 import logging
 import math
 import threading
@@ -29,15 +30,13 @@ class TestCalibrationClass(unittest.TestCase):
 
     def test_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
         data_item.set_spatial_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
         data_item.set_spatial_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
         data_item_copy = DataItem.DataItem()
-        data_item_copy.add_ref()
         data_item_copy.add_operation(Operation.OperationItem("invert-operation"))
         data_item_copy.add_data_source(data_item)
-        data_item_copy.connect_data_source(direct_data_source=data_item)
+        data_item_copy.connect_data_sources(direct_data_sources=[data_item])
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(len(calculated_calibrations), 2)
         self.assertEqual(int(calculated_calibrations[0].origin), 3)
@@ -52,36 +51,26 @@ class TestCalibrationClass(unittest.TestCase):
         self.assertEqual(calculated_calibrations[0].units, "1/x")
         self.assertEqual(int(calculated_calibrations[1].origin), 0)
         self.assertEqual(calculated_calibrations[1].units, "1/x")
-        data_item_copy.remove_ref()
-        data_item.remove_ref()
 
     def test_double_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
         data_item2 = DataItem.DataItem()
-        data_item2.add_ref()
         operation2 = Operation.OperationItem("resample-operation")
         data_item2.add_operation(operation2)
         data_item2.add_data_source(data_item)
-        data_item2.connect_data_source(direct_data_source=data_item)
+        data_item2.connect_data_sources(direct_data_sources=[data_item])
         data_item3 = DataItem.DataItem()
-        data_item3.add_ref()
         operation3 = Operation.OperationItem("resample-operation")
         data_item3.add_operation(operation3)
         data_item3.add_data_source(data_item2)
-        data_item3.connect_data_source(direct_data_source=data_item2)
+        data_item3.connect_data_sources(direct_data_sources=[data_item2])
         data_item3.calculated_calibrations
-        data_item3.remove_ref()
-        data_item2.remove_ref()
-        data_item.remove_ref()
 
     def test_spatial_calibration_on_rgb(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256, 4), numpy.uint8))
-        data_item.add_ref()
         self.assertTrue(Image.is_shape_and_dtype_2d(*data_item.data_shape_and_dtype))
         self.assertTrue(Image.is_shape_and_dtype_rgba(*data_item.data_shape_and_dtype))
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
-        data_item.remove_ref()
 
     def test_calibration_should_work_for_complex_data(self):
         calibration = Calibration.Calibration(1.0, 2.0, "c")
@@ -111,169 +100,152 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_delete_data_item(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
         weak_data_item = weakref.ref(data_item)
-        data_item.remove_ref()
         data_item = None
+        gc.collect()
         self.assertIsNone(weak_data_item())
 
     def test_copy_data_item(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            data_item.title = "data_item"
-            with data_item.open_metadata("test") as metadata:
-                metadata["one"] = 1
-                metadata["two"] = 22
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
-                data_ref.master_data_updated()
-            data_item.displays[0].display_limits = (100, 900)
-            data_item.add_operation(Operation.OperationItem("invert-operation"))
-            data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
-            data_item_copy = copy.deepcopy(data_item)
-            with data_item_copy.ref():
-                with data_item_copy.data_ref() as data_copy_accessor:
-                    # make sure the data is not shared between the original and the copy
-                    self.assertEqual(data_ref.master_data[0,0], 0)
-                    self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-                    data_ref.master_data[:] = 1
-                    data_ref.master_data_updated()
-                    self.assertEqual(data_ref.master_data[0,0], 1)
-                    self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-                # make sure properties and other items got copied
-                self.assertEqual(len(data_item_copy.properties), 19)
-                self.assertIsNot(data_item.properties, data_item_copy.properties)
-                self.assertEqual(len(data_item.get_metadata("test")), 2)
-                self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))
-                # make sure display counts match
-                self.assertEqual(len(data_item.displays), len(data_item_copy.displays))
-                self.assertEqual(len(data_item.operations), len(data_item_copy.operations))
-                # tuples and strings are immutable, so test to make sure old/new are independent
-                self.assertEqual(data_item.title, data_item_copy.title)
-                data_item.title = "data_item1"
-                self.assertNotEqual(data_item.title, data_item_copy.title)
-                self.assertEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
-                data_item.displays[0].display_limits = (150, 200)
-                self.assertNotEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
-                # make sure dates are independent
-                self.assertIsNot(data_item.datetime_modified, data_item_copy.datetime_modified)
-                self.assertIsNot(data_item.datetime_original, data_item_copy.datetime_original)
-                # make sure calibrations, operations, nor graphics are not shared
-                self.assertNotEqual(data_item.intrinsic_calibrations[0], data_item_copy.intrinsic_calibrations[0])
-                self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
-                self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
+        data_item.title = "data_item"
+        with data_item.open_metadata("test") as metadata:
+            metadata["one"] = 1
+            metadata["two"] = 22
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
+            data_ref.master_data_updated()
+        data_item.displays[0].display_limits = (100, 900)
+        data_item.add_operation(Operation.OperationItem("invert-operation"))
+        data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
+        data_item_copy = copy.deepcopy(data_item)
+        with data_item_copy.data_ref() as data_copy_accessor:
+            # make sure the data is not shared between the original and the copy
+            self.assertEqual(data_ref.master_data[0,0], 0)
+            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+            data_ref.master_data[:] = 1
+            data_ref.master_data_updated()
+            self.assertEqual(data_ref.master_data[0,0], 1)
+            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+        # make sure properties and other items got copied
+        self.assertEqual(len(data_item_copy.properties), 19)
+        self.assertIsNot(data_item.properties, data_item_copy.properties)
+        self.assertEqual(len(data_item.get_metadata("test")), 2)
+        self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))
+        # make sure display counts match
+        self.assertEqual(len(data_item.displays), len(data_item_copy.displays))
+        self.assertEqual(len(data_item.operations), len(data_item_copy.operations))
+        # tuples and strings are immutable, so test to make sure old/new are independent
+        self.assertEqual(data_item.title, data_item_copy.title)
+        data_item.title = "data_item1"
+        self.assertNotEqual(data_item.title, data_item_copy.title)
+        self.assertEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
+        data_item.displays[0].display_limits = (150, 200)
+        self.assertNotEqual(data_item.displays[0].display_limits, data_item_copy.displays[0].display_limits)
+        # make sure dates are independent
+        self.assertIsNot(data_item.datetime_modified, data_item_copy.datetime_modified)
+        self.assertIsNot(data_item.datetime_original, data_item_copy.datetime_original)
+        # make sure calibrations, operations, nor graphics are not shared
+        self.assertNotEqual(data_item.intrinsic_calibrations[0], data_item_copy.intrinsic_calibrations[0])
+        self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
+        self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
 
     def test_copy_data_item_properly_copies_data_source_and_connects_it(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            # setup by adding data item and a dependent data item
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            data_item2a.add_operation(operation2a)
-            data_item2a.add_data_source(data_item2)
-            document_model.append_data_item(data_item2)  # add this first
-            document_model.append_data_item(data_item2a)  # add this second
-            # verify
-            self.assertEqual(data_item2a.data_source, data_item2)
-            # copy the dependent item
-            data_item2a_copy = copy.deepcopy(data_item2a)
-            document_model.append_data_item(data_item2a_copy)
-            # verify data source
-            self.assertEqual(data_item2a.data_source, data_item2)
-            self.assertEqual(data_item2a_copy.data_source, data_item2)
+        # setup by adding data item and a dependent data item
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2a = DataItem.DataItem()
+        operation2a = Operation.OperationItem("resample-operation")
+        data_item2a.add_operation(operation2a)
+        data_item2a.add_data_source(data_item2)
+        document_model.append_data_item(data_item2)  # add this first
+        document_model.append_data_item(data_item2a)  # add this second
+        # verify
+        self.assertEqual(data_item2a.data_source, data_item2)
+        # copy the dependent item
+        data_item2a_copy = copy.deepcopy(data_item2a)
+        document_model.append_data_item(data_item2a_copy)
+        # verify data source
+        self.assertEqual(data_item2a.data_source, data_item2)
+        self.assertEqual(data_item2a_copy.data_source, data_item2)
 
     def test_copy_data_item_with_crop(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            data_item.add_operation(crop_operation)
-            data_item_copy = copy.deepcopy(data_item)
-            with data_item_copy.ref():
-                self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
-                self.assertEqual(data_item_copy.operations[0].get_property("bounds"), data_item.operations[0].get_property("bounds"))
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
+        data_item.add_operation(crop_operation)
+        data_item_copy = copy.deepcopy(data_item)
+        self.assertNotEqual(data_item_copy.operations[0], data_item.operations[0])
+        self.assertEqual(data_item_copy.operations[0].get_property("bounds"), data_item.operations[0].get_property("bounds"))
 
     def test_copy_data_item_with_transaction(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            data_item.begin_transaction()
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data[:] = 1
-                data_item_copy = copy.deepcopy(data_item)
-            data_item.end_transaction()
-            with data_item_copy.ref():
-                with data_item.data_ref() as data_ref:
-                    with data_item_copy.data_ref() as data_copy_accessor:
-                        self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
-                        self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
-                        data_ref.master_data[:] = 2
-                        self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
+        data_item.begin_transaction()
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data[:] = 1
+            data_item_copy = copy.deepcopy(data_item)
+        data_item.end_transaction()
+        with data_item.data_ref() as data_ref:
+            with data_item_copy.data_ref() as data_copy_accessor:
+                self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
+                self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
+                data_ref.master_data[:] = 2
+                self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
     def test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            display = data_item.displays[0]
-            self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
-            # configure a listener to know when the thumbnail is finished
-            event = threading.Event()
-            def thumbnail_loaded(thumbnail_data):
-                event.set()
-            # the next line also triggers the thumbnail calculation
-            self.assertIsNotNone(display.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
-            # wait for the thumbnail
-            event.wait()
-            self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-            self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
+        display = data_item.displays[0]
+        self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
+        # configure a listener to know when the thumbnail is finished
+        event = threading.Event()
+        def thumbnail_loaded(thumbnail_data):
+            event.set()
+        # the next line also triggers the thumbnail calculation
+        self.assertIsNotNone(display.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
+        # wait for the thumbnail
+        event.wait()
+        self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
+        self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
 
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
-        data_item.add_ref()
         self.assertIsNotNone(data_item.displays[0].get_processor("thumbnail").get_data(self.app.ui))
-        data_item.remove_ref()
 
     def test_delete_nested_data_item(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            # setup by adding data item and a dependent data item
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            data_item2a.add_operation(operation2a)
-            data_item2a.add_data_source(data_item2)
-            data_item2a1 = DataItem.DataItem()
-            operation2a1 = Operation.OperationItem("resample-operation")
-            data_item2a1.add_operation(operation2a1)
-            data_item2a1.add_data_source(data_item2a)
-            document_model.append_data_item(data_item2)  # add this first
-            document_model.append_data_item(data_item2a)  # add this second
-            document_model.append_data_item(data_item2a1)
-            # verify
-            self.assertEqual(len(document_model.data_items), 3)
-            # remove item (and implicitly its dependency)
-            document_model.remove_data_item(data_item2a)
-            self.assertEqual(len(document_model.data_items), 1)
+        # setup by adding data item and a dependent data item
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2a = DataItem.DataItem()
+        operation2a = Operation.OperationItem("resample-operation")
+        data_item2a.add_operation(operation2a)
+        data_item2a.add_data_source(data_item2)
+        data_item2a1 = DataItem.DataItem()
+        operation2a1 = Operation.OperationItem("resample-operation")
+        data_item2a1.add_operation(operation2a1)
+        data_item2a1.add_data_source(data_item2a)
+        document_model.append_data_item(data_item2)  # add this first
+        document_model.append_data_item(data_item2a)  # add this second
+        document_model.append_data_item(data_item2a1)
+        # verify
+        self.assertEqual(len(document_model.data_items), 3)
+        # remove item (and implicitly its dependency)
+        document_model.remove_data_item(data_item2a)
+        self.assertEqual(len(document_model.data_items), 1)
 
     def test_copy_data_item_with_display_and_graphics_should_copy_graphics(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
         rect_graphic = Graphics.RectangleGraphic()
         data_item.displays[0].append_graphic(rect_graphic)
         self.assertEqual(len(data_item.displays[0].graphics), 1)
         data_item_copy = copy.deepcopy(data_item)
-        data_item_copy.add_ref()
         self.assertEqual(len(data_item_copy.displays[0].graphics), 1)
-        data_item_copy.remove_ref()
-        data_item.remove_ref()
 
     def test_data_item_data_changed(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        document_model.add_ref()
         # set up the data items
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item_graphic = Graphics.LineGraphic()
@@ -390,12 +362,9 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
         data_item.remove_operation(crop_operation)
-        # finish up
-        document_model.remove_ref()
 
     def test_data_range(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.add_ref()
         # test scalar
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
         with data_item.data_ref() as data_ref:
@@ -413,54 +382,49 @@ class TestDataItemClass(unittest.TestCase):
         data_max = math.log(math.sqrt(12*12 + 13*13) + 1)
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
         self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
-        # clean up
-        data_item.remove_ref()
 
     def test_removing_dependent_data_item_with_graphic(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            crop_data_item = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_data_item.add_operation(crop_operation)
-            crop_data_item.add_data_source(data_item)
-            document_model.append_data_item(crop_data_item)
-            # should remove properly when shutting down.
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        crop_data_item = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_data_item.add_operation(crop_operation)
+        crop_data_item.add_data_source(data_item)
+        document_model.append_data_item(crop_data_item)
+        # should remove properly when shutting down.
 
     def test_inherited_session_id_during_processing(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_item.session_id = "20131231-235959"
-            document_model.append_data_item(data_item)
-            crop_data_item = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            crop_data_item.add_operation(crop_operation)
-            crop_data_item.add_data_source(data_item)
-            document_model.append_data_item(crop_data_item)
-            self.assertEqual(crop_data_item.session_id, data_item.session_id)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item.session_id = "20131231-235959"
+        document_model.append_data_item(data_item)
+        crop_data_item = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
+        crop_data_item.add_operation(crop_operation)
+        crop_data_item.add_data_source(data_item)
+        document_model.append_data_item(crop_data_item)
+        self.assertEqual(crop_data_item.session_id, data_item.session_id)
 
     def test_adding_ref_to_dependent_data_causes_source_data_to_load(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
-            data_item_inverted.add_data_source(data_item)
-            document_model.append_data_item(data_item_inverted)
-            # begin checks
-            with data_item.data_ref():
-                pass
-            self.assertFalse(data_item.is_data_loaded)
-            with data_item_inverted.data_ref() as d:
-                self.assertTrue(data_item.is_data_loaded)
-            self.assertFalse(data_item.is_data_loaded)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        # begin checks
+        with data_item.data_ref():
+            pass
+        self.assertFalse(data_item.is_data_loaded)
+        with data_item_inverted.data_ref() as d:
+            self.assertTrue(data_item.is_data_loaded)
+        self.assertFalse(data_item.is_data_loaded)
 
     class DummyOperation(Operation.Operation):
         def __init__(self):
@@ -474,76 +438,72 @@ class TestDataItemClass(unittest.TestCase):
     def test_operation_data_gets_cached(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_dummy = DataItem.DataItem()
-            dummy_operation = TestDataItemClass.DummyOperation()
-            Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
-            dummy_operation_item = Operation.OperationItem("dummy-operation")
-            data_item_dummy.add_operation(dummy_operation_item)
-            data_item_dummy.add_data_source(data_item)
-            document_model.append_data_item(data_item_dummy)
-            with data_item_dummy.data_ref() as d:
-                start_count = dummy_operation.count
-                d.data
-                self.assertEqual(dummy_operation.count, start_count + 1)
-                d.data
-                self.assertEqual(dummy_operation.count, start_count + 1)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_dummy = DataItem.DataItem()
+        dummy_operation = TestDataItemClass.DummyOperation()
+        Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
+        dummy_operation_item = Operation.OperationItem("dummy-operation")
+        data_item_dummy.add_operation(dummy_operation_item)
+        data_item_dummy.add_data_source(data_item)
+        document_model.append_data_item(data_item_dummy)
+        with data_item_dummy.data_ref() as d:
+            start_count = dummy_operation.count
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
 
     def test_updating_thumbnail_does_not_cause_cached_data_to_be_cleared(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_dummy = DataItem.DataItem()
-            dummy_operation = TestDataItemClass.DummyOperation()
-            Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
-            dummy_operation_item = Operation.OperationItem("dummy-operation")
-            data_item_dummy.add_operation(dummy_operation_item)
-            data_item_dummy.add_data_source(data_item)
-            document_model.append_data_item(data_item_dummy)
-            with data_item_dummy.data_ref() as d:
-                start_count = dummy_operation.count
-                d.data
-                self.assertEqual(dummy_operation.count, start_count + 1)
-                data_item_dummy.notify_data_item_content_changed([])  # NOTE: this test may no longer be valid
-                d.data
-                self.assertEqual(dummy_operation.count, start_count + 1)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_dummy = DataItem.DataItem()
+        dummy_operation = TestDataItemClass.DummyOperation()
+        Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
+        dummy_operation_item = Operation.OperationItem("dummy-operation")
+        data_item_dummy.add_operation(dummy_operation_item)
+        data_item_dummy.add_data_source(data_item)
+        document_model.append_data_item(data_item_dummy)
+        with data_item_dummy.data_ref() as d:
+            start_count = dummy_operation.count
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
+            data_item_dummy.notify_data_item_content_changed([])  # NOTE: this test may no longer be valid
+            d.data
+            self.assertEqual(dummy_operation.count, start_count + 1)
 
     def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_crop = DataItem.DataItem()
-            crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.add_operation(crop_operation_item)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-            data_item_crop.add_data_source(data_item)
-            document_model.append_data_item(data_item_crop)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-            document_model.remove_data_item(data_item_crop)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = Operation.OperationItem("crop-operation")
+        data_item_crop.add_operation(crop_operation_item)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item_crop.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+        document_model.remove_data_item(data_item_crop)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_crop = DataItem.DataItem()
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-            data_item_crop.add_data_source(data_item)
-            document_model.append_data_item(data_item_crop)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-            crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.add_operation(crop_operation_item)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-            data_item_crop.remove_operation(crop_operation_item)
-            self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_crop = DataItem.DataItem()
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item_crop.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        crop_operation_item = Operation.OperationItem("crop-operation")
+        data_item_crop.add_operation(crop_operation_item)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+        data_item_crop.remove_operation(crop_operation_item)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
         # data_item_content_changed
@@ -556,19 +516,18 @@ class TestDataItemClass(unittest.TestCase):
                 self._display_changed = True
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            listener = Listener()
-            data_item.displays[0].add_listener(listener)
-            data_item_crop = DataItem.DataItem()
-            crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.add_operation(crop_operation_item)
-            data_item_crop.add_data_source(data_item)
-            document_model.append_data_item(data_item_crop)
-            listener.reset()
-            data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-            self.assertTrue(listener._display_changed)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        listener = Listener()
+        data_item.displays[0].add_listener(listener)
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = Operation.OperationItem("crop-operation")
+        data_item_crop.add_operation(crop_operation_item)
+        data_item_crop.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop)
+        listener.reset()
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        self.assertTrue(listener._display_changed)
 
     # necessary to make inspector display updated values properly
     def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
@@ -582,20 +541,19 @@ class TestDataItemClass(unittest.TestCase):
                 self._display_changed = True
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            listener = Listener()
-            data_item.displays[0].add_listener(listener)
-            data_item_crop = DataItem.DataItem()
-            crop_operation_item = Operation.OperationItem("crop-operation")
-            data_item_crop.add_operation(crop_operation_item)
-            data_item_crop.add_data_source(data_item)
-            document_model.append_data_item(data_item_crop)
-            data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-            listener.reset()
-            data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-            self.assertTrue(listener._display_changed)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        listener = Listener()
+        data_item.displays[0].add_listener(listener)
+        data_item_crop = DataItem.DataItem()
+        crop_operation_item = Operation.OperationItem("crop-operation")
+        data_item_crop.add_operation(crop_operation_item)
+        data_item_crop.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop)
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        listener.reset()
+        data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+        self.assertTrue(listener._display_changed)
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -607,29 +565,27 @@ class TestDataItemClass(unittest.TestCase):
     def test_data_item_allows_adding_of_two_data_sources(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item1)
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item2)
-            data_item = DataItem.DataItem()
-            data_item.add_data_source(data_item1)
-            data_item.add_data_source(data_item2)
-            document_model.append_data_item(data_item)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item2)
+        data_item = DataItem.DataItem()
+        data_item.add_data_source(data_item1)
+        data_item.add_data_source(data_item2)
+        document_model.append_data_item(data_item)
 
     def test_data_item_allows_remove_second_of_two_data_sources(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item1)
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item2)
-            data_item = DataItem.DataItem()
-            data_item.add_data_source(data_item1)
-            data_item.add_data_source(data_item2)
-            document_model.append_data_item(data_item)
-            data_item.remove_data_source(data_item2)
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item2)
+        data_item = DataItem.DataItem()
+        data_item.add_data_source(data_item1)
+        data_item.add_data_source(data_item2)
+        document_model.append_data_item(data_item)
+        data_item.remove_data_source(data_item2)
 
 
 if __name__ == '__main__':

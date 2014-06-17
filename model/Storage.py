@@ -27,8 +27,6 @@ class MutableRelationship(collections.MutableSequence):
         An observable list that integrates into the storage system.
 
         Items in the list are recursively observed.
-
-        Items in the list are reference counted using add_ref and remove_ref.
     """
 
     def __init__(self, parent, relationship_name):
@@ -61,8 +59,6 @@ class MutableRelationship(collections.MutableSequence):
         del self.__list[index]
         # keep storage up-to-date
         self.parent_weak_ref().notify_remove_item(self.relationship_name, value, index)
-        # ref count
-        value.remove_ref()
 
     def __iter__(self):
         return iter(self.__list)
@@ -70,8 +66,6 @@ class MutableRelationship(collections.MutableSequence):
     def insert(self, index, value):
         assert value not in self.__list
         assert index <= len(self.__list) and index >= 0
-        # ref count
-        value.add_ref()
         # insert in internal list
         self.__list.insert(index, value)
         # observe
@@ -176,11 +170,6 @@ class Cacheable(object):
 
 
 #
-# StorageBase is reference counted. Clients should always
-# add_ref and remove_ref when storing these objects.
-# about_to_delete will be called when reference count
-# reaches zero during a remove_ref.
-#
 # StorageBase supports observers and listeners.
 #
 # Observers can watch all serializable changes to the object by
@@ -200,7 +189,7 @@ class Cacheable(object):
 # will be removed when the reference count goes to zero.
 #
 
-class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Cacheable):
+class StorageBase(Observable.Observable, Observable.Broadcaster, Cacheable):
 
     def __init__(self):
         super(StorageBase, self).__init__()
@@ -212,11 +201,6 @@ class StorageBase(Observable.Observable, Observable.Broadcaster, Observable.Refe
         self.__reverse_aliases = dict()
         self.__weak_parents = []
         self.__uuid = uuid.uuid4()
-
-    def __del__(self):
-        # There should not be listeners or references at this point.
-        assert len(self.__weak_parents) == 0, '{0} still has parents'.format(self.__class__.__name__)
-        super(StorageBase, self).__del__()
 
     # uuid property. read only.
     def __get_uuid(self):

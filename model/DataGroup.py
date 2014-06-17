@@ -99,12 +99,6 @@ class DataGroup(Storage.StorageBase):
         data_group.__data_item_uuids = data_item_uuids if data_item_uuids is not None else list()
         return data_group
 
-    # This gets called when reference count goes to 0, but before deletion.
-    def about_to_delete(self):
-        for data_group in copy.copy(self.data_groups):
-            self.data_groups.remove(data_group)
-        super(DataGroup, self).about_to_delete()
-
     def __deepcopy__(self, memo):
         data_group_copy = DataGroup()
         data_group_copy.title = self.title
@@ -211,14 +205,12 @@ class DataGroup(Storage.StorageBase):
     def move_data_item(self, data_item, before_index):
         index = self.data_items.index(data_item)
         if index != before_index:
-            data_item.add_ref()
             self.__moving = True
             self.remove_data_item(data_item)
             if index < before_index:
                 before_index -= 1
             self.insert_data_item(before_index, data_item)
             self.__moving = False
-            data_item.remove_ref()
 
 
 # return a generator for all data groups and child data groups in container

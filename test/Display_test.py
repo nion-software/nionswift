@@ -22,49 +22,46 @@ class TestDisplayClass(unittest.TestCase):
 
     def test_changing_display_limits_clears_histogram_data_cache(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            display = data_item.displays[0]
-            self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-            event = threading.Event()
-            def update_histogram_data(histogram_data):
-                event.set()
-            display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
-            event.wait()
-            self.assertFalse(display.is_cached_value_dirty("histogram_data"))
-            display.display_limits = (0.25, 0.75)
-            self.assertTrue(display.is_cached_value_dirty("histogram_data"))
+        display = data_item.displays[0]
+        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
+        event = threading.Event()
+        def update_histogram_data(histogram_data):
+            event.set()
+        display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
+        event.wait()
+        self.assertFalse(display.is_cached_value_dirty("histogram_data"))
+        display.display_limits = (0.25, 0.75)
+        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
 
     def test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            display = data_item.displays[0]
-            self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-            event = threading.Event()
-            def update_histogram_data(histogram_data):
-                event.set()
-            display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
-            event.wait()
-            self.assertFalse(display.is_cached_value_dirty("histogram_data"))
-            class Listener(object):
-                def __init__(self):
-                    self.reset()
-                def reset(self):
-                    self._dirty = False
-                def display_changed(self, display):
-                    self._dirty = display.is_cached_value_dirty("histogram_data")
-            listener = Listener()
-            display.add_listener(listener)
-            display.display_limits = (0.25, 0.75)
-            self.assertTrue(listener._dirty)
+        display = data_item.displays[0]
+        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
+        event = threading.Event()
+        def update_histogram_data(histogram_data):
+            event.set()
+        display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
+        event.wait()
+        self.assertFalse(display.is_cached_value_dirty("histogram_data"))
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self._dirty = False
+            def display_changed(self, display):
+                self._dirty = display.is_cached_value_dirty("histogram_data")
+        listener = Listener()
+        display.add_listener(listener)
+        display.display_limits = (0.25, 0.75)
+        self.assertTrue(listener._dirty)
 
     def test_setting_inverted_display_limits_reverses_them(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            display = data_item.displays[0]
-            display.display_limits = (0.75, 0.25)
-            self.assertEqual(display.display_limits, (0.25, 0.75))
-            display.display_limits = None
-            self.assertIsNone(display.display_limits)
+        display = data_item.displays[0]
+        display.display_limits = (0.75, 0.25)
+        self.assertEqual(display.display_limits, (0.25, 0.75))
+        display.display_limits = None
+        self.assertIsNone(display.display_limits)
 
 if __name__ == '__main__':
     unittest.main()

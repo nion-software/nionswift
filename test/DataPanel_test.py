@@ -460,19 +460,18 @@ class TestDataPanelClass(unittest.TestCase):
     def test_changing_display_limits_causes_data_item_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.ref():
-            class Listener(object):
-                def __init__(self):
-                    self.reset()
-                def reset(self):
-                    self._changed = False
-                def data_item_content_changed(self, data_item, changes):
-                    #self._data_changed = self._data_changed or DataItem.DATA in changes
-                    self._changed = True
-            listener = Listener()
-            data_item.add_listener(listener)
-            data_item.displays[0].display_limits = (0.25, 0.75)
-            self.assertTrue(listener._changed)
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self._changed = False
+            def data_item_content_changed(self, data_item, changes):
+                #self._data_changed = self._data_changed or DataItem.DATA in changes
+                self._changed = True
+        listener = Listener()
+        data_item.add_listener(listener)
+        data_item.displays[0].display_limits = (0.25, 0.75)
+        self.assertTrue(listener._changed)
 
 
 if __name__ == '__main__':

@@ -240,7 +240,6 @@ class TestOperationClass(unittest.TestCase):
 
     def test_crop_2d_operation_returns_correct_spatial_shape_and_data_shape(self):
         data_item_real = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        data_item_real.add_ref()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         data_item_real.add_operation(operation)
@@ -248,7 +247,6 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
         with data_item_real.data_ref() as data_real_accessor:
             self.assertEqual(data_real_accessor.data.shape, (1000, 500))
-        data_item_real.remove_ref()
 
     def test_fft_2d_dtype(self):
         data_item = DataItem.DataItem(numpy.zeros((512,512), numpy.float64))
@@ -329,16 +327,15 @@ class TestOperationClass(unittest.TestCase):
 
     def test_rgba_invert_operation_should_retain_alpha(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
-        with data_item_rgba.ref():
-            with data_item_rgba.data_ref() as data_ref:
-                data_ref.master_data[:] = (20,40,60,100)
-            data_item_rgba.add_operation(Operation.OperationItem("invert-operation"))
-            with data_item_rgba.data_ref() as data_ref:
-                pixel = data_ref.data[0,0,...]
-                self.assertEqual(pixel[0], 255 - 20)
-                self.assertEqual(pixel[1], 255 - 40)
-                self.assertEqual(pixel[2], 255 - 60)
-                self.assertEqual(pixel[3], 100)
+        with data_item_rgba.data_ref() as data_ref:
+            data_ref.master_data[:] = (20,40,60,100)
+        data_item_rgba.add_operation(Operation.OperationItem("invert-operation"))
+        with data_item_rgba.data_ref() as data_ref:
+            pixel = data_ref.data[0,0,...]
+            self.assertEqual(pixel[0], 255 - 20)
+            self.assertEqual(pixel[1], 255 - 40)
+            self.assertEqual(pixel[2], 255 - 60)
+            self.assertEqual(pixel[3], 100)
 
     def test_deepcopy_of_crop_operation_should_copy_roi(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
@@ -350,9 +347,8 @@ class TestOperationClass(unittest.TestCase):
         operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
         data_item_rgba2.add_operation(operation)
         data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
-        with data_item_rgba2_copy.ref():
-            # make sure the operation was copied
-            self.assertNotEqual(data_item_rgba2.operations[0], data_item_rgba2_copy.operations[0])
+        # make sure the operation was copied
+        self.assertNotEqual(data_item_rgba2.operations[0], data_item_rgba2_copy.operations[0])
 
     def test_snapshot_of_operation_should_copy_data_items(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
@@ -399,15 +395,14 @@ class TestOperationClass(unittest.TestCase):
 
     def test_operation_item_property_to_graphic_binding(self):
         data_item = DataItem.DataItem()
-        with data_item.ref():
-            operation = Operation.OperationItem("crop-operation")
-            data_item.add_operation(operation)
-            bounds1 = ((0.0, 0.0), (0.1, 0.1))
-            bounds2 = ((0.0, 0.0), (0.2, 0.2))
-            operation.set_property("bounds", bounds1)
-            self.assertEqual(operation.graphics[0].bounds, bounds1)
-            operation.graphics[0].bounds = bounds2
-            self.assertEqual(operation.get_property("bounds"), bounds2)
+        operation = Operation.OperationItem("crop-operation")
+        data_item.add_operation(operation)
+        bounds1 = ((0.0, 0.0), (0.1, 0.1))
+        bounds2 = ((0.0, 0.0), (0.2, 0.2))
+        operation.set_property("bounds", bounds1)
+        self.assertEqual(operation.graphics[0].bounds, bounds1)
+        operation.graphics[0].bounds = bounds2
+        self.assertEqual(operation.get_property("bounds"), bounds2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

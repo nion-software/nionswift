@@ -30,7 +30,6 @@ class TestHistogramPanelClass(unittest.TestCase):
         data[:] = 200
         data[500,500] = 650
         self.data_item = self.document_controller.document_model.set_data_by_key("test", data)
-        self.data_item.add_ref()
         with self.data_item.data_ref() as data_ref:
             data_ref.data  # trigger data loading
         # create the histogram canvas object
@@ -49,7 +48,6 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
     def tearDown(self):
-        self.data_item.remove_ref()
         self.image_panel.close()
         self.histogram_canvas_item.close()
         self.document_controller.close()

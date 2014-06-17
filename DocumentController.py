@@ -36,7 +36,6 @@ class DocumentController(Observable.Broadcaster):
         super(DocumentController, self).__init__()
         self.ui = ui
         self.document_model = document_model
-        self.document_model.add_ref()
         self.document_window = self.ui.create_document_window()
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
@@ -80,7 +79,6 @@ class DocumentController(Observable.Broadcaster):
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.close()
         self.document_window = None
-        self.document_model.remove_ref()
         self.document_model = None
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
@@ -387,14 +385,7 @@ class DocumentController(Observable.Broadcaster):
         """
         data_panel = self.workspace.find_dock_widget("data-panel").panel
         if data_panel is not None:
-            # first find the master data item if data item is not a master
-            master_data_item = data_item
-            while master_data_item.has_data_source:
-                master_data_item = master_data_item.data_source
-            if master_data_item in self.__data_items_binding.data_items:
-                data_panel.update_data_item_selection(data_item)
-            else:
-                data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
+            data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
 
     # access the currently selected data item. read only.
     def __get_selected_data_item(self):
@@ -812,7 +803,8 @@ class DocumentController(Observable.Broadcaster):
             def show_in_new_window():
                 self.new_window("data", DataPanel.DataPanelSelection(container, data_item, self.__data_items_binding.filter_id))
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
-            if data_item.has_data_source:
+            data_inputs = data_item.data_inputs
+            if len(data_inputs) == 1 and isinstance(data_inputs[0], DataItem.DataItem):
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
@@ -849,7 +841,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
         # disconnect data item
         if self.data_item:
             self.data_item.remove_listener(self)
-            self.data_item.remove_ref()
         self.__weak_data_item = None
 
     def __get_data_item(self):
@@ -863,7 +854,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
         if data_item != old_data_item:
             # attach to the new item
             if data_item:
-                data_item.add_ref()
                 data_item.add_listener(self)
             if self.display:
                 self.display.remove_listener(self)
@@ -877,7 +867,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
             # and detach from the old item
             if old_data_item:
                 old_data_item.remove_listener(self)
-                old_data_item.remove_ref()
 
     # this message is received from the display, if there is one.
     # it is established using add_listener

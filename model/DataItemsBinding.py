@@ -330,11 +330,9 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Set the container to which to listen. """
         if self.__container:
             self.__container.remove_listener(self)
-            self.__container.remove_ref()
         self.__master_data_items = list()
         self.__container = container
         if self.__container:
-            self.__container.add_ref()
             self.__container.add_listener(self)
             self.__master_data_items.extend(self.__container.data_items)
         self._update_data_items()

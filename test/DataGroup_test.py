@@ -27,25 +27,21 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_deep_copy_should_deep_copy_child_data_groups(self):
         data_group = DataGroup.DataGroup()
-        with data_group.ref():
-            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_group.append_data_item(data_item1)
-            data_group2 = DataGroup.DataGroup()
-            data_group.append_data_group(data_group2)
-            # attempt to copy
-            data_group_copy = copy.deepcopy(data_group)
-            with data_group_copy.ref():
-                # make sure data_groups are not shared
-                self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_group.append_data_item(data_item1)
+        data_group2 = DataGroup.DataGroup()
+        data_group.append_data_group(data_group2)
+        # attempt to copy
+        data_group_copy = copy.deepcopy(data_group)
+        # make sure data_groups are not shared
+        self.assertNotEqual(data_group.data_groups[0], data_group_copy.data_groups[0])
 
     def test_deep_copy_should_not_deep_copy_data_items(self):
         data_group = DataGroup.DataGroup()
-        with data_group.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_group.append_data_item(data_item)
-            data_group_copy = copy.deepcopy(data_group)
-            with data_group_copy.ref():
-                self.assertEqual(data_item.uuid, data_group_copy.data_item_uuids[0])
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_group.append_data_item(data_item)
+        data_group_copy = copy.deepcopy(data_group)
+        self.assertEqual(data_item.uuid, data_group_copy.data_item_uuids[0])
 
     def test_counted_data_items(self):
         # TODO: split test_counted_data_items into separate tests
@@ -150,12 +146,11 @@ class TestDataGroupClass(unittest.TestCase):
     def test_deleting_document_with_dependent_data_items_works(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
-        with document_model.ref():
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_child = DataItem.DataItem()
-            data_item_child.add_data_source(data_item)
-            document_model.append_data_item(data_item_child)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_child = DataItem.DataItem()
+        data_item_child.add_data_source(data_item)
+        document_model.append_data_item(data_item_child)
 
 if __name__ == '__main__':
     unittest.main()

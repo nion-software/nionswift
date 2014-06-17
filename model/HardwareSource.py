@@ -221,8 +221,6 @@ class HardwareSource(Observable.Broadcaster):
         self.__mode_lock = threading.RLock()
 
     def close(self):
-        for data_item in self.last_channel_to_data_item_dict.values():
-            data_item.remove_ref()
         if self.__data_buffer:
             self.__data_buffer.remove_listener(self)
             self.__data_buffer = None
@@ -468,10 +466,6 @@ class HardwareSource(Observable.Broadcaster):
         # last iteration and this one. also handle reference counts.
         old_channel_to_data_item_dict = self.last_channel_to_data_item_dict
         self.last_channel_to_data_item_dict = new_channel_to_data_item_dict
-        for data_item in self.last_channel_to_data_item_dict.values():
-            data_item.add_ref()
-        for data_item in old_channel_to_data_item_dict.values():
-            data_item.remove_ref()
 
         # remove channel states that are no longer used.
         # cem 2013-11-16: this is untested and channel shutdown during acquisition may not work as expected.

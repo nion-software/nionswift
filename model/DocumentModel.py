@@ -198,7 +198,6 @@ class DbDataItemVault(object):
                 logging.info("Updated %s", vault.reference)
             data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
-            data_item.add_ref()
             data_items.append(data_item)
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
@@ -215,8 +214,6 @@ class DbDataItemVault(object):
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
         document_model = self.__weak_document_model()
-        # ref count
-        data_item.add_ref()
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
         # keep storage up-to-date. transform from memory vault to new vault.
@@ -251,8 +248,6 @@ class DbDataItemVault(object):
         document_model.notify_listeners("data_item_removed", document_model, data_item, index, False)
         if data_item.get_observer_count(document_model) == 0:  # ugh?
             document_model.notify_listeners("data_item_deleted", data_item)
-        # ref count
-        data_item.remove_ref()
 
 
 class DocumentModel(Storage.StorageBase):
@@ -273,12 +268,8 @@ class DocumentModel(Storage.StorageBase):
             self.datastore.set_root(self)
             self.write()
 
-    def about_to_delete(self):
+    def __del__(self):
         self.datastore.disconnected = True
-        while len(self.data_items) > 0:
-            self.remove_data_item(self.data_items[-1])
-        for data_group in copy.copy(self.data_groups):
-            self.remove_data_group(data_group)
 
     def __read(self):
         # first read the items
@@ -290,7 +281,7 @@ class DocumentModel(Storage.StorageBase):
         # to prevent writing them back out to the database.
         self.datastore.disconnected = True
         for data_item in self.__data_item_vault.data_items:
-            data_item.connect_data_source(self.get_data_item_by_uuid)
+            data_item.connect_data_sources(self.get_data_item_by_uuid)
         for data_group in data_groups:
             self.append_data_group(data_group)
         for data_group in self.data_groups:
@@ -305,7 +296,7 @@ class DocumentModel(Storage.StorageBase):
 
     def insert_data_item(self, before_index, data_item):
         self.__data_item_vault.insert(before_index, data_item)
-        data_item.connect_data_source(self.get_data_item_by_uuid)
+        data_item.connect_data_sources(self.get_data_item_by_uuid)
 
     def remove_data_item(self, data_item):
         # remove the data item from any groups
@@ -317,7 +308,7 @@ class DocumentModel(Storage.StorageBase):
             if other_data_item.data_source == data_item:
                 self.remove_data_item(other_data_item)
         # disconnect the data source
-        data_item.disconnect_data_source()
+        data_item.disconnect_data_sources()
         # remove it from the vault
         self.__data_item_vault.remove(data_item)
 
@@ -371,9 +362,8 @@ class DocumentModel(Storage.StorageBase):
                         #__, file_name = os.path.split(sample_path)
                         #title, __ = os.path.splitext(file_name)
                         #data_item.title = title
-                        with data_item.ref():
-                            self.append_data_item(data_item)
-                            data_group.append_data_item(data_item)
+                        self.append_data_item(data_item)
+                        data_group.append_data_item(data_item)
         else:
             # for testing, add a checkerboard image data item
             checkerboard_image_source = DataItem.DataItem()
