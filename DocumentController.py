@@ -166,6 +166,7 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
         self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
+        self.processing_menu.add_menu_item(_("Select"), lambda: self.processing_select())
         self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+Shift+S")
         self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
@@ -637,6 +638,9 @@ class DocumentController(Observable.Broadcaster):
                     inspector_panel.request_focus = True
             return new_data_item
         return None
+
+    def processing_select(self, select=True):
+        return self.add_processing_operation_by_id("selector-operation", suffix=" [{0}]".format(0), select=select, in_place=True)
 
     def processing_snapshot(self, select=True):
         data_item = self.selected_data_item

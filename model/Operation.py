@@ -318,6 +318,23 @@ class Operation(object):
         return dict()
 
 
+class SelectorOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Index"), "property": "index", "type": "integer-field", "default": 0 }
+        ]
+        super(SelectorOperation, self).__init__(_("Selector"), "selector-operation", description)
+        self.index = 0
+
+    # return the processed data inputs
+    def get_processed_intermediate_data_items(self, data_inputs):
+        index = self.get_property("index")
+        if len(data_inputs) > index:
+            return [data_inputs[index]]
+        return []
+
+
 class FFTOperation(Operation):
 
     def __init__(self):
@@ -699,6 +716,7 @@ class OperationPropertyToGraphicBinding(OperationPropertyBinding):
                 self.update_source(property_value)
 
 
+OperationManager().register_operation("selector-operation", lambda: SelectorOperation())
 OperationManager().register_operation("fft-operation", lambda: FFTOperation())
 OperationManager().register_operation("inverse-fft-operation", lambda: IFFTOperation())
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())
