@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import logging
 
 # third party libraries
 # None
@@ -267,7 +268,11 @@ class HistogramPanel(Panel.Panel):
         def update_statistics(statistics_data):
             statistic_strs = list()
             for key in sorted(statistics_data.keys()):
-                statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+                value = statistics_data[key]
+                if value is not None:
+                    statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+                else:
+                    statistic_str = "{0} {1}".format(key, _("N/A"))
                 statistic_strs.append(statistic_str)
             self.stats_column1_label.text = "\n".join(statistic_strs[:(len(statistic_strs)+1)/2])
             self.stats_column2_label.text = "\n".join(statistic_strs[(len(statistic_strs)+1)/2:])

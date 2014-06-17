@@ -36,7 +36,7 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         mean = numpy.mean(data)
         std = numpy.std(data)
         data_range = self.item.data_range
-        data_min, data_max = data_range if data_range is not None else None, None
+        data_min, data_max = data_range if data_range is not None else (None, None)
         all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max }
         global _computation_fns
         for computation_fn in _computation_fns:
