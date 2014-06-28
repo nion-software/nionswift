@@ -244,8 +244,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def remove_region_graphic(self, region_graphic):
         if region_graphic in self.__drawn_graphics:
-            # this hack is here because removing a region may remove
-            # a data item which will in turn remove the same region.
+            # this hack (checking if region_graphic is in drawn graphics)
+            # is here because removing a region may remove a data item which
+            # will in turn remove the same region.
             # bad architecture.
             region_graphic.remove_listener(self)
             index = self.__drawn_graphics.index(region_graphic)

@@ -797,6 +797,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def request_remove_data_item_because_operation_removed(self, operation):
         self.notify_listeners("request_remove_data_item", self)
 
+    # this message comes from the region.
+    # it is generated when the user deletes a graphic.
+    def remove_region_because_graphic_removed(self, region):
+        self.remove_region(region)
+
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
     # display graphics for this items operations. direct data source is used for testing.

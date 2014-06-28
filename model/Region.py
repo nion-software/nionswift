@@ -84,6 +84,7 @@ class PointRegion(Region):
     graphic = property(__get_graphic)
 
     def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
         self.notify_listeners("remove_region_because_graphic_removed", self)
 
 
@@ -106,6 +107,7 @@ class LineRegion(Region):
     graphic = property(__get_graphic)
 
     def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
         self.notify_listeners("remove_region_because_graphic_removed", self)
 
 
@@ -127,6 +129,7 @@ class RectRegion(Region):
     graphic = property(__get_graphic)
 
     def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
         self.notify_listeners("remove_region_because_graphic_removed", self)
 
     def __get_bounds(self):
@@ -161,6 +164,7 @@ class IntervalRegion(Region):
     graphic = property(__get_graphic)
 
     def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
         self.notify_listeners("remove_region_because_graphic_removed", self)
 
 

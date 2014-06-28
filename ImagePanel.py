@@ -563,6 +563,34 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display.data_item, gx, gy)
         return True
 
+    # ths message comes from the widget
+    def key_pressed(self, key):
+        if super(LinePlotCanvasItem, self).key_pressed(key):
+            return True
+        # only handle keys if we're directly embedded in an image panel
+        if not self.image_panel:
+            return False
+        display = self.display
+        if display:
+            #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+            all_graphics = display.drawn_graphics
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
+            if len(graphics):
+                if key.is_delete:
+                    self.document_controller.remove_graphic()
+                    return True
+                elif key.is_arrow:
+                    widget_mapping = self.__get_mouse_mapping()
+                    amount = 10.0 if key.modifiers.shift else 1.0
+                    if key.is_left_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (0, -amount))
+                    elif key.is_right_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (0, amount))
+                    return True
+        return self.image_panel.key_pressed(key)
+
     def reset_horizontal(self):
         self.__display.left_channel = None
         self.__display.right_channel = None

@@ -118,7 +118,12 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
         data_item = self.data_item
         data_source = data_item and data_item.data_source
         if region and data_source:
-            data_source.remove_region(region)
+            # this is a hack because graphics can cause operations to be
+            # deleted in multiple ways. there are tests to account for the
+            # various ways, but there is probably a better way to handle this
+            # in the long run.
+            if region in data_source.regions:
+                data_source.remove_region(region)
 
     def __get_object_store(self):
         return self.__object_store

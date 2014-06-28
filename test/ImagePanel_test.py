@@ -767,5 +767,23 @@ class TestImagePanelClass(unittest.TestCase):
         # and that tool is returned to pointer
         self.assertEqual(self.document_controller.tool_mode, "pointer")
 
+    def test_delete_line_profile_with_key(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        line_plot_data_item = self.document_model.data_items[1]
+        region = Region.IntervalRegion()
+        region.start = 0.3
+        region.end = 0.4
+        line_plot_data_item.add_region(region)
+        line_plot_data_item.displays[0].graphic_selection.set(0)
+        # make sure assumptions are correct
+        self.assertEqual(len(line_plot_data_item.regions), 1)
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 1)
+        # hit the delete key
+        self.image_panel.line_plot_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
+        self.assertEqual(len(line_plot_data_item.regions), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
