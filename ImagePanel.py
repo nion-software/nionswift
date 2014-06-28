@@ -3,7 +3,6 @@ import copy
 import gettext
 import logging
 import math
-import numbers
 import uuid
 
 # third party libraries
@@ -156,80 +155,6 @@ class WidgetMapping(object):
         return None
 
 
-class GraphicSelection(Observable.Broadcaster):
-    def __init__(self):
-        super(GraphicSelection, self).__init__()
-        self.__indexes = set()
-    # manage selection
-    def __get_current_index(self):
-        if len(self.__indexes) == 1:
-            for index in self.__indexes:
-                return index
-        return None
-    current_index = property(__get_current_index)
-    def has_selection(self):
-        return len(self.__indexes) > 0
-    def contains(self, index):
-        return index in self.__indexes
-    def __get_indexes(self):
-        return self.__indexes
-    indexes = property(__get_indexes)
-    def clear(self):
-        old_index = self.__indexes.copy()
-        self.__indexes = set()
-        if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
-    def add(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes.add(index)
-        if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
-    def remove(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes.remove(index)
-        if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
-    def set(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        self.__indexes = set()
-        self.__indexes.add(index)
-        if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
-    def toggle(self, index):
-        assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
-        if index in self.__indexes:
-            self._indexes.remove(index)
-        else:
-            self._indexes.add(index)
-        if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
-    def insert_index(self, new_index):
-        new_indexes = set()
-        for index in self.__indexes:
-            if index < new_index:
-                new_indexes.add(index)
-            else:
-                new_indexes.add(index+1)
-        if self.__indexes != new_indexes:
-            self.__indexes = new_indexes
-            self.notify_listeners("selection_changed", self)
-    def remove_index(self, remove_index):
-        new_indexes = set()
-        for index in self.__indexes:
-            if index != remove_index:
-                if index > remove_index:
-                    new_indexes.add(index-1)
-                else:
-                    new_indexes.add(index)
-        if self.__indexes != new_indexes:
-            self.__indexes = new_indexes
-            self.notify_listeners("selection_changed", self)
-
-
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
@@ -246,7 +171,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
             drawing_context.save()
             for graphic_index, graphic in enumerate(display.drawn_graphics):
-                graphic.draw(drawing_context, widget_mapping, self.graphic_selection.contains(graphic_index))
+                graphic.draw(drawing_context, widget_mapping, display.graphic_selection.contains(graphic_index))
             drawing_context.restore()
 
 
@@ -401,6 +326,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def close(self):
         self.__paint_thread.close()
+        self.__paint_thread = None
+        self.update_display(None)
         # call super
         super(LinePlotCanvasItem, self).close()
 
@@ -425,22 +352,38 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     display = property(__get_display)
 
     def update_display(self, display):
+        # first take care of listeners and update the __display field
+        old_display = self.__display
+        if old_display and display != old_display:
+            old_display.remove_listener(self)
         self.__display = display
+        if display and display != old_display:
+            display.add_listener(self)  # for selection_changed
+        # next get rid of data associated with canvas items
         if self.__display is None:
             # handle case where display is empty
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
             self.line_graph_regions_canvas_item.regions = list()
         else:
-            regions = list()
-            for graphic_index, graphic in enumerate(copy.copy(self.__display.drawn_graphics)):
-                region = ((graphic.start, graphic.end), False)
-                regions.append(region)
-            self.line_graph_regions_canvas_item.regions = regions
-        self.__paint_thread.trigger()
+            self.selection_changed(self.__display.graphic_selection)
+        # update the cursor info
+        self.__update_cursor_info()
+        # finally, trigger the paint thread (if there still is one) to update
+        if self.__paint_thread:
+            self.__paint_thread.trigger()
 
     def wait_for_paint(self):
         self.__paint_thread.trigger(wait=True)
+
+    def selection_changed(self, graphic_selection):
+        # this message will come directly from the display when the graphic selection changes
+        regions = list()
+        for graphic_index, graphic in enumerate(self.__display.drawn_graphics):
+            region = ((graphic.start, graphic.end), graphic_selection.contains(graphic_index))
+            regions.append(region)
+        self.line_graph_regions_canvas_item.regions = regions
+        self.line_graph_regions_canvas_item.update()
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -742,18 +685,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_drag_item = None
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
-        self.graphic_selection = GraphicSelection()
-        self.graphic_selection.add_listener(self)
         self.__last_mouse = None
         self.__is_dragging = False
         self.__mouse_in = False
-        self.graphics_canvas_item.graphic_selection = self.graphic_selection
 
     def close(self):
         self.__paint_thread.close()
-        self.__display = None
-        self.graphic_selection.remove_listener(self)
-        self.graphic_selection = None
+        self.__paint_thread = None
+        self.update_display(None)
         # call super
         super(ImageCanvasItem, self).close()
 
@@ -763,6 +702,40 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             return spatial_shape[1] / spatial_shape[0] if spatial_shape[0] != 0 else 1.0
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
+
+    # when the display changes, set the data using this property.
+    # doing this will queue an item in the paint thread to repaint.
+    def __get_display(self):
+        return self.__display
+    display = property(__get_display)
+
+    def update_display(self, display):
+        # first take care of listeners and update the __display field
+        old_display = self.__display
+        if old_display and display != old_display:
+            old_display.remove_listener(self)
+        self.__display = display
+        if display and display != old_display:
+            display.add_listener(self)  # for selection_changed
+        # next get rid of data associated with canvas items
+        if self.__display is None:
+            self.bitmap_canvas_item.rgba_bitmap_data = None
+            self.bitmap_canvas_item.update()
+            self.graphics_canvas_item.display = None
+            self.graphics_canvas_item.update()
+            self.info_overlay_canvas_item.display = None
+            self.info_overlay_canvas_item.update()
+        else:
+            self.selection_changed(self.__display.graphic_selection)
+        # update the cursor info
+        self.__update_cursor_info()
+        # finally, trigger the paint thread (if there still is one) to update
+        if self.__paint_thread:
+            self.__paint_thread.trigger()
+
+    def selection_changed(self, graphic_selection):
+        # this message will come directly from the display when the graphic selection changes
+        self.graphics_canvas_item.update()
 
     def update_image_canvas_zoom(self, new_image_zoom):
         if self.display:
@@ -864,6 +837,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
+        display = self.display
+        if not display:
+            return False
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
@@ -871,38 +847,37 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
         if self.document_controller.tool_mode == "pointer":
-            if self.display:
-                drawn_graphics = self.display.drawn_graphics
-                for graphic_index, graphic in enumerate(drawn_graphics):
-                    start_drag_pos = y, x
-                    already_selected = self.graphic_selection.contains(graphic_index)
-                    multiple_items_selected = len(self.graphic_selection.indexes) > 1
-                    move_only = not already_selected or multiple_items_selected
-                    widget_mapping = self.__get_mouse_mapping()
-                    part = graphic.test(widget_mapping, start_drag_pos, move_only)
-                    if part:
-                        # select item and prepare for drag
-                        self.graphic_drag_item_was_selected = self.graphic_selection.contains(graphic_index)
-                        if not self.graphic_drag_item_was_selected:
-                            if modifiers.shift:
-                                self.graphic_selection.add(graphic_index)
-                            elif not already_selected:
-                                self.graphic_selection.set(graphic_index)
-                        # keep track of general drag information
-                        self.graphic_drag_start_pos = start_drag_pos
-                        self.graphic_drag_changed = False
-                        # keep track of info for the specific item that was clicked
-                        self.graphic_drag_item = drawn_graphics[graphic_index]
-                        self.graphic_drag_part = part
-                        # keep track of drag information for each item in the set
-                        self.graphic_drag_indexes = self.graphic_selection.indexes
-                        for index in self.graphic_drag_indexes:
-                            graphic = drawn_graphics[index]
-                            self.graphic_drag_items.append(graphic)
-                            self.graphic_part_data[index] = graphic.begin_drag()
-                        break
+            drawn_graphics = display.drawn_graphics
+            for graphic_index, graphic in enumerate(drawn_graphics):
+                start_drag_pos = y, x
+                already_selected = display.graphic_selection.contains(graphic_index)
+                multiple_items_selected = len(display.graphic_selection.indexes) > 1
+                move_only = not already_selected or multiple_items_selected
+                widget_mapping = self.__get_mouse_mapping()
+                part = graphic.test(widget_mapping, start_drag_pos, move_only)
+                if part:
+                    # select item and prepare for drag
+                    self.graphic_drag_item_was_selected = display.graphic_selection.contains(graphic_index)
+                    if not self.graphic_drag_item_was_selected:
+                        if modifiers.shift:
+                            display.graphic_selection.add(graphic_index)
+                        elif not already_selected:
+                            display.graphic_selection.set(graphic_index)
+                    # keep track of general drag information
+                    self.graphic_drag_start_pos = start_drag_pos
+                    self.graphic_drag_changed = False
+                    # keep track of info for the specific item that was clicked
+                    self.graphic_drag_item = drawn_graphics[graphic_index]
+                    self.graphic_drag_part = part
+                    # keep track of drag information for each item in the set
+                    self.graphic_drag_indexes = display.graphic_selection.indexes
+                    for index in self.graphic_drag_indexes:
+                        graphic = drawn_graphics[index]
+                        self.graphic_drag_items.append(graphic)
+                        self.graphic_part_data[index] = graphic.begin_drag()
+                    break
             if not self.graphic_drag_items and not modifiers.shift:
-                self.graphic_selection.clear()
+                display.graphic_selection.clear()
         elif self.document_controller.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -912,24 +887,25 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        drawn_graphics = self.display.drawn_graphics if self.display is not None else None
-        for index in self.graphic_drag_indexes:
-            graphic = drawn_graphics[index]
-            graphic.end_drag(self.graphic_part_data[index])
-        if self.graphic_drag_items and not self.graphic_drag_changed:
-            graphic_index = drawn_graphics.index(self.graphic_drag_item)
-            # user didn't move graphic
-            if not modifiers.shift:
-                # user clicked on a single graphic
-                assert self.display
-                self.graphic_selection.set(graphic_index)
-            else:
-                # user shift clicked. toggle selection
-                # if shift is down and item is already selected, toggle selection of item
-                if self.graphic_drag_item_was_selected:
-                    self.graphic_selection.remove(graphic_index)
+        display = self.display
+        if display:
+            drawn_graphics = display.drawn_graphics
+            for index in self.graphic_drag_indexes:
+                graphic = drawn_graphics[index]
+                graphic.end_drag(self.graphic_part_data[index])
+            if self.graphic_drag_items and not self.graphic_drag_changed:
+                graphic_index = drawn_graphics.index(self.graphic_drag_item)
+                # user didn't move graphic
+                if not modifiers.shift:
+                    # user clicked on a single graphic
+                    display.graphic_selection.set(graphic_index)
                 else:
-                    self.graphic_selection.add(graphic_index)
+                    # user shift clicked. toggle selection
+                    # if shift is down and item is already selected, toggle selection of item
+                    if self.graphic_drag_item_was_selected:
+                        display.graphic_selection.remove(graphic_index)
+                    else:
+                        display.graphic_selection.add(graphic_index)
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_part_data = {}
@@ -992,67 +968,69 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # only handle keys if we're directly embedded in an image panel
         if not self.image_panel:
             return False
-        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
-        all_graphics = self.display.drawn_graphics if self.display else []
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
-        if len(graphics):
-            if key.is_delete:
-                self.document_controller.remove_graphic()
-                return True
-            elif key.is_arrow:
-                widget_mapping = self.__get_mouse_mapping()
-                amount = 10.0 if key.modifiers.shift else 1.0
+        display = self.display
+        if display:
+            #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+            all_graphics = display.drawn_graphics
+            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
+            if len(graphics):
+                if key.is_delete:
+                    self.document_controller.remove_graphic()
+                    return True
+                elif key.is_arrow:
+                    widget_mapping = self.__get_mouse_mapping()
+                    amount = 10.0 if key.modifiers.shift else 1.0
+                    if key.is_left_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (0, -amount))
+                    elif key.is_up_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (-amount, 0))
+                    elif key.is_right_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (0, amount))
+                    elif key.is_down_arrow:
+                        for graphic in graphics:
+                            graphic.nudge(widget_mapping, (amount, 0))
+                    return True
+            if key.is_arrow:
+                amount = 100.0 if key.modifiers.shift else 10.0
                 if key.is_left_arrow:
-                    for graphic in graphics:
-                        graphic.nudge(widget_mapping, (0, -amount))
+                    self.move_left(amount)
                 elif key.is_up_arrow:
-                    for graphic in graphics:
-                        graphic.nudge(widget_mapping, (-amount, 0))
+                    self.move_up(amount)
                 elif key.is_right_arrow:
-                    for graphic in graphics:
-                        graphic.nudge(widget_mapping, (0, amount))
+                    self.move_right(amount)
                 elif key.is_down_arrow:
-                    for graphic in graphics:
-                        graphic.nudge(widget_mapping, (amount, 0))
+                    self.move_down(amount)
                 return True
-        if key.is_arrow:
-            amount = 100.0 if key.modifiers.shift else 10.0
-            if key.is_left_arrow:
-                self.move_left(amount)
-            elif key.is_up_arrow:
-                self.move_up(amount)
-            elif key.is_right_arrow:
-                self.move_right(amount)
-            elif key.is_down_arrow:
-                self.move_down(amount)
-            return True
-        if key.text == "-":
-            self.zoom_out()
-            return True
-        if key.text == "+":
-            self.zoom_in()
-            return True
-        if key.text == "j":
-            self.move_left()
-            return True
-        if key.text == "k":
-            self.move_right()
-            return True
-        if key.text == "i":
-            self.move_up()
-            return True
-        if key.text == "m":
-            self.move_down()
-            return True
-        if key.text == "1":
-            self.set_one_to_one_mode()
-            return True
-        if key.text == "0":
-            self.set_fit_mode()
-            return True
-        if key.text == ")":
-            self.set_fill_mode()
-            return True
+            if key.text == "-":
+                self.zoom_out()
+                return True
+            if key.text == "+":
+                self.zoom_in()
+                return True
+            if key.text == "j":
+                self.move_left()
+                return True
+            if key.text == "k":
+                self.move_right()
+                return True
+            if key.text == "i":
+                self.move_up()
+                return True
+            if key.text == "m":
+                self.move_down()
+                return True
+            if key.text == "1":
+                self.set_one_to_one_mode()
+                return True
+            if key.text == "0":
+                self.set_fit_mode()
+                return True
+            if key.text == ")":
+                self.set_fill_mode()
+                return True
         return self.image_panel.key_pressed(key)
 
     def __get_focused(self):
@@ -1068,43 +1046,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.focus_ring_canvas_item.selected = selected
         self.focus_ring_canvas_item.update()
     selected = property(__get_selected, __set_selected)
-
-    # when the display changes, set the data using this property.
-    # doing this will queue an item in the paint thread to repaint.
-    def __get_display(self):
-        return self.__display
-    display = property(__get_display)
-
-    def update_display(self, display):
-        self.__display = display
-        self.__update_cursor_info()
-        if self.__display is None:
-            self.bitmap_canvas_item.rgba_bitmap_data = None
-            self.bitmap_canvas_item.update()
-            self.graphics_canvas_item.display = None
-            self.graphics_canvas_item.update()
-            self.info_overlay_canvas_item.display = None
-            self.info_overlay_canvas_item.update()
-        self.__paint_thread.trigger()
-
-    def selection_changed(self, graphic_selection):
-        self.graphics_canvas_item.update()
-
-    # watch for changes to the graphic item list. these are called from the image panel.
-    def graphic_inserted(self, graphic, before_index):
-        # selection is 5,6,7
-        # if inserted at 4, new selection is 6,7,8
-        # if inserted at 6, new selection is 5,7,8
-        # indexes greater or equal to new index are incremented
-        self.graphic_selection.insert_index(before_index)
-        self.graphics_canvas_item.update()
-    def graphic_removed(self, index):
-        # selection is 5,6,7
-        # if 4 is removed, new selection is 4,5,6
-        # if 6 is removed, new selection is 5,6
-        # the index is removed; and remaining indexes greater than removed one are decremented
-        self.graphic_selection.remove_index(index)
-        self.graphics_canvas_item.update()
 
     def __get_image_size(self):
         data_item = self.display.data_item if self.display else None
@@ -1246,7 +1187,6 @@ class ImagePanel(Panel.Panel):
         super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
 
         self.__display = None
-        self.__drawn_graphics_binding = None
 
         self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.image_root_canvas_item.focusable = True
@@ -1285,10 +1225,8 @@ class ImagePanel(Panel.Panel):
 
     def close(self):
         self.closed = True
-        self.image_canvas_item.update_display(None)
         self.image_root_canvas_item.close()
         self.image_root_canvas_item = None
-        self.line_plot_canvas_item.update_display(None)
         self.line_plot_root_canvas_item.close()
         self.line_plot_root_canvas_item = None
         self.document_controller.document_model.remove_listener(self)
@@ -1332,6 +1270,7 @@ class ImagePanel(Panel.Panel):
 
     # sets the data item that this panel displays
     def set_displayed_data_item(self, data_item):
+        assert data_item is None or isinstance(data_item, DataItem.DataItem), data_item
         self.__set_display(data_item.displays[0] if data_item else None)
 
     def __get_display(self):
@@ -1345,8 +1284,6 @@ class ImagePanel(Panel.Panel):
         # track data item in this class to report changes
         if self.__display:
             self.__display.data_item.decrement_data_ref_count()  # don't keep data in memory anymore
-            self.__drawn_graphics_binding.close()
-            self.__drawn_graphics_binding = None
             self.__display.remove_listener(self)
         self.__display = display
         self.display_changed(self.__display)
@@ -1355,27 +1292,8 @@ class ImagePanel(Panel.Panel):
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
-            self.__display.add_listener(self)
-            # this binding is used to maintain the known selection indexes and to trigger updates
-            # it is not used to keep track of the drawn graphics, which are all updated each time
-            # an update it triggered.
-            self.__drawn_graphics_binding = Binding.ListBinding(self.__display, "drawn_graphics")
-            data_item = display.data_item
-            def graphic_inserted(graphic, before_index):
-                # ugliness at its best. dual canvases is not the way to go.
-                if data_item.is_data_1d:
-                    self.line_plot_canvas_item.update_display(display)
-                elif data_item.is_data_2d or data_item.is_data_3d:
-                    self.image_canvas_item.graphic_inserted(graphic, before_index)
-            def graphic_removed(index):
-                # ugliness at its best. dual canvases is not the way to go.
-                if data_item.is_data_1d:
-                    self.line_plot_canvas_item.update_display(display)
-                elif data_item.is_data_2d or data_item.is_data_3d:
-                    self.image_canvas_item.graphic_removed(index)
-            self.__drawn_graphics_binding.inserter = graphic_inserted
-            self.__drawn_graphics_binding.remover = graphic_removed
-    # display = property(__get_display, __set_display)  # can we get away without this?
+            self.__display.add_listener(self)  # for display_changed
+    display = property(__get_display)  # read only, for tests only
 
     # this message comes from the document model.
     def data_item_deleted(self, deleted_data_item):
@@ -1428,10 +1346,6 @@ class ImagePanel(Panel.Panel):
             self.image_canvas_item.update_display(None)
             self.image_canvas_item.selected = False
             self.line_plot_canvas_item.selected = False
-
-    def __get_graphic_selection(self):
-        return self.image_canvas_item.graphic_selection
-    graphic_selection = property(__get_graphic_selection)
 
     # ths message comes from the widget
     def key_pressed(self, key):

@@ -9,6 +9,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import ImagePanel
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Storage
@@ -25,7 +26,7 @@ class TestGraphicSelectionClass(unittest.TestCase):
         pass
 
     def test_selection_set(self):
-        selection = ImagePanel.GraphicSelection()
+        selection = Display.GraphicSelection()
         selection.set(0)
         selection.set(1)
         self.assertEqual(len(selection.indexes), 1)
@@ -97,20 +98,20 @@ class TestImagePanelClass(unittest.TestCase):
         self.document_controller.add_line_graphic()
         # click outside so nothing is selected
         self.simulate_click((0, 0))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 0)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 0)
         # select the line
         self.simulate_click((200, 200))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
         # now shift the view and try again
         self.simulate_click((0, 0))
         self.image_panel.image_canvas_item.move_left()  # 10 pixels left
         self.image_panel.image_canvas_item.move_left()  # 10 pixels left
         self.simulate_click((200, 200))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 0)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 0)
         self.simulate_click((220, 200))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
     def test_select_multiple(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
@@ -118,23 +119,23 @@ class TestImagePanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_graphic()
         # click outside so nothing is selected
         self.simulate_click((0, 0))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 0)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 0)
         # select the ellipse
         self.simulate_click((725, 500))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(1 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(1 in self.image_panel.display.graphic_selection.indexes)
         # select the line
         self.simulate_click((200, 200))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
         # add the ellipse to the selection. click inside the right side.
         self.simulate_click((725, 500), Test.KeyboardModifiers(shift=True))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 2)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 2)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
         # remove the ellipse from the selection. click inside the right side.
         self.simulate_click((725, 500), Test.KeyboardModifiers(shift=True))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
     def assertClosePoint(self, p1, p2, e=0.00001):
         self.assertTrue(Geometry.distance(p1, p2) < e)
@@ -151,9 +152,9 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].end, (0.8, 0.8))
         self.assertCloseRectangle(self.data_item.displays[0].graphics[1].bounds, ((0.25, 0.25), (0.5, 0.5)))
         # select both
-        self.image_panel.graphic_selection.set(0)
-        self.image_panel.graphic_selection.add(1)
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 2)
+        self.image_panel.display.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.add(1)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 2)
         # drag by (0.1, 0.2)
         self.simulate_drag((500,500), (600,700))
         self.assertCloseRectangle(self.data_item.displays[0].graphics[1].bounds, ((0.35, 0.45), (0.5, 0.5)))
@@ -165,7 +166,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].end, (0.8, 0.8))
         self.assertCloseRectangle(self.data_item.displays[0].graphics[1].bounds, ((0.25, 0.25), (0.5, 0.5)))
         # now select just the line, drag middle of circle. should only drag circle.
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         self.simulate_drag((700,500), (800,500))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].end, (0.8, 0.8))
@@ -178,13 +179,13 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.2, 0.2))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].end, (0.8, 0.8))
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         self.simulate_drag((200,200), (300,400))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].end, (0.8, 0.8))
         # shift drag a part, should not deselect and should align horizontally
         self.simulate_drag((300,400), (350,700), Test.KeyboardModifiers(shift=True))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.35, 0.8))
         # shift drag start to top left quadrant. check both y-maj and x-maj.
         self.simulate_drag((350,800), (370,340), Test.KeyboardModifiers(shift=True))
@@ -234,7 +235,7 @@ class TestImagePanelClass(unittest.TestCase):
         # add line (0.2, 0.2), (0.8, 0.8)
         self.document_controller.add_line_graphic()
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # move it left
         self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.200, 0.199))
@@ -260,7 +261,7 @@ class TestImagePanelClass(unittest.TestCase):
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # move it left
         self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.249))
@@ -286,7 +287,7 @@ class TestImagePanelClass(unittest.TestCase):
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_graphic()
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # move it left
         self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.249))
@@ -314,7 +315,7 @@ class TestImagePanelClass(unittest.TestCase):
         # make sure items it is in the right place
         self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.5, 0.5))
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         self.simulate_drag((500,500), (300,400))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.3, 0.4))
 
@@ -325,10 +326,10 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.5, 0.5))
         # select it
         self.simulate_click((100,100))
-        self.assertFalse(self.image_panel.graphic_selection.indexes)
+        self.assertFalse(self.image_panel.display.graphic_selection.indexes)
         self.simulate_click((500,500))
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
     # this helps test out cursor positioning
     def test_map_widget_to_image(self):
@@ -357,7 +358,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[1], (0.5, 0.5))
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((250,250), (300,250))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.30, 0.25))
@@ -378,7 +379,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250))
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
@@ -399,7 +400,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
         # select it
-        self.image_panel.graphic_selection.set(0)
+        self.image_panel.display.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
@@ -410,24 +411,23 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (200, 200))
 
     def test_insert_remove_graphics_and_selection(self):
-        self.assertFalse(self.image_panel.graphic_selection.indexes)
+        self.assertFalse(self.image_panel.display.graphic_selection.indexes)
         self.document_controller.add_rectangle_graphic()
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
         graphic = Graphics.RectangleGraphic()
         graphic.bounds = ((0.5,0.5), (0.25,0.25))
         self.data_item.displays[0].insert_graphic(0, graphic)
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(1 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(1 in self.image_panel.display.graphic_selection.indexes)
         self.data_item.displays[0].remove_graphic(self.data_item.displays[0].graphics[0])
-        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
-        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
     def setup_line_plot(self):
         data_item_1d = self.document_model.set_data_by_key("test_1d", create_1d_data())
         self.image_panel.set_displayed_data_item(data_item_1d)
         self.image_panel.line_plot_canvas_item.update_layout((0, 0), (480, 640))  # yes I know these are backwards
-        self.image_panel.display = data_item_1d.displays[0]
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
         # trigger layout
         self.image_panel.line_plot_canvas_item.wait_for_paint()  # force paint_display_on_thread to finish before _repaint

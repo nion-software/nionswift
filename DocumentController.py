@@ -494,7 +494,7 @@ class DocumentController(Observable.Broadcaster):
             graphic.start = (0.2,0.2)
             graphic.end = (0.8,0.8)
             display.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
+            display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
@@ -505,7 +505,7 @@ class DocumentController(Observable.Broadcaster):
             graphic = Graphics.RectangleGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             display.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
+            display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
@@ -516,7 +516,7 @@ class DocumentController(Observable.Broadcaster):
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
             display.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
+            display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
@@ -527,14 +527,14 @@ class DocumentController(Observable.Broadcaster):
             graphic = Graphics.PointGraphic()
             graphic.position = (0.5, 0.5)
             display.append_graphic(graphic)
-            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
+            display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
     def remove_graphic(self):
         display = self.selected_display
-        if display and self.selected_image_panel.graphic_selection.has_selection():
-            graphics = [display.drawn_graphics[index] for index in self.selected_image_panel.graphic_selection.indexes]
+        if display and display.graphic_selection.has_selection():
+            graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
             for graphic in graphics:
                 display.remove_drawn_graphic(graphic)
 

@@ -6,6 +6,7 @@
 import copy
 import logging
 import gettext
+import numbers
 import weakref
 
 # third party libraries
@@ -22,6 +23,80 @@ from nion.ui import Observable
 from nion.ui import ThreadPool
 
 _ = gettext.gettext
+
+
+class GraphicSelection(Observable.Broadcaster):
+    def __init__(self):
+        super(GraphicSelection, self).__init__()
+        self.__indexes = set()
+    # manage selection
+    def __get_current_index(self):
+        if len(self.__indexes) == 1:
+            for index in self.__indexes:
+                return index
+        return None
+    current_index = property(__get_current_index)
+    def has_selection(self):
+        return len(self.__indexes) > 0
+    def contains(self, index):
+        return index in self.__indexes
+    def __get_indexes(self):
+        return self.__indexes
+    indexes = property(__get_indexes)
+    def clear(self):
+        old_index = self.__indexes.copy()
+        self.__indexes = set()
+        if old_index != self.__indexes:
+            self.notify_listeners("selection_changed", self)
+    def add(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes.add(index)
+        if old_index != self.__indexes:
+            self.notify_listeners("selection_changed", self)
+    def remove(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes.remove(index)
+        if old_index != self.__indexes:
+            self.notify_listeners("selection_changed", self)
+    def set(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        self.__indexes = set()
+        self.__indexes.add(index)
+        if old_index != self.__indexes:
+            self.notify_listeners("selection_changed", self)
+    def toggle(self, index):
+        assert isinstance(index, numbers.Integral)
+        old_index = self.__indexes.copy()
+        if index in self.__indexes:
+            self._indexes.remove(index)
+        else:
+            self._indexes.add(index)
+        if old_index != self.__indexes:
+            self.notify_listeners("selection_changed", self)
+    def insert_index(self, new_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index < new_index:
+                new_indexes.add(index)
+            else:
+                new_indexes.add(index+1)
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self.notify_listeners("selection_changed", self)
+    def remove_index(self, remove_index):
+        new_indexes = set()
+        for index in self.__indexes:
+            if index != remove_index:
+                if index > remove_index:
+                    new_indexes.add(index-1)
+                else:
+                    new_indexes.add(index)
+        if self.__indexes != new_indexes:
+            self.__indexes = new_indexes
+            self.notify_listeners("selection_changed", self)
 
 
 class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
@@ -45,6 +120,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
+        self.graphic_selection = GraphicSelection()
+        self.graphic_selection.add_listener(self)
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
@@ -58,7 +135,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     object_store = property(__get_object_store, __set_object_store)
 
     def about_to_be_removed(self):
-        pass
+        self.graphic_selection.remove_listener(self)
+        self.graphic_selection = None
+
+    def selection_changed(self, graphic_selection):
+        """ This message comes from the graphic selection object. Notify our listeners too. """
+        self.notify_listeners("selection_changed", graphic_selection)
 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
@@ -101,7 +183,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.get_processor(processor_id).get_data(ui, completion_fn)
 
     def __get_drawn_graphics(self):
-        return self.__drawn_graphics
+        return copy.copy(self.__drawn_graphics)
     drawn_graphics = property(__get_drawn_graphics)
 
     def __validate_display_limits(self, value):
@@ -156,7 +238,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)
-        self.__drawn_graphics.append(region_graphic)
+        before_index = len(self.__drawn_graphics)
+        self.__drawn_graphics.insert(before_index, region_graphic)
+        self.graphic_selection.insert_index(before_index)
 
     def remove_region_graphic(self, region_graphic):
         if region_graphic in self.__drawn_graphics:
@@ -164,20 +248,25 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             # a data item which will in turn remove the same region.
             # bad architecture.
             region_graphic.remove_listener(self)
+            index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
+            self.graphic_selection.remove_index(index)
 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
         item.add_observer(self)
         item.object_store = self.object_store
         self.__drawn_graphics.insert(before_index, item)
+        self.graphic_selection.insert_index(before_index)
         self.notify_listeners("display_changed", self)
 
     def __remove_graphic(self, name, index, item):
         item.object_store = None
         item.remove_listener(self)
         item.remove_observer(self)
+        index = self.__drawn_graphics.index(item)
         self.__drawn_graphics.remove(item)
+        self.graphic_selection.remove_index(index)
         self.notify_listeners("display_changed", self)
 
     def insert_graphic(self, before_index, graphic):
