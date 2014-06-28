@@ -324,7 +324,7 @@ class Operation(object):
         new_data = self.process(data)
         if data is not None:
             assert(id(new_data) != id(data))
-        if new_data.base is not None:
+        if new_data is not None and new_data.base is not None:
             assert(id(new_data.base) != id(data))
         return new_data
 
@@ -413,15 +413,17 @@ class InvertOperation(Operation):
         super(InvertOperation, self).__init__(_("Invert"), "invert-operation")
 
     def process(self, data):
-        if Image.is_data_rgba(data) or Image.is_data_rgb(data):
-            if Image.is_data_rgba(data):
-                inverted = 255 - data[:]
-                inverted[...,3] = data[...,3]
-                return inverted
+        if data is not None:
+            if Image.is_data_rgba(data) or Image.is_data_rgb(data):
+                if Image.is_data_rgba(data):
+                    inverted = 255 - data[:]
+                    inverted[...,3] = data[...,3]
+                    return inverted
+                else:
+                    return 255 - data[:]
             else:
-                return 255 - data[:]
-        else:
-            return -data[:]
+                return -data[:]
+        return None
 
 
 class GaussianBlurOperation(Operation):
