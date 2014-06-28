@@ -12,6 +12,7 @@
 
 # standard libraries
 import gettext
+import logging
 import math
 
 # third party libraries
@@ -301,6 +302,54 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.stroke_style = '#888'
             drawing_context.stroke()
             drawing_context.restore()
+
+
+class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    """ Canvas item to draw the line plot itself. """
+
+    def __init__(self):
+        super(LineGraphRegionsCanvasItem, self).__init__()
+        self.data_info = None
+        self.font_size = 12
+        self.regions = list()
+
+    def _repaint(self, drawing_context):
+
+        # draw the data, if any
+        data_info = self.data_info
+        if data_info is not None and data_info.data is not None:
+
+            plot_rect = self.canvas_bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_height = int(plot_rect[1][0]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
+
+            # calculate the axes drawing info
+            data_info.calculate_x_axis(plot_width)
+            data_info.calculate_y_axis(plot_height)
+
+            data_left = data_info.drawn_left_channel
+            data_right = data_info.drawn_right_channel
+
+            def convert_coordinate_to_pixel(c):
+                px = c * data_info.data.shape[0]
+                return plot_rect.width * (px - data_left) / (data_right - data_left)
+
+            for region in self.regions:
+                region_channels = region[0]
+                region_selected = region[1]
+                drawing_context.save()
+                drawing_context.begin_path()
+                for region_channel in region_channels:
+                    x = convert_coordinate_to_pixel(region_channel)
+                    drawing_context.move_to(x, plot_origin_y)
+                    drawing_context.line_to(x, plot_origin_y + plot_height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#F00'
+                drawing_context.stroke()
+                drawing_context.restore()
 
 
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):

@@ -144,6 +144,26 @@ class RectRegion(Region):
         self.notify_set_property("bounds", self.bounds)
 
 
+class IntervalRegion(Region):
+
+    def __init__(self):
+        super(IntervalRegion, self).__init__("interval-region")
+        self.define_property(Observable.Property("start", 0.0, changed=self._property_changed))
+        self.define_property(Observable.Property("end", 1.0, changed=self._property_changed))
+        self.__graphic = Graphics.IntervalGraphic()
+        self.__graphic.color = "#FF0"
+        self.__graphic.add_listener(self)
+        self.__start_binding = RegionPropertyToGraphicBinding(self, "start", self.__graphic, "start")
+        self.__end_binding = RegionPropertyToGraphicBinding(self, "end", self.__graphic, "end")
+
+    def __get_graphic(self):
+        return self.__graphic
+    graphic = property(__get_graphic)
+
+    def remove_region_graphic(self, region_graphic):
+        self.notify_listeners("remove_region_because_graphic_removed", self)
+
+
 class RegionPropertyToGraphicBinding(Binding.PropertyBinding):
 
     """
@@ -178,6 +198,7 @@ def region_factory(vault):
         "point-region": PointRegion,
         "line-region": LineRegion,
         "rectangle-region": RectRegion,
+        "interval-region": IntervalRegion,
     }
     type = vault.get_value("type")
     return build_map[type]() if type in build_map else None

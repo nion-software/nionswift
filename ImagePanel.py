@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import logging
 import math
@@ -341,7 +342,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.document_controller = document_controller
         self.image_panel = image_panel
 
+        self.line_graph_canvas_area_item = CanvasItem.CanvasItemComposition()
         self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        self.line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
+        self.line_graph_canvas_area_item.add_canvas_item(self.line_graph_canvas_item)
+        self.line_graph_canvas_area_item.add_canvas_item(self.line_graph_regions_canvas_item)
 
         self.line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
         self.line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
@@ -366,7 +371,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         margins = Geometry.Margins(left=6, right=12, top=font_size + 4, bottom=6)
         self.line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
         self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_item, Geometry.IntPoint(x=1, y=0))
+        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_area_item, Geometry.IntPoint(x=1, y=0))
         self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
 
         # draw the background
@@ -422,8 +427,16 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def update_display(self, display):
         self.__display = display
         if self.__display is None:
+            # handle case where display is empty
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
+            self.line_graph_regions_canvas_item.regions = list()
+        else:
+            regions = list()
+            for graphic_index, graphic in enumerate(copy.copy(self.__display.drawn_graphics)):
+                region = ((graphic.start, graphic.end), False)
+                regions.append(region)
+            self.line_graph_regions_canvas_item.regions = regions
         self.__paint_thread.trigger()
 
     def wait_for_paint(self):
@@ -476,6 +489,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __update_data_info(self, data_info):
         self.line_graph_canvas_item.data_info = data_info
         self.line_graph_canvas_item.update()
+        self.line_graph_regions_canvas_item.data_info = data_info
+        self.line_graph_regions_canvas_item.update()
         self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
         self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
         self.line_graph_vertical_axis_label_canvas_item.update()
@@ -1343,10 +1358,25 @@ class ImagePanel(Panel.Panel):
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
             self.__display.add_listener(self)
+            # this binding is used to maintain the known selection indexes and to trigger updates
+            # it is not used to keep track of the drawn graphics, which are all updated each time
+            # an update it triggered.
             self.__drawn_graphics_binding = Binding.ListBinding(self.__display, "drawn_graphics")
-            self.__drawn_graphics_binding.inserter = lambda item, before_index: self.image_canvas_item.graphic_inserted(item, before_index)
-            self.__drawn_graphics_binding.remover = lambda index: self.image_canvas_item.graphic_removed(index)
-            # note: data_ref_count has already been incremented above.
+            data_item = display.data_item
+            def graphic_inserted(graphic, before_index):
+                # ugliness at its best. dual canvases is not the way to go.
+                if data_item.is_data_1d:
+                    self.line_plot_canvas_item.update_display(display)
+                elif data_item.is_data_2d or data_item.is_data_3d:
+                    self.image_canvas_item.graphic_inserted(graphic, before_index)
+            def graphic_removed(index):
+                # ugliness at its best. dual canvases is not the way to go.
+                if data_item.is_data_1d:
+                    self.line_plot_canvas_item.update_display(display)
+                elif data_item.is_data_2d or data_item.is_data_3d:
+                    self.image_canvas_item.graphic_removed(index)
+            self.__drawn_graphics_binding.inserter = graphic_inserted
+            self.__drawn_graphics_binding.remover = graphic_removed
     # display = property(__get_display, __set_display)  # can we get away without this?
 
     # this message comes from the document model.

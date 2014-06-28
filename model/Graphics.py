@@ -533,12 +533,22 @@ class PointGraphic(PointTypeGraphic):
             self.draw_marker(ctx, p)
 
 
+class IntervalGraphic(Graphic):
+    def __init__(self):
+        super(IntervalGraphic, self).__init__("interval-graphic")
+        self.title = _("Interval")
+        # start and end points are stored in image normalized coordinates
+        self.define_property(Observable.Property("start", 0.0, changed=self._property_changed))
+        self.define_property(Observable.Property("end", 1.0, changed=self._property_changed))
+
+
 def factory(vault):
     build_map = {
         "line-graphic": LineGraphic,
         "rect-graphic": RectangleGraphic,
         "ellipse-graphic": EllipseGraphic,
         "point-graphic": PointGraphic,
+        "interval-graphic": IntervalGraphic,
     }
     type = vault.get_value("type")
     return build_map[type]() if type in build_map else None
