@@ -476,11 +476,69 @@ class LineGraphic(LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
+class PointTypeGraphic(Graphic):
+    def __init__(self, type, title):
+        super(PointTypeGraphic, self).__init__(type)
+        self.title = title
+        # start and end points are stored in image normalized coordinates
+        self.define_property(Observable.Property("position", (0.5, 0.5), changed=self._property_changed))
+    # test is required for Graphic interface
+    def test(self, mapping, test_point, move_only):
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        p = mapping.map_point_image_norm_to_widget(self.position)
+        if self.test_point(p, test_point, 4):
+            return "all"
+        # didn't find anything
+        return None
+    def begin_drag(self):
+        return (self.position, )
+    def end_drag(self, part_data):
+        pass
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        o_image = mapping.map_point_widget_to_image(original)
+        p_image = mapping.map_point_widget_to_image(current)
+        pos_image = mapping.map_point_image_norm_to_image(self.position)
+        if part[0] == "all":
+            o = mapping.map_point_widget_to_image_norm(original)
+            p = mapping.map_point_widget_to_image_norm(current)
+            pos = part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1])
+            self.position = pos
+    def nudge(self, mapping, delta):
+        pos_image = mapping.map_point_image_norm_to_image(self.position)
+        original = pos_image
+        current = original + delta
+        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
+    def draw(self, ctx, mapping, is_selected=False):
+        raise NotImplementedError()
+
+
+class PointGraphic(PointTypeGraphic):
+    def __init__(self):
+        super(PointGraphic, self).__init__("point-graphic", _("Point"))
+    def draw(self, ctx, mapping, is_selected=False):
+        p = mapping.map_point_image_norm_to_widget(self.position)
+        ctx.save()
+        ctx.begin_path()
+        cross_hair_size = 12
+        ctx.move_to(p[1] - cross_hair_size, p[0])
+        ctx.line_to(p[1] + cross_hair_size, p[0])
+        ctx.move_to(p[1], p[0] - cross_hair_size)
+        ctx.line_to(p[1], p[0] + cross_hair_size)
+        ctx.line_width = 1
+        ctx.stroke_style = self.color
+        ctx.stroke()
+        ctx.restore()
+        if is_selected:
+            self.draw_marker(ctx, p)
+
+
 def factory(vault):
     build_map = {
         "line-graphic": LineGraphic,
         "rect-graphic": RectangleGraphic,
-        "ellipse-graphic": EllipseGraphic
+        "ellipse-graphic": EllipseGraphic,
+        "point-graphic": PointGraphic,
     }
     type = vault.get_value("type")
     return build_map[type]() if type in build_map else None

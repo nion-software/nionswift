@@ -308,6 +308,28 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.250))
 
+    def test_drag_point_moves_the_point_graphic(self):
+        # add point (0.5, 0.5)
+        self.document_controller.add_point_graphic()
+        # make sure items it is in the right place
+        self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.5, 0.5))
+        # select it
+        self.image_panel.graphic_selection.set(0)
+        self.simulate_drag((500,500), (300,400))
+        self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.3, 0.4))
+
+    def test_click_on_point_selects_it(self):
+        # add point (0.5, 0.5)
+        self.document_controller.add_point_graphic()
+        # make sure items it is in the right place
+        self.assertClosePoint(self.data_item.displays[0].graphics[0].position, (0.5, 0.5))
+        # select it
+        self.simulate_click((100,100))
+        self.assertFalse(self.image_panel.graphic_selection.indexes)
+        self.simulate_click((500,500))
+        self.assertEqual(len(self.image_panel.graphic_selection.indexes), 1)
+        self.assertTrue(0 in self.image_panel.graphic_selection.indexes)
+
     # this helps test out cursor positioning
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480

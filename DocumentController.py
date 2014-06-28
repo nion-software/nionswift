@@ -207,6 +207,7 @@ class DocumentController(Observable.Broadcaster):
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
         self.graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
         self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
+        self.graphic_menu.add_menu_item(_("Add Point Graphic"), lambda: self.add_point_graphic())
 
         #self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
         self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.show_about_box(), role="about")
@@ -512,6 +513,17 @@ class DocumentController(Observable.Broadcaster):
             assert isinstance(display, Display.Display)
             graphic = Graphics.EllipseGraphic()
             graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            display.append_graphic(graphic)
+            self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_point_graphic(self):
+        display = self.selected_display
+        if display:
+            assert isinstance(display, Display.Display)
+            graphic = Graphics.PointGraphic()
+            graphic.position = (0.5, 0.5)
             display.append_graphic(graphic)
             self.selected_image_panel.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic

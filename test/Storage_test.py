@@ -82,6 +82,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.add_line_graphic()
         document_controller.add_rectangle_graphic()
         document_controller.add_ellipse_graphic()
+        document_controller.add_point_graphic()
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_gaussian_blur()
         image_panel.set_displayed_data_item(data_item)
@@ -562,7 +563,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 4)  # verify assumptions
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 5)  # verify assumptions
         storage_data = datastore.to_data()
         document_controller.close()
         # read it back
@@ -571,7 +572,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify drawn_graphics reload
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 4)
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 5)
         # clean up
         document_controller.close()
 
