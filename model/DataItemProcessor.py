@@ -10,6 +10,11 @@ class DataItemProcessor(object):
         self.__cache_property_name = cache_property_name
         self.__mutex = threading.RLock()
         self.__in_progress = False
+        self.__finish_event = threading.Event()
+        self.__finish_event.set()
+
+    def close(self):
+        self.__finish_event.wait()
 
     def __get_item(self):
         return self.__weak_item() if self.__weak_item else None
@@ -57,6 +62,7 @@ class DataItemProcessor(object):
                             except Exception as e:
                                 import traceback
                                 traceback.print_exc()
+                                self.__finish_event.set()
                                 raise
                             self.item.set_cached_value(self.__cache_property_name, calculated_data)
                         else:
@@ -68,9 +74,11 @@ class DataItemProcessor(object):
                             completion_fn(calculated_data)
                         with self.__mutex:
                             self.__in_progress = False
+                        self.__finish_event.set()
                     with self.__mutex:
                         if not self.__in_progress:
                             self.__in_progress = True
+                            self.__finish_event.clear()
                             self.item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread(item))
         calculated_data = self.item.get_cached_value(self.__cache_property_name)
         if calculated_data is not None:

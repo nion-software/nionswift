@@ -288,6 +288,11 @@ class DocumentModel(Storage.StorageBase):
             data_group.connect_data_items(self.get_data_item_by_uuid)
         self.datastore.disconnected = False
 
+    def close(self):
+        """ Optional method to close the document model. """
+        for data_item in self.data_items:
+            data_item.close()
+
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 

@@ -97,7 +97,7 @@ class Workspace(object):
             dock_widget.panel.periodic()
             dock_widget.periodic()
             elapsed = time.time() - start
-            if elapsed > 0.10:
+            if elapsed > 0.15:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
         self.filter_panel.periodic()
 

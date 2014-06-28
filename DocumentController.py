@@ -79,6 +79,7 @@ class DocumentController(Observable.Broadcaster):
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.close()
         self.document_window = None
+        self.document_model.close()
         self.document_model = None
         self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)

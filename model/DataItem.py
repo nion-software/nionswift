@@ -355,6 +355,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         memo[id(self)] = data_item_copy
         return data_item_copy
 
+    def close(self):
+        """ Optional method to close the data item. """
+        for processor in self.__processors.values():
+            processor.close()
+
     def copy_metadata_from(self, data_item):
         self.datetime_original = data_item.datetime_original
         self.datetime_modified = data_item.datetime_modified

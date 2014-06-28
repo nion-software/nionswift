@@ -116,6 +116,46 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
         document_controller.close()
 
+    def test_save_load_document_to_files(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        db_name = os.path.join(workspace_dir, "Data.nswrk")
+        try:
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            self.save_document(document_controller)
+            data_items_count = len(document_controller.document_model.data_items)
+            data_items_type = type(document_controller.document_model.data_items)
+            # clean up
+            document_controller.close()
+            document_controller = None
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
+            datastore.close()
+            datastore = None
+            # read it back
+            data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+            datastore = Storage.DbDatastore(data_reference_handler, db_name)
+            storage_cache = Storage.DbStorageCache(db_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            self.assertEqual(data_items_count, len(document_model.data_items))
+            self.assertEqual(data_items_type, type(document_model.data_items))
+            # clean up
+            document_model.close()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
+            datastore.close()
+            datastore = None
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def write_read_db_storage(self):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)
@@ -397,7 +437,13 @@ class TestStorageClass(unittest.TestCase):
             # and then make sure the data file gets removed on disk when removed
             document_model.remove_data_item(document_model.data_items[0])
             self.assertFalse(os.path.exists(data_file_path))
+            # clean up
+            document_model.close()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
             datastore.close()
+            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -421,6 +467,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(reference_type, "relative_file")
             self.assertIsNotNone(reference)
             # clean up
+            document_model.close()
             document_model = None
             storage_cache.close()
             storage_cache = None
@@ -456,7 +503,12 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.isfile(data_file_path))
             self.assertIsNotNone(handler.read_data(reference))
             # clean up
+            document_model.close()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
             datastore.close()
+            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -489,7 +541,12 @@ class TestStorageClass(unittest.TestCase):
             # make sure it get removed from disk
             self.assertFalse(os.path.exists(data_file_path))
             # clean up
+            document_model.close()
+            document_model = None
+            storage_cache.close()
+            storage_cache = None
             datastore.close()
+            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -740,6 +797,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.remove_data_item(document_model.data_items[0])
             self.assertFalse(os.path.exists(data2_file_path))
             # clean up
+            document_model.close()
             document_model = None
             storage_cache.close()
             storage_cache = None
