@@ -152,6 +152,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             operation_graphic.remove_listener(self)
             self.__drawn_graphics.remove(operation_graphic)
 
+    def add_region_graphic(self, region_graphic):
+        region_graphic.add_listener(self)
+        self.__drawn_graphics.append(region_graphic)
+
+    def remove_region_graphic(self, region_graphic):
+        region_graphic.remove_listener(self)
+        self.__drawn_graphics.remove(region_graphic)
+
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
         item.add_observer(self)

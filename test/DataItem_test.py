@@ -14,10 +14,12 @@ import numpy
 from nion.swift import Application
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.ui import Test
 
@@ -586,6 +588,24 @@ class TestDataItemClass(unittest.TestCase):
         data_item.add_data_source(data_item2)
         document_model.append_data_item(data_item)
         data_item.remove_data_source(data_item2)
+
+    def test_region_graphic_gets_added_to_existing_display(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item.add_region(Region.PointRegion())
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+
+    def test_region_graphic_gets_added_to_new_display(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item.add_region(Region.PointRegion())
+        data_item.add_display(Display.Display())
+        self.assertEqual(len(data_item.displays[1].drawn_graphics), 1)
 
 
 if __name__ == '__main__':

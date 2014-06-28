@@ -669,11 +669,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return MetadataContextManager(self, name)
 
     def __insert_display(self, name, before_index, display):
+        # listen
         display.add_listener(self)
         display._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
+        # connect the regions
+        for region in self.regions:
+            region_graphic = region.graphic
+            if region_graphic:
+                display.add_region_graphic(region_graphic)
 
     def __remove_display(self, name, index, display):
+        # disconnect the regions
+        for region in self.regions:
+            region_graphic = region.graphic
+            if region_graphic:
+                display.remove_region_graphic(region_graphic)
+        # unlisten
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display._set_data_item(None)
@@ -685,11 +697,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.remove_item("displays", display)
 
     def __insert_region(self, name, before_index, region):
+        # listen
         region.add_listener(self)
         region._set_data_item(self)
         self.notify_data_item_content_changed(set([DISPLAYS]))
+        # connect to the displays
+        region_graphic = region.graphic
+        if region_graphic:
+            for display in self.displays:
+                display.add_region_graphic(region_graphic)
 
     def __remove_region(self, name, index, region):
+        # disconnect from displays
+        region_graphic = region.graphic
+        if region_graphic:
+            for display in self.displays:
+                display.remove_region_graphic(region_graphic)
+        # and unlisten
         self.notify_data_item_content_changed(set([DISPLAYS]))
         region.remove_listener(self)
         region._set_data_item(None)

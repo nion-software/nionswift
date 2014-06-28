@@ -563,7 +563,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 5)  # verify assumptions
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)  # verify assumptions
         storage_data = datastore.to_data()
         document_controller.close()
         # read it back
@@ -572,7 +572,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify drawn_graphics reload
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 5)
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)
         # clean up
         document_controller.close()
 
