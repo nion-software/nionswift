@@ -671,9 +671,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__mouse_in and self.__last_mouse:
                 if data_size and len(data_size) == 1:
                     pos = self.line_graph_canvas_item.map_mouse_to_position(self.__last_mouse, data_size)
-                self.document_controller.cursor_changed(self, self.display, pos, list(), data_size)
+                self.document_controller.cursor_changed(self, self.display, pos, data_size)
             else:
-                self.document_controller.cursor_changed(self, None, None, list(), None)
+                self.document_controller.cursor_changed(self, None, None, None)
 
     def drag_enter(self, mime_data):
         if self.image_panel:
@@ -1150,11 +1150,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__mouse_in and self.__last_mouse:
                 if image_size and len(image_size) > 1:
                     pos = self.map_widget_to_image(self.__last_mouse)
-                graphics = self.display.drawn_graphics if self.display else None
-                selected_graphics = [graphics[index] for index in self.graphic_selection.indexes] if graphics else []
-                self.document_controller.cursor_changed(self, self.display, pos, selected_graphics, image_size)
+                self.document_controller.cursor_changed(self, self.display, pos, image_size)
             else:
-                self.document_controller.cursor_changed(self, None, None, list(), None)
+                self.document_controller.cursor_changed(self, None, None, None)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
@@ -1550,7 +1548,7 @@ class InfoPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def cursor_changed(self, source, display, pos, selected_graphics, data_size):
+    def cursor_changed(self, source, display, pos, data_size):
         def get_value_text(value, intensity_calibration):
             if value is not None:
                 return unicode(intensity_calibration.convert_to_calibrated_value_str(value))
