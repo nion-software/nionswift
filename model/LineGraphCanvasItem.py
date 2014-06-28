@@ -348,6 +348,8 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.line_to(x, plot_origin_y + plot_height)
                 drawing_context.line_width = 1
                 drawing_context.stroke_style = '#F00'
+                if not region_selected:
+                    drawing_context.line_dash = 2
                 drawing_context.stroke()
                 drawing_context.restore()
 
