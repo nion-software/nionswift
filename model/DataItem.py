@@ -18,6 +18,7 @@ from nion.swift.model import DataItemProcessor
 from nion.swift.model import Display
 from nion.swift.model import Image
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.ui import Observable
@@ -282,6 +283,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property(Observable.Property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources"))
         self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
         self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
+        self.define_relationship(Observable.Relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region))
         self.__metadata = dict()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
@@ -681,6 +683,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def remove_display(self, display):
         self.remove_item("displays", display)
+
+    def __insert_region(self, name, before_index, region):
+        region.add_listener(self)
+        region._set_data_item(self)
+        self.notify_data_item_content_changed(set([DISPLAYS]))
+
+    def __remove_region(self, name, index, region):
+        self.notify_data_item_content_changed(set([DISPLAYS]))
+        region.remove_listener(self)
+        region._set_data_item(None)
+
+    def add_region(self, region):
+        self.append_item("regions", region)
+
+    def remove_region(self, region):
+        self.remove_item("regions", region)
 
     # call this when operations change or data souce changes
     # this allows operations to update their default values

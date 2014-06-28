@@ -22,6 +22,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.ui import Test
@@ -53,6 +54,9 @@ class TestStorageClass(unittest.TestCase):
         data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         with data_item.open_metadata("test") as metadata:
             metadata["one"] = 1
+        data_item.add_region(Region.PointRegion())
+        data_item.add_region(Region.LineRegion())
+        data_item.add_region(Region.RectRegion())
         document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
@@ -714,6 +718,33 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify
         self.assertEqual(len(document_model.data_items[0].displays[0].graphics), 1)
+        # clean up
+        document_controller.close()
+
+    def test_reloaded_regions_load_properly(self):
+        db_name = ":memory:"
+        datastore = Storage.DbDatastore(None, db_name)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        point_region = Region.PointRegion()
+        point_region.position = (0.6, 0.4)
+        point_region_uuid = point_region.uuid
+        data_item.add_region(point_region)
+        # save it out
+        storage_data = datastore.to_data()
+        document_controller.close()
+        # read it back
+        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # verify
+        self.assertEqual(document_model.data_items[0].regions[0].type, "point-region")
+        self.assertEqual(document_model.data_items[0].regions[0].uuid, point_region_uuid)
+        self.assertEqual(document_model.data_items[0].regions[0].position, (0.6, 0.4))
         # clean up
         document_controller.close()
 
