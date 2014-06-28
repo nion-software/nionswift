@@ -250,10 +250,23 @@ class DbDataItemVault(object):
             document_model.notify_listeners("data_item_deleted", data_item)
 
 
+class ObjectStore(object):
+
+    def __init__(self):
+        pass
+
+    def register_object(self, object):
+        pass
+
+    def lookup_object_by_uuid(self, uuid_):
+        pass
+
+
 class DocumentModel(Storage.StorageBase):
 
     def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
+        self.object_store = ObjectStore()
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_item_vault = DbDataItemVault(self, datastore, self.storage_cache)
@@ -282,6 +295,7 @@ class DocumentModel(Storage.StorageBase):
         self.datastore.disconnected = True
         for data_item in self.__data_item_vault.data_items:
             data_item.connect_data_sources(self.get_data_item_by_uuid)
+            data_item.object_store = self.object_store
         for data_group in data_groups:
             self.append_data_group(data_group)
         for data_group in self.data_groups:
@@ -302,6 +316,7 @@ class DocumentModel(Storage.StorageBase):
     def insert_data_item(self, before_index, data_item):
         self.__data_item_vault.insert(before_index, data_item)
         data_item.connect_data_sources(self.get_data_item_by_uuid)
+        data_item.object_store = self.object_store
 
     def remove_data_item(self, data_item):
         # remove the data item from any groups
@@ -313,6 +328,7 @@ class DocumentModel(Storage.StorageBase):
             if other_data_item.data_source == data_item:
                 self.remove_data_item(other_data_item)
         # disconnect the data source
+        data_item.object_store = None
         data_item.disconnect_data_sources()
         # remove it from the vault
         self.__data_item_vault.remove(data_item)

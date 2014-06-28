@@ -75,6 +75,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
+        self.__object_store = None
+
         self.__weak_data_item = None
 
         self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
@@ -116,6 +118,12 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
         deepcopy.deepcopy_from(self, memo)
         memo[id(self)] = deepcopy
         return deepcopy
+
+    def __get_object_store(self):
+        return self.__object_store
+    def __set_object_store(self, object_store):
+        self.__object_store = object_store
+    object_store = property(__get_object_store, __set_object_store)
 
     def read_storage(self, vault):
         super(OperationItem, self).read_storage(vault)

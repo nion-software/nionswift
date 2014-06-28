@@ -253,6 +253,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
+        self.__object_store = None
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.uuid = item_uuid if item_uuid else uuid.uuid4()
@@ -399,6 +400,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_copy = numpy.copy(data_ref.data)
             data_item_copy.__set_master_data(data_copy)
         return data_item_copy
+
+    def __get_object_store(self):
+        return self.__object_store
+    def __set_object_store(self, object_store):
+        self.__object_store = object_store
+        for operation in self.operations:
+            operation.object_store = object_store
+        for region in self.regions:
+            region.object_store = object_store
+        for display in self.displays:
+            display.object_store = object_store
+    object_store = property(__get_object_store, __set_object_store)
 
     def _is_cache_delayed(self):
         return self.__transaction_count > 0
@@ -672,6 +685,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # listen
         display.add_listener(self)
         display._set_data_item(self)
+        display.object_store = self.object_store
         self.notify_data_item_content_changed(set([DISPLAYS]))
         # connect the regions
         for region in self.regions:
@@ -689,6 +703,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display._set_data_item(None)
+        display.object_store = None
 
     def add_display(self, display):
         self.append_item("displays", display)
@@ -700,6 +715,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # listen
         region.add_listener(self)
         region._set_data_item(self)
+        region.object_store = self.object_store
         self.notify_data_item_content_changed(set([DISPLAYS]))
         # connect to the displays
         region_graphic = region.graphic
@@ -717,6 +733,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.notify_data_item_content_changed(set([DISPLAYS]))
         region.remove_listener(self)
         region._set_data_item(None)
+        retion.object_store = None
 
     def add_region(self, region):
         self.append_item("regions", region)
@@ -738,6 +755,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         operation.add_listener(self)
         operation.add_observer(self)
         operation._set_data_item(self)
+        operation.object_store = self.object_store
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         for data_source in self.__data_sources:
@@ -748,6 +766,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.notify_data_item_content_changed(set([DATA]))
         for data_source in self.__data_sources:
             data_source.remove_operation_graphics_from_displays(operation.graphics)
+        operation.object_store = None
         operation.remove_listener(self)
         operation.remove_observer(self)
         operation._set_data_item(None)
