@@ -304,6 +304,23 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
 
+def draw_marker(ctx, p, fill=None, stroke=None):
+    ctx.save()
+    ctx.begin_path()
+    ctx.move_to(p[1] - 3, p[0] - 3)
+    ctx.line_to(p[1] + 3, p[0] - 3)
+    ctx.line_to(p[1] + 3, p[0] + 3)
+    ctx.line_to(p[1] - 3, p[0] + 3)
+    ctx.close_path()
+    if fill:
+        ctx.fill_style = fill
+        ctx.fill()
+    if stroke:
+        ctx.stroke_style = stroke
+        ctx.stroke()
+    ctx.restore()
+
+
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     """ Canvas item to draw the line plot itself. """
@@ -340,17 +357,49 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             for region in self.regions:
                 region_channels = region[0]
                 region_selected = region[1]
+                index = region[2]
+                left_text = region[3]
+                right_text = region[4]
+                middle_text = region[5]
+                level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 drawing_context.save()
                 drawing_context.begin_path()
+                last_x = None
                 for region_channel in region_channels:
                     x = convert_coordinate_to_pixel(region_channel)
                     drawing_context.move_to(x, plot_origin_y)
                     drawing_context.line_to(x, plot_origin_y + plot_height)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#F00'
-                if not region_selected:
-                    drawing_context.line_dash = 2
-                drawing_context.stroke()
+                    drawing_context.line_width = 1
+                    drawing_context.stroke_style = '#F00'
+                    if not region_selected:
+                        drawing_context.line_dash = 2
+                    drawing_context.stroke()
+                    if last_x is not None:
+                        mid_x = (last_x + x) * 0.5
+                        drawing_context.move_to(last_x, level)
+                        drawing_context.line_to(mid_x - 3, level)
+                        drawing_context.move_to(mid_x + 3, level)
+                        drawing_context.line_to(x - 3, level)
+                        drawing_context.stroke()
+                        drawing_context.line_dash = 0
+                        if region_selected:
+                            draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
+                            drawing_context.fill_style = '#F00'
+                            if middle_text:
+                                drawing_context.text_align = "center"
+                                drawing_context.text_baseline = "bottom"
+                                drawing_context.fill_text(middle_text, mid_x, level - 6)
+                            if left_text:
+                                drawing_context.text_align = "right"
+                                drawing_context.text_baseline = "center"
+                                drawing_context.fill_text(left_text, last_x - 4, level)
+                            if right_text:
+                                drawing_context.text_align = "left"
+                                drawing_context.text_baseline = "center"
+                                drawing_context.fill_text(right_text, x + 4, level)
+                        else:
+                            draw_marker(drawing_context, (level, mid_x), stroke='#F00')
+                    last_x = x
                 drawing_context.restore()
 
 

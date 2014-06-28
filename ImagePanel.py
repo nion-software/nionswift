@@ -407,7 +407,15 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # this message will come directly from the display when the graphic selection changes
         regions = list()
         for graphic_index, graphic in enumerate(self.__display.drawn_graphics):
-            region = ((graphic.start, graphic.end), graphic_selection.contains(graphic_index))
+            display = self.display
+            data_item = display.data_item
+            left_channel = graphic.start * data_item.spatial_shape[0]
+            right_channel = graphic.end * data_item.spatial_shape[0]
+            spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
+            left_text = spatial_calibration.convert_to_calibrated_value_str(left_channel)
+            right_text = spatial_calibration.convert_to_calibrated_value_str(right_channel)
+            middle_text = spatial_calibration.convert_to_calibrated_value_str((left_channel + right_channel) * 0.5)
+            region = ((graphic.start, graphic.end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
             regions.append(region)
         self.line_graph_regions_canvas_item.regions = regions
         self.line_graph_regions_canvas_item.update()
