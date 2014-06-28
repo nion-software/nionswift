@@ -158,6 +158,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
         self.notify_listeners("operation_changed", self)
 
     def __set_region(self, region):
+        # TODO: operation item should not have to know about specific operations (for regions)
         if self.operation_id == "line-profile-operation":
             assert region.type == "line-region"
             self.__bindings.append(OperationPropertyToRegionBinding(self, "start", region, "start"))
@@ -166,12 +167,21 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
             self.set_property("start", region.start)
             self.set_property("end", region.end)
             self.set_property("width", region.width)
+            region.add_listener(self)
             self.__weak_region = weakref.ref(region)
         elif self.operation_id == "crop-operation":
             assert region.type == "rectangle-region"
             self.__bindings.append(OperationPropertyToRegionBinding(self, "bounds", region, "bounds"))
             self.set_property("bounds", region.bounds)
+            region.add_listener(self)
             self.__weak_region = weakref.ref(region)
+
+    # this message comes from the region.
+    # it is generated when the user deletes a region graphic
+    # that informs the display which notifies the graphic which
+    # notifies the operation which notifies this data item. ugh.
+    def remove_region_because_graphic_removed(self, region):
+        self.notify_listeners("request_remove_data_item_because_operation_removed", self)
 
     # get a property.
     def get_property(self, property_id, default_value=None):

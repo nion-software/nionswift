@@ -794,7 +794,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # it is generated when the user deletes a operation graphic.
     # that informs the display which notifies the graphic which
     # notifies the operation which notifies this data item. ugh.
-    def remove_region_because_graphic_removed(self, region):
+    def request_remove_data_item_because_operation_removed(self, operation):
         self.notify_listeners("request_remove_data_item", self)
 
     # connect this item to its data source, if any. the lookup_data_item parameter

@@ -172,6 +172,28 @@ class TestDocumentControllerClass(unittest.TestCase):
         # clean up
         image_panel.close()
 
+    def test_remove_line_profile_does_not_remove_data_item_itself(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = document_controller.selected_image_panel
+        line_profile_data_item = document_controller.processing_line_profile()
+        line_profile_operation = line_profile_data_item.operations[0]
+        image_panel.set_displayed_data_item(data_item)
+        image_panel.graphic_selection.clear()
+        image_panel.graphic_selection.add(0)
+        # make sure assumptions are correct
+        self.assertEqual(line_profile_data_item.data_source, data_item)
+        self.assertTrue(line_profile_data_item in document_model.data_items)
+        self.assertTrue(data_item in document_model.data_items)
+        # remove the graphic and make sure things are as expected
+        document_controller.remove_graphic()
+        self.assertTrue(data_item in document_model.data_items)
+        # clean up
+        image_panel.close()
+
     def test_remove_line_profile_removes_associated_child_data_item(self):
         datastore = Storage.DictDatastore()
         document_model = DocumentModel.DocumentModel(datastore)
