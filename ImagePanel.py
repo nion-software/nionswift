@@ -14,8 +14,10 @@ from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Display
+from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
+from nion.swift.model import Region
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
@@ -507,6 +509,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_position_changed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
+        plot_rect = self.line_graph_regions_canvas_item.canvas_rect
         # x,y already have transform applied
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
@@ -522,8 +525,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
+        pos = Geometry.IntPoint(x=x, y=y)
         if self.document_controller.tool_mode == "pointer":
-            pos = Geometry.IntPoint(x=x, y=y)
             if self.line_graph_regions_canvas_item.canvas_rect.contains_point(pos):
                 self.begin_tracking_regions(pos, modifiers)
                 return True
@@ -532,6 +535,21 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
             elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
                 self.begin_tracking_vertical(pos, rescale=modifiers.control)
+                return True
+        elif self.document_controller.tool_mode == "interval":
+            if self.line_graph_regions_canvas_item.canvas_rect.contains_point(pos):
+                data_size = self.__get_data_size()
+                display = self.display
+                if display and data_size and len(data_size) == 1:
+                    widget_mapping = self.__get_mouse_mapping()
+                    x = widget_mapping.map_point_widget_to_channel_norm(pos)
+                    region = Region.IntervalRegion()
+                    region.start = x
+                    region.end = x
+                    display.data_item.add_region(region)  # this will also make a drawn graphic
+                    # hack to select it. it will be the last item.
+                    display.graphic_selection.set(len(display.drawn_graphics) - 1)
+                    self.begin_tracking_regions(pos, Graphics.NullModifiers())
                 return True
         return False
 
@@ -703,6 +721,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.graphic_drag_item = None
             self.graphic_part_data = {}
             self.graphic_drag_indexes = []
+            self.document_controller.tool_mode = "pointer"
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False

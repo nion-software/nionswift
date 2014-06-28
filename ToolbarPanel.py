@@ -41,6 +41,11 @@ class ToolbarPanel(Panel.Panel):
         line_profile_tool_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/line_profile_icon.png")
         line_profile_tool_button.on_clicked = lambda: setattr(document_controller, "tool_mode", "line-profile")
 
+        interval_tool_button = self.ui.create_push_button_widget()
+        interval_tool_button.tool_tip = _("Interval Tool")
+        interval_tool_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/interval_icon.png")
+        interval_tool_button.on_clicked = lambda: setattr(document_controller, "tool_mode", "interval")
+
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
         new_group_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/new_group_icon.png")
@@ -81,6 +86,7 @@ class ToolbarPanel(Panel.Panel):
         tool_group_widget.add(hand_tool_button)
         tool_group_widget.add(crop_tool_button)
         tool_group_widget.add(line_profile_tool_button)
+        tool_group_widget.add(interval_tool_button)
 
         commands_group_widget = self.ui.create_row_widget()
         commands_group_widget.add(new_group_button)

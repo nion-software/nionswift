@@ -553,14 +553,15 @@ class IntervalGraphic(Graphic):
         if not move_only and abs(test_point.x - p2) < 4:
             return "end"
         # along the line
-        if test_point.x > p1 and test_point.x < p2:
+        if test_point.x > p1 - 4 and test_point.x < p2 + 4:
             return "all"
         # didn't find anything
         return None
     def begin_drag(self):
         return (self.start, self.end)
     def end_drag(self, part_data):
-        pass
+        if self.end < self.start:
+            self.start, self.end = self.end, self.start
     def adjust_part(self, mapping, original, current, part, modifiers):
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
