@@ -411,7 +411,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             region.object_store = object_store
         for display in self.displays:
             display.object_store = object_store
+        if object_store is not None:
+            object_store.register(self)
     object_store = property(__get_object_store, __set_object_store)
+
+    def about_to_be_removed(self):
+        for operation in self.operations:
+            operation.about_to_be_removed()
+        for region in self.regions:
+            region.about_to_be_removed()
+        for display in self.displays:
+            display.about_to_be_removed()
 
     def _is_cache_delayed(self):
         return self.__transaction_count > 0
@@ -733,7 +743,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.notify_data_item_content_changed(set([DISPLAYS]))
         region.remove_listener(self)
         region._set_data_item(None)
-        retion.object_store = None
+        region.object_store = None
 
     def add_region(self, region):
         self.append_item("regions", region)
@@ -758,14 +768,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         operation.object_store = self.object_store
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
-        for data_source in self.__data_sources:
-            data_source.add_operation_graphics_to_displays(operation.graphics)
 
     def __remove_operation(self, name, index, operation):
         self.sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
-        for data_source in self.__data_sources:
-            data_source.remove_operation_graphics_from_displays(operation.graphics)
         operation.object_store = None
         operation.remove_listener(self)
         operation.remove_observer(self)
@@ -775,6 +781,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.append_item("operations", operation)
 
     def remove_operation(self, operation):
+        operation.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
         self.remove_item("operations", operation)
 
     # this message comes from the operation.
@@ -787,18 +794,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # it is generated when the user deletes a operation graphic.
     # that informs the display which notifies the graphic which
     # notifies the operation which notifies this data item. ugh.
-    def remove_operation_because_graphic_removed(self, operation):
+    def remove_region_because_graphic_removed(self, region):
         self.notify_listeners("request_remove_data_item", self)
-
-    # this message is received by other data items using this one as a data source.
-    def add_operation_graphics_to_displays(self, operation_graphics):
-        for display in self.displays:
-            display.add_operation_graphics(operation_graphics)
-
-    # this message is received by other data items using this one as a data source.
-    def remove_operation_graphics_from_displays(self, operation_graphics):
-        for display in self.displays:
-            display.remove_operation_graphics(operation_graphics)
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
@@ -815,8 +812,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     # we will receive data_item_content_changed from data_source
                     data_source.add_listener(self)
                     self.__data_sources.append(data_source)
-                    for operation_item in self.operations:
-                        data_source.add_operation_graphics_to_displays(operation_item.graphics)
             self.sync_operations()
         self.data_item_content_changed(None, set([SOURCE]))
 
@@ -826,8 +821,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         with self.__data_mutex:
             for data_source in copy.copy(self.__data_sources):
                 data_source.remove_listener(self)
-                for operation_item in self.operations:
-                    data_source.remove_operation_graphics_from_displays(operation_item.graphics)
                 self.__data_sources.remove(data_source)
 
     # override from storage to watch for changes to this data item. notify observers.

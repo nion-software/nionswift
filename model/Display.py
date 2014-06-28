@@ -57,6 +57,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             graphic.object_store = object_store
     object_store = property(__get_object_store, __set_object_store)
 
+    def about_to_be_removed(self):
+        pass
+
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
 
@@ -151,23 +154,17 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             for processor in self.__processors.values():
                 processor.data_item_changed()
 
-    def add_operation_graphics(self, operation_graphics):
-        for operation_graphic in operation_graphics:
-            operation_graphic.add_listener(self)
-            self.__drawn_graphics.append(operation_graphic)
-
-    def remove_operation_graphics(self, operation_graphics):
-        for operation_graphic in operation_graphics:
-            operation_graphic.remove_listener(self)
-            self.__drawn_graphics.remove(operation_graphic)
-
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)
         self.__drawn_graphics.append(region_graphic)
 
     def remove_region_graphic(self, region_graphic):
-        region_graphic.remove_listener(self)
-        self.__drawn_graphics.remove(region_graphic)
+        if region_graphic in self.__drawn_graphics:
+            # this hack is here because removing a region may remove
+            # a data item which will in turn remove the same region.
+            # bad architecture.
+            region_graphic.remove_listener(self)
+            self.__drawn_graphics.remove(region_graphic)
 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
@@ -210,7 +207,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         if drawn_graphic in self.graphics:
             self.remove_graphic(drawn_graphic)
         else:  # a synthesized graphic
-            drawn_graphic.notify_remove_operation_graphic()
+            drawn_graphic.notify_remove_region_graphic()
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.

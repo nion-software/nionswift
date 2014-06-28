@@ -3,6 +3,7 @@ import copy
 import gettext
 import logging
 import math
+import uuid
 import weakref
 
 # third party libraries
@@ -79,14 +80,25 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
 
         self.__weak_data_item = None
 
+        self.__weak_region = None
+
+        class UuidToStringConverter(object):
+            def convert(self, value):
+                return str(value) if value is not None else None
+            def convert_back(self, value):
+                return uuid.UUID(value) if value is not None else None
+
         self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
         self.define_property(Observable.Property("enabled", True, changed=self.__property_changed))
         self.define_property(Observable.Property("values", dict(), changed=self.__property_changed))
+        self.define_property(Observable.Property("region_uuid", None, converter=UuidToStringConverter()))
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
         # are no saved parameters, defaults are used.
         self.operation = OperationManager().build_operation(operation_id)
+
+        self.__bindings = list()
 
         self.name = self.operation.name if self.operation else _("Unavailable Operation")
 
@@ -94,35 +106,36 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
         self.description = self.operation.description if self.operation else []
         self.properties = [description_entry["property"] for description_entry in self.description]
 
-        # manage graphics
-        self.__graphics = list()
-        self.__bindings = list()
-        if self.operation_id == "line-profile-operation":
-            graphic = LineProfileGraphic()
-            graphic.color = "#FF0"
-            graphic.end_arrow_enabled = True
-            graphic.add_listener(self)
-            self.__graphics.append(graphic)
-            self.__bindings.append(OperationPropertyToGraphicBinding(self, "start", graphic, "start"))
-            self.__bindings.append(OperationPropertyToGraphicBinding(self, "end", graphic, "end"))
-            self.__bindings.append(OperationPropertyToGraphicBinding(self, "integration_width", graphic, "width"))
-        elif self.operation_id == "crop-operation":
-            graphic = Graphics.RectangleGraphic()
-            graphic.color = "#FF0"
-            graphic.add_listener(self)
-            self.__graphics.append(graphic)
-            self.__bindings.append(OperationPropertyToGraphicBinding(self, "bounds", graphic, "bounds"))
-
     def __deepcopy__(self, memo):
         deepcopy = self.__class__(self.operation_id)
         deepcopy.deepcopy_from(self, memo)
         memo[id(self)] = deepcopy
         return deepcopy
 
+    def about_to_be_removed(self):
+        """ When the operation is about to be removed, remove the region on data source, if any. """
+        region = self.__weak_region and self.__weak_region()
+        data_item = self.data_item
+        data_source = data_item and data_item.data_source
+        if region and data_source:
+            data_source.remove_region(region)
+
     def __get_object_store(self):
         return self.__object_store
     def __set_object_store(self, object_store):
         self.__object_store = object_store
+        region_uuid = self.region_uuid
+        if region_uuid is not None:
+            def registered(region):
+                self.__set_region(region)
+            def unregistered(region=None):
+                for binding in self.__bindings:
+                    binding.close()
+                self.__bindings = list()
+            if object_store:
+                object_store.subscribe(region_uuid, registered, unregistered)
+            else:
+                unregistered()
     object_store = property(__get_object_store, __set_object_store)
 
     def read_storage(self, vault):
@@ -143,6 +156,22 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
         self.notify_listeners("operation_changed", self)
+
+    def __set_region(self, region):
+        if self.operation_id == "line-profile-operation":
+            assert region.type == "line-region"
+            self.__bindings.append(OperationPropertyToRegionBinding(self, "start", region, "start"))
+            self.__bindings.append(OperationPropertyToRegionBinding(self, "end", region, "end"))
+            self.__bindings.append(OperationPropertyToRegionBinding(self, "integration_width", region, "width"))
+            self.set_property("start", region.start)
+            self.set_property("end", region.end)
+            self.set_property("width", region.width)
+            self.__weak_region = weakref.ref(region)
+        elif self.operation_id == "crop-operation":
+            assert region.type == "rectangle-region"
+            self.__bindings.append(OperationPropertyToRegionBinding(self, "bounds", region, "bounds"))
+            self.set_property("bounds", region.bounds)
+            self.__weak_region = weakref.ref(region)
 
     # get a property.
     def get_property(self, property_id, default_value=None):
@@ -181,12 +210,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
                 return [data.copy()]
         return []
 
-    # graphics
-
-    def __get_graphics(self):
-        return self.__graphics
-    graphics = property(__get_graphics)
-
     # calibrations
 
     def get_processed_intermediate_data_items(self, data_inputs):
@@ -215,9 +238,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.set_property(key, values[key])
-
-    def remove_operation_graphic(self, operation_graphic):
-        self.notify_listeners("remove_operation_because_graphic_removed", self)
 
 
 class Singleton(type):
@@ -695,29 +715,29 @@ class SliceOperationPropertyBinding(Binding.Binding):
                 self.__values = copy.copy(self.source.values)
 
 
-class OperationPropertyToGraphicBinding(OperationPropertyBinding):
+class OperationPropertyToRegionBinding(OperationPropertyBinding):
 
     """
         Binds a property of an operation item to a property of a graphic item.
     """
 
-    def __init__(self, operation, operation_property_name, graphic, graphic_property_name):
-        super(OperationPropertyToGraphicBinding, self).__init__(operation, operation_property_name)
-        self.__graphic = graphic
-        self.__graphic.add_observer(self)
-        self.__graphic_property_name = graphic_property_name
+    def __init__(self, operation, operation_property_name, region, region_property_name):
+        super(OperationPropertyToRegionBinding, self).__init__(operation, operation_property_name)
+        self.__region = region
+        self.__region.add_observer(self)
+        self.__region_property_name = region_property_name
         self.__operation_property_name = operation_property_name
-        self.target_setter = lambda value: setattr(self.__graphic, graphic_property_name, value)
+        self.target_setter = lambda value: setattr(self.__region, region_property_name, value)
 
     def close(self):
-        self.__graphic.remove_observer(self)
-        self.__graphic = None
-        super(OperationPropertyToGraphicBinding, self).close()
+        self.__region.remove_observer(self)
+        self.__region = None
+        super(OperationPropertyToRegionBinding, self).close()
 
-    # watch for property changes on the graphic.
+    # watch for property changes on the region.
     def property_changed(self, sender, property_name, property_value):
-        super(OperationPropertyToGraphicBinding, self).property_changed(sender, property_name, property_value)
-        if sender == self.__graphic and property_name == self.__graphic_property_name:
+        super(OperationPropertyToRegionBinding, self).property_changed(sender, property_name, property_value)
+        if sender == self.__region and property_name == self.__region_property_name:
             old_property_value = self.source.get_property(self.__operation_property_name)
             # to prevent message loops, check to make sure it changed
             if property_value != old_property_value:

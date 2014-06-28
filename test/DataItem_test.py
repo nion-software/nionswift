@@ -481,10 +481,16 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        data_item_crop = DataItem.DataItem()
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.add_operation(crop_operation_item)
+        crop_region = Region.RectRegion()
+        crop_region.center = 0.5, 0.5
+        crop_region.size = 0.5, 0.5
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item.add_region(crop_region)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+        data_item_crop = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item_crop.add_operation(crop_operation)
         data_item_crop.add_data_source(data_item)
         document_model.append_data_item(data_item_crop)
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
@@ -496,15 +502,20 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        data_item_crop = DataItem.DataItem()
+        crop_region = Region.RectRegion()
+        crop_region.center = 0.5, 0.5
+        crop_region.size = 0.5, 0.5
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        data_item.add_region(crop_region)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+        data_item_crop = DataItem.DataItem()
         data_item_crop.add_data_source(data_item)
         document_model.append_data_item(data_item_crop)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.add_operation(crop_operation_item)
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item_crop.add_operation(crop_operation)
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-        data_item_crop.remove_operation(crop_operation_item)
+        data_item_crop.remove_operation(crop_operation)
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
@@ -522,9 +533,14 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         listener = Listener()
         data_item.displays[0].add_listener(listener)
+        crop_region = Region.RectRegion()
+        crop_region.center = 0.5, 0.5
+        crop_region.size = 0.5, 0.5
+        data_item.add_region(crop_region)
         data_item_crop = DataItem.DataItem()
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.add_operation(crop_operation_item)
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item_crop.add_operation(crop_operation)
         data_item_crop.add_data_source(data_item)
         document_model.append_data_item(data_item_crop)
         listener.reset()
@@ -547,15 +563,48 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         listener = Listener()
         data_item.displays[0].add_listener(listener)
+        crop_region = Region.RectRegion()
+        crop_region.center = 0.5, 0.5
+        crop_region.size = 0.5, 0.5
+        data_item.add_region(crop_region)
         data_item_crop = DataItem.DataItem()
-        crop_operation_item = Operation.OperationItem("crop-operation")
-        data_item_crop.add_operation(crop_operation_item)
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item_crop.add_operation(crop_operation)
         data_item_crop.add_data_source(data_item)
         document_model.append_data_item(data_item_crop)
         data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         listener.reset()
         data_item.displays[0].drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
         self.assertTrue(listener._display_changed)
+
+    def test_updating_region_bounds_updates_crop_graphic(self):
+        datastore = Storage.DictDatastore()
+        document_model = DocumentModel.DocumentModel(datastore)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        crop_region = Region.RectRegion()
+        crop_region.center = 0.5, 0.5
+        crop_region.size = 0.5, 0.5
+        data_item.add_region(crop_region)
+        data_item_crop = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item_crop.add_operation(crop_operation)
+        data_item_crop.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop)
+        # verify assumptions
+        self.assertEqual(crop_operation.get_property("bounds"), ((0.25, 0.25), (0.5, 0.5)))
+        # operation should now match the region
+        self.assertEqual(crop_region.center, (0.5, 0.5))
+        self.assertEqual(crop_region.size, (0.5, 0.5))
+        # make change and verify it changed
+        crop_region.center = 0.6, 0.6
+        bounds = crop_operation.get_property("bounds")
+        self.assertAlmostEqual(bounds[0][0], 0.35)
+        self.assertAlmostEqual(bounds[0][1], 0.35)
+        self.assertAlmostEqual(bounds[1][0], 0.5)
+        self.assertAlmostEqual(bounds[1][1], 0.5)
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

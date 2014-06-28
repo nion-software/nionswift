@@ -181,8 +181,8 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ActiveSe
         self.notify_listeners("graphic_changed", self)
     def nudge(self, mapping, delta):
         raise NotImplementedError()
-    def notify_remove_operation_graphic(self):
-        self.notify_listeners("remove_operation_graphic", self)
+    def notify_remove_region_graphic(self):
+        self.notify_listeners("remove_region_graphic", self)
 
 
 class RectangleTypeGraphic(Graphic):

@@ -668,7 +668,7 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
-    def test_reloaded_line_profile_operation_generates_correct_graphics(self):
+    def test_reloaded_line_profile_operation_binds_to_roi(self):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
@@ -681,6 +681,11 @@ class TestStorageClass(unittest.TestCase):
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_property("start", (0.1, 0.2))
         line_profile_operation.set_property("end", (0.3, 0.4))
+        line_region = Region.LineRegion()
+        line_region.start = 0.1, 0.2
+        line_region.end = 0.3, 0.4
+        line_profile_operation.region_uuid = line_region.uuid
+        data_item.add_region(line_region)
         data_item2.add_operation(line_profile_operation)
         data_item2.add_data_source(data_item)
         # save it out
@@ -691,10 +696,13 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
+        self.assertEqual(document_model.data_items[0].regions[0].start, (0.1, 0.2))
+        self.assertEqual(document_model.data_items[0].regions[0].end, (0.3, 0.4))
         self.assertEqual(document_model.data_items[1].operations[0].values["start"], (0.1, 0.2))
         self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
-        self.assertEqual(document_model.data_items[1].operations[0].graphics[0].start, (0.1, 0.2))
-        self.assertEqual(document_model.data_items[1].operations[0].graphics[0].end, (0.3, 0.4))
+        document_model.data_items[0].regions[0].start = 0.11, 0.22
+        self.assertEqual(document_model.data_items[1].operations[0].values["start"], (0.11, 0.22))
+        self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
         # clean up
         document_controller.close()
 

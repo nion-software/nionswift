@@ -253,13 +253,22 @@ class DbDataItemVault(object):
 class ObjectStore(object):
 
     def __init__(self):
-        pass
+        self.__subscriptions = dict()
+        self.__objects = dict()
 
-    def register_object(self, object):
-        pass
+    def register(self, object):
+        object_uuid = object.uuid
+        def remove_object(weak_object):
+            del self.__objects[object_uuid]
+        weak_object = weakref.ref(object, remove_object)
+        self.__objects[object_uuid] = weak_object
 
-    def lookup_object_by_uuid(self, uuid_):
-        pass
+    def subscribe(self, uuid_, registered, unregistered):
+        self.__subscriptions.setdefault(uuid_, list()).append((registered, unregistered))
+        weak_object = self.__objects.get(uuid_)
+        object = weak_object and weak_object()
+        if object is not None:
+            registered(object)
 
 
 class DocumentModel(Storage.StorageBase):
@@ -327,6 +336,8 @@ class DocumentModel(Storage.StorageBase):
         for other_data_item in copy.copy(self.data_items):
             if other_data_item.data_source == data_item:
                 self.remove_data_item(other_data_item)
+        # tell the data item it is about to be removed
+        data_item.about_to_be_removed()
         # disconnect the data source
         data_item.object_store = None
         data_item.disconnect_data_sources()
