@@ -478,11 +478,16 @@ class Application(object):
             parent_uuids = list()
             for row in c.fetchall():
                 parent_uuids.append(row[0])
+            all_properties = dict()
+            existing_references = dict()
             for parent_uuid in parent_uuids:
                 # grab the existing properties from the data item
                 c.execute("SELECT value FROM properties WHERE uuid=? AND key='properties'", (parent_uuid, ))
                 result = c.fetchone()
                 properties = pickle.loads(str(result[0])) if result else dict()
+                all_properties[parent_uuid] = properties
+            for parent_uuid in parent_uuids:
+                properties = all_properties[parent_uuid]
                 # read the data shape and dtype, if any
                 c.execute("SELECT shape, dtype, reference FROM data_references WHERE uuid=? AND key='master_data'", (str(parent_uuid), ))
                 result = c.fetchone()
@@ -518,12 +523,7 @@ class Application(object):
                     path_components.append(session_id)
                     path_components.append("data_" + encoded_uuid_str)
                     return os.path.join(*path_components)
-                if existing_reference:
-                    data_file_path = existing_reference
-                else:
-                    data_file_path = get_default_reference(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
-                reference = os.path.splitext(data_file_path)[0]
-                file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
+                existing_references[parent_uuid] = existing_reference
                 data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
                 if existing_reference and "data_sources" in properties:
                     history = properties.setdefault("history", dict())
@@ -532,7 +532,40 @@ class Application(object):
                     del properties["data_sources"]
                 if "session_uuid" in properties.get("hardware_source", dict()):
                     del properties.get("hardware_source")["session_uuid"]
+            for parent_uuid in parent_uuids:
+                properties = all_properties[parent_uuid]
+                operation_id = "operations" in properties and properties["operations"][0]["operation_id"]
+                if operation_id in ["line-profile-operation", "crop-operation"]:
+                    region_uuid_str = str(uuid.uuid4())
+                    properties["operations"][0]["region_uuid"] = region_uuid_str
+                    source_properties = all_properties.get(properties["data_sources"][0])
+                    if source_properties is not None:
+                        if operation_id == "line-profile-operation":
+                            region = dict()
+                            region["type"] = "line-region"
+                            region["uuid"] = region_uuid_str
+                            region["start"] = properties["operations"][0].get("values", dict()).get("start", (0.25, 0.25))
+                            region["end"] = properties["operations"][0].get("values", dict()).get("end", (0.75, 0.75))
+                            region["width"] = properties["operations"][0].get("values", dict()).get("width", 1.0)
+                            source_properties.setdefault("regions", list()).append(region)
+                        elif operation_id == "crop-operation":
+                            region = dict()
+                            region["type"] = "rectangle-region"
+                            region["uuid"] = region_uuid_str
+                            bounds = properties["operations"][0].get("values", dict()).get("bounds", ((0.0, 0.0), (1.0, 1.0)))
+                            region["center"] = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
+                            region["size"] = bounds[1]
+                            source_properties.setdefault("regions", list()).append(region)
+            for parent_uuid in parent_uuids:
+                properties = all_properties[parent_uuid]
+                existing_reference = existing_references[parent_uuid]
                 properties = ImportExportManager.clean_dict(properties)
+                if existing_reference:
+                    data_file_path = existing_reference
+                else:
+                    data_file_path = get_default_reference(uuid.UUID(parent_uuid), properties.get("datetime_original"), properties.get("session_id"))
+                reference = os.path.splitext(data_file_path)[0]
+                file_datetime = Utility.get_datetime_from_datetime_item(properties.get("datetime_original"))
                 data_reference_handler.write_properties(properties, "relative_file", reference, file_datetime)
                 if existing_reference:
                     nsdata_path = os.path.join(workspace_dir, "Nion Swift Data", existing_reference.replace("data_", "master_data_") + ".nsdata")
