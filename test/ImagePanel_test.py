@@ -12,6 +12,7 @@ from nion.swift import ImagePanel
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.ui import Geometry
 from nion.ui import Test
@@ -448,9 +449,10 @@ class TestImagePanelClass(unittest.TestCase):
     def test_mouse_tracking_moves_horizontal_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        modifiers = Test.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_horizontal(Geometry.IntPoint(x=320, y=465), rescale=False)
-        line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465))
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465), modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         offset = -1024.0 * 40.0 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(offset))
         self.assertEqual(self.image_panel.display.right_channel, int(1024 + offset))
@@ -459,9 +461,10 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item = self.setup_line_plot()
         # notice: dragging increasing y drags down.
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
+        modifiers = Test.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
-        line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240))
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         offset = -1.0 * 30.0 / plot_height
         self.assertAlmostEqual(self.image_panel.display.y_min, 0.0 + offset)
         self.assertAlmostEqual(self.image_panel.display.y_max, 1.0 + offset)
@@ -471,10 +474,11 @@ class TestImagePanelClass(unittest.TestCase):
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(round(512 - int(plot_width * 0.5) * 10 * channel_per_pixel)))
         self.assertEqual(self.image_panel.display.right_channel, int(round(512 + int(plot_width * 0.5) * 10 * channel_per_pixel)))
@@ -484,10 +488,11 @@ class TestImagePanelClass(unittest.TestCase):
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
         # self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
         self.assertEqual(self.image_panel.display.left_channel, int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
@@ -498,10 +503,11 @@ class TestImagePanelClass(unittest.TestCase):
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + 200, y=465)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(round(200 * channel_per_pixel - 200 * 10 * channel_per_pixel)))
         self.assertEqual(self.image_panel.display.right_channel, int(round(200 * channel_per_pixel + (plot_width - 200) * 10 * channel_per_pixel)))
@@ -511,10 +517,11 @@ class TestImagePanelClass(unittest.TestCase):
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + 400, y=465)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         channel_per_pixel = 1024.0 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(round(400 * channel_per_pixel - 400 * 0.1 * channel_per_pixel)))
         self.assertEqual(self.image_panel.display.right_channel, int(round(400 * channel_per_pixel + (plot_width - 400) * 0.1 * channel_per_pixel)))
@@ -524,10 +531,11 @@ class TestImagePanelClass(unittest.TestCase):
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
         pos = Geometry.IntPoint(x=30, y=plot_bottom - 200)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=40)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         scaling = float(plot_bottom - pos.y) / float(plot_bottom - (pos.y + offset.height))
         self.assertAlmostEqual(self.image_panel.display.y_min, 0.0)
         self.assertAlmostEqual(self.image_panel.display.y_max, scaling)
@@ -543,10 +551,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height/2.0) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
         self.assertAlmostEqual(self.image_panel.display.y_min, -0.5 * scaling)
@@ -563,10 +572,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height*0.2) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
         self.assertAlmostEqual(self.image_panel.display.y_min, -0.2 * scaling)
@@ -585,10 +595,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height*0.2) - pos.y
         scaling = float(relative_y) / float(relative_y - offset.height)
         self.assertAlmostEqual(self.image_panel.display.y_min, -0.2 * scaling + 0.2)
@@ -605,10 +616,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=plot_height)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height/2.0) - pos.y
         scaling = plot_height
         new_drawn_data_per_pixel = 1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
@@ -626,10 +638,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
+        modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=-plot_height)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
-        line_plot_canvas_item.continue_tracking(pos + offset)
-        line_plot_canvas_item.end_tracking()
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
         relative_y = (plot_bottom - plot_height/2.0) - pos.y
         scaling = plot_height
         new_drawn_data_per_pixel = -1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
@@ -652,6 +665,45 @@ class TestImagePanelClass(unittest.TestCase):
         channel_per_pixel = 1024.0/10 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(0 - channel_per_pixel * 100))
         self.assertEqual(self.image_panel.display.right_channel, int(int(1024/10.0) - channel_per_pixel * 100))
+
+    def test_click_on_selection_makes_it_selected(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        line_plot_data_item = self.document_model.data_items[1]
+        region = Region.IntervalRegion()
+        region.start = 0.3
+        region.end = 0.4
+        line_plot_data_item.add_region(region)
+        # make sure assumptions are correct
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 0)
+        # do the click
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        # make sure results are correct
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 1)
+
+    def test_click_outside_selection_makes_it_unselected(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        line_plot_data_item = self.document_model.data_items[1]
+        region = Region.IntervalRegion()
+        region.start = 0.3
+        region.end = 0.4
+        line_plot_data_item.add_region(region)
+        # make sure assumptions are correct
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 0)
+        # do the first click to select
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        # make sure results are correct
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 1)
+        # do the second click to deselect
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.1, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.1, 100, Test.KeyboardModifiers())
+        # make sure results are correct
+        self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 0)
 
 
 if __name__ == '__main__':

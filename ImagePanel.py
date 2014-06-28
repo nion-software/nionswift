@@ -90,7 +90,26 @@ _ = gettext.gettext
 # tbd
 
 
-class WidgetMapping(object):
+class WidgetChannelMapping(object):
+
+    def __init__(self, data_size, plot_rect, left_channel, right_channel):
+        self.__data_size = data_size
+        self.__plot_rect = plot_rect
+        self.__left_channel = left_channel
+        self.__right_channel = right_channel
+        self.__drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
+
+    def map_point_widget_to_channel_norm(self, pos):
+        return (self.__left_channel + (pos.x - self.__plot_rect.left) * self.__drawn_channel_per_pixel) / self.__data_size[0]
+
+    def map_point_channel_norm_to_widget(self, x):
+        return (x * self.__data_size[0] - self.__left_channel) / self.__drawn_channel_per_pixel + self.__plot_rect.left
+
+    def map_point_channel_norm_to_channel(self, x):
+        return x * self.__data_size[0]
+
+
+class WidgetImageMapping(object):
 
     def __init__(self, data_shape, canvas_origin, canvas_size):
         self.data_shape = data_shape
@@ -167,7 +186,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         if display:
 
-            widget_mapping = WidgetMapping(display.data_item.spatial_shape, (0, 0), self.canvas_size)
+            widget_mapping = WidgetImageMapping(display.data_item.spatial_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
             for graphic_index, graphic in enumerate(display.drawn_graphics):
@@ -217,7 +236,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
-                widget_mapping = WidgetMapping(display.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
+                widget_mapping = WidgetImageMapping(display.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / display.data_item.spatial_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
@@ -319,8 +338,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
 
+        # used for dragging graphic items
+        self.graphic_drag_items = []
+        self.graphic_drag_item = None
+        self.graphic_part_data = {}
+        self.graphic_drag_indexes = []
         self.__last_mouse = None
         self.__mouse_in = False
+        self.__tracking_selections = False
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
@@ -487,19 +512,22 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_cursor_info()
         new_rescale = modifiers.control
         if self.__tracking_horizontal and self.__tracking_rescale != new_rescale:
-            self.end_tracking()
+            self.end_tracking(modifiers)
             self.begin_tracking_horizontal(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
         elif self.__tracking_vertical and self.__tracking_rescale != new_rescale:
-            self.end_tracking()
+            self.end_tracking(modifiers)
             self.begin_tracking_vertical(Geometry.IntPoint(x=x, y=y), rescale=new_rescale)
-        return self.continue_tracking(Geometry.IntPoint(x=x, y=y))
+        return self.continue_tracking(Geometry.IntPoint(x=x, y=y), modifiers)
 
     def mouse_pressed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
         if self.document_controller.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
-            if self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
+            if self.line_graph_regions_canvas_item.canvas_rect.contains_point(pos):
+                self.begin_tracking_regions(pos, modifiers)
+                return True
+            elif self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
                 self.begin_tracking_horizontal(pos, rescale=modifiers.control)
                 return True
             elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
@@ -510,7 +538,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        self.end_tracking()
+        self.end_tracking(modifiers)
         return False
 
     def context_menu_event(self, x, y, gx, gy):
@@ -524,6 +552,51 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def reset_vertical(self):
         self.__display.y_min = None
         self.__display.y_max = None
+
+    def __get_mouse_mapping(self):
+        data_size = self.__get_data_size()
+        plot_rect = self.line_graph_regions_canvas_item.canvas_rect
+        left_channel = self.line_graph_canvas_item.drawn_left_channel
+        right_channel = self.line_graph_canvas_item.drawn_right_channel
+        drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
+        return WidgetChannelMapping(data_size, plot_rect, left_channel, right_channel)
+
+    def begin_tracking_regions(self, pos, modifiers):
+        data_size = self.__get_data_size()
+        display = self.display
+        if display and data_size and len(data_size) == 1:
+            self.__tracking_selections = True
+            drawn_graphics = display.drawn_graphics
+            for graphic_index, graphic in enumerate(drawn_graphics):
+                start_drag_pos = Geometry.IntPoint.make(pos)
+                already_selected = display.graphic_selection.contains(graphic_index)
+                multiple_items_selected = len(display.graphic_selection.indexes) > 1
+                move_only = not already_selected or multiple_items_selected
+                widget_mapping = self.__get_mouse_mapping()
+                part = graphic.test(widget_mapping, start_drag_pos, move_only)
+                if part:
+                    # select item and prepare for drag
+                    self.graphic_drag_item_was_selected = already_selected
+                    if not self.graphic_drag_item_was_selected:
+                        if modifiers.shift:
+                            display.graphic_selection.add(graphic_index)
+                        elif not already_selected:
+                            display.graphic_selection.set(graphic_index)
+                    # keep track of general drag information
+                    self.graphic_drag_start_pos = start_drag_pos
+                    self.graphic_drag_changed = False
+                    # keep track of info for the specific item that was clicked
+                    self.graphic_drag_item = drawn_graphics[graphic_index]
+                    self.graphic_drag_part = part
+                    # keep track of drag information for each item in the set
+                    self.graphic_drag_indexes = display.graphic_selection.indexes
+                    for index in self.graphic_drag_indexes:
+                        graphic = drawn_graphics[index]
+                        self.graphic_drag_items.append(graphic)
+                        self.graphic_part_data[index] = graphic.begin_drag()
+                    break
+            if not self.graphic_drag_items and not modifiers.shift:
+                display.graphic_selection.clear()
 
     def begin_tracking_horizontal(self, pos, rescale):
         plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
@@ -557,8 +630,20 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__tracking_start_origin_y = 0  # the distance the origin is up from the bottom
             self.__tracking_start_origin_data = self.__tracking_start_drawn_data_min
 
-    def continue_tracking(self, pos):
-        if self.__tracking_horizontal:
+    def continue_tracking(self, pos, modifiers):
+        if self.__tracking_selections:
+            # x,y already have transform applied
+            self.__last_mouse = copy.copy(pos)
+            self.__update_cursor_info()
+            if self.graphic_drag_items:
+                for graphic in self.graphic_drag_items:
+                    index = self.display.drawn_graphics.index(graphic)
+                    part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
+                    widget_mapping = self.__get_mouse_mapping()
+                    graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
+                    self.graphic_drag_changed = True
+                    self.line_graph_regions_canvas_item.update()
+        elif self.__tracking_horizontal:
             if self.__tracking_rescale:
                 plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
                 pixel_offset_x = pos.x - self.__tracking_start_pos.x
@@ -571,7 +656,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__display.left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
                 self.__display.right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
                 return True
-        if self.__tracking_vertical:
+        elif self.__tracking_vertical:
             if self.__tracking_rescale:
                 plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
                 origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
@@ -593,9 +678,34 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         return False
 
-    def end_tracking(self):
+    def end_tracking(self, modifiers):
+        if self.__tracking_selections:
+            display = self.display
+            if display:
+                drawn_graphics = display.drawn_graphics
+                for index in self.graphic_drag_indexes:
+                    graphic = drawn_graphics[index]
+                    graphic.end_drag(self.graphic_part_data[index])
+                if self.graphic_drag_items and not self.graphic_drag_changed:
+                    graphic_index = drawn_graphics.index(self.graphic_drag_item)
+                    # user didn't move graphic
+                    if not modifiers.shift:
+                        # user clicked on a single graphic
+                        display.graphic_selection.set(graphic_index)
+                    else:
+                        # user shift clicked. toggle selection
+                        # if shift is down and item is already selected, toggle selection of item
+                        if self.graphic_drag_item_was_selected:
+                            display.graphic_selection.remove(graphic_index)
+                        else:
+                            display.graphic_selection.add(graphic_index)
+            self.graphic_drag_items = []
+            self.graphic_drag_item = None
+            self.graphic_part_data = {}
+            self.graphic_drag_indexes = []
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
+        self.__tracking_selections = False
 
     def __get_data_size(self):
         data_item = self.display.data_item if self.display else None
@@ -747,7 +857,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def update_image_canvas_position(self, widget_delta):
         if self.display:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = WidgetMapping(self.display.data_item.spatial_shape, (0, 0), self.composite_canvas_item.canvas_size)
+            widget_mapping = WidgetImageMapping(self.display.data_item.spatial_shape, (0, 0), self.composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -806,7 +916,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         #logging.debug("image_canvas_size %s", image_canvas_size)
         #logging.debug("spatial_shape %s", spatial_shape)
         #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / spatial_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / spatial_shape[1])
-        widget_mapping = WidgetMapping(self.display.data_item.spatial_shape, (0, 0), image_canvas_size)
+        widget_mapping = WidgetImageMapping(self.display.data_item.spatial_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
         canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
@@ -849,7 +959,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if self.document_controller.tool_mode == "pointer":
             drawn_graphics = display.drawn_graphics
             for graphic_index, graphic in enumerate(drawn_graphics):
-                start_drag_pos = y, x
+                start_drag_pos = Geometry.IntPoint(y=y, x=x)
                 already_selected = display.graphic_selection.contains(graphic_index)
                 multiple_items_selected = len(display.graphic_selection.indexes) > 1
                 move_only = not already_selected or multiple_items_selected
@@ -857,7 +967,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 part = graphic.test(widget_mapping, start_drag_pos, move_only)
                 if part:
                     # select item and prepare for drag
-                    self.graphic_drag_item_was_selected = display.graphic_selection.contains(graphic_index)
+                    self.graphic_drag_item_was_selected = already_selected
                     if not self.graphic_drag_item_was_selected:
                         if modifiers.shift:
                             display.graphic_selection.add(graphic_index)
@@ -1059,7 +1169,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_mouse_mapping(self):
         image_size = self.__get_image_size()
-        return WidgetMapping(image_size, self.composite_canvas_item.canvas_origin, self.composite_canvas_item.canvas_size)
+        return WidgetImageMapping(image_size, self.composite_canvas_item.canvas_origin, self.composite_canvas_item.canvas_size)
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):

@@ -537,9 +537,46 @@ class IntervalGraphic(Graphic):
     def __init__(self):
         super(IntervalGraphic, self).__init__("interval-graphic")
         self.title = _("Interval")
-        # start and end points are stored in image normalized coordinates
+        # start and end points are stored in channel normalized coordinates
         self.define_property(Observable.Property("start", 0.0, changed=self._property_changed))
         self.define_property(Observable.Property("end", 1.0, changed=self._property_changed))
+    # test is required for Graphic interface
+    def test(self, mapping, test_point, move_only):
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        p1 = mapping.map_point_channel_norm_to_widget(self.start)
+        p2 = mapping.map_point_channel_norm_to_widget(self.end)
+        # start point
+        if not move_only and abs(test_point.x - p1) < 4:
+            return "start"
+        # end point
+        if not move_only and abs(test_point.x - p2) < 4:
+            return "end"
+        # along the line
+        if test_point.x > p1 and test_point.x < p2:
+            return "all"
+        # didn't find anything
+        return None
+    def begin_drag(self):
+        return (self.start, self.end)
+    def end_drag(self, part_data):
+        pass
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        o = mapping.map_point_widget_to_channel_norm(original)
+        p = mapping.map_point_widget_to_channel_norm(current)
+        if part[0] == "start":
+            self.start = p
+        elif part[0] == "end":
+            self.end = p
+        elif part[0] == "all":
+            self.start = part[1] + (p - o)
+            self.end = part[2] + (p - o)
+    def nudge(self, mapping, delta):
+        end_channel = mapping.map_point_channel_norm_to_channel(self.end)
+        start_channel = mapping.map_point_channel_norm_to_channel(self.start)
+        original = (end_channel + start_channel) * 0.5
+        current = original + delta
+        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
 
 def factory(vault):
