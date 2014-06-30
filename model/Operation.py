@@ -303,7 +303,9 @@ class Operation(object):
                 input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
                 input_data_shape = input_data_shape_and_dtype[0]
                 input_data_dtype = input_data_shape_and_dtype[1]
-                return self.__operation.get_processed_data_shape_and_dtype(input_data_shape, input_data_dtype)
+                if input_data_shape is not None and input_data_dtype is not None:
+                    return self.__operation.get_processed_data_shape_and_dtype(input_data_shape, input_data_dtype)
+                return None, None
             data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
             def __get_calculated_intensity_calibration(self):
@@ -336,7 +338,7 @@ class Operation(object):
 
     # public method to do processing. double check that data is a copy and not the original.
     def get_processed_data(self, data):
-        new_data = self.process(data)
+        new_data = self.process(data) if data is not None else None
         if data is not None:
             assert(id(new_data) != id(data))
         if new_data is not None and new_data.base is not None:
