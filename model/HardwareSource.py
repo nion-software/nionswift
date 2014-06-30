@@ -12,11 +12,14 @@ function but should instead just notify another thread that new data is availabl
 # system imports
 import collections
 from contextlib import contextmanager
+import ConfigParser as configparser
 import copy
 import gettext
 import logging
+import os
 import threading
 import time
+import traceback
 
 # local imports
 from nion.swift.model import ImportExportManager
@@ -288,7 +291,6 @@ class HardwareSource(Observable.Broadcaster):
             minimum_period = 1/20.0  # don't allow acquisition to starve main thread
             last_acquire_time = time.time() - minimum_period
         except Exception as e:
-            import traceback
             traceback.print_exc()
             return
         try:
@@ -619,3 +621,35 @@ def __find_hardware_port_by_id(hardware_source_id):
     if port.get_last_data_elements() is None:
         logging.warn("Could not start data_source %s", image_source_name)
     return port
+
+
+def parse_hardware_aliases_config_file(config_path):
+    """
+        Parse config file for aliases and automatically register them.
+
+        Returns True if alias file was found and parsed (successfully or unsuccessfully).
+
+        Returns False if alias file was not found.
+
+        Config file is a standard .ini file with a section
+    """
+    if os.path.exists(config_path):
+        logging.info("Parsing alias file {:s}".format(config_path))
+        try:
+            config = configparser.SafeConfigParser()
+            config.read(config_path)
+            for section in config.sections():
+                device = config.get(section, "device")
+                hardware_alias = config.get(section, "hardware_alias")
+                display_name = config.get(section, "display_name")
+                try:
+                    logging.info("Adding alias {:s} for device {:s}, display name: {:s} ".format(hardware_alias, device, display_name))
+                    HardwareSourceManager().make_hardware_source_alias(device, hardware_alias, _(display_name))
+                except Exception as e:
+                    logging.info("Error creating hardware alias {:s} for device {:s} ".format(hardware_alias, device))
+                    logging.info(traceback.format_exc())
+        except Exception as e:
+            logging.info("Error reading alias file from: " + config_path)
+            logging.info(traceback.format_exc())
+        return True
+    return False
