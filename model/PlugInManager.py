@@ -7,10 +7,14 @@ import sys
 import traceback
 import unittest
 
+
+__modules = []
 __test_suites = []
 
 
-def load_plug_ins(ui, root_dir):
+def load_plug_ins(app, root_dir):
+    ui = app.ui
+
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
     # we'll let command line arguments overwrite the plugin folder location
     subdirectories = []
@@ -64,10 +68,25 @@ def load_plug_ins(ui, root_dir):
                                     cls = getattr(member[1], maybe_a_class[0])
                                     __test_suites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
                     plugin_loaded_str = "Plug-in '" + plugin_dir + "' loaded."
+                    __modules.append(module)
                     list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
                     logging.info(plugin_loaded_str + list_of_tests_str)
                 except Exception:
                     logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
+                    logging.info(traceback.format_exc())
+                    logging.info("--------")
+
+    notify_modules("run")
+
+
+def notify_modules(method_name, *args, **kwargs):
+    for module in __modules:
+        for member in inspect.getmembers(module):
+            if inspect.isfunction(member[1]) and member[0] == method_name:
+                try:
+                    member[1](*args, **kwargs)
+                except Exception:
+                    logging.info("Plug-in '" + str(module) + "' exception during '" + method_name + "'.")
                     logging.info(traceback.format_exc())
                     logging.info("--------")
 

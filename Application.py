@@ -76,7 +76,7 @@ class Application(object):
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
-        PlugInManager.load_plug_ins(self.ui, get_root_dir())
+        PlugInManager.load_plug_ins(self, get_root_dir())
         Test.load_tests()  # after plug-ins are loaded
 
     def choose_workspace(self):
@@ -586,6 +586,7 @@ class Application(object):
         storage_cache = Storage.DbStorageCache(cache_filename)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         document_model.create_default_data_groups()
+        PlugInManager.notify_modules("document_model_loaded", self, document_model)
         document_controller = self.create_document_controller(document_model, "library")
         if self.resources_path is not None:
             document_model.create_sample_images(self.resources_path)
