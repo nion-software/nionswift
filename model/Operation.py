@@ -465,11 +465,21 @@ class Crop2dOperation(Operation):
         super(Crop2dOperation, self).__init__(_("Crop"), "crop-operation", description)
         self.bounds = (0.0, 0.0), (1.0, 1.0)
 
+    def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
+        cropped_spatial_calibrations = list()
+        bounds = self.get_property("bounds")
+        for index, spatial_calibration in enumerate(spatial_calibrations):
+            cropped_calibration = Calibration.Calibration(spatial_calibration.origin + data_shape[index] * bounds[0][index] * spatial_calibration.scale,
+                                                          spatial_calibration.scale,
+                                                          spatial_calibration.units)
+            cropped_spatial_calibrations.append(cropped_calibration)
+        return cropped_spatial_calibrations
+
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
         bounds = self.get_property("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
-        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
         else:
             return bounds_int[1], data_dtype
@@ -497,6 +507,37 @@ class Slice3dOperation(Operation):
         shape = data.shape
         slice = self.get_property("slice")
         return data[slice,:].copy()
+
+
+class Projection2dOperation(Operation):
+
+    def __init__(self):
+        # hardcoded to axis 0 right now
+        super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
+
+    def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
+        return copy.deepcopy(spatial_calibrations)[1:]
+
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return data_shape[1:], data_dtype
+
+    def process(self, data):
+        if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+            if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+                rgb_image = numpy.empty(data.shape[1:], numpy.uint8)
+                rgb_image[:,0] = numpy.average(data[...,0], 0)
+                rgb_image[:,1] = numpy.average(data[...,1], 0)
+                rgb_image[:,2] = numpy.average(data[...,2], 0)
+                return rgb_image
+            else:
+                rgba_image = numpy.empty(data.shape[1:], numpy.uint8)
+                rgba_image[:,0] = numpy.average(data[...,0], 0)
+                rgba_image[:,1] = numpy.average(data[...,1], 0)
+                rgba_image[:,2] = numpy.average(data[...,2], 0)
+                rgba_image[:,3] = numpy.average(data[...,3], 0)
+                return rgba_image
+        else:
+            return numpy.average(data, 0)
 
 
 class Resample2dOperation(Operation):
@@ -529,7 +570,7 @@ class Resample2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
-        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return (height, width, data_shape[-1]), data_dtype
         else:
             return (height, width), data_dtype
@@ -576,7 +617,7 @@ class LineProfileOperation(Operation):
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
         length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
-        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return (length, ), numpy.dtype(numpy.double)
         else:
             return (length, ), numpy.dtype(numpy.double)
@@ -645,7 +686,7 @@ class ConvertToScalarOperation(Operation):
             return data.copy()
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        if Image.is_shape_and_dtype_rgba(data_shape, data_dtype) or Image.is_shape_and_dtype_rgb(data_shape, data_dtype):
+        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)
         elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
             if Image.is_shape_and_dtype_complex64(data_shape, data_dtype):
@@ -770,6 +811,7 @@ OperationManager().register_operation("invert-operation", lambda: InvertOperatio
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
 OperationManager().register_operation("crop-operation", lambda: Crop2dOperation())
 OperationManager().register_operation("slice-operation", lambda: Slice3dOperation())
+OperationManager().register_operation("projection-operation", lambda: Projection2dOperation())
 OperationManager().register_operation("resample-operation", lambda: Resample2dOperation())
 OperationManager().register_operation("histogram-operation", lambda: HistogramOperation())
 OperationManager().register_operation("line-profile-operation", lambda: LineProfileOperation())

@@ -117,6 +117,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.OperationItem("histogram-operation")))
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         operation_list.append((data_item_real, line_profile_operation))
+        operation_list.append((data_item_real, Operation.OperationItem("projection-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
@@ -149,6 +150,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, Operation.OperationItem("histogram-operation")))
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         operation_list.append((data_item_rgb, line_profile_operation))
+        operation_list.append((data_item_rgb, Operation.OperationItem("projection-operation")))
         operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
@@ -181,6 +183,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, Operation.OperationItem("histogram-operation")))
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         operation_list.append((data_item_rgb, line_profile_operation))
+        operation_list.append((data_item_rgb, Operation.OperationItem("projection-operation")))
         operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
@@ -202,6 +205,7 @@ class TestOperationClass(unittest.TestCase):
 
         operation_list = []
         operation_list.append((data_item_complex, Operation.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item_complex, Operation.OperationItem("projection-operation")))
         operation_list.append((data_item_complex, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
@@ -223,6 +227,7 @@ class TestOperationClass(unittest.TestCase):
 
         operation_list = []
         operation_list.append((data_item_complex, Operation.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item_complex, Operation.OperationItem("projection-operation")))
         operation_list.append((data_item_complex, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
@@ -392,6 +397,48 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.scale, 2.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.origin, 7.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
+
+    def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_origin(self):
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0.origin = 20.0
+        spatial_calibration_0.scale = 5.0
+        spatial_calibration_0.units = "dogs"
+        spatial_calibration_1 = data_item.intrinsic_calibrations[1]
+        spatial_calibration_1.origin = 55.0
+        spatial_calibration_1.scale = 5.5
+        spatial_calibration_1.units = "cats"
+        data_item.set_spatial_calibration(0, spatial_calibration_0)
+        data_item.set_spatial_calibration(1, spatial_calibration_1)
+        operation = Operation.OperationItem("crop-operation")
+        operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
+        data_item.add_operation(operation)
+        # make sure the calibrations are correct
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].origin, 20.0 + 2000 * 0.2 * 5.0)
+        self.assertAlmostEqual(data_item.calculated_calibrations[1].origin, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.0)
+        self.assertAlmostEqual(data_item.calculated_calibrations[1].scale, 5.5)
+        self.assertEqual(data_item.calculated_calibrations[0].units, "dogs")
+        self.assertEqual(data_item.calculated_calibrations[1].units, "cats")
+
+    def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_origin(self):
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0.origin = 20.0
+        spatial_calibration_0.scale = 5.0
+        spatial_calibration_0.units = "dogs"
+        spatial_calibration_1 = data_item.intrinsic_calibrations[1]
+        spatial_calibration_1.origin = 55.0
+        spatial_calibration_1.scale = 5.5
+        spatial_calibration_1.units = "cats"
+        data_item.set_spatial_calibration(0, spatial_calibration_0)
+        data_item.set_spatial_calibration(1, spatial_calibration_1)
+        operation = Operation.OperationItem("projection-operation")
+        data_item.add_operation(operation)
+        # make sure the calibrations are correct
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].origin, 55.0)
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.5)
+        self.assertEqual(data_item.calculated_calibrations[0].units, "cats")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
