@@ -233,7 +233,8 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
-            if display.data_item.is_calibrated and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
+            calibrations = display.data_item.calculated_calibrations
+            if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
                 calibrations = display.data_item.calculated_calibrations
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120

@@ -607,10 +607,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # calibration stuff
 
-    def __is_calibrated(self):
-        return len(self.intrinsic_calibrations) == len(self.spatial_shape)
-    is_calibrated = property(__is_calibrated)
-
     def set_spatial_calibration(self, dimension, calibration):
         spatial_calibrations = self.intrinsic_spatial_calibrations
         while len(spatial_calibrations.list) <= dimension:
