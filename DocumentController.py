@@ -45,6 +45,7 @@ class DocumentController(Observable.Broadcaster):
         if app:
             self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), os.path.splitext(os.path.split(app.workspace_dir)[1])[0])
         self.workspace = None
+        self.__workspace_controller = None
         self.app = app
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_image_panels = []
@@ -78,6 +79,8 @@ class DocumentController(Observable.Broadcaster):
         # close the workspace before closing the image panels, to save their position
         if self.workspace:
             self.workspace.close()
+        if self.__workspace_controller:
+            self.__workspace_controller.close()
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.close()
         self.document_window = None
@@ -290,8 +293,11 @@ class DocumentController(Observable.Broadcaster):
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.periodic()
 
-    def create_workspace_controller(self):
-        return Workspace.WorkspaceController(self, self.document_model.session_id)
+    def __get_workspace_controller(self):
+        if not self.__workspace_controller:
+            self.__workspace_controller = Workspace.WorkspaceController(self, self.document_model.session_id)
+        return self.__workspace_controller
+    workspace_controller = property(__get_workspace_controller)
 
     def __get_data_items_binding(self):
         return self.__data_items_binding
