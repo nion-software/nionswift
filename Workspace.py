@@ -544,12 +544,12 @@ class WorkspaceController(AbstractWorkspaceController):
                     data_item = None
             # if everything but session or live-ness matches, copy it and re-use.
             # this keeps the users display preferences intact.
-            if data_item and data_item.session_id != self.session_id:
+            if data_item and data_item.has_master_data and data_item.session_id != self.session_id:
                 do_copy = True
             # finally, verify that this data item is live. if it isn't live, copy it and add the
             # copy to the group, but re-use the original. this helps preserve the users display
             # choices. for the copy, delete derived data. keep only the master.
-            if data_item and not data_item.is_live:
+            if data_item and data_item.has_master_data and not data_item.is_live:
                 do_copy = True
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
