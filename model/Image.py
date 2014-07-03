@@ -237,7 +237,7 @@ def scalar_from_array(array, normalize=True):
 # if underlimit/overlimit are specified and display limits are specified, values out of the under/over
 #   limit percentage values are mapped to blue and red.
 # may return a new array or a view on the existing array
-def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None):
+def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None, lookup=None):
     assert numpy.ndim(array) in (1, 2, 3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
@@ -251,7 +251,10 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                 a = numpy.maximum(numpy.minimum(array, nmax_new), nmin_new)
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax_new - nmin_new) if nmax_new != nmin_new else 1
-                get_rgb_view(rgba_image)[:] = m * (a[..., numpy.newaxis] - nmin_new)
+                if lookup is not None:
+                    get_rgb_view(rgba_image)[:] = lookup[(m * (a - nmin_new)).astype(int)]
+                else:
+                    get_rgb_view(rgba_image)[:] = m * (a[..., numpy.newaxis] - nmin_new)
                 if overlimit:
                     rgba_image = numpy.where(numpy.less(array - nmin_new, nmax_new - nmin_new * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:
@@ -261,7 +264,10 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                 nmax = data_range[1] if data_range else numpy.amax(array)
                 # scalar data assigned to each component of rgb view
                 m = 255.0 / (nmax - nmin) if nmax != nmin else 1
-                get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
+                if lookup is not None:
+                    get_rgb_view(rgba_image)[:] = lookup[(m * (array - nmin)).astype(int)]
+                else:
+                    get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
                 if overlimit:
                     rgba_image = numpy.where(numpy.less(array - nmin, (nmax - nmin) * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:

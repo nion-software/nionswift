@@ -113,6 +113,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.define_property(Observable.Property("y_max", changed=self.__property_changed))
         self.define_property(Observable.Property("left_channel", changed=self.__property_changed))
         self.define_property(Observable.Property("right_channel", changed=self.__property_changed))
+        self.__lookup = None  # temporary for experimentation
         self.define_relationship(Observable.Relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic))
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
@@ -175,7 +176,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             if data_2d is not None:
                 data_range = self.data_range
                 display_limits = self.display_limits
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits)
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
@@ -199,8 +200,16 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __property_changed(self, property_name, value):
         self.notify_set_property(property_name, value)
-        self.notify_listeners("display_changed", self)
         self.__preview = None
+        self.notify_listeners("display_changed", self)
+
+    def __get_lookup_table(self):
+        return self.__lookup
+    def __set_lookup_table(self, lookup):
+        self.__lookup = lookup
+        self.__preview = None
+        self.notify_listeners("display_changed", self)
+    lookup_table = property(__get_lookup_table, __set_lookup_table)
 
     def __get_data_range(self):
         return self.data_item.data_range if self.data_item else None
