@@ -501,15 +501,16 @@ class WorkspaceController(AbstractWorkspaceController):
 
     def data_item_deleted(self, data_item):
         with self.__mutex:
-            for channel in self.__channel_data_items.keys():
-                if self.__channel_data_items[channel] == data_item:
-                    del self.__channel_data_items[channel]
+            for channel_key in self.__channel_data_items.keys():
+                if self.__channel_data_items[channel_key] == data_item:
+                    del self.__channel_data_items[channel_key]
                     break
 
-    def setup_channel(self, channel, data_item):
+    def setup_channel(self, hardware_source, channel, data_item):
         with self.__mutex:
-            self.__channel_data_items[channel] = data_item
-            self.__channel_activations.add(channel)
+            channel_key = hardware_source.hardware_source_id + "_" + str(channel)
+            self.__channel_data_items[channel_key] = data_item
+            self.__channel_activations.add(channel_key)
 
     def sync_channels_to_data_items(self, channels, hardware_source):
 
@@ -529,12 +530,12 @@ class WorkspaceController(AbstractWorkspaceController):
         # if it does, check to see if it matches this hardware source.
         # if no matching data item exists, create one.
         for channel in channels:
-            data_item = None
             do_copy = False
 
+            channel_key = hardware_source.hardware_source_id + "_" + str(channel)
+
             with self.__mutex:
-                if channel in self.__channel_data_items:
-                    data_item = self.__channel_data_items[channel]
+                data_item = self.__channel_data_items.get(channel_key)
 
             # to reuse, first verify that the hardware source id, if any, matches
             if data_item:
@@ -564,15 +565,15 @@ class WorkspaceController(AbstractWorkspaceController):
                     metadata["hardware_source_channel_id"] = channel
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
                 with self.__mutex:
-                    self.__channel_activations.discard(channel)
+                    self.__channel_activations.discard(channel_key)
             data_item.session_id = self.session_id
             with self.__mutex:
-                self.__channel_data_items[channel] = data_item
+                self.__channel_data_items[channel_key] = data_item
                 data_items[channel] = data_item
                 # check to see if its been activated. if not, activate it.
                 if channel not in self.__channel_activations:
                     self.document_controller.queue_main_thread_task(lambda value=data_item: activate_data_item(value))
-                    self.__channel_activations.add(channel)
+                    self.__channel_activations.add(channel_key)
 
         return data_items
 
