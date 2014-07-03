@@ -37,19 +37,20 @@ class HardwareSourceManager(Observable.Broadcaster):
     def __init__(self):
         super(HardwareSourceManager, self).__init__()
         self.hardware_sources = []
-        self.__hardware_source_aliases = {}
-        self.instruments = {}
+        self.instruments = []
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_removed = []
         self.instrument_added_removed = []
+        # aliases are shared between hardware sources and instruments
+        self.__aliases = {}
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
-        self.__hardware_source_aliases = {}
         self.hardware_source_added_removed = []
-        self.instruments = {}
+        self.instruments = []
         self.instrument_added_removed = []
+        self.__aliases = {}
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
@@ -64,14 +65,19 @@ class HardwareSourceManager(Observable.Broadcaster):
             f()
 
     def register_instrument(self, instrument_id, instrument):
-        self.instruments[instrument_id] = instrument
+        instrument.instrument_id = instrument_id
+        self.instruments.append(instrument)
         for f in self.instrument_added_removed:
             f()
 
     def unregister_instrument(self, instrument_id):
-        self.instruments.remove(instrument_id)
-        for f in self.instrument_added_removed:
-            f()
+        for instrument in self.instruments:
+            if instrument.instrument_id == instrument_id:
+                instrument.instrument_id = None
+                self.instruments.remove(instrument)
+                for f in self.instrument_added_removed:
+                    f()
+                break
 
     # handle acquisition style devices
 
@@ -132,16 +138,31 @@ class HardwareSourceManager(Observable.Broadcaster):
     def hardware_source_stopped(self, hardware_source):
         self.notify_listeners("hardware_source_stopped", hardware_source)
 
+    def __get_info_for_instrument_id(self, instrument_id):
+        display_name = unicode()
+        seen_instrument_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
+        while instrument_id in self.__aliases and instrument_id not in seen_instrument_ids:
+            seen_instrument_ids.append(instrument_id)  # must go before next line
+            instrument_id, display_name = self.__aliases[instrument_id]
+        for instrument in self.instruments:
+            if instrument.instrument_id == instrument_id:
+                return instrument, display_name
+        return None
+
     # may return None
     def get_instrument_by_id(self, instrument_id):
-        return self.instruments.get(instrument_id)
+        info = self.__get_info_for_instrument_id(instrument_id)
+        if info:
+            instrument, display_name = info
+            return instrument
+        return None
 
     def __get_info_for_hardware_source_id(self, hardware_source_id):
         display_name = unicode()
         seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
-        while hardware_source_id in self.__hardware_source_aliases and hardware_source_id not in seen_hardware_source_ids:
+        while hardware_source_id in self.__aliases and hardware_source_id not in seen_hardware_source_ids:
             seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
-            hardware_source_id, display_name = self.__hardware_source_aliases[hardware_source_id]
+            hardware_source_id, display_name = self.__aliases[hardware_source_id]
         for hardware_source in self.hardware_sources:
             if hardware_source.hardware_source_id == hardware_source_id:
                 return hardware_source, display_name
@@ -162,20 +183,20 @@ class HardwareSourceManager(Observable.Broadcaster):
             return hardware_source.create_port()
         return None
 
-    def make_hardware_source_alias(self, hardware_source_id, alias_hardware_source_id, display_name):
+    def make_instrument_alias(self, instrument_id, alias_instrument_id, display_name):
         """
-            Configure a hardware source alias.
+            Configure an alias.
 
-            Callers can use the alias to refer to the hardware source. This allows easier configuration.
+            Callers can use the alias to refer to the instrument or hardware source.
             The alias should be lowercase, no spaces. The display name may be used to display alias to
-            the user. The original harwdare source id and the alias hardware source id should never be
-            shown to end users.
+            the user. Neither the original instrument or hardware source id and the alias id should ever
+            be visible to end users.
 
-            :param str hardware_source_id: the hardware source id (lowercase, no spaces)
-            :param str alias_hardware_source_id: the alias of the hardware source id (lowercase, no spaces)
+            :param str instrument_id: the hardware source id (lowercase, no spaces)
+            :param str alias_instrument_id: the alias of the hardware source id (lowercase, no spaces)
             :param str display_name: the display name for the alias
         """
-        self.__hardware_source_aliases[alias_hardware_source_id] = (hardware_source_id, display_name)
+        self.__aliases[alias_instrument_id] = (instrument_id, display_name)
 
 
 class HardwareSourcePort(object):
@@ -644,7 +665,7 @@ def parse_hardware_aliases_config_file(config_path):
                 display_name = config.get(section, "display_name")
                 try:
                     logging.info("Adding alias {:s} for device {:s}, display name: {:s} ".format(hardware_alias, device, display_name))
-                    HardwareSourceManager().make_hardware_source_alias(device, hardware_alias, _(display_name))
+                    HardwareSourceManager().make_instrument_alias(device, hardware_alias, _(display_name))
                 except Exception as e:
                     logging.info("Error creating hardware alias {:s} for device {:s} ".format(hardware_alias, device))
                     logging.info(traceback.format_exc())
