@@ -547,6 +547,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return min(max(int(value), 0), 5)
 
     def __validate_source_file_path(self, value):
+        value = unicode(value)
+        if value:
+            value = os.path.normpath(value)
         return unicode(value)
 
     def __intrinsic_intensity_calibration_changed(self, name, value):
