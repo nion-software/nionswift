@@ -571,7 +571,7 @@ class WorkspaceController(AbstractWorkspaceController):
                 self.__channel_data_items[channel_key] = data_item
                 data_items[channel] = data_item
                 # check to see if its been activated. if not, activate it.
-                if channel not in self.__channel_activations:
+                if channel_key not in self.__channel_activations:
                     self.document_controller.queue_main_thread_task(lambda value=data_item: activate_data_item(value))
                     self.__channel_activations.add(channel_key)
 
