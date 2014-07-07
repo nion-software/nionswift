@@ -6,6 +6,7 @@ import gettext
 import logging
 import numbers
 import os.path
+import threading
 import uuid
 import weakref
 
@@ -31,6 +32,7 @@ class DataItemVault(object):
     def __init__(self, datastore=None, properties=None, reference_type=None, reference=None, storage_dict=None, delegate=None):
         self.datastore = datastore
         self.__properties = properties if properties else dict()
+        self.__properties_lock = threading.RLock()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
         self.__weak_data_item = None
@@ -49,15 +51,17 @@ class DataItemVault(object):
     delegate = property(__get_delegate)
 
     def __get_properties(self):
-        return copy.deepcopy(self.__properties)
+        with self.__properties_lock:
+            return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
     def set_properties_low_level(self, uuid_, properties, file_datetime):
         """ Only used to migrate data """
         if self.datastore:
             assert self.reference is not None
-            self.__properties = properties
-            self.datastore.set_root_properties(uuid_, self.__properties, self.reference, file_datetime)
+            with self.__properties_lock:
+                self.__properties = properties
+                self.datastore.set_root_properties(uuid_, self.properties, self.reference, file_datetime)
 
     def load_data_low_level(self):
         return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
@@ -71,7 +75,7 @@ class DataItemVault(object):
         elif self.datastore:
             self.ensure_reference_valid()
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            self.datastore.set_root_properties(self.data_item.uuid, self.__properties, self.reference, file_datetime)
+            self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
 
     def insert_item(self, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
