@@ -31,7 +31,7 @@ class DataItemVault(object):
 
     def __init__(self, datastore=None, properties=None, reference_type=None, reference=None, storage_dict=None, delegate=None):
         self.datastore = datastore
-        self.__properties = properties if properties else dict()
+        self.__properties = copy.deepcopy(properties) if properties else dict()
         self.__properties_lock = threading.RLock()
         self.storage_dict = storage_dict if storage_dict is not None else self.__properties
         self.__delegate = delegate  # a delegate item vault for updating properties
@@ -55,19 +55,27 @@ class DataItemVault(object):
             return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
+    def __get_properties_lock(self):
+        if self.__delegate:
+            return self.__delegate.properties_lock
+        else:
+            return self.__properties_lock
+    properties_lock = property(__get_properties_lock)
+
     def set_properties_low_level(self, uuid_, properties, file_datetime):
         """ Only used to migrate data """
         if self.datastore:
             assert self.reference is not None
             with self.__properties_lock:
-                self.__properties = properties
+                self.__properties = copy.deepcopy(properties)
                 self.datastore.set_root_properties(uuid_, self.properties, self.reference, file_datetime)
 
     def load_data_low_level(self):
         return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
 
     def set_value_low_level(self, name, value):
-        self.storage_dict[name] = value
+        with self.properties_lock:
+            self.storage_dict[name] = value
 
     def update_properties(self):
         if self.__delegate:
@@ -78,16 +86,18 @@ class DataItemVault(object):
             self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
 
     def insert_item(self, name, before_index, item):
-        item_list = self.storage_dict.setdefault(name, list())
-        item_dict = dict()
-        item_list.insert(before_index, item_dict)
-        item.vault = DataItemVault(delegate=self, storage_dict=item_dict)
-        item.write_storage(DataItemVault(delegate=self, storage_dict=item_dict))
+        with self.properties_lock:
+            item_list = self.storage_dict.setdefault(name, list())
+            item_dict = dict()
+            item_list.insert(before_index, item_dict)
+            item.vault = DataItemVault(delegate=self, storage_dict=item_dict)
+            item.write_storage(DataItemVault(delegate=self, storage_dict=item_dict))
         self.update_properties()
 
     def remove_item(self, name, index, item):
-        item_list = self.storage_dict[name]
-        del item_list[index]
+        with self.properties_lock:
+            item_list = self.storage_dict[name]
+            del item_list[index]
         self.update_properties()
 
     def get_default_reference(self):
@@ -134,21 +144,25 @@ class DataItemVault(object):
     can_reload_data = property(__can_reload_data)
 
     def set_value(self, name, value):
-        self.storage_dict[name] = value
+        with self.properties_lock:
+            self.storage_dict[name] = value
         self.update_properties()
 
     def get_vault_for_item(self, name, index):
-        storage_dict = self.storage_dict[name][index]
+        with self.properties_lock:
+            storage_dict = self.storage_dict[name][index]
         return DataItemVault(delegate=self, storage_dict=storage_dict)
 
     def has_value(self, name):
-        return name in self.storage_dict
+        with self.properties_lock:
+            return name in self.storage_dict
 
     def get_value(self, name):
-        return self.storage_dict[name]
+        with self.properties_lock:
+            return self.storage_dict[name]
 
     def get_item_vaults(self, name):
-        if name in self.storage_dict:
+        if self.has_value(name):
             return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
 
