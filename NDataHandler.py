@@ -4,6 +4,7 @@
 
 import binascii
 import calendar
+import copy
 import datetime
 import logging
 import json
@@ -144,6 +145,9 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
 
         Otherwise, if both data and properties are specified, both are written
         out in full.
+
+        The properties param must not change during this method. Callers should
+        take care to ensure this does not happen.
     """
     # dir_data_list has the format: local file record offset, name, data length, crc32
     dir_data_list = list() if dir_data_list is None else dir_data_list
@@ -155,9 +159,16 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         write_local_file(fp, "data.npy", writer, data_len, crc32, dt)
         dir_data_list.append((offset_data, "data.npy", data_len, crc32))
     if properties is not None:
-        json_io = StringIO.StringIO()
-        json.dump(properties, json_io)
-        json_str = json_io.getvalue()
+        json_str = unicode()
+        try:
+            json_io = StringIO.StringIO()
+            json.dump(properties, json_io)
+            json_str = json_io.getvalue()
+        except Exception, e:
+            # catch exceptions to avoid corrupt zip files
+            logging.error("Exception writing zip file")
+            import traceback
+            traceback.print_exc()
         json_len = len(json_str)
         json_crc32 = binascii.crc32(json_str) & 0xFFFFFFFF
         writer = lambda fp: fp.write(json_str)
@@ -179,6 +190,9 @@ def write_zip(file_path, data, properties):
         :param file_path: the file to which to write the zip file
         :param data: the data to write to the file; may be None
         :param properties: the properties to write to the file; may be None
+
+        The properties param must not change during this method. Callers should
+        take care to ensure this does not happen.
 
         See write_zip_fp.
     """
@@ -299,6 +313,9 @@ def rewrite_zip(file_path, properties):
         This method will attempt to keep the data file within the zip
         file intact without rewriting it. However, if the data file is not the
         first item in the zip file, this method will rewrite it.
+
+        The properties param must not change during this method. Callers should
+        take care to ensure this does not happen.
     """
     with open(file_path, "r+b") as fp:
         local_files, dir_files, eocd = parse_zip(fp)
@@ -398,6 +415,9 @@ class NDataHandler(object):
             :param reference: the reference to which to write
             :param properties: the dict to write to the file
             :param file_datetime: the datetime for the file
+
+            The properties param must not change during this method. Callers should
+            take care to ensure this does not happen.
         """
         data_file_path = reference + ".ndata"
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
