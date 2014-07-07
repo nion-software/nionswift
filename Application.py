@@ -49,6 +49,7 @@ class Application(object):
         global app
 
         self.ui = ui
+        self.ui.persistence_root = "2"  # sets of preferences
         self.resources_path = resources_path
         self.version_str = "0.3.0"
 
