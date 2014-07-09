@@ -270,18 +270,50 @@ class DbDataItemVault(object):
 
 class ObjectStore(object):
 
+    """
+        All objects participating in the document model should register themselves
+        with the object store. Other objects can then subscribe and unsubscribe to
+        know when a particular object (identified by uuid) becomes available or
+        unavailable. This facilitates lazy connections between objects.
+    """
+
     def __init__(self):
         self.__subscriptions = dict()
         self.__objects = dict()
 
     def register(self, object):
+        """
+            Register an object with the object store.
+
+            :param object: an object with a uuid property
+
+            Objects will be automatically unregistered when they are garbage
+            collected.
+        """
         object_uuid = object.uuid
         def remove_object(weak_object):
+            object = self.__objects[object_uuid]
+            for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
+                if unregistered:
+                    unregistered(object)
             del self.__objects[object_uuid]
+            del self.__subscriptions[object_uuid]
         weak_object = weakref.ref(object, remove_object)
         self.__objects[object_uuid] = weak_object
+        for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
+            if registered:
+                registered(object)
 
     def subscribe(self, uuid_, registered, unregistered):
+        """
+            Subscribe to a particular object being registered or unregistered.
+
+            :param uuid_: the uuid of the object to subscribe to
+            :param registered: a function taking one parameter (the object) to be called when the object gets registered
+            :param unregistered: a function taking one parameter (the object) to be called when the object gets unregistered
+
+            If the object is already registered, registered will be invoked immediately.
+        """
         self.__subscriptions.setdefault(uuid_, list()).append((registered, unregistered))
         weak_object = self.__objects.get(uuid_)
         object = weak_object and weak_object()
