@@ -297,7 +297,7 @@ class ObjectStore(object):
                 if unregistered:
                     unregistered(object)
             del self.__objects[object_uuid]
-            del self.__subscriptions[object_uuid]
+            self.__subscriptions.pop(object_uuid, None)  # delete if it exists
         weak_object = weakref.ref(object, remove_object)
         self.__objects[object_uuid] = weak_object
         for registered, unregistered in self.__subscriptions.get(object_uuid, list()):

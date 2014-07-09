@@ -70,6 +70,13 @@ class TestObjectStoreClass(unittest.TestCase):
         object1 = None
         self.assertFalse(was_registered)
 
+    def test_object_store_unregister_without_subscription_works(self):
+        # this test will only generate extra output in the failure case, which has been fixed
+        object_store = DocumentModel.ObjectStore()
+        object1 = ObjectWithUUID()
+        object_store.register(object1)
+        object1 = None
+
 
 class TestDocumentModelClass(unittest.TestCase):
 
