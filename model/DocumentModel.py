@@ -153,7 +153,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         data_item_tuples = self.__datastore.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
-            current_version = 2
             version = properties.get("version", 0)
             if version == 1:
                 if "spatial_calibrations" in properties:
@@ -178,8 +177,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     properties["master_data_shape"] = temp_data.shape
                 properties["displays"] = [{}]
                 properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
-                properties["version"] = current_version
-                properties["reader_version"] = current_version
+                properties["version"] = 2
+                properties["reader_version"] = 2
                 self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
                 version = 2
                 logging.info("Updated %s to %s", reference, version)
@@ -191,6 +190,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         graphic_properties.setdefault("uuid", str(uuid.uuid4()))
                 for operation_properties in display_properties.get("operations", list()):
                     operation_properties.setdefault("uuid", str(uuid.uuid4()))
+                properties["version"] = 3
+                properties["reader_version"] = 2
                 self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
                 version = 3
                 logging.info("Updated %s to %s", reference, version)
