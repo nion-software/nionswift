@@ -152,9 +152,6 @@ class DataItemMemoryVault(object):
         storage_dict[name] = value
         self.update_properties()
 
-    def get_vault_for_item(self, name, index):
-        return self
-
     def has_value(self, object, name):
         storage_dict = self.__get_storage_dict(object)
         return name in storage_dict
@@ -163,10 +160,9 @@ class DataItemMemoryVault(object):
         storage_dict = self.__get_storage_dict(object)
         return storage_dict[name]
 
-    def get_item_vaults(self, name):
-        if name in self.storage_dict:
-            return [self for storage_dict in self.storage_dict[name]]
-        return list()
+    def get_child_count(self, object, key):
+        storage_dict = self.__get_storage_dict(object)
+        return len(storage_dict.get(key, list()))
 
 
 class IntermediateDataItem(object):

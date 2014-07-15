@@ -30,13 +30,10 @@ class DataItemVault(object):
 
     """ Vaults should be stateless so that we can switch them in data items without repercussions. """
 
-    def __init__(self, datastore=None, properties=None, core_properties=None, reference_type=None, reference=None, storage_dict=None, delegate=None):
+    def __init__(self, datastore=None, properties=None, reference_type=None, reference=None):
         self.datastore = datastore
-        core_properties = core_properties if core_properties else dict()
-        self.__properties = copy.deepcopy(properties) if properties else core_properties
+        self.__properties = copy.deepcopy(properties) if properties else dict()
         self.__properties_lock = threading.RLock()
-        self.storage_dict = storage_dict if storage_dict is not None else self.__properties
-        self.__delegate = delegate  # a delegate item vault for updating properties
         self.__weak_data_item = None
         # reference type and reference indicate how to save/load data and properties
         self.reference_type = reference_type
@@ -48,20 +45,13 @@ class DataItemVault(object):
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
     data_item = property(__get_data_item, __set_data_item)
 
-    def __get_delegate(self):
-        return self.__delegate
-    delegate = property(__get_delegate)
-
     def __get_properties(self):
         with self.__properties_lock:
             return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
     def __get_properties_lock(self):
-        if self.__delegate:
-            return self.__delegate.properties_lock
-        else:
-            return self.__properties_lock
+        return self.__properties_lock
     properties_lock = property(__get_properties_lock)
 
     def __get_storage_dict(self, object):
@@ -84,14 +74,8 @@ class DataItemVault(object):
     def load_data_low_level(self):
         return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
 
-    def set_value_low_level(self, name, value):
-        with self.properties_lock:
-            self.storage_dict[name] = value
-
     def update_properties(self):
-        if self.__delegate:
-            self.__delegate.update_properties()
-        elif self.datastore:
+        if self.datastore:
             self.ensure_reference_valid()
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
             self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
@@ -102,7 +86,7 @@ class DataItemVault(object):
             item_list = storage_dict.setdefault(name, list())
             item_dict = dict()
             item_list.insert(before_index, item_dict)
-            item.vault = DataItemVault(delegate=self, storage_dict=item_dict, core_properties=self.__properties)
+            item.vault = self
             item.write_storage()
         self.update_properties()
 
@@ -162,30 +146,25 @@ class DataItemVault(object):
             storage_dict[name] = value
         self.update_properties()
 
-    def get_vault_for_item(self, name, index):
-        with self.properties_lock:
-            storage_dict = self.storage_dict[name][index]
-        return DataItemVault(delegate=self, storage_dict=storage_dict, core_properties=self.__properties)
-
     def has_value(self, object, name):
         storage_dict = self.__get_storage_dict(object)
         with self.properties_lock:
             return name in storage_dict
-
-    def get_child_value(self, object, key, index, name):
-        storage_dict = self.__get_storage_dict(object)
-        with self.properties_lock:
-            return storage_dict[key][index][name]
 
     def get_value(self, object, name):
         storage_dict = self.__get_storage_dict(object)
         with self.properties_lock:
             return storage_dict[name]
 
-    def get_item_vaults(self, name):
-        if name in self.storage_dict:
-            return [DataItemVault(delegate=self, storage_dict=storage_dict, core_properties=self.__properties) for storage_dict in self.storage_dict[name]]
-        return list()
+    def get_child_count(self, object, key):
+        storage_dict = self.__get_storage_dict(object)
+        with self.properties_lock:
+            return len(storage_dict.get(key, list()))
+
+    def get_child_value(self, object, key, index, name):
+        storage_dict = self.__get_storage_dict(object)
+        with self.properties_lock:
+            return storage_dict[key][index][name]
 
 
 class DocumentModel(Storage.StorageBase):
@@ -264,8 +243,8 @@ class DocumentModel(Storage.StorageBase):
                     properties["master_data_shape"] = temp_data.shape
                 properties["displays"] = [{}]
                 properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
-                vault.set_value_low_level("version", current_version)
-                vault.set_value_low_level("reader_version", current_version)
+                properties["version"] = current_version
+                properties["reader_version"] = current_version
                 vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
                 logging.info("Updated %s", vault.reference)
             data_item = DataItem.DataItem(vault=vault, managed_object_context=self.managed_object_context, item_uuid=data_item_uuid, create_display=False)
