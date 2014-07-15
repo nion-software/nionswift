@@ -120,41 +120,52 @@ class DataItemMemoryVault(object):
         if self.__delegate:
             self.__delegate.update_properties()
 
-    def insert_item(self, parent, name, before_index, item):
-        item_list = self.storage_dict.setdefault(name, list())
+    def __get_storage_dict(self, object):
+        managed_parent = object.managed_parent
+        if not managed_parent:
+            return self.__properties
+        else:
+            index = object.get_index_in_parent()
+            parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
+            return parent_storage_dict[managed_parent.relationship_name][index]
+
+    def insert_item(self, object, name, before_index, item):
+        storage_dict = self.__get_storage_dict(object)
+        item_list = storage_dict.setdefault(name, list())
         item_dict = dict()
         item_list.insert(before_index, item_dict)
-        item.vault = DataItemMemoryVault(delegate=self, storage_dict=item_dict)
+        item.vault = self
         item.write_storage()
         self.update_properties()
 
-    def remove_item(self, parent, name, index, item):
-        item_list = self.storage_dict[name]
+    def remove_item(self, object, name, index, item):
+        storage_dict = self.__get_storage_dict(object)
+        item_list = storage_dict[name]
         del item_list[index]
         self.update_properties()
 
     def update_data(self, data_shape, data_dtype, data=None):
         pass
 
-    def set_value(self, parent, name, value):
-        self.storage_dict[name] = value
+    def set_value(self, object, name, value):
+        storage_dict = self.__get_storage_dict(object)
+        storage_dict[name] = value
         self.update_properties()
 
     def get_vault_for_item(self, name, index):
-        if name not in self.storage_dict:
-            logging.debug("%s %s %s", self.storage_dict, name, index)
-        storage_dict = self.storage_dict[name][index]
-        return DataItemMemoryVault(delegate=self, storage_dict=storage_dict)
+        return self
 
-    def has_value(self, parent, name):
-        return name in self.storage_dict
+    def has_value(self, object, name):
+        storage_dict = self.__get_storage_dict(object)
+        return name in storage_dict
 
-    def get_value(self, parent, name):
-        return self.storage_dict[name]
+    def get_value(self, object, name):
+        storage_dict = self.__get_storage_dict(object)
+        return storage_dict[name]
 
     def get_item_vaults(self, name):
         if name in self.storage_dict:
-            return [DataItemMemoryVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
+            return [self for storage_dict in self.storage_dict[name]]
         return list()
 
 
