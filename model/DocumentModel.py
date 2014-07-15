@@ -21,6 +21,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
+from nion.ui import Observable
 
 _ = gettext.gettext
 
@@ -268,64 +269,11 @@ class DbDataItemVault(object):
             document_model.notify_listeners("data_item_deleted", data_item)
 
 
-class ObjectStore(object):
-
-    """
-        All objects participating in the document model should register themselves
-        with the object store. Other objects can then subscribe and unsubscribe to
-        know when a particular object (identified by uuid) becomes available or
-        unavailable. This facilitates lazy connections between objects.
-    """
-
-    def __init__(self):
-        self.__subscriptions = dict()
-        self.__objects = dict()
-
-    def register(self, object):
-        """
-            Register an object with the object store.
-
-            :param object: an object with a uuid property
-
-            Objects will be automatically unregistered when they are garbage
-            collected.
-        """
-        object_uuid = object.uuid
-        def remove_object(weak_object):
-            object = self.__objects[object_uuid]
-            for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
-                if unregistered:
-                    unregistered(object)
-            del self.__objects[object_uuid]
-            self.__subscriptions.pop(object_uuid, None)  # delete if it exists
-        weak_object = weakref.ref(object, remove_object)
-        self.__objects[object_uuid] = weak_object
-        for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
-            if registered:
-                registered(object)
-
-    def subscribe(self, uuid_, registered, unregistered):
-        """
-            Subscribe to a particular object being registered or unregistered.
-
-            :param uuid_: the uuid of the object to subscribe to
-            :param registered: a function taking one parameter (the object) to be called when the object gets registered
-            :param unregistered: a function taking one parameter (the object) to be called when the object gets unregistered
-
-            If the object is already registered, registered will be invoked immediately.
-        """
-        self.__subscriptions.setdefault(uuid_, list()).append((registered, unregistered))
-        weak_object = self.__objects.get(uuid_)
-        object = weak_object and weak_object()
-        if object is not None:
-            registered(object)
-
-
 class DocumentModel(Storage.StorageBase):
 
     def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
-        self.object_store = ObjectStore()
+        self.managed_object_context = Observable.ManagedObjectContext()
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_item_vault = DbDataItemVault(self, datastore, self.storage_cache)
@@ -354,7 +302,7 @@ class DocumentModel(Storage.StorageBase):
         self.datastore.disconnected = True
         for data_item in self.__data_item_vault.data_items:
             data_item.connect_data_sources(self.get_data_item_by_uuid)
-            data_item.object_store = self.object_store
+            data_item.managed_object_context = self.managed_object_context
         for data_group in data_groups:
             self.append_data_group(data_group)
         for data_group in self.data_groups:
@@ -375,7 +323,7 @@ class DocumentModel(Storage.StorageBase):
     def insert_data_item(self, before_index, data_item):
         self.__data_item_vault.insert(before_index, data_item)
         data_item.connect_data_sources(self.get_data_item_by_uuid)
-        data_item.object_store = self.object_store
+        data_item.managed_object_context = self.managed_object_context
 
     def remove_data_item(self, data_item):
         # remove the data item from any groups
@@ -389,7 +337,7 @@ class DocumentModel(Storage.StorageBase):
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # disconnect the data source
-        data_item.object_store = None
+        data_item.managed_object_context = None
         data_item.disconnect_data_sources()
         # remove it from the vault
         self.__data_item_vault.remove(data_item)

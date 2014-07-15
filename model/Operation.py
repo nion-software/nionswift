@@ -76,11 +76,17 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
-        self.__object_store = None
-
         self.__weak_data_item = None
 
         self.__weak_region = None
+
+        operation_uuid = uuid.uuid4()
+        class UuidToStringConverter(object):
+            def convert(self, value):
+                return str(value) if value is not None else None
+            def convert_back(self, value):
+                return uuid.UUID(value) if value is not None else None
+        self.define_property("uuid", operation_uuid, read_only=True, converter=UuidToStringConverter())
 
         class UuidToStringConverter(object):
             def convert(self, value):
@@ -125,10 +131,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             if region in data_source.regions:
                 data_source.remove_region(region)
 
-    def __get_object_store(self):
-        return self.__object_store
-    def __set_object_store(self, object_store):
-        self.__object_store = object_store
+    def managed_object_context_changed(self):
+        """ Override from ManagedObject. """
         region_uuid = self.region_uuid
         if region_uuid is not None:
             def registered(region):
@@ -137,11 +141,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 for binding in self.__bindings:
                     binding.close()
                 self.__bindings = list()
-            if object_store:
-                object_store.subscribe(region_uuid, registered, unregistered)
+            if self.managed_object_context:
+                self.managed_object_context.subscribe(region_uuid, registered, unregistered)
             else:
                 unregistered()
-    object_store = property(__get_object_store, __set_object_store)
 
     def read_storage(self, vault):
         super(OperationItem, self).read_storage(vault)

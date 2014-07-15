@@ -24,9 +24,8 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def __init__(self, type):
         super(Region, self).__init__()
         self.__weak_data_item = None
-        self.__object_store = None
-        region_uuid = uuid.uuid4()
         self.define_type(type)
+        region_uuid = uuid.uuid4()
         class UuidToStringConverter(object):
             def convert(self, value):
                 return str(value) if value is not None else None
@@ -41,14 +40,6 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         region.deepcopy_from(self, memo)
         memo[id(self)] = region
         return region
-
-    def __get_object_store(self):
-        return self.__object_store
-    def __set_object_store(self, object_store):
-        self.__object_store = object_store
-        if object_store is not None:
-            object_store.register(self)
-    object_store = property(__get_object_store, __set_object_store)
 
     def about_to_be_removed(self):
         pass

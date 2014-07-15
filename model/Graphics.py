@@ -3,6 +3,7 @@ import copy
 import gettext
 import logging
 import math
+import uuid
 
 # third party libraries
 import numpy  # for arange
@@ -121,6 +122,13 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
+        graphic_uuid = uuid.uuid4()
+        class UuidToStringConverter(object):
+            def convert(self, value):
+                return str(value) if value is not None else None
+            def convert_back(self, value):
+                return uuid.UUID(value) if value is not None else None
+        self.define_property("uuid", graphic_uuid, read_only=True, converter=UuidToStringConverter())
         self.define_property("color", "#F00", changed=self._property_changed)
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):

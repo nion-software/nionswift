@@ -8,6 +8,7 @@ import logging
 import gettext
 import numbers
 import weakref
+import uuid
 
 # third party libraries
 import numpy
@@ -104,9 +105,15 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __init__(self):
         super(Display, self).__init__()
-        self.__object_store = None
         self.__weak_data_item = None
         self.__graphics = list()
+        display_uuid = uuid.uuid4()
+        class UuidToStringConverter(object):
+            def convert(self, value):
+                return str(value) if value is not None else None
+            def convert_back(self, value):
+                return uuid.UUID(value) if value is not None else None
+        self.define_property("uuid", display_uuid, read_only=True, converter=UuidToStringConverter())
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
         self.define_property("y_min", changed=self.__property_changed)
@@ -126,14 +133,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def add_shared_task(self, task_id, item, fn):
         self.__shared_thread_pool.add_task(task_id, item, fn)
-
-    def __get_object_store(self):
-        return self.__object_store
-    def __set_object_store(self, object_store):
-        self.__object_store = object_store
-        for graphic in self.graphics:
-            graphic.object_store = object_store
-    object_store = property(__get_object_store, __set_object_store)
 
     def about_to_be_removed(self):
         self.graphic_selection.remove_listener(self)
@@ -265,13 +264,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
         item.add_observer(self)
-        item.object_store = self.object_store
         self.__drawn_graphics.insert(before_index, item)
         self.graphic_selection.insert_index(before_index)
         self.notify_listeners("display_changed", self)
 
     def __remove_graphic(self, name, index, item):
-        item.object_store = None
         item.remove_listener(self)
         item.remove_observer(self)
         index = self.__drawn_graphics.index(item)
