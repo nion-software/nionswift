@@ -87,68 +87,6 @@ class DataSourceUuidList(object):
         return copy.copy(self.list)
 
 
-class DataItemMemoryVault(object):
-
-    """ Vaults should be stateless so that we can switch them in data items without repercussions. """
-
-    def __init__(self, properties=None):
-        self.__properties = properties if properties else dict()
-        self.reference = None
-        self.reference_type = None
-        self.can_reload_data = False
-        self.__weak_data_item = None
-
-    def close(self):
-        self.__weak_data_item = None
-
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    def __set_data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-    data_item = property(__get_data_item, __set_data_item)
-
-    def __get_properties(self):
-        return copy.deepcopy(self.__properties)
-    properties = property(__get_properties)
-
-    def update_properties(self):
-        pass
-
-    def __get_storage_dict(self, object):
-        managed_parent = object.managed_parent
-        if not managed_parent:
-            return self.__properties
-        else:
-            index = object.get_index_in_parent()
-            parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
-            return parent_storage_dict[managed_parent.relationship_name][index]
-
-    def insert_item(self, parent, name, before_index, item):
-        storage_dict = self.__get_storage_dict(parent)
-        item_list = storage_dict.setdefault(name, list())
-        item_dict = item.write_to_dict()
-        item_list.insert(before_index, item_dict)
-        item.vault = self
-        item.managed_object_context = parent.managed_object_context
-        self.update_properties()
-
-    def remove_item(self, parent, name, index, item):
-        storage_dict = self.__get_storage_dict(parent)
-        item_list = storage_dict[name]
-        del item_list[index]
-        self.update_properties()
-        item.vault = None
-        item.managed_object_context = None
-
-    def update_data(self, data_shape, data_dtype, data=None):
-        pass
-
-    def set_value(self, object, name, value):
-        storage_dict = self.__get_storage_dict(object)
-        storage_dict[name] = value
-        self.update_properties()
-
-
 class IntermediateDataItem(object):
 
     def __init__(self, data_item, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
@@ -290,16 +228,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         Cached data.
     """
 
-    def __init__(self, data=None, vault=None, managed_object_context=None, item_uuid=None, create_display=True):
+    def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.min_reader_version = 2
         self.writer_version = 3
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
-        self.vault = vault if vault else DataItemMemoryVault()
-        self.vault.data_item = self
-        self.managed_object_context = managed_object_context
+        self.managed_object_context = None
         has_master_data = data is not None
         master_data_shape = data.shape if has_master_data else None
         master_data_dtype = data.dtype if has_master_data else None

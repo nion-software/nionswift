@@ -497,7 +497,7 @@ class TestStorageClass(unittest.TestCase):
             with data_item.transaction():
                 with data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-                reference = data_item.vault.get_default_reference(data_item)
+                reference = document_model.managed_object_context.get_vault_for_object(data_item).get_default_reference(data_item)
                 data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
                 # make sure data does NOT exist during the transaction
                 self.assertIsNone(handler.read_data(reference))
