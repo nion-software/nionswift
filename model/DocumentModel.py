@@ -164,10 +164,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         # keep storage up-to-date. transform from memory vault to new vault.
         # references do not need to be updated since they will be written later.
         properties = data_item.write_to_dict()
-        data_item.update_vault(DataItemVault(properties=properties))
+        vault = DataItemVault(properties=properties)
+        data_item.update_vault(vault)
         data_item.vault.data_item = data_item
         data_item.vault.datastore = self.__datastore
         self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
+        self.set_vault_for_object(data_item, vault)
         data_item.managed_object_context = self  # this may cause vault or datastore to be used. so put it after establishing those two.
         vault = data_item.vault
         vault.set_value(data_item, "uuid", str(data_item.uuid))
@@ -178,26 +180,27 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data_ref.master_data)
 
     def rewrite_data_item_data(self, data_item, data):
-        vault = data_item.vault
+        vault = self.get_vault_for_object(data_item)
         vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
 
     def erase_data_item(self, data_item):
-        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
-        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
+        vault = self.get_vault_for_object(data_item)
+        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, vault.reference_type, vault.reference)
+        data_item.update_vault(DataItem.DataItemMemoryVault(properties=vault.properties))
         data_item.managed_object_context = None
 
     def load_data(self, data_item):
-        vault = data_item.vault
+        vault = self.get_vault_for_object(data_item)
         if vault.can_reload_data:
             return vault.load_data()
         return None
 
     def can_reload_data(self, data_item):
-        vault = data_item.vault
+        vault = self.get_vault_for_object(data_item)
         return vault.can_reload_data
 
     def get_data_item_file_info(self, data_item):
-        vault = data_item.vault
+        vault = self.get_vault_for_object(data_item)
         return vault.reference_type, vault.reference
 
 
@@ -281,11 +284,13 @@ class DocumentModel(Storage.StorageBase):
                 properties["reader_version"] = current_version
                 vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
                 logging.info("Updated %s", vault.reference)
-            data_item = DataItem.DataItem(vault=vault, managed_object_context=self.managed_object_context, item_uuid=data_item_uuid, create_display=False)
+            data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
             data_item.read_from_dict(vault.properties)
             # validate the metadata to the current version
             data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
             assert(len(data_item.displays) > 0)
+            self.managed_object_context.set_vault_for_object(data_item, vault)
+            data_item.managed_object_context = self.managed_object_context
             data_items.append(data_item)
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
