@@ -278,7 +278,19 @@ class DocumentModel(Storage.StorageBase):
                 properties["version"] = current_version
                 properties["reader_version"] = current_version
                 persistent_storage.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
-                logging.info("Updated %s", persistent_storage.reference)
+                version = 2
+                logging.info("Updated %s to %s", persistent_storage.reference, version)
+            if version == 2:
+                # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
+                for display_properties in properties.get("displays", list()):
+                    display_properties.setdefault("uuid", str(uuid.uuid4()))
+                    for graphic_properties in display_properties.get("graphics", list()):
+                        graphic_properties.setdefault("uuid", str(uuid.uuid4()))
+                for operation_properties in display_properties.get("operations", list()):
+                    operation_properties.setdefault("uuid", str(uuid.uuid4()))
+                persistent_storage.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
+                version = 3
+                logging.info("Updated %s to %s", persistent_storage.reference, version)
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
             persistent_storage.data_item = data_item
             data_item.read_from_dict(persistent_storage.properties)
