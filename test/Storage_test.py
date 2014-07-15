@@ -377,14 +377,12 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
         datastore.set_root(document_model)
         document_model.write()
-        data_group = document_model.data_groups[0]
-        self.assertEqual(len(data_group.data_items), 1)
         data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-        data_group.append_data_item(data_item1)
-        data_group.append_data_item(data_item2)
-        data_group.append_data_item(data_item3)
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item3)
         # interleaved transactions
         data_item1.begin_transaction()
         data_item2.begin_transaction()
