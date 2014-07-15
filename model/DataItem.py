@@ -481,11 +481,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             transaction_count = self.__transaction_count
         if transaction_count == 0:
             self.spill_cache()
-            self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
+            if self.managed_object_context:
+                self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def get_data_file_info(self):
-        return self.vault.reference_type, self.vault.reference
+        if self.managed_object_context:
+            return self.managed_object_context.get_data_item_file_info(self)
+        return None, None
 
     # access properties
 
@@ -692,6 +695,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def get_metadata(self, name):
         return copy.deepcopy(self.__metadata.get(name, dict()))
 
+    def replace_metadata(self, name, metadata):
+        metadata_group = self.__metadata.setdefault(name, dict())
+        metadata_group.clear()
+        metadata_group.update(metadata)
+        if self.managed_object_context:
+            self.managed_object_context.property_changed(self, name, copy.deepcopy(metadata_group))
+        self.__metadata_changed()
+
     def open_metadata(self, name):
         metadata = self.__metadata
         metadata_changed = self.__metadata_changed
@@ -704,11 +715,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 return self.__metadata_copy
             def __exit__(self, type, value, traceback):
                 if self.__metadata_copy is not None:
-                    metadata_group = metadata.setdefault(self.__name, dict())
-                    metadata_group.clear()
-                    metadata_group.update(self.__metadata_copy)
-                    self.__data_item.vault.set_value(self.__data_item, self.__name, copy.deepcopy(metadata_group))
-                    metadata_changed()
+                    self.__data_item.replace_metadata(self.__name, self.__metadata_copy)
         return MetadataContextManager(self, name)
 
     def __insert_display(self, name, before_index, display):
@@ -904,23 +911,26 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             # tell the vault about it
             if self.__master_data is not None:
                 if self.__transaction_count == 0:  # no race is possible here. just write it.
-                    self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
+                    if self.managed_object_context:
+                        self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):
         # load data from vault if data is not already loaded
-        if self.has_master_data and self.__master_data is None and self.vault.can_reload_data:
-            #logging.debug("loading %s", self)
-            self.__master_data = self.vault.load_data()
+        if self.has_master_data and self.__master_data is None:
+            if self.managed_object_context:
+                #logging.debug("loading %s", self)
+                self.__master_data = self.managed_object_context.load_data(self)
 
     def __unload_master_data(self):
         # unload data if possible.
         # data cannot be unloaded if transaction count > 0 or if there is no vault.
-        if self.__transaction_count == 0 and self.has_master_data and self.vault.can_reload_data:
-            self.__master_data = None
-            self.__cached_data = None
-            #logging.debug("unloading %s", self)
+        if self.__transaction_count == 0 and self.has_master_data:
+            if self.managed_object_context and self.managed_object_context.can_reload_data(self):
+                self.__master_data = None
+                self.__cached_data = None
+                #logging.debug("unloading %s", self)
 
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:

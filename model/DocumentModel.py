@@ -193,10 +193,28 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         with data_item.data_ref() as data_ref:
             vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data_ref.master_data)
 
+    def rewrite_data_item_data(self, data_item, data):
+        vault = data_item.vault
+        vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
+
     def erase_data_item(self, data_item):
         self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
         data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
         data_item.managed_object_context = None
+
+    def load_data(self, data_item):
+        vault = data_item.vault
+        if vault.can_reload_data:
+            return vault.load_data()
+        return None
+
+    def can_reload_data(self, data_item):
+        vault = data_item.vault
+        return vault.can_reload_data
+
+    def get_data_item_file_info(self, data_item):
+        vault = data_item.vault
+        return vault.reference_type, vault.reference
 
 
 class DocumentModel(Storage.StorageBase):
