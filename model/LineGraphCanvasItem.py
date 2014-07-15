@@ -355,12 +355,12 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 return plot_rect.width * (px - data_left) / (data_right - data_left)
 
             for region in self.regions:
-                region_channels = region[0]
-                region_selected = region[1]
-                index = region[2]
-                left_text = region[3]
-                right_text = region[4]
-                middle_text = region[5]
+                region_channels = region.channels
+                region_selected = region.selected
+                index = region.index
+                left_text = region.left_text
+                right_text = region.right_text
+                middle_text = region.middle_text
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 drawing_context.save()
                 drawing_context.begin_path()

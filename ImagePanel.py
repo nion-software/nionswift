@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import gettext
 import logging
@@ -415,8 +416,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
             left_text = spatial_calibration.convert_to_calibrated_value_str(left_channel)
             right_text = spatial_calibration.convert_to_calibrated_value_str(right_channel)
-            middle_text = spatial_calibration.convert_to_calibrated_value_str((left_channel + right_channel) * 0.5)
-            region = ((graphic.start, graphic.end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
+            middle_text = spatial_calibration.convert_to_calibrated_size_str(right_channel - left_channel)
+            RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text"])
+            region = RegionInfo((graphic.start, graphic.end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
             regions.append(region)
         self.line_graph_regions_canvas_item.regions = regions
         self.line_graph_regions_canvas_item.update()
