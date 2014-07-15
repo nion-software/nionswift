@@ -347,7 +347,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__cached_data_dirty = True
         # master data shape and dtype are cached to avoid loading data.
         self.__master_data = None
-        self.master_data_save_event = threading.Event()
         self.__data_sources = []
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
@@ -484,7 +483,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if transaction_count == 0:
             self.spill_cache()
             self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
-            self.master_data_save_event.set()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
@@ -493,7 +491,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.vault.set_value(self, "reader_version", self.min_reader_version)
         self.vault.update_properties()
         self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
-        self.master_data_save_event.set()
 
     def get_data_file_info(self):
         return self.vault.reference_type, self.vault.reference
@@ -907,7 +904,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if self.__master_data is not None:
                 if self.__transaction_count == 0:  # no race is possible here. just write it.
                     self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
-                    self.master_data_save_event.set()
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
 

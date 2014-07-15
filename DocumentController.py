@@ -773,9 +773,11 @@ class DocumentController(Observable.Broadcaster):
                             # waits on that event to ensure the data gets written out.
                             # TODO: Recover task if something goes wrong while saving data.
 
-                            # grab a data ref
+                            # grab a data ref and initialize the data save events
+                            data_item_save_event = dict()
                             for data_item in data_items:
                                 data_item.increment_data_ref_count()
+                                data_item_save_event[data_item] = threading.Event()
 
                             def insert_data_item(_document_model, _data_group, _data_items, index_ref):
                                 if _data_group and isinstance(_data_group, DataGroup.DataGroup):
@@ -785,12 +787,14 @@ class DocumentController(Observable.Broadcaster):
                                             _data_group.insert_data_item(index_ref.grab(), data_item)
                                         else:
                                             _data_group.append_data_item(data_item)
+                                        data_item_save_event[data_item].set()
                                 else:  # insert into document model only
                                     for data_item in _data_items:
                                         if index_ref.value >= 0:
                                             _document_model.insert_data_item(index_ref.grab(), data_item)
                                         else:
                                             _document_model.append_data_item(data_item)
+                                        data_item_save_event[data_item].set()
 
                             # notice that a lambda function is used to snapshot the first three arguments, but the
                             # index_ref argument is shared with all calls so that the items get inserted in order.
@@ -803,10 +807,10 @@ class DocumentController(Observable.Broadcaster):
                             # wait for the save event to occur, then release the data ref.
                             for data_item in data_items:
                                 if threaded:
-                                    data_item.master_data_save_event.wait()
+                                    data_item_save_event[data_item].wait()
                                 else:
                                     self.periodic()  # make sure periodic gets called at least once
-                                    while not data_item.master_data_save_event.wait(0.05):
+                                    while not data_item_save_event[data_item].wait(0.05):
                                         self.periodic()
                                 data_item.decrement_data_ref_count()
 
