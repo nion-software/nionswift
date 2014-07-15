@@ -87,6 +87,7 @@ class DataItemVault(object):
             item_dict = dict()
             item_list.insert(before_index, item_dict)
             item.vault = self
+            item.managed_object_context = parent.managed_object_context
             item.write_storage()
         self.update_properties()
 

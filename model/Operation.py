@@ -144,6 +144,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         for key in self.values.keys():
             if self.operation:
                 setattr(self.operation, key, self.values[key])
+        self.managed_object_context_changed()
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None

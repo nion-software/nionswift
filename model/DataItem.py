@@ -123,17 +123,18 @@ class DataItemMemoryVault(object):
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
             return parent_storage_dict[managed_parent.relationship_name][index]
 
-    def insert_item(self, object, name, before_index, item):
-        storage_dict = self.__get_storage_dict(object)
+    def insert_item(self, parent, name, before_index, item):
+        storage_dict = self.__get_storage_dict(parent)
         item_list = storage_dict.setdefault(name, list())
         item_dict = dict()
         item_list.insert(before_index, item_dict)
         item.vault = self
+        item.managed_object_context = parent.managed_object_context
         item.write_storage()
         self.update_properties()
 
-    def remove_item(self, object, name, index, item):
-        storage_dict = self.__get_storage_dict(object)
+    def remove_item(self, parent, name, index, item):
+        storage_dict = self.__get_storage_dict(parent)
         item_list = storage_dict[name]
         del item_list[index]
         self.update_properties()
@@ -358,13 +359,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__set_master_data(data)
             self.sync_intrinsic_spatial_calibrations()
         # version handling
+        self.managed_object_context = managed_object_context
         self.read_storage(self.vault, reader_version=3)
         properties = self.vault.properties
         for key in properties.keys():
             if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
         # validate the metadata to the current version
-        self.managed_object_context = managed_object_context
         if self.managed_object_context:
             self.validate_metadata_version(writer_version=3, min_reader_version=2)
         if create_display:
