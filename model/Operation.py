@@ -80,14 +80,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__weak_region = None
 
-        operation_uuid = uuid.uuid4()
-        class UuidToStringConverter(object):
-            def convert(self, value):
-                return str(value) if value is not None else None
-            def convert_back(self, value):
-                return uuid.UUID(value) if value is not None else None
-        self.define_property("uuid", operation_uuid, read_only=True, converter=UuidToStringConverter())
-
         class UuidToStringConverter(object):
             def convert(self, value):
                 return str(value) if value is not None else None
@@ -146,8 +138,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             else:
                 unregistered()
 
-    def read_storage(self, vault):
-        super(OperationItem, self).read_storage(vault)
+    def read_storage(self, vault, reader_version):
+        super(OperationItem, self).read_storage(vault, reader_version)
         # update items one by one to update operation
         for key in self.values.keys():
             if self.operation:

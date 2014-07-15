@@ -383,7 +383,12 @@ class NDataHandler(object):
                     contains_metadata = "metadata.json" in dir_files
                     file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
                     # TODO: make sure ndata isn't compressed, or handle it
-                    return len(dir_files) == file_count and file_count > 0
+                    if len(dir_files) != file_count or file_count == 0:
+                        return False
+                    _, properties = self.read_properties(self.get_reference(file_path))
+                    reader_version = properties.get("reader_version")
+                    current_version = 3
+                    return reader_version <= current_version
             except Exception, e:
                 logging.error("Exception parsing ndata file: %s", file_path)
                 logging.error(str(e))

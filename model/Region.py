@@ -25,13 +25,6 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         super(Region, self).__init__()
         self.__weak_data_item = None
         self.define_type(type)
-        region_uuid = uuid.uuid4()
-        class UuidToStringConverter(object):
-            def convert(self, value):
-                return str(value) if value is not None else None
-            def convert_back(self, value):
-                return uuid.UUID(value) if value is not None else None
-        self.define_property("uuid", region_uuid, read_only=True, converter=UuidToStringConverter())
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     # subclasses should override __deepcopy__ and deepcopy_from as necessary

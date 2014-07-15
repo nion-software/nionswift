@@ -303,7 +303,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         super(DataItem, self).__init__()
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
-        self.uuid = item_uuid if item_uuid else uuid.uuid4()
+        if item_uuid:
+            self.set_uuid(item_uuid)
         self.vault = vault if vault else DataItemMemoryVault()
         self.vault.data_item = self
         has_master_data = data is not None
@@ -354,26 +355,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if data is not None:
             self.__set_master_data(data)
             self.sync_intrinsic_spatial_calibrations()
-        # uuid is handled specially for performance reasons
-        if self.vault.has_value("uuid"):
-            self.uuid = uuid.UUID(self.vault.get_value("uuid"))
         # version handling
-        current_version = 2
-        properties = self.vault.properties
-        version = properties.get("version", 0)
-        reader_version = properties.get("reader_version", 0)
-        if version != current_version:
-            self.vault.set_value("version", current_version)
-        if reader_version != current_version:
-            self.vault.set_value("reader_version", current_version)
-        self.read_storage(self.vault)
+        self.read_storage(self.vault, reader_version=3)
         properties = self.vault.properties
         for key in properties.keys():
             if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
-        # uuid is handled specially for performance reasons
-        if "uuid" not in properties:
-            self.vault.set_value("uuid", str(self.uuid))
+        # validate the metadata to the current version
+        self.validate_metadata_version(writer_version=3, min_reader_version=2)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 

@@ -107,13 +107,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         super(Display, self).__init__()
         self.__weak_data_item = None
         self.__graphics = list()
-        display_uuid = uuid.uuid4()
-        class UuidToStringConverter(object):
-            def convert(self, value):
-                return str(value) if value is not None else None
-            def convert_back(self, value):
-                return uuid.UUID(value) if value is not None else None
-        self.define_property("uuid", display_uuid, read_only=True, converter=UuidToStringConverter())
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
         self.define_property("y_min", changed=self.__property_changed)
