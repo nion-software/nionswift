@@ -181,12 +181,12 @@ class RegionPropertyToGraphicBinding(Binding.PropertyBinding):
                 self.update_source(property_value)
 
 
-def region_factory(vault):
+def region_factory(vault, parent):
     build_map = {
         "point-region": PointRegion,
         "line-region": LineRegion,
         "rectangle-region": RectRegion,
         "interval-region": IntervalRegion,
     }
-    type = vault.get_value("type")
+    type = vault.get_value(parent, "type")
     return build_map[type]() if type in build_map else None

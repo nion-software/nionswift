@@ -86,7 +86,7 @@ class DataItemVault(object):
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
             self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
 
-    def insert_item(self, name, before_index, item):
+    def insert_item(self, parent, name, before_index, item):
         with self.properties_lock:
             item_list = self.storage_dict.setdefault(name, list())
             item_dict = dict()
@@ -95,7 +95,7 @@ class DataItemVault(object):
             item.write_storage(DataItemVault(delegate=self, storage_dict=item_dict))
         self.update_properties()
 
-    def remove_item(self, name, index, item):
+    def remove_item(self, parent, name, index, item):
         with self.properties_lock:
             item_list = self.storage_dict[name]
             del item_list[index]
@@ -144,7 +144,7 @@ class DataItemVault(object):
         return self.datastore is not None
     can_reload_data = property(__can_reload_data)
 
-    def set_value(self, name, value):
+    def set_value(self, parent, name, value):
         with self.properties_lock:
             self.storage_dict[name] = value
         self.update_properties()
@@ -154,16 +154,16 @@ class DataItemVault(object):
             storage_dict = self.storage_dict[name][index]
         return DataItemVault(delegate=self, storage_dict=storage_dict)
 
-    def has_value(self, name):
+    def has_value(self, parent, name):
         with self.properties_lock:
             return name in self.storage_dict
 
-    def get_value(self, name):
+    def get_value(self, parent, name):
         with self.properties_lock:
             return self.storage_dict[name]
 
     def get_item_vaults(self, name):
-        if self.has_value(name):
+        if self.has_value(None, name):
             return [DataItemVault(delegate=self, storage_dict=storage_dict) for storage_dict in self.storage_dict[name]]
         return list()
 

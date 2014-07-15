@@ -120,7 +120,7 @@ class DataItemMemoryVault(object):
         if self.__delegate:
             self.__delegate.update_properties()
 
-    def insert_item(self, name, before_index, item):
+    def insert_item(self, parent, name, before_index, item):
         item_list = self.storage_dict.setdefault(name, list())
         item_dict = dict()
         item_list.insert(before_index, item_dict)
@@ -128,7 +128,7 @@ class DataItemMemoryVault(object):
         item.write_storage(DataItemMemoryVault(delegate=self, storage_dict=item_dict))
         self.update_properties()
 
-    def remove_item(self, name, index, item):
+    def remove_item(self, parent, name, index, item):
         item_list = self.storage_dict[name]
         del item_list[index]
         self.update_properties()
@@ -136,7 +136,7 @@ class DataItemMemoryVault(object):
     def update_data(self, data_shape, data_dtype, data=None):
         pass
 
-    def set_value(self, name, value):
+    def set_value(self, parent, name, value):
         self.storage_dict[name] = value
         self.update_properties()
 
@@ -146,10 +146,10 @@ class DataItemMemoryVault(object):
         storage_dict = self.storage_dict[name][index]
         return DataItemMemoryVault(delegate=self, storage_dict=storage_dict)
 
-    def has_value(self, name):
+    def has_value(self, parent, name):
         return name in self.storage_dict
 
-    def get_value(self, name):
+    def get_value(self, parent, name):
         return self.storage_dict[name]
 
     def get_item_vaults(self, name):
@@ -484,9 +484,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
-        self.vault.set_value("uuid", str(self.uuid))
-        self.vault.set_value("version", self.writer_version)
-        self.vault.set_value("reader_version", self.min_reader_version)
+        self.vault.set_value(self, "uuid", str(self.uuid))
+        self.vault.set_value(self, "version", self.writer_version)
+        self.vault.set_value(self, "reader_version", self.min_reader_version)
         self.vault.update_properties()
         self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
         self.master_data_save_event.set()
@@ -705,7 +705,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     metadata_group = metadata.setdefault(self.__name, dict())
                     metadata_group.clear()
                     metadata_group.update(self.__metadata_copy)
-                    self.__data_item.vault.set_value(self.__name, copy.deepcopy(metadata_group))
+                    self.__data_item.vault.set_value(self.__data_item, self.__name, copy.deepcopy(metadata_group))
                     metadata_changed()
         return MetadataContextManager(self, name)
 

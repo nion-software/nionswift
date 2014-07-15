@@ -813,6 +813,6 @@ OperationManager().register_operation("line-profile-operation", lambda: LineProf
 OperationManager().register_operation("convert-to-scalar-operation", lambda: ConvertToScalarOperation())
 
 
-def operation_item_factory(vault):
-    operation_id = vault.get_value("operation_id")
+def operation_item_factory(vault, parent):
+    operation_id = vault.get_value(parent, "operation_id")
     return OperationItem(operation_id)
