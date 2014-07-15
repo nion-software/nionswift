@@ -485,13 +485,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
-    def write(self):
-        self.vault.set_value(self, "uuid", str(self.uuid))
-        self.vault.set_value(self, "version", self.writer_version)
-        self.vault.set_value(self, "reader_version", self.min_reader_version)
-        self.vault.update_properties()
-        self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
-
     def get_data_file_info(self):
         return self.vault.reference_type, self.vault.reference
 

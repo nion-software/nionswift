@@ -64,7 +64,7 @@ class DataItemVault(object):
             return parent_storage_dict[managed_parent.relationship_name][index]
 
     def set_properties_low_level(self, uuid_, properties, file_datetime):
-        """ Only used to migrate data """
+        """ Only used to migrate data. """
         if self.datastore:
             assert self.reference is not None
             with self.__properties_lock:
@@ -72,6 +72,7 @@ class DataItemVault(object):
                 self.datastore.set_root_properties(uuid_, self.properties, self.reference, file_datetime)
 
     def load_data_low_level(self):
+        """ Only used to migrate data. """
         return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
 
     def update_properties(self):
@@ -170,11 +171,39 @@ class DataItemVault(object):
             return storage_dict[key][index][name]
 
 
+class ManagedDataItemContext(Observable.ManagedObjectContext):
+
+    def __init__(self, datastore):
+        super(ManagedDataItemContext, self).__init__()
+        self.__datastore = datastore
+
+    def write_data_item(self, data_item):
+        # keep storage up-to-date. transform from memory vault to new vault.
+        # references do not need to be updated since they will be written later.
+        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
+        data_item.vault.data_item = data_item
+        data_item.vault.datastore = self.__datastore
+        self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
+        data_item.managed_object_context = self  # this may cause vault or datastore to be used. so put it after establishing those two.
+        vault = data_item.vault
+        vault.set_value(data_item, "uuid", str(data_item.uuid))
+        vault.set_value(data_item, "version", data_item.writer_version)
+        vault.set_value(data_item, "reader_version", data_item.min_reader_version)
+        vault.update_properties()
+        with data_item.data_ref() as data_ref:
+            vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data_ref.master_data)
+
+    def erase_data_item(self, data_item):
+        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
+        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
+        data_item.managed_object_context = Observable.ManagedObjectContext()
+
+
 class DocumentModel(Storage.StorageBase):
 
     def __init__(self, datastore, storage_cache=None):
         super(DocumentModel, self).__init__()
-        self.managed_object_context = Observable.ManagedObjectContext()
+        self.managed_object_context = ManagedDataItemContext(datastore)
         self.datastore = datastore
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_items = list()
@@ -274,15 +303,9 @@ class DocumentModel(Storage.StorageBase):
         assert before_index <= len(self.__data_items) and before_index >= 0
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
-        # keep storage up-to-date. transform from memory vault to new vault.
-        # references do not need to be updated since they will be written later.
-        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
-        data_item.vault.data_item = data_item
-        data_item.vault.datastore = self.datastore
-        self.datastore.add_root_item_uuid("data-item", data_item.uuid)
-        data_item.managed_object_context = self.managed_object_context  # this may cause vault or datastore to be used. so put it after establishing those two.
         data_item.storage_cache = self.storage_cache
-        data_item.write()
+        self.managed_object_context.write_data_item(data_item)
+        #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
@@ -309,10 +332,7 @@ class DocumentModel(Storage.StorageBase):
         # do actual removal
         del self.__data_items[index]
         # keep storage up-to-date
-        self.datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
-        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
-        data_item.managed_object_context = Observable.ManagedObjectContext()
-        #data_item.vault.datastore = None
+        self.managed_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
         # unlisten to data item
         data_item.remove_listener(self)
