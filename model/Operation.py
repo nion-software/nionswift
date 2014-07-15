@@ -138,8 +138,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             else:
                 unregistered()
 
-    def read_storage(self, vault, reader_version):
-        super(OperationItem, self).read_storage(vault, reader_version)
+    def read_from_dict(self, properties):
+        super(OperationItem, self).read_from_dict(properties)
         # update items one by one to update operation
         for key in self.values.keys():
             if self.operation:

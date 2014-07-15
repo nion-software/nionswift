@@ -126,7 +126,7 @@ class DataItemMemoryVault(object):
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
         item_list = storage_dict.setdefault(name, list())
-        item_dict = item.write_properties()
+        item_dict = item.write_to_dict()
         item_list.insert(before_index, item_dict)
         item.vault = self
         item.managed_object_context = parent.managed_object_context
@@ -147,18 +147,6 @@ class DataItemMemoryVault(object):
         storage_dict = self.__get_storage_dict(object)
         storage_dict[name] = value
         self.update_properties()
-
-    def has_value(self, object, name):
-        storage_dict = self.__get_storage_dict(object)
-        return name in storage_dict
-
-    def get_value(self, object, name):
-        storage_dict = self.__get_storage_dict(object)
-        return storage_dict[name]
-
-    def get_child_count(self, object, key):
-        storage_dict = self.__get_storage_dict(object)
-        return len(storage_dict.get(key, list()))
 
 
 class IntermediateDataItem(object):
@@ -360,8 +348,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.sync_intrinsic_spatial_calibrations()
         # version handling
         self.managed_object_context = managed_object_context
-        self.read_storage(self.vault, reader_version=3)
-        properties = self.vault.properties
+        properties = self.managed_object_context.get_properties(self) if self.managed_object_context else dict()
+        self.read_from_dict(properties)
         for key in properties.keys():
             if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
@@ -492,9 +480,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # access properties
 
-    def write_properties(self):
+    def read_from_dict(self, properties):
+        super(DataItem, self).read_from_dict(properties)
+
+    def write_to_dict(self):
         # override from Observable to add the metadata to the properties
-        properties = super(DataItem, self).write_properties()
+        properties = super(DataItem, self).write_to_dict()
         for key in self.__metadata:
             properties[key] = self.__metadata[key]
         return properties

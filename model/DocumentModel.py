@@ -85,7 +85,7 @@ class DataItemVault(object):
         storage_dict = self.__get_storage_dict(parent)
         with self.properties_lock:
             item_list = storage_dict.setdefault(name, list())
-            item_dict = item.write_properties()
+            item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.vault = self
             item.managed_object_context = parent.managed_object_context
@@ -149,28 +149,12 @@ class DataItemVault(object):
             storage_dict[name] = value
         self.update_properties()
 
-    def has_value(self, object, name):
-        storage_dict = self.__get_storage_dict(object)
-        with self.properties_lock:
-            return name in storage_dict
-
-    def get_value(self, object, name):
-        storage_dict = self.__get_storage_dict(object)
-        with self.properties_lock:
-            return storage_dict[name]
-
-    def get_child_count(self, object, key):
-        storage_dict = self.__get_storage_dict(object)
-        with self.properties_lock:
-            return len(storage_dict.get(key, list()))
-
-    def get_child_value(self, object, key, index, name):
-        storage_dict = self.__get_storage_dict(object)
-        with self.properties_lock:
-            return storage_dict[key][index][name]
-
 
 class ManagedDataItemContext(Observable.ManagedObjectContext):
+
+    """
+        A ManagedObjectContext that adds extra methods for handling data items.
+    """
 
     def __init__(self, datastore):
         super(ManagedDataItemContext, self).__init__()
@@ -179,7 +163,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def write_data_item(self, data_item):
         # keep storage up-to-date. transform from memory vault to new vault.
         # references do not need to be updated since they will be written later.
-        properties = data_item.write_properties()
+        properties = data_item.write_to_dict()
         data_item.update_vault(DataItemVault(properties=properties))
         data_item.vault.data_item = data_item
         data_item.vault.datastore = self.__datastore
