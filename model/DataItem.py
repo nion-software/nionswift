@@ -492,7 +492,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __get_properties(self):
         """ Used for debugging. """
-        return copy.deepcopy(self.vault.properties)
+        return self.managed_object_context.get_properties(self)
     properties = property(__get_properties)
 
     def add_shared_task(self, task_id, item, fn):
