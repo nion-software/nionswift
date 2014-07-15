@@ -168,24 +168,58 @@ class DataItemVault(object):
         return list()
 
 
-class DbDataItemVault(object):
+class DocumentModel(Storage.StorageBase):
 
-    def __init__(self, document_model, datastore, storage_cache):
-        self.__weak_document_model = weakref.ref(document_model)
-        self.__datastore = datastore
-        self.__storage_cache = storage_cache
+    def __init__(self, datastore, storage_cache=None):
+        super(DocumentModel, self).__init__()
+        self.managed_object_context = Observable.ManagedObjectContext()
+        self.datastore = datastore
+        self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_items = list()
+        self.storage_relationships += ["data_groups"]
+        self.storage_type = "document"
+        self.data_groups = Storage.MutableRelationship(self, "data_groups")
+        self.session_id = None
+        self.start_new_session()
+        if self.datastore.initialized:
+            self.__read()
+        else:
+            self.datastore.set_root(self)
+            self.write()
 
-    def __get_data_items(self):
-        return self.__data_items
-    data_items = property(__get_data_items)
+    def __del__(self):
+        self.datastore.disconnected = True
 
-    def read_data_items(self):
-        document_model = self.__weak_document_model()
-        data_item_tuples = self.__datastore.find_data_item_tuples()
+    def __read(self):
+        # first read the items
+        parent_node, uuid = self.datastore.find_root_node("document")
+        self._set_uuid(uuid)
+        data_groups = self.datastore.get_items(parent_node, "data_groups")
+        self.__read_data_items()
+        # all data items will already have a managed_object_context
+        # now update the fields on self, disconnecting the datastore
+        # to prevent writing them back out to the database.
+        self.datastore.disconnected = True
+        for data_item in self.__data_items:
+            data_item.connect_data_sources(self.get_data_item_by_uuid)
+            data_item.managed_object_context = self.managed_object_context
+        for data_group in data_groups:
+            self.append_data_group(data_group)
+        for data_group in self.data_groups:
+            data_group.connect_data_items(self.get_data_item_by_uuid)
+        self.datastore.disconnected = False
+
+    def close(self):
+        """ Optional method to close the document model. """
+        for data_item in self.data_items:
+            data_item.close()
+
+    def __read_data_items(self):
+        """ Read data items from the datastore. Data items will have vault and managed_object_context set upon return. """
+        data_item_tuples = self.datastore.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
-            vault = DataItemVault(self.__datastore, properties=properties, reference_type=reference_type, reference=reference)
+            vault = DataItemVault(self.datastore, properties=properties, reference_type=reference_type, reference=reference)
             current_version = 2
             version = properties.get("version", 0)
             if version == 1:
@@ -223,96 +257,8 @@ class DbDataItemVault(object):
         data_items.sort(key=sort_by_date_key)
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
-            data_item.storage_cache = self.__storage_cache
-            data_item.add_listener(document_model)
-
-    def insert(self, before_index, data_item):
-        # TODO: move the tail into the caller area
-        # this comes from MutableRelationship, StorageBase, and DocumentModel.notify_insert_item
-        assert data_item is not None
-        assert data_item not in self.__data_items
-        assert before_index <= len(self.__data_items) and before_index >= 0
-        document_model = self.__weak_document_model()
-        # insert in internal list
-        self.__data_items.insert(before_index, data_item)
-        # keep storage up-to-date. transform from memory vault to new vault.
-        # references do not need to be updated since they will be written later.
-        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
-        data_item.vault.data_item = data_item
-        data_item.vault.datastore = self.__datastore
-        self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
-        data_item.storage_cache = self.__storage_cache
-        data_item.write()
-        # be a listener. why?
-        data_item.add_listener(document_model)
-        document_model.notify_listeners("data_item_inserted", document_model, data_item, before_index, False)
-
-    def remove(self, data_item):
-        # TODO: move the tail into the caller area
-        # this comes from MutableRelationship, StorageBase, and DocumentModel.notify_remove_item
-        assert data_item is not None
-        assert data_item in self.__data_items
-        document_model = self.__weak_document_model()
-        index = self.__data_items.index(data_item)
-        # do actual removal
-        del self.__data_items[index]
-        # keep storage up-to-date
-        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
-        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
-        #data_item.vault.datastore = None
-        data_item.__storage_cache = None
-        # unlisten to data item
-        data_item.remove_listener(document_model)
-        # update data item count
-        document_model.notify_listeners("data_item_removed", document_model, data_item, index, False)
-        if data_item.get_observer_count(document_model) == 0:  # ugh?
-            document_model.notify_listeners("data_item_deleted", data_item)
-
-
-class DocumentModel(Storage.StorageBase):
-
-    def __init__(self, datastore, storage_cache=None):
-        super(DocumentModel, self).__init__()
-        self.managed_object_context = Observable.ManagedObjectContext()
-        self.datastore = datastore
-        self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
-        self.__data_item_vault = DbDataItemVault(self, datastore, self.storage_cache)
-        self.storage_relationships += ["data_groups"]
-        self.storage_type = "document"
-        self.data_groups = Storage.MutableRelationship(self, "data_groups")
-        self.session_id = None
-        self.start_new_session()
-        if self.datastore.initialized:
-            self.__read()
-        else:
-            self.datastore.set_root(self)
-            self.write()
-
-    def __del__(self):
-        self.datastore.disconnected = True
-
-    def __read(self):
-        # first read the items
-        parent_node, uuid = self.datastore.find_root_node("document")
-        self._set_uuid(uuid)
-        data_groups = self.datastore.get_items(parent_node, "data_groups")
-        self.__data_item_vault.read_data_items()
-        # now update the fields on self, disconnecting the datastore
-        # to prevent writing them back out to the database.
-        self.datastore.disconnected = True
-        for data_item in self.__data_item_vault.data_items:
-            data_item.connect_data_sources(self.get_data_item_by_uuid)
-            data_item.managed_object_context = self.managed_object_context
-        for data_group in data_groups:
-            self.append_data_group(data_group)
-        for data_group in self.data_groups:
-            data_group.connect_data_items(self.get_data_item_by_uuid)
-        self.datastore.disconnected = False
-
-    def close(self):
-        """ Optional method to close the document model. """
-        for data_item in self.data_items:
-            data_item.close()
+            data_item.storage_cache = self.storage_cache
+            data_item.add_listener(self)
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -321,11 +267,28 @@ class DocumentModel(Storage.StorageBase):
         self.insert_data_item(len(self.data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
-        self.__data_item_vault.insert(before_index, data_item)
+        """ Insert a new data item into document model. Data item will have vault and managed_object_context set upon return. """
+        assert data_item is not None
+        assert data_item not in self.__data_items
+        assert before_index <= len(self.__data_items) and before_index >= 0
+        # insert in internal list
+        self.__data_items.insert(before_index, data_item)
+        # keep storage up-to-date. transform from memory vault to new vault.
+        # references do not need to be updated since they will be written later.
+        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
+        data_item.vault.data_item = data_item
+        data_item.vault.datastore = self.datastore
+        self.datastore.add_root_item_uuid("data-item", data_item.uuid)
+        data_item.storage_cache = self.storage_cache
+        data_item.write()
+        # be a listener. why?
+        data_item.add_listener(self)
+        self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.connect_data_sources(self.get_data_item_by_uuid)
         data_item.managed_object_context = self.managed_object_context
 
     def remove_data_item(self, data_item):
+        """ Remove data item from document model. Data item will have vault and managed_object_context cleared upon return. """
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
@@ -340,10 +303,25 @@ class DocumentModel(Storage.StorageBase):
         data_item.managed_object_context = None
         data_item.disconnect_data_sources()
         # remove it from the vault
-        self.__data_item_vault.remove(data_item)
+        assert data_item is not None
+        assert data_item in self.__data_items
+        index = self.__data_items.index(data_item)
+        # do actual removal
+        del self.__data_items[index]
+        # keep storage up-to-date
+        self.datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
+        data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
+        #data_item.vault.datastore = None
+        data_item.__storage_cache = None
+        # unlisten to data item
+        data_item.remove_listener(self)
+        # update data item count
+        self.notify_listeners("data_item_removed", self, data_item, index, False)
+        if data_item.get_observer_count(self) == 0:  # ugh?
+            self.notify_listeners("data_item_deleted", data_item)
 
     def __get_data_items(self):
-        return tuple(self.__data_item_vault.data_items)
+        return tuple(self.__data_items)  # tuple makes it read only
     data_items = property(__get_data_items)
 
     def get_dependent_data_items(self, parent_data_item):
