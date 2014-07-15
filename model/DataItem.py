@@ -232,23 +232,71 @@ SOURCE = 4
 class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
 
     """
-        Data items consist of input data, metadata, operations, and output data.
+        Data items represent a list of data/metadata and a description of how that data is derived.
 
-        Data items contain input data, which is a list of either other data items or intrinsic
-        data. Intrinsic data consists of an ndarray and calibrations.
+        Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
+        calibrations, creation and modification dates, titles, captions, etc.
 
-        Data items contain operations which act on the input data to form new data. Inputs are
-        tracked so that operations can be automatically re-applied when the inputs change.
+        The derivation description includes a list of source data items, operations, regions, and relationships
+        between data/metadata.
 
-        Data items contain output data which is the input data after the operations have been
-        applied.
+        If a data item represents a single data/metadata, the following direct properties are available:
 
-        Data items contain metadata which describes the output data.
+        * *data* an ndarray. see note about accessing data below.
+        * *data_shape* an ndarray shape
+        * *data_dtype* an ndarray shape
 
-        Data items contain displays which store display information. Displays are a special form of
-        metadata.
+        and
 
-        Operations are applied when inputs change, resulting in new output data.
+        * *dimension_calibratons* a list of calibrations
+        * *intensity_calibration* a calibration
+        * *datetime_created* a datetime item
+        * *datetime_modified* a datetime item
+        * *title* a string (single line)
+        * *caption* a string (multiple lines)
+        * *rating* an integer star rating (0 to 5)
+        * *flag* a flag (-1, 0, 1)
+        * *session_id* a string representing the session
+        * *regions* a list of regions
+        * *operations* a list of operations
+
+        For more complex data items, the following properties are also available:
+
+        * *outputs* a list of data items
+        * *inputs* a list of data items
+
+        In addition to the properties above, data items may contain a list of displays. By convention, displays
+        are only associated with "top level" data items.
+
+        * *displays* a list of displays associated with the data item.
+
+        Accessing data can be done directly via the data property. However, this may cause data to be loaded
+        into memory from disk and unloaded every time the data property is used.
+
+        A better way to access data if it will be used more than once is to ask for a data reference via the
+        data_ref() method which returns a context manager object. When the context manager object is released,
+        the data will be unloaded from memory if it is not used somewhere else. The context manager has a
+        master_data property to access the data.
+
+        Transactions.
+
+        Liveness.
+
+        Processors.
+
+        Snapshots and deep copies.
+
+        Properties.
+
+        Data item changes.
+
+        Metadata.
+
+        Data range.
+
+        Data values.
+
+        Cached data.
     """
 
     def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
@@ -402,8 +450,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return data_item_copy
 
     def __get_object_store(self):
+        """ Return the object store. """
         return self.__object_store
     def __set_object_store(self, object_store):
+        """ Set the object store and propogate it to contained objects. """
         self.__object_store = object_store
         for operation in self.operations:
             operation.object_store = object_store
@@ -416,6 +466,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     object_store = property(__get_object_store, __set_object_store)
 
     def about_to_be_removed(self):
+        """ Tell contained objects that this data item is about to be removed from its container. """
         for operation in self.operations:
             operation.about_to_be_removed()
         for region in self.regions:
@@ -424,9 +475,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             display.about_to_be_removed()
 
     def _is_cache_delayed(self):
+        """ Override from Cacheable base class to indicate when caching is delayed. """
         return self.__transaction_count > 0
 
     def transaction(self):
+        """ Return a context manager to put the data item under a 'transaction'. """
         class TransactionContextManager(object):
             def __init__(self, object):
                 self.__object = object
@@ -436,10 +489,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             def __exit__(self, type, value, traceback):
                 self.__object.end_transaction()
         return TransactionContextManager(self)
-
-    def __get_transaction_count(self):
-        return self.__transaction_count
-    transaction_count = property(__get_transaction_count)
 
     def begin_transaction(self, count=1):
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
@@ -470,7 +519,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # access properties
 
     def __get_properties(self):
-        return self.vault.properties
+        """ Used for debugging. """
+        return copy.deepcopy(self.vault.properties)
     properties = property(__get_properties)
 
     def add_shared_task(self, task_id, item, fn):
@@ -479,19 +529,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
 
-    # cheap, but incorrect, way to tell whether this is live acquisition
     def __get_is_live(self):
-        return self.transaction_count > 0
+        """ Return whether this data item represents a live acquisition data item. """
+        return self.__transaction_count > 0
     is_live = property(__get_is_live)
-
-    def __get_live_status_as_string(self):
-        if self.is_live:
-            live_metadata = self.get_metadata("hardware_source")
-            frame_index_str = str(live_metadata.get("frame_index", str()))
-            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), self.spatial_shape[-1]) if "valid_rows" in live_metadata else str()
-            return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
-        return str()
-    live_status_as_string = property(__get_live_status_as_string)
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -903,7 +944,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __unload_master_data(self):
         # unload data if possible.
         # data cannot be unloaded if transaction count > 0 or if there is no vault.
-        if self.transaction_count == 0 and self.has_master_data and self.vault.can_reload_data:
+        if self.__transaction_count == 0 and self.has_master_data and self.vault.can_reload_data:
             self.__master_data = None
             self.__cached_data = None
             #logging.debug("unloading %s", self)

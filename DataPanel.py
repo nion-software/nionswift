@@ -490,7 +490,14 @@ class DataPanel(Panel.Panel):
             display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
-            display4 = data_item.live_status_as_string
+            def get_live_status_as_string(data_item):
+                if data_item.is_live:
+                    live_metadata = data_item.get_metadata("hardware_source")
+                    frame_index_str = str(live_metadata.get("frame_index", str()))
+                    partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.spatial_shape[-1]) if "valid_rows" in live_metadata else str()
+                    return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+                return str()
+            display4 = get_live_status_as_string(data_item)
             ctx.save()
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
