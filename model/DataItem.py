@@ -126,11 +126,10 @@ class DataItemMemoryVault(object):
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
         item_list = storage_dict.setdefault(name, list())
-        item_dict = dict()
+        item_dict = item.write_properties()
         item_list.insert(before_index, item_dict)
         item.vault = self
         item.managed_object_context = parent.managed_object_context
-        item.write_storage()
         self.update_properties()
 
     def remove_item(self, parent, name, index, item):
@@ -139,7 +138,7 @@ class DataItemMemoryVault(object):
         del item_list[index]
         self.update_properties()
         item.vault = None
-        item.managed_object_context = Observable.ManagedObjectContext()
+        item.managed_object_context = None
 
     def update_data(self, data_shape, data_dtype, data=None):
         pass
@@ -360,7 +359,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__set_master_data(data)
             self.sync_intrinsic_spatial_calibrations()
         # version handling
-        self.managed_object_context = managed_object_context or Observable.ManagedObjectContext()
+        self.managed_object_context = managed_object_context
         self.read_storage(self.vault, reader_version=3)
         properties = self.vault.properties
         for key in properties.keys():
@@ -490,9 +489,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # access properties
 
+    def write_properties(self):
+        # override from Observable to add the metadata to the properties
+        properties = super(DataItem, self).write_properties()
+        for key in self.__metadata:
+            properties[key] = self.__metadata[key]
+        return properties
+
     def __get_properties(self):
         """ Used for debugging. """
-        return self.managed_object_context.get_properties(self)
+        if self.managed_object_context:
+            return self.managed_object_context.get_properties(self)
+        return dict()
     properties = property(__get_properties)
 
     def add_shared_task(self, task_id, item, fn):

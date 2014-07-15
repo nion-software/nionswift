@@ -85,11 +85,10 @@ class DataItemVault(object):
         storage_dict = self.__get_storage_dict(parent)
         with self.properties_lock:
             item_list = storage_dict.setdefault(name, list())
-            item_dict = dict()
+            item_dict = item.write_properties()
             item_list.insert(before_index, item_dict)
             item.vault = self
             item.managed_object_context = parent.managed_object_context
-            item.write_storage()
         self.update_properties()
 
     def remove_item(self, parent, name, index, item):
@@ -99,7 +98,7 @@ class DataItemVault(object):
             del item_list[index]
         self.update_properties()
         item.vault = None
-        item.managed_object_context = Observable.ManagedObjectContext()
+        item.managed_object_context = None
 
     def get_default_reference(self, data_item):
         uuid_ = data_item.uuid
@@ -180,7 +179,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def write_data_item(self, data_item):
         # keep storage up-to-date. transform from memory vault to new vault.
         # references do not need to be updated since they will be written later.
-        data_item.update_vault(DataItemVault(properties=data_item.vault.properties))
+        properties = data_item.write_properties()
+        data_item.update_vault(DataItemVault(properties=properties))
         data_item.vault.data_item = data_item
         data_item.vault.datastore = self.__datastore
         self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
@@ -196,7 +196,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def erase_data_item(self, data_item):
         self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
         data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
-        data_item.managed_object_context = Observable.ManagedObjectContext()
+        data_item.managed_object_context = None
 
 
 class DocumentModel(Storage.StorageBase):
