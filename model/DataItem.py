@@ -125,7 +125,7 @@ class DataItemMemoryVault(object):
         item_dict = dict()
         item_list.insert(before_index, item_dict)
         item.vault = DataItemMemoryVault(delegate=self, storage_dict=item_dict)
-        item.write_storage(DataItemMemoryVault(delegate=self, storage_dict=item_dict))
+        item.write_storage()
         self.update_properties()
 
     def remove_item(self, parent, name, index, item):
