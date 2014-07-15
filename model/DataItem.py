@@ -299,12 +299,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         Cached data.
     """
 
-    def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
+    def __init__(self, data=None, vault=None, managed_object_context=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
+        self.uuid = item_uuid if item_uuid else self.uuid
+        self.min_reader_version = 2
+        self.writer_version = 3
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
-        if item_uuid:
-            self.set_uuid(item_uuid)
         self.vault = vault if vault else DataItemMemoryVault()
         self.vault.data_item = self
         has_master_data = data is not None
@@ -362,7 +363,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                 self.__metadata.setdefault(key, dict()).update(properties[key])
         # validate the metadata to the current version
-        self.validate_metadata_version(writer_version=3, min_reader_version=2)
+        self.managed_object_context = managed_object_context
+        if self.managed_object_context:
+            self.validate_metadata_version(writer_version=3, min_reader_version=2)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
@@ -481,6 +484,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def write(self):
+        self.vault.set_value("uuid", str(self.uuid))
+        self.vault.set_value("version", self.writer_version)
+        self.vault.set_value("reader_version", self.min_reader_version)
         self.vault.update_properties()
         self.vault.update_data(self.master_data_shape, self.master_data_dtype, data=self.__master_data)
         self.master_data_save_event.set()

@@ -202,7 +202,6 @@ class DocumentModel(Storage.StorageBase):
         self.datastore.disconnected = True
         for data_item in self.__data_items:
             data_item.connect_data_sources(self.get_data_item_by_uuid)
-            data_item.managed_object_context = self.managed_object_context
         for data_group in data_groups:
             self.append_data_group(data_group)
         for data_group in self.data_groups:
@@ -249,7 +248,7 @@ class DocumentModel(Storage.StorageBase):
                 vault.set_value_low_level("reader_version", current_version)
                 vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
                 logging.info("Updated %s", vault.reference)
-            data_item = DataItem.DataItem(vault=vault, item_uuid=data_item_uuid, create_display=False)
+            data_item = DataItem.DataItem(vault=vault, managed_object_context=self.managed_object_context, item_uuid=data_item_uuid, create_display=False)
             assert(len(data_item.displays) > 0)
             data_items.append(data_item)
         def sort_by_date_key(data_item):
@@ -279,13 +278,13 @@ class DocumentModel(Storage.StorageBase):
         data_item.vault.data_item = data_item
         data_item.vault.datastore = self.datastore
         self.datastore.add_root_item_uuid("data-item", data_item.uuid)
+        data_item.managed_object_context = self.managed_object_context  # this may cause vault or datastore to be used. so put it after establishing those two.
         data_item.storage_cache = self.storage_cache
         data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.connect_data_sources(self.get_data_item_by_uuid)
-        data_item.managed_object_context = self.managed_object_context
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have vault and managed_object_context cleared upon return. """
@@ -300,7 +299,6 @@ class DocumentModel(Storage.StorageBase):
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # disconnect the data source
-        data_item.managed_object_context = None
         data_item.disconnect_data_sources()
         # remove it from the vault
         assert data_item is not None
@@ -311,6 +309,7 @@ class DocumentModel(Storage.StorageBase):
         # keep storage up-to-date
         self.datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
         data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
+        data_item.managed_object_context = None
         #data_item.vault.datastore = None
         data_item.__storage_cache = None
         # unlisten to data item

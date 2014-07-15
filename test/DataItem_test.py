@@ -129,8 +129,13 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(data_ref.master_data[0,0], 1)
             self.assertEqual(data_copy_accessor.master_data[0,0], 0)
         # make sure properties and other items got copied
-        self.assertEqual(len(data_item_copy.properties), 19)
+        #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
         self.assertIsNot(data_item.properties, data_item_copy.properties)
+        # uuid should not match
+        self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
+        self.assertEqual(data_item.min_reader_version, data_item_copy.min_reader_version)
+        self.assertEqual(data_item.writer_version, data_item_copy.writer_version)
+        # metadata get copied?
         self.assertEqual(len(data_item.get_metadata("test")), 2)
         self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))
         # make sure display counts match

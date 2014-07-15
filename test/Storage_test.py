@@ -787,6 +787,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertTrue("master_data_shape" in data_item.properties)
         self.assertTrue("master_data_dtype" in data_item.properties)
         self.assertTrue("uuid" in data_item.properties)
+        self.assertTrue("version" in data_item.properties)
+        self.assertTrue("reader_version" in data_item.properties)
 
     def test_deleting_dependent_after_deleting_source_succeeds(self):
         current_working_directory = os.getcwd()
