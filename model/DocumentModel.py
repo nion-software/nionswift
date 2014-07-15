@@ -97,6 +97,8 @@ class DataItemVault(object):
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
+        item.vault = None
+        item.managed_object_context = Observable.ManagedObjectContext()
 
     def get_default_reference(self, data_item):
         uuid_ = data_item.uuid
@@ -309,7 +311,7 @@ class DocumentModel(Storage.StorageBase):
         # keep storage up-to-date
         self.datastore.remove_root_item_uuid("data-item", data_item.uuid, data_item.vault.reference_type, data_item.vault.reference)
         data_item.update_vault(DataItem.DataItemMemoryVault(properties=data_item.vault.properties))
-        data_item.managed_object_context = None
+        data_item.managed_object_context = Observable.ManagedObjectContext()
         #data_item.vault.datastore = None
         data_item.__storage_cache = None
         # unlisten to data item

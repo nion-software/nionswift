@@ -138,6 +138,8 @@ class DataItemMemoryVault(object):
         item_list = storage_dict[name]
         del item_list[index]
         self.update_properties()
+        item.vault = None
+        item.managed_object_context = Observable.ManagedObjectContext()
 
     def update_data(self, data_shape, data_dtype, data=None):
         pass
@@ -359,7 +361,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__set_master_data(data)
             self.sync_intrinsic_spatial_calibrations()
         # version handling
-        self.managed_object_context = managed_object_context
+        self.managed_object_context = managed_object_context or Observable.ManagedObjectContext()
         self.read_storage(self.vault, reader_version=3)
         properties = self.vault.properties
         for key in properties.keys():
