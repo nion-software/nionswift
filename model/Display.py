@@ -434,5 +434,5 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
                 return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
 
 
-def display_factory(vault, parent):
+def display_factory(lookup_id):
     return Display()

@@ -581,7 +581,7 @@ class IntervalGraphic(Graphic):
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
 
 
-def factory(vault, parent):
+def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
         "rect-graphic": RectangleGraphic,
@@ -589,5 +589,5 @@ def factory(vault, parent):
         "point-graphic": PointGraphic,
         "interval-graphic": IntervalGraphic,
     }
-    type = vault.get_value(parent, "type")
+    type = lookup_id("type")
     return build_map[type]() if type in build_map else None
