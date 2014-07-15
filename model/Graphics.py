@@ -117,11 +117,11 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ActiveSerializable):
+class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
-        self.define_property(Observable.Property("color", "#F00", changed=self._property_changed))
+        self.define_property("color", "#F00", changed=self._property_changed)
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
     def __deepcopy__(self, memo):
         graphic = self.__class__()
@@ -189,7 +189,7 @@ class RectangleTypeGraphic(Graphic):
     def __init__(self, type, title):
         super(RectangleTypeGraphic, self).__init__(type)
         self.title = title
-        self.define_property(Observable.Property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed))
+        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
     # accessors
     def __validate_bounds(self, value):
         # normalize
@@ -351,10 +351,10 @@ class LineTypeGraphic(Graphic):
         super(LineTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property(Observable.Property("start", (0.0, 0.0), changed=self._property_changed))
-        self.define_property(Observable.Property("end", (1.0, 1.0), changed=self._property_changed))
-        self.define_property(Observable.Property("start_arrow_enabled", False, changed=self._property_changed))
-        self.define_property(Observable.Property("end_arrow_enabled", False, changed=self._property_changed))
+        self.define_property("start", (0.0, 0.0), changed=self._property_changed)
+        self.define_property("end", (1.0, 1.0), changed=self._property_changed)
+        self.define_property("start_arrow_enabled", False, changed=self._property_changed)
+        self.define_property("end_arrow_enabled", False, changed=self._property_changed)
     # accessors
     def __get_vector(self):
         return self.start, self.end
@@ -481,7 +481,7 @@ class PointTypeGraphic(Graphic):
         super(PointTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property(Observable.Property("position", (0.5, 0.5), changed=self._property_changed))
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed)
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -538,8 +538,8 @@ class IntervalGraphic(Graphic):
         super(IntervalGraphic, self).__init__("interval-graphic")
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
-        self.define_property(Observable.Property("start", 0.0, changed=self._property_changed))
-        self.define_property(Observable.Property("end", 1.0, changed=self._property_changed))
+        self.define_property("start", 0.0, changed=self._property_changed)
+        self.define_property("end", 1.0, changed=self._property_changed)
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances

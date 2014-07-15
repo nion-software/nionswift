@@ -27,7 +27,7 @@ _ = gettext.gettext
 class LineProfileGraphic(Graphics.LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property(Observable.Property("width", 1.0, changed=self._property_changed))
+        self.define_property("width", 1.0, changed=self._property_changed)
     # accessors
     def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -66,7 +66,7 @@ class LineProfileGraphic(Graphics.LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
-class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ActiveSerializable):
+class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
     """
         OperationItem represents an operation on numpy data array.
         Pass in a description during construction. The description
@@ -88,10 +88,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ac
             def convert_back(self, value):
                 return uuid.UUID(value) if value is not None else None
 
-        self.define_property(Observable.Property("operation_id", operation_id, read_only=True))
-        self.define_property(Observable.Property("enabled", True, changed=self.__property_changed))
-        self.define_property(Observable.Property("values", dict(), changed=self.__property_changed))
-        self.define_property(Observable.Property("region_uuid", None, converter=UuidToStringConverter()))
+        self.define_property("operation_id", operation_id, read_only=True)
+        self.define_property("enabled", True, changed=self.__property_changed)
+        self.define_property("values", dict(), changed=self.__property_changed)
+        self.define_property("region_uuid", None, converter=UuidToStringConverter())
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there

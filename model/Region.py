@@ -18,7 +18,7 @@ from nion.ui import Binding
 from nion.ui import Observable
 
 
-class Region(Observable.Observable, Observable.Broadcaster, Observable.ActiveSerializable):
+class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
     # Regions are associated with exactly one data item.
 
     def __init__(self, type):
@@ -32,7 +32,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ActiveSer
                 return str(value) if value is not None else None
             def convert_back(self, value):
                 return uuid.UUID(value) if value is not None else None
-        self.define_property(Observable.Property("uuid", region_uuid, read_only=True, converter=UuidToStringConverter()))
+        self.define_property("uuid", region_uuid, read_only=True, converter=UuidToStringConverter())
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     # subclasses should override __deepcopy__ and deepcopy_from as necessary
@@ -73,7 +73,7 @@ class PointRegion(Region):
 
     def __init__(self):
         super(PointRegion, self).__init__("point-region")
-        self.define_property(Observable.Property("position", (0.5, 0.5), changed=self._property_changed))
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed)
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.color = "#FF0"
         self.__graphic.add_listener(self)
@@ -92,9 +92,9 @@ class LineRegion(Region):
 
     def __init__(self):
         super(LineRegion, self).__init__("line-region")
-        self.define_property(Observable.Property("start", (0.0, 0.0), changed=self._property_changed))
-        self.define_property(Observable.Property("end", (1.0, 1.0), changed=self._property_changed))
-        self.define_property(Observable.Property("width", 1.0, changed=self._property_changed))
+        self.define_property("start", (0.0, 0.0), changed=self._property_changed)
+        self.define_property("end", (1.0, 1.0), changed=self._property_changed)
+        self.define_property("width", 1.0, changed=self._property_changed)
         self.__graphic = Operation.LineProfileGraphic()
         self.__graphic.color = "#FF0"
         self.__graphic.add_listener(self)
@@ -115,8 +115,8 @@ class RectRegion(Region):
 
     def __init__(self):
         super(RectRegion, self).__init__("rectangle-region")
-        self.define_property(Observable.Property("center", (0.0, 0.0), changed=self._property_changed))
-        self.define_property(Observable.Property("size", (1.0, 1.0), changed=self._property_changed))
+        self.define_property("center", (0.0, 0.0), changed=self._property_changed)
+        self.define_property("size", (1.0, 1.0), changed=self._property_changed)
         # TODO: add rotation property to rect region
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.color = "#FF0"
@@ -151,8 +151,8 @@ class IntervalRegion(Region):
 
     def __init__(self):
         super(IntervalRegion, self).__init__("interval-region")
-        self.define_property(Observable.Property("start", 0.0, changed=self._property_changed))
-        self.define_property(Observable.Property("end", 1.0, changed=self._property_changed))
+        self.define_property("start", 0.0, changed=self._property_changed)
+        self.define_property("end", 1.0, changed=self._property_changed)
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.color = "#FF0"
         self.__graphic.add_listener(self)

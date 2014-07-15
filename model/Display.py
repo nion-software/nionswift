@@ -99,7 +99,7 @@ class GraphicSelection(Observable.Broadcaster):
             self.notify_listeners("selection_changed", self)
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
+class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
@@ -107,14 +107,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__object_store = None
         self.__weak_data_item = None
         self.__graphics = list()
-        self.define_property(Observable.Property("display_calibrated_values", True, changed=self.__property_changed))
-        self.define_property(Observable.Property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed))
-        self.define_property(Observable.Property("y_min", changed=self.__property_changed))
-        self.define_property(Observable.Property("y_max", changed=self.__property_changed))
-        self.define_property(Observable.Property("left_channel", changed=self.__property_changed))
-        self.define_property(Observable.Property("right_channel", changed=self.__property_changed))
+        self.define_property("display_calibrated_values", True, changed=self.__property_changed)
+        self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
+        self.define_property("y_min", changed=self.__property_changed)
+        self.define_property("y_max", changed=self.__property_changed)
+        self.define_property("left_channel", changed=self.__property_changed)
+        self.define_property("right_channel", changed=self.__property_changed)
         self.__lookup = None  # temporary for experimentation
-        self.define_relationship(Observable.Relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic))
+        self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()

@@ -229,10 +229,10 @@ SOURCE = 4
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ActiveSerializable):
+class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
 
     """
-        Data items represent a list of data/metadata and a description of how that data is derived.
+        Data items represent a list of data/metadata, a description of how that data is derived, and machinery to calculate it.
 
         Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
         calibrations, creation and modification dates, titles, captions, etc.
@@ -317,22 +317,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 return str(value) if value is not None else None
             def convert_back(self, value):
                 return numpy.dtype(value) if value is not None else None
-        self.define_property(Observable.Property("master_data_shape", master_data_shape, changed=self.__property_changed))
-        self.define_property(Observable.Property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed))
-        self.define_property(Observable.Property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed))
-        self.define_property(Observable.Property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed))
-        self.define_property(Observable.Property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed))
-        self.define_property(Observable.Property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed))
-        self.define_property(Observable.Property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed))
-        self.define_property(Observable.Property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources"))
-        self.define_relationship(Observable.Relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation))
-        self.define_relationship(Observable.Relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display))
-        self.define_relationship(Observable.Relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region))
+        self.define_property("master_data_shape", master_data_shape, changed=self.__property_changed)
+        self.define_property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed)
+        self.define_property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed)
+        self.define_property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed)
+        self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
+        self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
+        self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)
+        self.define_property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_property_changed)
+        self.define_property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_property_changed)
+        self.define_property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed)
+        self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
+        self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
+        self.define_property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources")
+        self.define_relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation)
+        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
+        self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.__metadata = dict()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
