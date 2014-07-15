@@ -76,7 +76,7 @@ class DataItemVault(object):
 
     def update_properties(self):
         if self.datastore:
-            self.ensure_reference_valid()
+            self.__ensure_reference_valid(self.data_item)
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
             self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
 
@@ -97,10 +97,10 @@ class DataItemVault(object):
             del item_list[index]
         self.update_properties()
 
-    def get_default_reference(self):
-        uuid_ = self.data_item.uuid
-        datetime_item = self.data_item.datetime_original
-        session_id = self.data_item.session_id
+    def get_default_reference(self, data_item):
+        uuid_ = data_item.uuid
+        datetime_item = data_item.datetime_original
+        session_id = data_item.session_id
         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
         # also:
@@ -121,14 +121,14 @@ class DataItemVault(object):
         path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
 
-    def ensure_reference_valid(self):
+    def __ensure_reference_valid(self, data_item):
         if not self.reference:
             self.reference_type = "relative_file"
-            self.reference = self.get_default_reference()
+            self.reference = self.get_default_reference(data_item)
 
     def update_data(self, data_shape, data_dtype, data=None):
         if self.datastore is not None:
-            self.ensure_reference_valid()
+            self.__ensure_reference_valid(self.data_item)
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
             self.datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
 

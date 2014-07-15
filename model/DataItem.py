@@ -91,13 +91,12 @@ class DataItemMemoryVault(object):
 
     """ Vaults should be stateless so that we can switch them in data items without repercussions. """
 
-    def __init__(self, properties=None, storage_dict=None, delegate=None):
+    def __init__(self, properties=None):
         self.__properties = properties if properties else dict()
-        self.storage_dict = storage_dict if storage_dict is not None else self.__properties
-        self.__delegate = delegate  # a delegate item vault for updating properties
         self.reference = None
         self.reference_type = None
         self.can_reload_data = False
+        self.__weak_data_item = None
 
     def close(self):
         self.__weak_data_item = None
@@ -108,17 +107,12 @@ class DataItemMemoryVault(object):
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
     data_item = property(__get_data_item, __set_data_item)
 
-    def __get_delegate(self):
-        return self.__delegate
-    delegate = property(__get_delegate)
-
     def __get_properties(self):
         return copy.deepcopy(self.__properties)
     properties = property(__get_properties)
 
     def update_properties(self):
-        if self.__delegate:
-            self.__delegate.update_properties()
+        pass
 
     def __get_storage_dict(self, object):
         managed_parent = object.managed_parent
