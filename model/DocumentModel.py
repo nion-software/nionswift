@@ -32,11 +32,11 @@ class DataItemPersistentStorage(object):
         Manages persistent storage for data items.
     """
 
-    def __init__(self, datastore=None, properties=None, reference_type=None, reference=None):
-        self.datastore = datastore
+    def __init__(self, datastore=None, data_item=None, properties=None, reference_type=None, reference=None):
+        self.__datastore = datastore
         self.__properties = copy.deepcopy(properties) if properties else dict()
         self.__properties_lock = threading.RLock()
-        self.__weak_data_item = None
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
         # reference type and reference indicate how to save/load data and properties
         self.reference_type = reference_type
         self.reference = reference
@@ -65,23 +65,11 @@ class DataItemPersistentStorage(object):
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
             return parent_storage_dict[managed_parent.relationship_name][index]
 
-    def set_properties_low_level(self, uuid_, properties, file_datetime):
-        """ Only used to migrate data. """
-        if self.datastore:
-            assert self.reference is not None
-            with self.__properties_lock:
-                self.__properties = copy.deepcopy(properties)
-                self.datastore.set_root_properties(uuid_, self.properties, self.reference, file_datetime)
-
-    def load_data_low_level(self):
-        """ Only used to migrate data. """
-        return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
-
     def update_properties(self):
-        if self.datastore:
+        if self.__datastore:
             self.__ensure_reference_valid(self.data_item)
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            self.datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
+            self.__datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
@@ -130,17 +118,17 @@ class DataItemPersistentStorage(object):
             self.reference = self.get_default_reference(data_item)
 
     def update_data(self, data_shape, data_dtype, data=None):
-        if self.datastore is not None:
+        if self.__datastore is not None:
             self.__ensure_reference_valid(self.data_item)
             file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            self.datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
+            self.__datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data
-        return self.datastore.load_data_reference("master_data", self.reference_type, self.reference)
+        return self.__datastore.load_data_reference("master_data", self.reference_type, self.reference)
 
     def __can_reload_data(self):
-        return self.datastore is not None
+        return self.__datastore is not None
     can_reload_data = property(__can_reload_data)
 
     def set_value(self, object, name, value):
@@ -160,12 +148,70 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         super(ManagedDataItemContext, self).__init__()
         self.__datastore = datastore
 
+    def read_data_items(self):
+        """ Read data items from the datastore and return as a list. Data items will have managed_object_context set upon return. """
+        data_item_tuples = self.__datastore.find_data_item_tuples()
+        data_items = list()
+        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
+            current_version = 2
+            version = properties.get("version", 0)
+            if version == 1:
+                if "spatial_calibrations" in properties:
+                    properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
+                    del properties["spatial_calibrations"]
+                if "intensity_calibration" in properties:
+                    properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
+                    del properties["intensity_calibration"]
+                if "data_source_uuid" in properties:
+                    # for now, this is not translated into v2. it was an extra item.
+                    del properties["data_source_uuid"]
+                if "properties" in properties:
+                    old_properties = properties["properties"]
+                    new_properties = properties.setdefault("hardware_source", dict())
+                    new_properties.update(copy.deepcopy(old_properties))
+                    if "session_uuid" in new_properties:
+                        del new_properties["session_uuid"]
+                    del properties["properties"]
+                temp_data = self.__datastore.load_data_reference("master_data", reference_type, reference)
+                if temp_data is not None:
+                    properties["master_data_dtype"] = str(temp_data.dtype)
+                    properties["master_data_shape"] = temp_data.shape
+                properties["displays"] = [{}]
+                properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                properties["version"] = current_version
+                properties["reader_version"] = current_version
+                self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
+                version = 2
+                logging.info("Updated %s to %s", reference, version)
+            if version == 2:
+                # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
+                for display_properties in properties.get("displays", list()):
+                    display_properties.setdefault("uuid", str(uuid.uuid4()))
+                    for graphic_properties in display_properties.get("graphics", list()):
+                        graphic_properties.setdefault("uuid", str(uuid.uuid4()))
+                for operation_properties in display_properties.get("operations", list()):
+                    operation_properties.setdefault("uuid", str(uuid.uuid4()))
+                self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
+                version = 3
+                logging.info("Updated %s to %s", reference, version)
+            data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
+            persistent_storage = DataItemPersistentStorage(datastore=self.__datastore, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
+            data_item.read_from_dict(persistent_storage.properties)
+            # validate the metadata to the current version
+            data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
+            assert(len(data_item.displays) > 0)
+            self.set_persistent_storage_for_object(data_item, persistent_storage)
+            data_item.managed_object_context = self
+            data_items.append(data_item)
+        def sort_by_date_key(data_item):
+            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+        data_items.sort(key=sort_by_date_key)
+        return data_items
+
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """
         properties = data_item.write_to_dict()
-        persistent_storage = DataItemPersistentStorage(properties=properties)
-        persistent_storage.data_item = data_item
-        persistent_storage.datastore = self.__datastore
+        persistent_storage = DataItemPersistentStorage(datastore=self.__datastore, data_item=data_item, properties=properties)
         self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
         self.set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.managed_object_context = self  # this may cause persistent_storage or datastore to be used. so put it after establishing those two.
@@ -226,7 +272,11 @@ class DocumentModel(Storage.StorageBase):
         parent_node, uuid = self.datastore.find_root_node("document")
         self._set_uuid(uuid)
         data_groups = self.datastore.get_items(parent_node, "data_groups")
-        self.__read_data_items()
+        data_items = self.managed_object_context.read_data_items()
+        for index, data_item in enumerate(data_items):
+            self.__data_items.insert(index, data_item)
+            data_item.storage_cache = self.storage_cache
+            data_item.add_listener(self)
         # all data items will already have a managed_object_context
         # now update the fields on self, disconnecting the datastore
         # to prevent writing them back out to the database.
@@ -243,70 +293,6 @@ class DocumentModel(Storage.StorageBase):
         """ Optional method to close the document model. """
         for data_item in self.data_items:
             data_item.close()
-
-    def __read_data_items(self):
-        """ Read data items from the datastore. Data items will have managed_object_context set upon return. """
-        data_item_tuples = self.datastore.find_data_item_tuples()
-        data_items = list()
-        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
-            persistent_storage = DataItemPersistentStorage(self.datastore, properties=properties, reference_type=reference_type, reference=reference)
-            current_version = 2
-            version = properties.get("version", 0)
-            if version == 1:
-                if "spatial_calibrations" in properties:
-                    properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
-                    del properties["spatial_calibrations"]
-                if "intensity_calibration" in properties:
-                    properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
-                    del properties["intensity_calibration"]
-                if "data_source_uuid" in properties:
-                    # for now, this is not translated into v2. it was an extra item.
-                    del properties["data_source_uuid"]
-                if "properties" in properties:
-                    old_properties = properties["properties"]
-                    new_properties = properties.setdefault("hardware_source", dict())
-                    new_properties.update(copy.deepcopy(old_properties))
-                    if "session_uuid" in new_properties:
-                        del new_properties["session_uuid"]
-                    del properties["properties"]
-                temp_data = persistent_storage.load_data_low_level()
-                if temp_data is not None:
-                    properties["master_data_dtype"] = str(temp_data.dtype)
-                    properties["master_data_shape"] = temp_data.shape
-                properties["displays"] = [{}]
-                properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
-                properties["version"] = current_version
-                properties["reader_version"] = current_version
-                persistent_storage.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
-                version = 2
-                logging.info("Updated %s to %s", persistent_storage.reference, version)
-            if version == 2:
-                # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
-                for display_properties in properties.get("displays", list()):
-                    display_properties.setdefault("uuid", str(uuid.uuid4()))
-                    for graphic_properties in display_properties.get("graphics", list()):
-                        graphic_properties.setdefault("uuid", str(uuid.uuid4()))
-                for operation_properties in display_properties.get("operations", list()):
-                    operation_properties.setdefault("uuid", str(uuid.uuid4()))
-                persistent_storage.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
-                version = 3
-                logging.info("Updated %s to %s", persistent_storage.reference, version)
-            data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            persistent_storage.data_item = data_item
-            data_item.read_from_dict(persistent_storage.properties)
-            # validate the metadata to the current version
-            data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
-            assert(len(data_item.displays) > 0)
-            self.managed_object_context.set_persistent_storage_for_object(data_item, persistent_storage)
-            data_item.managed_object_context = self.managed_object_context
-            data_items.append(data_item)
-        def sort_by_date_key(data_item):
-            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-        data_items.sort(key=sort_by_date_key)
-        for index, data_item in enumerate(data_items):
-            self.__data_items.insert(index, data_item)
-            data_item.storage_cache = self.storage_cache
-            data_item.add_listener(self)
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
