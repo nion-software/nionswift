@@ -26,9 +26,11 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
-class DataItemVault(object):
+class DataItemPersistentStorage(object):
 
-    """ Vaults should be stateless so that we can switch them in data items without repercussions. """
+    """
+        Manages persistent storage for data items.
+    """
 
     def __init__(self, datastore=None, properties=None, reference_type=None, reference=None):
         self.datastore = datastore
@@ -159,15 +161,14 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         self.__datastore = datastore
 
     def write_data_item(self, data_item):
-        # keep storage up-to-date. transform from memory vault to new vault.
-        # references do not need to be updated since they will be written later.
+        """ Write data item to persistent storage. """
         properties = data_item.write_to_dict()
-        vault = DataItemVault(properties=properties)
-        vault.data_item = data_item
-        vault.datastore = self.__datastore
+        persistent_storage = DataItemPersistentStorage(properties=properties)
+        persistent_storage.data_item = data_item
+        persistent_storage.datastore = self.__datastore
         self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
-        self.set_vault_for_object(data_item, vault)
-        data_item.managed_object_context = self  # this may cause vault or datastore to be used. so put it after establishing those two.
+        self.set_persistent_storage_for_object(data_item, persistent_storage)
+        data_item.managed_object_context = self  # this may cause persistent_storage or datastore to be used. so put it after establishing those two.
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
         self.property_changed(data_item, "reader_version", data_item.min_reader_version)
@@ -175,27 +176,27 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             self.rewrite_data_item_data(data_item, data=data_ref.master_data)
 
     def rewrite_data_item_data(self, data_item, data):
-        vault = self.get_vault_for_object(data_item)
-        vault.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
 
     def erase_data_item(self, data_item):
-        vault = self.get_vault_for_object(data_item)
-        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, vault.reference_type, vault.reference)
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, persistent_storage.reference_type, persistent_storage.reference)
         data_item.managed_object_context = None
 
     def load_data(self, data_item):
-        vault = self.get_vault_for_object(data_item)
-        if vault.can_reload_data:
-            return vault.load_data()
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        if persistent_storage.can_reload_data:
+            return persistent_storage.load_data()
         return None
 
     def can_reload_data(self, data_item):
-        vault = self.get_vault_for_object(data_item)
-        return vault.can_reload_data
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        return persistent_storage.can_reload_data
 
     def get_data_item_file_info(self, data_item):
-        vault = self.get_vault_for_object(data_item)
-        return vault.reference_type, vault.reference
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        return persistent_storage.reference_type, persistent_storage.reference
 
 
 class DocumentModel(Storage.StorageBase):
@@ -244,11 +245,11 @@ class DocumentModel(Storage.StorageBase):
             data_item.close()
 
     def __read_data_items(self):
-        """ Read data items from the datastore. Data items will have vault and managed_object_context set upon return. """
+        """ Read data items from the datastore. Data items will have managed_object_context set upon return. """
         data_item_tuples = self.datastore.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
-            vault = DataItemVault(self.datastore, properties=properties, reference_type=reference_type, reference=reference)
+            persistent_storage = DataItemPersistentStorage(self.datastore, properties=properties, reference_type=reference_type, reference=reference)
             current_version = 2
             version = properties.get("version", 0)
             if version == 1:
@@ -268,7 +269,7 @@ class DocumentModel(Storage.StorageBase):
                     if "session_uuid" in new_properties:
                         del new_properties["session_uuid"]
                     del properties["properties"]
-                temp_data = vault.load_data_low_level()
+                temp_data = persistent_storage.load_data_low_level()
                 if temp_data is not None:
                     properties["master_data_dtype"] = str(temp_data.dtype)
                     properties["master_data_shape"] = temp_data.shape
@@ -276,15 +277,15 @@ class DocumentModel(Storage.StorageBase):
                 properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
                 properties["version"] = current_version
                 properties["reader_version"] = current_version
-                vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
-                logging.info("Updated %s", vault.reference)
+                persistent_storage.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
+                logging.info("Updated %s", persistent_storage.reference)
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            vault.data_item = data_item
-            data_item.read_from_dict(vault.properties)
+            persistent_storage.data_item = data_item
+            data_item.read_from_dict(persistent_storage.properties)
             # validate the metadata to the current version
             data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
             assert(len(data_item.displays) > 0)
-            self.managed_object_context.set_vault_for_object(data_item, vault)
+            self.managed_object_context.set_persistent_storage_for_object(data_item, persistent_storage)
             data_item.managed_object_context = self.managed_object_context
             data_items.append(data_item)
         def sort_by_date_key(data_item):
@@ -302,7 +303,7 @@ class DocumentModel(Storage.StorageBase):
         self.insert_data_item(len(self.data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
-        """ Insert a new data item into document model. Data item will have vault and managed_object_context set upon return. """
+        """ Insert a new data item into document model. Data item will have managed_object_context set upon return. """
         assert data_item is not None
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
@@ -317,7 +318,7 @@ class DocumentModel(Storage.StorageBase):
         data_item.connect_data_sources(self.get_data_item_by_uuid)
 
     def remove_data_item(self, data_item):
-        """ Remove data item from document model. Data item will have vault and managed_object_context cleared upon return. """
+        """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
@@ -330,7 +331,7 @@ class DocumentModel(Storage.StorageBase):
         data_item.about_to_be_removed()
         # disconnect the data source
         data_item.disconnect_data_sources()
-        # remove it from the vault
+        # remove it from the persistent_storage
         assert data_item is not None
         assert data_item in self.__data_items
         index = self.__data_items.index(data_item)

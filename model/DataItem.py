@@ -228,7 +228,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         Cached data.
     """
 
-    def __init__(self, data=None, vault=None, item_uuid=None, create_display=True):
+    def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.min_reader_version = 2
@@ -830,7 +830,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.master_data_shape = data.shape if data is not None else None
                 self.master_data_dtype = data.dtype if data is not None else None
                 self.sync_intrinsic_spatial_calibrations()
-            # tell the vault about it
+            # tell the managed object context about it
             if self.__master_data is not None:
                 if self.__transaction_count == 0:  # no race is possible here. just write it.
                     if self.managed_object_context:
@@ -839,7 +839,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):
-        # load data from vault if data is not already loaded
+        # load data from managed object context if data is not already loaded
         if self.has_master_data and self.__master_data is None:
             if self.managed_object_context:
                 #logging.debug("loading %s", self)
@@ -847,7 +847,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __unload_master_data(self):
         # unload data if possible.
-        # data cannot be unloaded if transaction count > 0 or if there is no vault.
+        # data cannot be unloaded if transaction count > 0 or if there is no managed object context.
         if self.__transaction_count == 0 and self.has_master_data:
             if self.managed_object_context and self.managed_object_context.can_reload_data(self):
                 self.__master_data = None
