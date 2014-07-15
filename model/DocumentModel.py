@@ -282,6 +282,9 @@ class DocumentModel(Storage.StorageBase):
                 vault.set_properties_low_level(data_item_uuid, properties, datetime.datetime.now())
                 logging.info("Updated %s", vault.reference)
             data_item = DataItem.DataItem(vault=vault, managed_object_context=self.managed_object_context, item_uuid=data_item_uuid, create_display=False)
+            data_item.read_from_dict(vault.properties)
+            # validate the metadata to the current version
+            data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
             assert(len(data_item.displays) > 0)
             data_items.append(data_item)
         def sort_by_date_key(data_item):

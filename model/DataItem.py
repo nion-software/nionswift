@@ -299,6 +299,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__transaction_count_mutex = threading.RLock()
         self.vault = vault if vault else DataItemMemoryVault()
         self.vault.data_item = self
+        self.managed_object_context = managed_object_context
         has_master_data = data is not None
         master_data_shape = data.shape if has_master_data else None
         master_data_dtype = data.dtype if has_master_data else None
@@ -346,16 +347,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if data is not None:
             self.__set_master_data(data)
             self.sync_intrinsic_spatial_calibrations()
-        # version handling
-        self.managed_object_context = managed_object_context
-        properties = self.managed_object_context.get_properties(self) if self.managed_object_context else dict()
-        self.read_from_dict(properties)
-        for key in properties.keys():
-            if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
-                self.__metadata.setdefault(key, dict()).update(properties[key])
-        # validate the metadata to the current version
-        if self.managed_object_context:
-            self.validate_metadata_version(writer_version=3, min_reader_version=2)
+        # create a display if requested
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
@@ -482,6 +474,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def read_from_dict(self, properties):
         super(DataItem, self).read_from_dict(properties)
+        for key in properties.keys():
+            if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
+                self.__metadata.setdefault(key, dict()).update(properties[key])
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties
