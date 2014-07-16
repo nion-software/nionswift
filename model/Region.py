@@ -27,13 +27,6 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         self.define_type(type)
         # TODO: add unit type to region (relative, absolute, calibrated)
 
-    # subclasses should override __deepcopy__ and deepcopy_from as necessary
-    def __deepcopy__(self, memo):
-        region = self.__class__()
-        region.deepcopy_from(self, memo)
-        memo[id(self)] = region
-        return region
-
     def about_to_be_removed(self):
         pass
 

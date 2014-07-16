@@ -123,12 +123,6 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         super(Graphic, self).__init__()
         self.define_type(type)
         self.define_property("color", "#F00", changed=self._property_changed)
-    # subclasses should override __deepcopy__ and deepcopy_from as necessary
-    def __deepcopy__(self, memo):
-        graphic = self.__class__()
-        graphic.deepcopy_from(self, memo)
-        memo[id(self)] = graphic
-        return graphic
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
     # test whether points are close
