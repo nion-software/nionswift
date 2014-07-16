@@ -408,17 +408,26 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def selection_changed(self, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
         regions = list()
+        display = self.display
+        data_item = display.data_item
+        data_length = data_item.spatial_shape[0]
+        spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
+        calibrated_data_left = spatial_calibration.convert_to_calibrated_value(0)
+        calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
+        calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
+        graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
+        def convert_to_calibrated_value_str(f):
+            return (u"{0:0." + u"{0:d}".format(precision+2) + "f}").format(f)
         for graphic_index, graphic in enumerate(self.__display.drawn_graphics):
-            display = self.display
-            data_item = display.data_item
-            left_channel = graphic.start * data_item.spatial_shape[0]
-            right_channel = graphic.end * data_item.spatial_shape[0]
-            spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
-            left_text = spatial_calibration.convert_to_calibrated_value_str(left_channel)
-            right_text = spatial_calibration.convert_to_calibrated_value_str(right_channel)
-            middle_text = spatial_calibration.convert_to_calibrated_size_str(right_channel - left_channel)
+            graphic_start, graphic_end = graphic.start, graphic.end
+            graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
+            left_channel = graphic_start * data_length
+            right_channel = graphic_end * data_length
+            left_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_value(left_channel))
+            right_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_value(right_channel))
+            middle_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_size(right_channel - left_channel))
             RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text"])
-            region = RegionInfo((graphic.start, graphic.end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
+            region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
             regions.append(region)
         self.line_graph_regions_canvas_item.regions = regions
         self.line_graph_regions_canvas_item.update()
