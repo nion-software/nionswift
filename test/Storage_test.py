@@ -125,7 +125,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         db_name = os.path.join(workspace_dir, "Data.nswrk")
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
@@ -144,7 +144,7 @@ class TestStorageClass(unittest.TestCase):
             datastore.close()
             datastore = None
             # read it back
-            data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+            data_reference_handler = Application.DataReferenceHandler(workspace_dir)
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)
@@ -414,7 +414,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
@@ -456,7 +456,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
@@ -485,7 +485,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
@@ -522,7 +522,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
@@ -788,7 +788,7 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
-        data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         db_name = os.path.join(workspace_dir, "Data.nswrk")
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
@@ -823,7 +823,7 @@ class TestStorageClass(unittest.TestCase):
             datastore.close()
             datastore = None
             # read it back
-            data_reference_handler = Application.DataReferenceHandler(None, workspace_dir)
+            data_reference_handler = Application.DataReferenceHandler(workspace_dir)
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             document_model = DocumentModel.DocumentModel(datastore, storage_cache)

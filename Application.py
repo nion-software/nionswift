@@ -114,7 +114,7 @@ class Application(object):
             db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
             cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
         self.workspace_dir = workspace_dir
-        data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
+        data_reference_handler = DataReferenceHandler(workspace_dir)
         create_new_document = not os.path.exists(db_filename)
         if create_new_document:
             logging.debug("Creating new document: %s", db_filename)
@@ -527,7 +527,7 @@ class Application(object):
                     path_components.append("data_" + encoded_uuid_str)
                     return os.path.join(*path_components)
                 existing_references[parent_uuid] = existing_reference
-                data_reference_handler = DataReferenceHandler(self.ui, workspace_dir)
+                data_reference_handler = DataReferenceHandler(workspace_dir)
                 if existing_reference and "data_sources" in properties:
                     history = properties.setdefault("history", dict())
                     history_list = history.setdefault("list", list())
@@ -688,8 +688,7 @@ class Application(object):
 
 class DataReferenceHandler(object):
 
-    def __init__(self, ui, workspace_dir):
-        self.ui = ui
+    def __init__(self, workspace_dir):
         self.workspace_dir = workspace_dir
         self.__data_dir = os.path.join(self.workspace_dir, "Nion Swift Data")
         self.__file_handler = NDataHandler.NDataHandler(self.__data_dir)
