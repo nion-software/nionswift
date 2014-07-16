@@ -86,7 +86,8 @@ class TestDataPanelClass(unittest.TestCase):
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):
         datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        library_storage = DocumentModel.FilePersistentStorage()
+        document_model = DocumentModel.DocumentModel(datastore, library_storage=library_storage)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"

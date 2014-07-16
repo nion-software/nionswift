@@ -2,13 +2,14 @@
 import collections
 import copy
 import gettext
+import uuid
 
 # third party libraries
 # None
 
 # local libraries
 from nion.swift.model import DataItem
-from nion.swift.model import Storage
+from nion.ui import Observable
 
 
 _ = gettext.gettext
@@ -71,48 +72,37 @@ _ = gettext.gettext
     """
 
 
-class DataGroup(Storage.StorageBase):
+class DataGroup(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+
     def __init__(self):
         super(DataGroup, self).__init__()
-        self.storage_properties += ["title", "data_item_uuids"]
-        self.storage_relationships += ["data_groups"]
-        self.storage_type = "data-group"
-        self.__title = None
-        self.__data_item_uuids = list()
+        class UuidsToStringsConverter(object):
+            def convert(self, value):
+                return [str(uuid_) for uuid_ in value]
+            def convert_back(self, value):
+                return [uuid.UUID(uuid_str) for uuid_str in value]
+        self.define_type("data_group")
+        self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
+        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
+        self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
         self.__get_data_item_by_uuid = None
-        self.data_groups = Storage.MutableRelationship(self, "data_groups")
         self.__data_items = list()
         self.__counted_data_items = collections.Counter()
         self.__moving = False  # ugh
 
     def __str__(self):
-        return self.title if self.title else _("Untitled")
+        return self.title
 
-    @classmethod
-    def build(cls, datastore, item_node):
-        title = datastore.get_property(item_node, "title")
-        data_item_uuids = datastore.get_property(item_node, "data_item_uuids")
-        data_groups = datastore.get_items(item_node, "data_groups")
-        data_group = cls()
-        data_group.title = title
-        data_group.data_groups.extend(data_groups)
-        data_group.__data_item_uuids = data_item_uuids if data_item_uuids is not None else list()
-        return data_group
+    def __validate_title(self, value):
+        return unicode(value)
 
-    def __deepcopy__(self, memo):
-        data_group_copy = DataGroup()
-        data_group_copy.title = self.title
-        data_group_copy.__data_item_uuids = self.__data_item_uuids
-        # data groups get deep copied
-        for data_group in self.data_groups:
-            data_group_copy.append_data_group(copy.deepcopy(data_group, memo))
-        memo[id(self)] = data_group_copy
-        return data_group_copy
+    def __property_changed(self, name, value):
+        self.notify_set_property(name, value)
 
     def connect_data_items(self, lookup_data_item):
         for data_group in self.data_groups:
             data_group.connect_data_items(lookup_data_item)
-        for data_item_uuid in self.__data_item_uuids:
+        for data_item_uuid in self.data_item_uuids:
             data_item = lookup_data_item(data_item_uuid)
             if data_item is None:
                 import logging
@@ -134,16 +124,20 @@ class DataGroup(Storage.StorageBase):
         self.__data_items.insert(before_index, data_item)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, self.__moving)
         self.update_counted_data_items(collections.Counter([data_item]))
-        self.__data_item_uuids.insert(before_index, data_item.uuid)
-        self.notify_set_property("data_item_uuids", self.__data_item_uuids)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.insert(before_index, data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_set_property("data_item_uuids", self.data_item_uuids)
 
     def remove_data_item(self, data_item):
         index = self.__data_items.index(data_item)
         self.__data_items.remove(data_item)
         self.subtract_counted_data_items(collections.Counter([data_item]))
         self.notify_listeners("data_item_removed", self, data_item, index, self.__moving)
-        self.__data_item_uuids.remove(data_item.uuid)
-        self.notify_set_property("data_item_uuids", self.__data_item_uuids)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.remove(data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_set_property("data_item_uuids", self.data_item_uuids)
 
     def __get_data_items(self):
         return tuple(self.__data_items)
@@ -153,40 +147,24 @@ class DataGroup(Storage.StorageBase):
         self.insert_data_group(len(self.data_groups), data_group)
 
     def insert_data_group(self, before_index, data_group):
-        self.data_groups.insert(before_index, data_group)
+        self.insert_item("data_groups", before_index, data_group)
         if self.__get_data_item_by_uuid:
             data_group.connect_data_items(self.__get_data_item_by_uuid)
+        self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
         data_group.disconnect_data_items()
-        self.data_groups.remove(data_group)
+        index = self.data_groups.index(data_group)
+        self.remove_item("data_groups", data_group)
+        self.notify_remove_item("data_groups", data_group, index)
 
-    # override from StorageBase.
-    # watch for insertions to data_items and data_groups so that smart filters get updated.
-    def notify_insert_item(self, key, value, before_index):
-        super(DataGroup, self).notify_insert_item(key, value, before_index)
-        if key == "data_groups":
-            self.update_counted_data_items(value.counted_data_items)
+    # watch for insertions data_groups so that smart filters get updated.
+    def __insert_data_group(self, name, before_index, data_group):
+        self.update_counted_data_items(data_group.counted_data_items)
 
-    # override from StorageBase
-    # watch for removals from data_items and data_groups so that smart filters get updated.
-    def notify_remove_item(self, key, value, index):
-        super(DataGroup, self).notify_remove_item(key, value, index)
-        if key == "data_groups":
-            self.subtract_counted_data_items(value.counted_data_items)
-
-    # title
-    def __get_title(self):
-        return self.__title
-    def __set_title(self, value):
-        self.__title = value
-        self.notify_set_property("title", value)
-    title = property(__get_title, __set_title)
-
-    # data_item_uuids
-    def __get_data_item_uuids(self):
-        return tuple(self.__data_item_uuids)
-    data_item_uuids = property(__get_data_item_uuids)
+    # watch for removals and data_groups so that smart filters get updated.
+    def __remove_data_group(self, name, index, data_group):
+        self.subtract_counted_data_items(data_group.counted_data_items)
 
     def __get_counted_data_items(self):
         return self.__counted_data_items
@@ -194,12 +172,13 @@ class DataGroup(Storage.StorageBase):
 
     def update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
-        self.notify_parents("update_counted_data_items", counted_data_items)
+        #self.notify_parents("update_counted_data_items", counted_data_items)
         self.notify_listeners("update_counted_data_items", counted_data_items)
+
     def subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
-        self.notify_parents("subtract_counted_data_items", counted_data_items)
+        #self.notify_parents("subtract_counted_data_items", counted_data_items)
         self.notify_listeners("subtract_counted_data_items", counted_data_items)
 
     def move_data_item(self, data_item, before_index):
@@ -280,3 +259,7 @@ def get_data_item_container(container, query_data_item):
             if check_container:
                 return check_container
     return None
+
+
+def data_group_factory(lookup_id):
+    return DataGroup()

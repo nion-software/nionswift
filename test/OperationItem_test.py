@@ -298,7 +298,7 @@ class TestOperationClass(unittest.TestCase):
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5)
-        storage_data = document_model.datastore.to_data()
+        storage_data = datastore.to_data()
         document_controller.close()
         # unregister and read it back
         Operation.OperationManager().unregister_operation("dummy-operation")
@@ -319,7 +319,7 @@ class TestOperationClass(unittest.TestCase):
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5.2)
-        storage_data = document_model.datastore.to_data()
+        storage_data = datastore.to_data()
         document_controller.close()
         # read it back then make sure parameter was actually updated
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)

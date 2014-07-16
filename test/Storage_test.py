@@ -127,10 +127,12 @@ class TestStorageClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         db_name = os.path.join(workspace_dir, "Data.nswrk")
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
         try:
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             self.save_document(document_controller)
             data_items_count = len(document_controller.document_model.data_items)
@@ -147,7 +149,7 @@ class TestStorageClass(unittest.TestCase):
             data_reference_handler = Application.DataReferenceHandler(workspace_dir)
             datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
             self.assertEqual(data_items_count, len(document_model.data_items))
             self.assertEqual(data_items_type, type(document_model.data_items))
             # clean up
@@ -165,7 +167,8 @@ class TestStorageClass(unittest.TestCase):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        library_storage = DocumentModel.FilePersistentStorage()
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         storage_data = datastore.to_data()
@@ -180,7 +183,7 @@ class TestStorageClass(unittest.TestCase):
         # read it back
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
@@ -284,11 +287,12 @@ class TestStorageClass(unittest.TestCase):
         with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
-    def test_db_storage_insert_items(self):
+    def test_storage_insert_items(self):
         db_name = ":memory:"
         datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        library_storage = DocumentModel.FilePersistentStorage()
+        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         # insert and append items
@@ -298,9 +302,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].append_data_group(data_group1)
         document_controller.document_model.data_groups[0].insert_data_group(0, data_group2)
         document_controller.document_model.data_groups[0].append_data_group(data_group3)
-        c = datastore.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_groups' AND item_index BETWEEN 0 and 2", (str(document_controller.document_model.data_groups[0].uuid), ))
-        self.assertEqual(c.fetchone()[0], 3)
+        self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 3)
         # delete items to generate key error unless primary keys handled carefully. need to delete an item that is at index >= 2 to test for this problem.
         data_group4 = DataGroup.DataGroup()
         data_group5 = DataGroup.DataGroup()
@@ -308,9 +310,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].insert_data_group(1, data_group5)
         document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
         # make sure indexes are in sequence still
-        c = datastore.conn.cursor()
-        c.execute("SELECT COUNT(*) FROM relationships WHERE parent_uuid = ? AND key = 'data_groups' AND item_index BETWEEN 0 and 3", (str(document_controller.document_model.data_groups[0].uuid), ))
-        self.assertEqual(c.fetchone()[0], 4)
+        self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 4)
 
     def test_copy_data_group(self):
         db_name = ":memory:"
@@ -375,8 +375,6 @@ class TestStorageClass(unittest.TestCase):
         datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
         document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        datastore.set_root(document_model)
-        document_model.write()
         data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))

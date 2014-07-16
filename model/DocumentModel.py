@@ -3,6 +3,7 @@ import collections
 import copy
 import datetime
 import gettext
+import json
 import logging
 import numbers
 import os.path
@@ -24,6 +25,64 @@ from nion.swift.model import Utility
 from nion.ui import Observable
 
 _ = gettext.gettext
+
+
+class FilePersistentStorage(object):
+
+    def __init__(self, filepath=None):
+        self.__filepath = filepath
+        self.__properties = self.__read_properties()
+        self.__properties_lock = threading.RLock()
+
+    def __read_properties(self):
+        properties = dict()
+        if self.__filepath and os.path.exists(self.__filepath):
+            with open(self.__filepath, "r") as fp:
+                properties = json.load(fp)
+        # migrations go here
+        return properties
+
+    def __get_properties(self):
+        with self.__properties_lock:
+            return copy.deepcopy(self.__properties)
+    properties = property(__get_properties)
+
+    def __get_storage_dict(self, object):
+        managed_parent = object.managed_parent
+        if not managed_parent:
+            return self.__properties
+        else:
+            index = object.get_index_in_parent()
+            parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
+            return parent_storage_dict[managed_parent.relationship_name][index]
+
+    def update_properties(self):
+        if self.__filepath:
+            with open(self.__filepath, "w") as fp:
+                properties = json.dump(self.__properties, fp)
+
+    def insert_item(self, parent, name, before_index, item):
+        storage_dict = self.__get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict.setdefault(name, list())
+            item_dict = item.write_to_dict()
+            item_list.insert(before_index, item_dict)
+            item.managed_object_context = parent.managed_object_context
+        self.update_properties()
+
+    def remove_item(self, parent, name, index, item):
+        storage_dict = self.__get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict[name]
+            del item_list[index]
+        self.update_properties()
+        item.managed_object_context = None
+
+    def set_value(self, object, name, value):
+        storage_dict = self.__get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict[name] = value
+        self.update_properties()
 
 
 class DataItemPersistentStorage(object):
@@ -237,33 +296,25 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         return persistent_storage.reference_type, persistent_storage.reference
 
 
-class DocumentModel(Storage.StorageBase):
+class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
 
-    def __init__(self, datastore, storage_cache=None):
+    def __init__(self, datastore, storage_cache=None, library_storage=None):
         super(DocumentModel, self).__init__()
         self.managed_object_context = ManagedDataItemContext(datastore)
-        self.datastore = datastore
+        self.__library_storage = library_storage if library_storage else FilePersistentStorage()
+        self.managed_object_context.set_persistent_storage_for_object(self, self.__library_storage)
+        self.validate_metadata_version(writer_version=1, min_reader_version=1)
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_items = list()
-        self.storage_relationships += ["data_groups"]
-        self.storage_type = "document"
-        self.data_groups = Storage.MutableRelationship(self, "data_groups")
+        self.define_type("library")
+        self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.session_id = None
         self.start_new_session()
-        if self.datastore.initialized:
-            self.__read()
-        else:
-            self.datastore.set_root(self)
-            self.write()
-
-    def __del__(self):
-        self.datastore.disconnected = True
+        self.__read()
 
     def __read(self):
         # first read the items
-        parent_node, uuid = self.datastore.find_root_node("document")
-        self._set_uuid(uuid)
-        data_groups = self.datastore.get_items(parent_node, "data_groups")
+        self.read_from_dict(self.__library_storage.properties)
         data_items = self.managed_object_context.read_data_items()
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
@@ -272,14 +323,10 @@ class DocumentModel(Storage.StorageBase):
         # all data items will already have a managed_object_context
         # now update the fields on self, disconnecting the datastore
         # to prevent writing them back out to the database.
-        self.datastore.disconnected = True
         for data_item in self.__data_items:
             data_item.connect_data_sources(self.get_data_item_by_uuid)
-        for data_group in data_groups:
-            self.append_data_group(data_group)
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
-        self.datastore.disconnected = False
 
     def close(self):
         """ Optional method to close the document model. """
@@ -348,11 +395,14 @@ class DocumentModel(Storage.StorageBase):
         self.insert_data_group(len(self.data_groups), data_group)
 
     def insert_data_group(self, before_index, data_group):
-        self.data_groups.insert(before_index, data_group)
+        self.insert_item("data_groups", before_index, data_group)
+        self.notify_insert_item("data_groups", data_group, before_index)
 
     def remove_data_group(self, data_group):
         data_group.disconnect_data_items()
-        self.data_groups.remove(data_group)
+        index = self.data_groups.index(data_group)
+        self.remove_item("data_groups", data_group)
+        self.notify_remove_item("data_groups", data_group, index)
 
     def create_default_data_groups(self):
         # ensure there is at least one group
