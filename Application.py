@@ -587,7 +587,7 @@ class Application(object):
         datastore.conn.commit()
         datastore.check_integrity()
         storage_cache = Storage.DbStorageCache(cache_filename)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=None, storage_cache=None)
         document_model.create_default_data_groups()
         PlugInManager.notify_modules("document_model_loaded", self, document_model)
         document_controller = self.create_document_controller(document_model, "library")

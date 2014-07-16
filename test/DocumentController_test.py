@@ -18,8 +18,7 @@ from nion.ui import Test
 
 
 def construct_test_document(app, workspace_id=None):
-    datastore = Storage.DictDatastore()
-    document_model = DocumentModel.DocumentModel(datastore)
+    document_model = DocumentModel.DocumentModel()
     document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id=workspace_id)
     data_group1 = DataGroup.DataGroup()
     document_model.append_data_group(data_group1)
@@ -55,8 +54,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         pass
 
     def test_delete_document_controller(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_model = None
         weak_document_model = weakref.ref(document_controller.document_model)
@@ -72,8 +70,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_document_model())
 
     def test_image_panel_releases_data_item(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -98,8 +95,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_controller.document_model.get_data_item_by_key(2), document_controller.document_model.data_groups[1].data_groups[1].data_groups[0].data_items[0])
 
     def test_receive_files_should_put_files_into_document_model_at_end(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
@@ -114,8 +110,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
 
     def test_receive_files_should_put_files_into_document_model_at_index(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
@@ -130,8 +125,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
 
     def test_receive_files_should_put_files_into_data_group_at_index(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
@@ -152,8 +146,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
 
     def test_remove_graphic_removes_it_from_data_item(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -173,8 +166,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.close()
 
     def test_remove_line_profile_does_not_remove_data_item_itself(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -195,8 +187,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.close()
 
     def test_remove_line_profile_removes_associated_child_data_item(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

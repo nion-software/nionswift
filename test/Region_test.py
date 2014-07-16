@@ -19,8 +19,7 @@ from nion.ui import Test
 class TestRegionClass(unittest.TestCase):
 
     def test_changing_point_region_updates_drawn_graphic(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         point_region = Region.PointRegion()
@@ -31,8 +30,7 @@ class TestRegionClass(unittest.TestCase):
         self.assertEqual(point_region.position, drawn_graphic.position)
 
     def test_changing_drawn_graphic_updates_point_region(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         point_region = Region.PointRegion()

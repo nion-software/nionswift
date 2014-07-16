@@ -31,9 +31,8 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)

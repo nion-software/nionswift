@@ -98,24 +98,21 @@ class TestStorageClass(unittest.TestCase):
         image_panel.close()
 
     def test_save_document(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
 
     def test_save_load_document(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
         document_controller.close()
         # read it back
-        node_map_copy = copy.deepcopy(datastore.node_map)
-        datastore = Storage.DictDatastore(node_map_copy)
         storage_cache = Storage.DictStorageCache()
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
@@ -126,13 +123,12 @@ class TestStorageClass(unittest.TestCase):
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
-        db_name = os.path.join(workspace_dir, "Data.nswrk")
         lib_name = os.path.join(workspace_dir, "Data.nslib")
+        db_name = os.path.join(workspace_dir, "Data.nswrk")
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             self.save_document(document_controller)
             data_items_count = len(document_controller.document_model.data_items)
@@ -143,13 +139,9 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
             # read it back
-            data_reference_handler = Application.DataReferenceHandler(workspace_dir)
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             self.assertEqual(data_items_count, len(document_model.data_items))
             self.assertEqual(data_items_type, type(document_model.data_items))
             # clean up
@@ -157,21 +149,18 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
     def write_read_db_storage(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
         library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        storage_data = datastore.to_data()
         document_model_uuid = document_controller.document_model.uuid
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
@@ -179,11 +168,9 @@ class TestStorageClass(unittest.TestCase):
         data_item0_uuid = document_controller.document_model.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
         document_controller.close()
-        datastore.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
@@ -210,9 +197,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -225,34 +212,13 @@ class TestStorageClass(unittest.TestCase):
         data2[0,0] = 2
         with data_item.data_ref() as data_ref:
             data_ref.master_data = data2
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
-
-    # test to ensure that no duplicate relationships are created
-    def test_db_rewrite(self):
-        db_name = ":memory:"
-        datastore = Storage.DbDatastoreProxy(None, db_name)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
-        # add the data group first so that if datastore is not disconnected,
-        # writes will happen immediately to the database.
-        data_group = DataGroup.DataGroup()
-        document_model.append_data_group(data_group)
-        datastore.disconnected = True
-        datastore._throttling = 0.004  # 4ms
-        for i in xrange(10):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_group.append_data_item(data_item)
-        datastore.disconnected = False
-        self.assertEqual(len(datastore.get_items(datastore.find_parent_node(data_group), "data_items")), 0)
 
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
@@ -263,9 +229,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -277,22 +243,19 @@ class TestStorageClass(unittest.TestCase):
         thread = threading.Thread(target=self.update_data, args=[data_item])
         thread.start()
         thread.join()
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
     def test_storage_insert_items(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
         library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         # insert and append items
@@ -313,10 +276,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 4)
 
     def test_copy_data_group(self):
-        db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         document_controller.document_model.append_data_group(data_group1)
@@ -335,8 +295,7 @@ class TestStorageClass(unittest.TestCase):
         data_group2_copy = copy.deepcopy(data_group2)
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -346,8 +305,7 @@ class TestStorageClass(unittest.TestCase):
 
     # make sure thumbnail raises exception if a bad operation is involved
     def test_adding_data_item_to_data_group_twice_raises_exception(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -358,9 +316,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_insert_item_with_transaction(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
         data_item = DataItem.DataItem()
@@ -370,11 +328,9 @@ class TestStorageClass(unittest.TestCase):
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             data_group.append_data_item(data_item)
-        storage_data = datastore.to_data()
         # make sure it reloads
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -392,18 +348,16 @@ class TestStorageClass(unittest.TestCase):
     def test_data_item_should_store_modifications_within_transactions(self):
         reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         data_item = DataItem.DataItem()
         document_model.append_data_item(data_item)
         with data_item.transaction():
             data_item.datetime_original = reference_date
-        storage_data = datastore.to_data()
         # make sure it reloads
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
 
     def test_data_writes_to_and_reloads_from_file(self):
@@ -414,9 +368,8 @@ class TestStorageClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.datetime_original = reference_date
             with data_item.data_ref() as data_ref:
@@ -427,12 +380,9 @@ class TestStorageClass(unittest.TestCase):
             data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
-            storage_data = datastore.to_data()
-            datastore.close()
             # make sure the data reloads
-            datastore = Storage.DbDatastore(data_reference_handler, db_name, storage_data=storage_data)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             with document_model.data_items[0].data_ref() as data_ref:
                 self.assertIsNotNone(data_ref.data)
             # and then make sure the data file gets removed on disk when removed
@@ -443,8 +393,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -456,9 +404,8 @@ class TestStorageClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
@@ -472,8 +419,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -485,9 +430,8 @@ class TestStorageClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             # write data with transaction
@@ -508,8 +452,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -522,9 +464,8 @@ class TestStorageClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(workspace_dir)
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.datetime_original = reference_date
             with data_item.data_ref() as data_ref:
@@ -546,26 +487,22 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
     def test_reloading_data_item_with_display_builds_drawn_graphics_properly(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)  # verify assumptions
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify drawn_graphics reload
         self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)
@@ -575,9 +512,9 @@ class TestStorageClass(unittest.TestCase):
     def test_writing_empty_data_item_followed_by_writing_data_adds_correct_calibrations(self):
         # this failed due to a key aliasing issue.
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create empty data item
         data_item = DataItem.DataItem()
@@ -587,12 +524,9 @@ class TestStorageClass(unittest.TestCase):
             data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
         data_item.end_transaction()
         self.assertEqual(len(data_item.intrinsic_calibrations), 2)
-        # save it out
-        storage_data = datastore.to_data()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify calibrations
         self.assertEqual(len(document_model.data_items[0].intrinsic_calibrations), 2)
@@ -601,59 +535,50 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloading_data_item_establishes_display_connection_to_storage(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        # save it out
-        storage_data = datastore.to_data()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_reloading_data_item_establishes_operation_connection_to_storage(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         invert_operation = Operation.OperationItem("invert-operation")
         data_item.add_operation(invert_operation)
-        # save it out
-        storage_data = datastore.to_data()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_changes_to_operation_values_are_saved(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
         data_item.add_operation(gaussian_operation)
         gaussian_operation.set_property("sigma", 1.7)
-        # save it out
-        storage_data = datastore.to_data()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
         self.assertAlmostEqual(document_model.data_items[0].operations[0].get_property("sigma"), 1.7)
@@ -662,9 +587,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_line_profile_operation_binds_to_roi(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -680,12 +605,9 @@ class TestStorageClass(unittest.TestCase):
         data_item.add_region(line_region)
         data_item2.add_operation(line_profile_operation)
         data_item2.add_data_source(data_item)
-        # save it out
-        storage_data = datastore.to_data()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
         self.assertEqual(document_model.data_items[0].regions[0].start, (0.1, 0.2))
@@ -700,22 +622,19 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_graphics_load_properly(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
         data_item.displays[0].append_graphic(rect_graphic)
-        # save it out
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify
         self.assertEqual(len(document_model.data_items[0].displays[0].graphics), 1)
@@ -724,9 +643,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_regions_load_properly(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -734,13 +653,10 @@ class TestStorageClass(unittest.TestCase):
         point_region.position = (0.6, 0.4)
         point_region_uuid = point_region.uuid
         data_item.add_region(point_region)
-        # save it out
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify
         self.assertEqual(document_model.data_items[0].regions[0].type, "point-region")
@@ -751,28 +667,22 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_empty_data_groups_load_properly(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
-        # save it out
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_new_data_item_stores_uuid_and_data_info_in_properties_immediately(self):
-        db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
-        storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -789,9 +699,8 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = Application.DataReferenceHandler(workspace_dir)
         db_name = os.path.join(workspace_dir, "Data.nswrk")
         try:
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             with data_item.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -818,13 +727,10 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
             # read it back
             data_reference_handler = Application.DataReferenceHandler(workspace_dir)
-            datastore = Storage.DbDatastore(data_reference_handler, db_name)
             storage_cache = Storage.DbStorageCache(db_name)
-            document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             self.assertEqual(len(document_model.data_items), 1)
             self.assertTrue(os.path.isfile(data2_file_path))
             # make sure dependent gets deleted
@@ -835,8 +741,6 @@ class TestStorageClass(unittest.TestCase):
             document_model = None
             storage_cache.close()
             storage_cache = None
-            datastore.close()
-            datastore = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)

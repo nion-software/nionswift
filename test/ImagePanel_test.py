@@ -45,9 +45,8 @@ class TestImagePanelClass(unittest.TestCase):
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        self.document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 1000))

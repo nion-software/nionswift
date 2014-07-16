@@ -754,50 +754,10 @@ def db_get_data_shape_and_dtype(c, parent_uuid, key):
     return None
 
 
-class TestDataReferenceHandler(object):
-
-    def __init__(self):
-        self.data = dict()
-
-    def to_data(self):
-        return copy.copy(self.data)
-
-    def from_data(self, data):
-        self.data = copy.copy(data)
-
-    def find_data_item_tuples(self):
-        return None
-
-    def load_data_reference(self, reference_type, reference):
-        #logging.debug("load data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
-            return self.data[reference]
-        return None
-
-    def write_data_reference(self, data, reference_type, reference, file_datetime):
-        #logging.debug("write data reference %s %s", reference_type, reference)
-        assert data is not None
-        if reference_type == "relative_file":
-            self.data[reference] = data
-        else:
-            logging.debug("Cannot write master data %s %s", reference_type, reference)
-            raise NotImplementedError()
-
-    def write_properties(self, properties, reference_type, reference, file_datetime):
-        pass
-
-    def remove_data_reference(self, reference_type, reference):
-        #logging.debug("remove data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file" and reference in self.data:
-            del self.data[reference]
-
-
 class DbDatastore(object):
 
     def __init__(self, data_reference_handler, db_filename, create=True, storage_data=None):
         self.conn = sqlite3.connect(db_filename, check_same_thread=False)
-        if not data_reference_handler:
-            data_reference_handler = TestDataReferenceHandler()
         self.data_reference_handler = data_reference_handler  # may be None for testing only
         # item map is used during item construction.
         self.__item_map = {}

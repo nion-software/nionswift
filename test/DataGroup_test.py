@@ -45,8 +45,7 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_counted_data_items(self):
         # TODO: split test_counted_data_items into separate tests
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
@@ -110,8 +109,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(data_group.counted_data_items), 2)
 
     def test_inserting_item_with_existing_data_source_establishes_connection(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         # setup by adding data item and a dependent data item
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -125,8 +123,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(data_item2a.data_source, data_item2)
 
     def test_removing_data_item_with_dependent_data_item_removes_them_both(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         # setup by adding data item and a dependent data item
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -144,8 +141,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 0)
 
     def test_deleting_document_with_dependent_data_items_works(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         data_item_child = DataItem.DataItem()

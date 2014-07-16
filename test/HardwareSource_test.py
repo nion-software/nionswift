@@ -101,8 +101,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_setting_current_snapshot_succeeds_and_does_not_leak_memory(self):
         # stopping acquisition should not clear session
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         workspace_controller = DummyWorkspaceController()
         source = SimpleHardwareSource(0.01)
         self.assertEqual(source.frame_index, 0)

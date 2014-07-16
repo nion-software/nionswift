@@ -157,8 +157,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
 
     def test_copy_data_item_properly_copies_data_source_and_connects_it(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         # setup by adding data item and a dependent data item
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
@@ -221,8 +220,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNotNone(data_item.displays[0].get_processor("thumbnail").get_data(self.app.ui))
 
     def test_delete_nested_data_item(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         # setup by adding data item and a dependent data item
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
@@ -251,8 +249,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item_copy.displays[0].graphics), 1)
 
     def test_data_item_data_changed(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         # set up the data items
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item_graphic = Graphics.LineGraphic()
@@ -391,8 +388,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 
     def test_removing_dependent_data_item_with_graphic(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         crop_data_item = DataItem.DataItem()
@@ -403,8 +399,7 @@ class TestDataItemClass(unittest.TestCase):
         # should remove properly when shutting down.
 
     def test_inherited_session_id_during_processing(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.session_id = "20131231-235959"
         document_model.append_data_item(data_item)
@@ -417,8 +412,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(crop_data_item.session_id, data_item.session_id)
 
     def test_adding_ref_to_dependent_data_causes_source_data_to_load(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         data_item_inverted = DataItem.DataItem()
@@ -443,8 +437,7 @@ class TestDataItemClass(unittest.TestCase):
             return numpy.zeros((16, 16))
 
     def test_operation_data_gets_cached(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         data_item_dummy = DataItem.DataItem()
@@ -462,8 +455,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(dummy_operation.count, start_count + 1)
 
     def test_updating_thumbnail_does_not_cause_cached_data_to_be_cleared(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         data_item_dummy = DataItem.DataItem()
@@ -482,8 +474,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(dummy_operation.count, start_count + 1)
 
     def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         crop_region = Region.RectRegion()
@@ -503,8 +494,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         crop_region = Region.RectRegion()
@@ -532,8 +522,7 @@ class TestDataItemClass(unittest.TestCase):
                 self._display_changed = False
             def display_changed(self, display):
                 self._display_changed = True
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         listener = Listener()
@@ -562,8 +551,7 @@ class TestDataItemClass(unittest.TestCase):
                 self._display_changed = False
             def display_changed(self, display):
                 self._display_changed = True
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         listener = Listener()
@@ -584,8 +572,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener._display_changed)
 
     def test_updating_region_bounds_updates_crop_graphic(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         crop_region = Region.RectRegion()
@@ -619,8 +606,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(data_item_copy.get_metadata("test")["one"], 1)
 
     def test_data_item_allows_adding_of_two_data_sources(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -631,8 +617,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item)
 
     def test_data_item_allows_remove_second_of_two_data_sources(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -644,8 +629,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_data_source(data_item2)
 
     def test_region_graphic_gets_added_to_existing_display(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
@@ -653,8 +637,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
 
     def test_region_graphic_gets_added_to_new_display(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         data_item.add_region(Region.PointRegion())

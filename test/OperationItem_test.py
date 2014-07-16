@@ -22,9 +22,8 @@ class TestOperationClass(unittest.TestCase):
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        self.document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
@@ -289,42 +288,38 @@ class TestOperationClass(unittest.TestCase):
     # test to ensure that no duplicate relationships are created
     def test_missing_operations_should_preserve_properties_when_saved(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5)
-        storage_data = datastore.to_data()
         document_controller.close()
         # unregister and read it back
         Operation.OperationManager().unregister_operation("dummy-operation")
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5)
 
     def test_operation_should_reload_properties_when_saved(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((4, 4)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.add_operation(dummy_operation)
         dummy_operation.set_property("param", 5.2)
-        storage_data = datastore.to_data()
         document_controller.close()
         # read it back then make sure parameter was actually updated
-        datastore = Storage.DbDatastore(None, db_name, storage_data=storage_data)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5.2)
         with document_model.data_items[0].data_ref() as d:

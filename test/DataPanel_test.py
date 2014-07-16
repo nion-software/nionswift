@@ -28,8 +28,7 @@ class TestDataPanelClass(unittest.TestCase):
 
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # data_group
         #   data_item1
@@ -85,9 +84,8 @@ class TestDataPanelClass(unittest.TestCase):
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):
-        datastore = Storage.DictDatastore()
         library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(datastore, library_storage=library_storage)
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
@@ -127,8 +125,7 @@ class TestDataPanelClass(unittest.TestCase):
     # make sure switching between two data items in different groups works
     # then make sure the same group is selected if the data item is in multiple groups
     def test_selected_group_persistence(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create data_item2 earlier than data_item1 so they sort to match old test setup
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -220,8 +217,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_widget.current_index, 1)
 
     def test_selection_during_operations(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # data_item1
         #   inverted
@@ -254,8 +250,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.close()
 
     def test_existing_item_gets_initially_added_to_binding_data_items(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -277,8 +272,7 @@ class TestDataPanelClass(unittest.TestCase):
         binding = None
 
     def test_data_group_data_items_binding_should_close_nicely(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -298,8 +292,7 @@ class TestDataPanelClass(unittest.TestCase):
         binding = None
 
     def test_data_group_data_items_binding_should_replace_data_group_with_itself_without_failing(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -320,8 +313,7 @@ class TestDataPanelClass(unittest.TestCase):
         binding = None
 
     def test_add_remove_sync(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
@@ -360,8 +352,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item_model_controller._get_model_data(2)["uuid"], str(data_item3.uuid))
 
     def test_select_after_receive_files(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.title = "data_item"
@@ -375,8 +366,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_item, data_group.data_items[0])
 
     def test_data_panel_remove_group(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
@@ -395,8 +385,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.close()
 
     def test_data_panel_remove_item_by_key(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
@@ -417,8 +406,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.close()
 
     def test_remove_item_should_remove_children_when_both_parent_and_child_are_selected(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
@@ -435,8 +423,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertTrue(True)
 
     def test_data_items_are_inserted_correctly_when_switching_from_none_to_all_selected(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         for i in xrange(3):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -446,8 +433,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.library_widget.on_selection_changed([(0, -1, 0)])
 
     def test_display_filter_filters_data(self):
-        datastore = Storage.DictDatastore()
-        document_model = DocumentModel.DocumentModel(datastore)
+        document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         for i in xrange(3):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

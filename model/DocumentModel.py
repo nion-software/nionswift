@@ -27,6 +27,35 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
+class DataReferenceMemoryHandler(object):
+
+    def __init__(self):
+        self.__data = dict()
+        self.__properties = dict()
+
+    def find_data_item_tuples(self):
+        tuples = []
+        for key in self.__properties:
+            properties = self.__properties[key]
+            tuples.append((properties["uuid"], copy.deepcopy(properties), "relative_file", key))
+        return tuples
+
+    def load_data_reference(self, reference_type, reference):
+        return self.__data.get(reference)
+
+    def write_data_reference(self, data, reference_type, reference, file_datetime):
+        self.__data[reference] = data.copy()
+
+    def write_properties(self, properties, reference_type, reference, file_datetime):
+        self.__properties[reference] = copy.deepcopy(properties)
+
+    def remove_data_reference(self, reference_type, reference):
+        if reference in self.__data:
+            del self.__data[reference]
+        if reference in self.__properties:
+            del self.__properties[reference]
+
+
 class FilePersistentStorage(object):
 
     def __init__(self, filepath=None):
@@ -92,8 +121,8 @@ class DataItemPersistentStorage(object):
         on contained items, and writing to disk when necessary.
     """
 
-    def __init__(self, datastore=None, data_item=None, properties=None, reference_type=None, reference=None):
-        self.__datastore = datastore
+    def __init__(self, data_reference_handler=None, data_item=None, properties=None, reference_type=None, reference=None):
+        self.__data_reference_handler = data_reference_handler
         self.__properties = copy.deepcopy(properties) if properties else dict()
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
@@ -126,10 +155,9 @@ class DataItemPersistentStorage(object):
             return parent_storage_dict[managed_parent.relationship_name][index]
 
     def update_properties(self):
-        if self.__datastore:
-            self.__ensure_reference_valid(self.data_item)
-            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            self.__datastore.set_root_properties(self.data_item.uuid, self.properties, self.reference, file_datetime)
+        self.__ensure_reference_valid(self.data_item)
+        file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+        self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
@@ -178,14 +206,14 @@ class DataItemPersistentStorage(object):
             self.reference = self.get_default_reference(data_item)
 
     def update_data(self, data_shape, data_dtype, data=None):
-        if self.__datastore is not None:
-            self.__ensure_reference_valid(self.data_item)
-            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-            self.__datastore.set_root_data(self.data_item.uuid, data, data_shape, data_dtype, self.reference, file_datetime)
+        self.__ensure_reference_valid(self.data_item)
+        file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+        if data is not None:
+            self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data
-        return self.__datastore.load_data_reference("master_data", self.reference_type, self.reference)
+        return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
 
     def set_value(self, object, name, value):
         storage_dict = self.__get_storage_dict(object)
@@ -200,13 +228,13 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         A ManagedObjectContext that adds extra methods for handling data items.
     """
 
-    def __init__(self, datastore):
+    def __init__(self, data_reference_handler):
         super(ManagedDataItemContext, self).__init__()
-        self.__datastore = datastore
+        self.__data_reference_handler = data_reference_handler
 
     def read_data_items(self):
-        """ Read data items from the datastore and return as a list. Data items will have managed_object_context set upon return. """
-        data_item_tuples = self.__datastore.find_data_item_tuples()
+        """ Read data items from the data reference handler and return as a list. Data items will have managed_object_context set upon return. """
+        data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             version = properties.get("version", 0)
@@ -227,7 +255,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     if "session_uuid" in new_properties:
                         del new_properties["session_uuid"]
                     del properties["properties"]
-                temp_data = self.__datastore.load_data_reference("master_data", reference_type, reference)
+                temp_data = self.__data_reference_handler.load_data_reference(reference_type, reference)
                 if temp_data is not None:
                     properties["master_data_dtype"] = str(temp_data.dtype)
                     properties["master_data_shape"] = temp_data.shape
@@ -235,7 +263,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
                 properties["version"] = 2
                 properties["reader_version"] = 2
-                self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
+                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 2
                 logging.info("Updated %s to %s", reference, version)
             if version == 2:
@@ -248,11 +276,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     operation_properties.setdefault("uuid", str(uuid.uuid4()))
                 properties["version"] = 3
                 properties["reader_version"] = 2
-                self.__datastore.set_root_properties(data_item_uuid, copy.deepcopy(properties), reference, datetime.datetime.now())
+                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 3
                 logging.info("Updated %s to %s", reference, version)
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            persistent_storage = DataItemPersistentStorage(datastore=self.__datastore, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
+            persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
             data_item.read_from_dict(persistent_storage.properties)
             # validate the metadata to the current version
             data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
@@ -268,10 +296,9 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """
         properties = data_item.write_to_dict()
-        persistent_storage = DataItemPersistentStorage(datastore=self.__datastore, data_item=data_item, properties=properties)
-        self.__datastore.add_root_item_uuid("data-item", data_item.uuid)
+        persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
         self.set_persistent_storage_for_object(data_item, persistent_storage)
-        data_item.managed_object_context = self  # this may cause persistent_storage or datastore to be used. so put it after establishing those two.
+        data_item.managed_object_context = self  # this may cause persistent_storage or data_reference_handler to be used. so put it after establishing those two.
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
         self.property_changed(data_item, "reader_version", data_item.min_reader_version)
@@ -284,7 +311,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
-        self.__datastore.remove_root_item_uuid("data-item", data_item.uuid, persistent_storage.reference_type, persistent_storage.reference)
+        self.__data_reference_handler.remove_data_reference(persistent_storage.reference_type, persistent_storage.reference)
         data_item.managed_object_context = None
 
     def load_data(self, data_item):
@@ -298,9 +325,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
 class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
 
-    def __init__(self, datastore, storage_cache=None, library_storage=None):
+    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None):
         super(DocumentModel, self).__init__()
-        self.managed_object_context = ManagedDataItemContext(datastore)
+        data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
+        self.managed_object_context = ManagedDataItemContext(data_reference_handler)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.managed_object_context.set_persistent_storage_for_object(self, self.__library_storage)
         self.validate_metadata_version(writer_version=1, min_reader_version=1)
@@ -321,8 +349,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
             data_item.storage_cache = self.storage_cache
             data_item.add_listener(self)
         # all data items will already have a managed_object_context
-        # now update the fields on self, disconnecting the datastore
-        # to prevent writing them back out to the database.
         for data_item in self.__data_items:
             data_item.connect_data_sources(self.get_data_item_by_uuid)
         for data_group in self.data_groups:

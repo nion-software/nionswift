@@ -24,9 +24,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_remove_data_items_on_document_model(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         data_item1 = DataItem.DataItem()
         data_item1.title = 'title'
         data_item2 = DataItem.DataItem()
@@ -42,9 +41,8 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_removing_data_item_should_remove_from_groups_too(self):
         db_name = ":memory:"
-        datastore = Storage.DbDatastore(None, db_name)
         storage_cache = Storage.DbStorageCache(db_name)
-        document_model = DocumentModel.DocumentModel(datastore, storage_cache)
+        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         data_item1 = DataItem.DataItem()
         data_item1.title = 'title'
         data_item2 = DataItem.DataItem()
