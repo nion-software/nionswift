@@ -29,7 +29,8 @@ _ = gettext.gettext
 class DataItemPersistentStorage(object):
 
     """
-        Manages persistent storage for data items.
+        Manages persistent storage for data items by caching properties and data, maintaining the ManagedObjectContext
+        on contained items, and writing to disk when necessary.
     """
 
     def __init__(self, datastore=None, data_item=None, properties=None, reference_type=None, reference=None):
@@ -126,10 +127,6 @@ class DataItemPersistentStorage(object):
     def load_data(self):
         assert self.data_item.has_master_data
         return self.__datastore.load_data_reference("master_data", self.reference_type, self.reference)
-
-    def __can_reload_data(self):
-        return self.__datastore is not None
-    can_reload_data = property(__can_reload_data)
 
     def set_value(self, object, name, value):
         storage_dict = self.__get_storage_dict(object)
@@ -233,13 +230,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     def load_data(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
-        if persistent_storage.can_reload_data:
-            return persistent_storage.load_data()
-        return None
-
-    def can_reload_data(self, data_item):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
-        return persistent_storage.can_reload_data
+        return persistent_storage.load_data()
 
     def get_data_item_file_info(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)

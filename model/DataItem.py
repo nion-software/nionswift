@@ -849,7 +849,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # unload data if possible.
         # data cannot be unloaded if transaction count > 0 or if there is no managed object context.
         if self.__transaction_count == 0 and self.has_master_data:
-            if self.managed_object_context and self.managed_object_context.can_reload_data(self):
+            if self.managed_object_context:
                 self.__master_data = None
                 self.__cached_data = None
                 #logging.debug("unloading %s", self)
