@@ -49,7 +49,7 @@ class Application(object):
         global app
 
         self.ui = ui
-        self.ui.persistence_root = "2"  # sets of preferences
+        self.ui.persistence_root = "3"  # sets of preferences
         self.resources_path = resources_path
         self.version_str = "0.3.1"
 
@@ -85,43 +85,10 @@ class Application(object):
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Workspace Folder"), documents_dir)
         return workspace_dir
 
-    def start(self, skip_choose=False):
-        """
-            Start a new document model.
-
-            Looks for workspace_location persistent string. If it doesn't find it, uses a default
-            workspace location.
-
-            Then checks to see if that workspace exists. If not and if skip_choose has not been
-            set to True, asks the user for a workspace location. User may choose new folder or
-            existing location.
-
-            Creates workspace in location if it doesn't exist.
-
-            Migrates database to latest version.
-
-            Creates document model, resources path, etc.
-        """
-        documents_dir = self.ui.get_document_location()
-        workspace_dir = os.path.join(documents_dir, "Nion Swift Workspace")
-        workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
-        db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
-        cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
-        if not skip_choose and not os.path.exists(db_filename):
-            workspace_dir = self.choose_workspace()
-            if not workspace_dir:
-                return False
-            db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
-            cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
-        self.workspace_dir = workspace_dir
+    def migrate_workspace(self, workspace_dir, db_filename):
+        """ Migrate old-style workspace database to latest version. """
         data_reference_handler = DataReferenceHandler(workspace_dir)
-        create_new_document = not os.path.exists(db_filename)
-        if create_new_document:
-            logging.debug("Creating new document: %s", db_filename)
-            datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename)
-        else:
-            logging.debug("Using existing document %s", db_filename)
-            datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename, create=False)
+        datastore = Storage.DbDatastoreProxy(data_reference_handler, db_filename, create=False)
         version = datastore.get_version()
         logging.debug("Database at version %s.", version)
         c = datastore.conn.cursor()
@@ -586,8 +553,98 @@ class Application(object):
             sys.exit()
         datastore.conn.commit()
         datastore.check_integrity()
+
+    def migrate_workspace_to_library(self, workspace_dir, db_filename, lib_filename):
+        """ Migrate old-style workspace database to library file. """
+        self.migrate_workspace(workspace_dir, db_filename)
+        properties = dict()
+        conn = sqlite3.connect(db_filename)
+        c = conn.cursor()
+        c.execute("SELECT uuid FROM nodes WHERE type='document'")
+        document_uuid_str = c.fetchone()[0]
+        properties["version"] = 1
+        properties["reader_version"] = 1
+        properties["uuid"] = document_uuid_str
+        c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='data_groups' ORDER BY item_index ASC", (document_uuid_str, ))
+        item_uuid_strs = list()
+        for row in c.fetchall():
+            item_uuid_strs.append(row[0])
+        def add_data_group(parent_dict, data_group_uuid_str):
+            data_groups_dict = parent_dict.setdefault("data_groups", list())
+            data_group_dict = dict()
+            data_group_dict["uuid"] = data_group_uuid_str
+            data_group_dict["type"] = "data_group"
+            c.execute("SELECT value FROM properties WHERE uuid=? AND key='title'", (data_group_uuid_str, ))
+            data_group_dict["title"] = pickle.loads(str(c.fetchone()[0]))
+            c.execute("SELECT value FROM properties WHERE uuid=? AND key='data_item_uuids'", (data_group_uuid_str, ))
+            result = c.fetchone()
+            if result:
+                data_group_dict["data_item_uuids"] = [str(x) for x in pickle.loads(str(result[0]))]
+            c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='data_groups' ORDER BY item_index ASC", (data_group_uuid_str, ))
+            item_uuid_strs = list()
+            for row in c.fetchall():
+                item_uuid_strs.append(row[0])
+            for item_uuid_str in item_uuid_strs:
+                add_data_group(data_group_dict, item_uuid_str)
+            data_groups_dict.append(data_group_dict)
+        for item_uuid_str in item_uuid_strs:
+            add_data_group(properties, item_uuid_str)
+        with open(lib_filename, "w") as fp:
+            json.dump(properties, fp)
+        logging.debug("Migrated workspace %s to library %s.", db_filename, lib_filename)
+        os.remove(db_filename)
+
+    def migrate_library(self, workspace_dir, lib_filename):
+        """ Migrate library to latest version. """
+        library_storage = DocumentModel.FilePersistentStorage(lib_filename, create=False)
+        version = library_storage.get_version()
+        logging.debug("Library at version %s.", version)
+
+    def start(self, skip_choose=False):
+        """
+            Start a new document model.
+
+            Looks for workspace_location persistent string. If it doesn't find it, uses a default
+            workspace location.
+
+            Then checks to see if that workspace exists. If not and if skip_choose has not been
+            set to True, asks the user for a workspace location. User may choose new folder or
+            existing location.
+
+            Creates workspace in location if it doesn't exist.
+
+            Migrates database to latest version.
+
+            Creates document model, resources path, etc.
+        """
+        documents_dir = self.ui.get_document_location()
+        workspace_dir = os.path.join(documents_dir, "Nion Swift Workspace")
+        workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
+        db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
+        lib_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+        cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
+        if not skip_choose and not os.path.exists(lib_filename) and not os.path.exists(db_filename):
+            workspace_dir = self.choose_workspace()
+            if not workspace_dir:
+                return False
+            db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
+            lib_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+            cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
+        if not os.path.exists(lib_filename) and os.path.exists(db_filename):
+            self.migrate_workspace_to_library(workspace_dir, db_filename, lib_filename)
+        if os.path.exists(lib_filename):
+            self.migrate_library(workspace_dir, lib_filename)
+        self.workspace_dir = workspace_dir
+        data_reference_handler = DataReferenceHandler(workspace_dir)
+        create_new_document = not os.path.exists(lib_filename)
+        if create_new_document:
+            logging.debug("Creating new document: %s", lib_filename)
+            library_storage = DocumentModel.FilePersistentStorage(lib_filename)
+        else:
+            logging.debug("Using existing document %s", lib_filename)
+            library_storage = DocumentModel.FilePersistentStorage(lib_filename, create=False)
         storage_cache = Storage.DbStorageCache(cache_filename)
-        document_model = DocumentModel.DocumentModel(data_reference_handler=None, storage_cache=None)
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_model.create_default_data_groups()
         PlugInManager.notify_modules("document_model_loaded", self, document_model)
         document_controller = self.create_document_controller(document_model, "library")

@@ -58,10 +58,13 @@ class DataReferenceMemoryHandler(object):
 
 class FilePersistentStorage(object):
 
-    def __init__(self, filepath=None):
+    def __init__(self, filepath=None, create=True):
         self.__filepath = filepath
         self.__properties = self.__read_properties()
         self.__properties_lock = threading.RLock()
+
+    def get_version(self):
+        return 0
 
     def __read_properties(self):
         properties = dict()
