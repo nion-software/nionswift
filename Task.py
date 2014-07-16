@@ -11,7 +11,7 @@ import time
 # local libraries
 from nion.swift import Decorators
 from nion.swift import Panel
-from nion.swift.model import Storage
+from nion.ui import Observable
 
 _ = gettext.gettext
 
@@ -167,12 +167,10 @@ class TaskSectionController(object):
             self.task_ui_controller.update_task(self.task)
 
 
-class Task(Storage.StorageBase):
+class Task(Observable.Observable, Observable.Broadcaster):
 
     def __init__(self, title, task_type, task_data=None, start_time=None, finish_time=None):
         super(Task, self).__init__()
-        self.storage_properties += ["title", "task_type", "task_data", "start_time", "finish_time"]
-        self.storage_type = "task"
         self.__title = title
         self.__start_time = None
         self.__finish_time = None
@@ -181,15 +179,6 @@ class Task(Storage.StorageBase):
         self.__task_data_mutex = threading.RLock()
         self.__progress = None
         self.__progress_text = str()
-
-    @classmethod
-    def build(cls, datastore, item_node, uuid_):
-        title = datastore.get_property(item_node, "title", None)
-        task_type = datastore.get_property(item_node, "task_type", None)
-        task_data = datastore.get_property(item_node, "task_data", None)
-        start_time = datastore.get_property(item_node, "start_time", None)
-        finish_time = datastore.get_property(item_node, "finish_time", None)
-        return cls(title, task_type, task_data=task_datam, start_time=start_time, finish_time=finish_time)
 
     def __deepcopy__(self, memo):
         task = Task(self.task_type, self.task_data)
