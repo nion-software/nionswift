@@ -52,7 +52,7 @@ class PointRegion(Region):
         super(PointRegion, self).__init__("point-region")
         self.define_property("position", (0.5, 0.5), changed=self._property_changed)
         self.__graphic = Graphics.PointGraphic()
-        self.__graphic.color = "#FF0"
+        self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
 
@@ -73,7 +73,8 @@ class LineRegion(Region):
         self.define_property("end", (1.0, 1.0), changed=self._property_changed)
         self.define_property("width", 1.0, changed=self._property_changed)
         self.__graphic = Operation.LineProfileGraphic()
-        self.__graphic.color = "#FF0"
+        self.__graphic.color = "#F80"
+        self.__graphic.end_arrow_enabled = True
         self.__graphic.add_listener(self)
         self.__start_binding = RegionPropertyToGraphicBinding(self, "start", self.__graphic, "start")
         self.__end_binding = RegionPropertyToGraphicBinding(self, "end", self.__graphic, "end")
@@ -96,7 +97,7 @@ class RectRegion(Region):
         self.define_property("size", (1.0, 1.0), changed=self._property_changed)
         # TODO: add rotation property to rect region
         self.__graphic = Graphics.RectangleGraphic()
-        self.__graphic.color = "#FF0"
+        self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
@@ -131,7 +132,7 @@ class IntervalRegion(Region):
         self.define_property("start", 0.0, changed=self._property_changed)
         self.define_property("end", 1.0, changed=self._property_changed)
         self.__graphic = Graphics.IntervalGraphic()
-        self.__graphic.color = "#FF0"
+        self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__start_binding = RegionPropertyToGraphicBinding(self, "start", self.__graphic, "start")
         self.__end_binding = RegionPropertyToGraphicBinding(self, "end", self.__graphic, "end")
