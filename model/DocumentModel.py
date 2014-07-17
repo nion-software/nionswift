@@ -126,6 +126,7 @@ class DataItemPersistentStorage(object):
 
     def __init__(self, data_reference_handler=None, data_item=None, properties=None, reference_type=None, reference=None):
         self.__data_reference_handler = data_reference_handler
+        self.__data_reference_handler_lock = threading.RLock()
         self.__properties = copy.deepcopy(properties) if properties else dict()
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
@@ -160,7 +161,8 @@ class DataItemPersistentStorage(object):
     def update_properties(self):
         self.__ensure_reference_valid(self.data_item)
         file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-        self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
+        with self.__data_reference_handler_lock:
+            self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
@@ -212,11 +214,13 @@ class DataItemPersistentStorage(object):
         self.__ensure_reference_valid(self.data_item)
         file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
         if data is not None:
-            self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
+            with self.__data_reference_handler_lock:
+                self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data
-        return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
+        with self.__data_reference_handler_lock:
+            return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
 
     def set_value(self, object, name, value):
         storage_dict = self.__get_storage_dict(object)
