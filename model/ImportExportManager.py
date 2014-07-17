@@ -255,16 +255,16 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             spatial_calibrations = data_element.get("spatial_calibrations")
             if len(spatial_calibrations) == len(data_item.spatial_shape):
                 for dimension, dimension_calibration in enumerate(spatial_calibrations):
-                    offset = float(dimension_calibration["offset"])
-                    scale = float(dimension_calibration["scale"])
-                    units = unicode(dimension_calibration["units"])
+                    offset = float(dimension_calibration.get("offset", 0.0))
+                    scale = float(dimension_calibration.get("scale", 1.0))
+                    units = unicode(dimension_calibration.get("units", ""))
                     if scale != 0.0:
                         data_item.set_spatial_calibration(dimension, Calibration.Calibration(offset, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
-            offset = float(intensity_calibration["offset"])
-            scale = float(intensity_calibration["scale"])
-            units = unicode(intensity_calibration["units"])
+            offset = float(intensity_calibration.get("offset", 0.0))
+            scale = float(intensity_calibration.get("scale", 1.0))
+            units = unicode(intensity_calibration.get("units", ""))
         # properties (general tags)
         if "properties" in data_element:
             with data_item.open_metadata("hardware_source") as metadata:
