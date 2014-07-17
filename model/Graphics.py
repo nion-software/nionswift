@@ -9,6 +9,7 @@ import uuid
 import numpy  # for arange
 
 # local libraries
+from nion.ui import Geometry
 from nion.ui import Observable
 
 
@@ -481,8 +482,15 @@ class PointTypeGraphic(Graphic):
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
+        cross_hair_size = 12
         p = mapping.map_point_image_norm_to_widget(self.position)
-        if self.test_point(p, test_point, 4):
+        left = p - Geometry.FloatPoint(x=12, y=0)
+        right = p + Geometry.FloatPoint(x=12, y=0)
+        top = p - Geometry.FloatPoint(x=0, y=12)
+        bottom = p + Geometry.FloatPoint(x=0, y=12)
+        if self.test_line(left, right, test_point, 4):
+            return "all"
+        if self.test_line(top, bottom, test_point, 4):
             return "all"
         # didn't find anything
         return None
@@ -516,10 +524,15 @@ class PointGraphic(PointTypeGraphic):
         ctx.save()
         ctx.begin_path()
         cross_hair_size = 12
-        ctx.move_to(p[1] - cross_hair_size, p[0])
-        ctx.line_to(p[1] + cross_hair_size, p[0])
-        ctx.move_to(p[1], p[0] - cross_hair_size)
-        ctx.line_to(p[1], p[0] + cross_hair_size)
+        inner_size = 4
+        ctx.move_to(p.x - cross_hair_size, p.y)
+        ctx.line_to(p.x - inner_size, p.y)
+        ctx.move_to(p.x + inner_size, p.y)
+        ctx.line_to(p.x + cross_hair_size, p.y)
+        ctx.move_to(p.x, p.y - cross_hair_size)
+        ctx.line_to(p.x, p.y - inner_size)
+        ctx.move_to(p.x, p.y + inner_size)
+        ctx.line_to(p.x, p.y + cross_hair_size)
         ctx.line_width = 1
         ctx.stroke_style = self.color
         ctx.stroke()
