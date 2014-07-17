@@ -224,6 +224,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         Data range.
 
         Data values.
+        
+        Calibrations.
+        
+        Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
+        For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
+        coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
+        For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
+        The next two coordinates are y, x with 0, 0 at the top left of each layer.
 
         Cached data.
     """

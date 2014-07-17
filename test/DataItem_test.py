@@ -41,17 +41,17 @@ class TestCalibrationClass(unittest.TestCase):
         data_item_copy.connect_data_sources(direct_data_sources=[data_item])
         calculated_calibrations = data_item_copy.calculated_calibrations
         self.assertEqual(len(calculated_calibrations), 2)
-        self.assertEqual(int(calculated_calibrations[0].origin), 3)
+        self.assertEqual(int(calculated_calibrations[0].offset), 3)
         self.assertEqual(int(calculated_calibrations[0].scale), 2)
         self.assertEqual(calculated_calibrations[0].units, "x")
-        self.assertEqual(int(calculated_calibrations[1].origin), 3)
+        self.assertEqual(int(calculated_calibrations[1].offset), 3)
         self.assertEqual(int(calculated_calibrations[1].scale), 2)
         self.assertEqual(calculated_calibrations[1].units, "x")
         data_item_copy.add_operation(Operation.OperationItem("fft-operation"))
         calculated_calibrations = data_item_copy.calculated_calibrations
-        self.assertEqual(int(calculated_calibrations[0].origin), 0)
+        self.assertEqual(int(calculated_calibrations[0].offset), 0)
         self.assertEqual(calculated_calibrations[0].units, "1/x")
-        self.assertEqual(int(calculated_calibrations[1].origin), 0)
+        self.assertEqual(int(calculated_calibrations[1].offset), 0)
         self.assertEqual(calculated_calibrations[1].units, "1/x")
 
     def test_double_dependent_calibration(self):
@@ -317,7 +317,7 @@ class TestDataItemClass(unittest.TestCase):
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
         spatial_calibration_0 = data_item.intrinsic_calibrations[0]
-        spatial_calibration_0.origin = 1.0
+        spatial_calibration_0.offset = 1.0
         data_item.set_spatial_calibration(0, spatial_calibration_0)
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)

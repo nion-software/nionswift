@@ -185,7 +185,7 @@ class TestStorageClass(unittest.TestCase):
         # check over the data item
         data_item = document_controller.document_model.data_items[0]
         self.assertEqual(data_item.displays[0].display_limits, (500, 1000))
-        self.assertEqual(data_item.intrinsic_intensity_calibration.origin, 1.0)
+        self.assertEqual(data_item.intrinsic_intensity_calibration.offset, 1.0)
         self.assertEqual(data_item.intrinsic_intensity_calibration.scale, 2.0)
         self.assertEqual(data_item.intrinsic_intensity_calibration.units, "three")
         self.assertEqual(data_item.get_metadata("test")["one"], 1)

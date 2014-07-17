@@ -465,7 +465,7 @@ class Crop2dOperation(Operation):
         cropped_spatial_calibrations = list()
         bounds = self.get_property("bounds")
         for index, spatial_calibration in enumerate(spatial_calibrations):
-            cropped_calibration = Calibration.Calibration(spatial_calibration.origin + data_shape[index] * bounds[0][index] * spatial_calibration.scale,
+            cropped_calibration = Calibration.Calibration(spatial_calibration.offset + data_shape[index] * bounds[0][index] * spatial_calibration.scale,
                                                           spatial_calibration.scale,
                                                           spatial_calibration.units)
             cropped_spatial_calibrations.append(cropped_calibration)
@@ -559,7 +559,7 @@ class Resample2dOperation(Operation):
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
         dimensions = (height, width)
-        return [Calibration.Calibration(source_calibrations[i].origin,
+        return [Calibration.Calibration(source_calibrations[i].offset,
                                      source_calibrations[i].scale * data_shape[i] / dimensions[i],
                                      source_calibrations[i].units) for i in range(len(source_calibrations))]
 

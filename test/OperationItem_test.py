@@ -384,23 +384,23 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(data_item_copy.calculated_calibrations), 2)
         self.assertEqual(len(data_item_copy.intrinsic_calibrations), 2)
         self.assertEqual(data_item_copy.intrinsic_calibrations[0].scale, 2.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[0].origin, 5.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[0].offset, 5.0)
         self.assertEqual(data_item_copy.intrinsic_calibrations[0].units, u"nm")
         self.assertEqual(data_item_copy.intrinsic_calibrations[1].scale, 2.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[1].origin, 5.0)
+        self.assertEqual(data_item_copy.intrinsic_calibrations[1].offset, 5.0)
         self.assertEqual(data_item_copy.intrinsic_calibrations[1].units, u"nm")
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.scale, 2.5)
-        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.origin, 7.5)
+        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.offset, 7.5)
         self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
 
-    def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_origin(self):
+    def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         spatial_calibration_0 = data_item.intrinsic_calibrations[0]
-        spatial_calibration_0.origin = 20.0
+        spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
         spatial_calibration_1 = data_item.intrinsic_calibrations[1]
-        spatial_calibration_1.origin = 55.0
+        spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
         data_item.set_spatial_calibration(0, spatial_calibration_0)
@@ -409,21 +409,21 @@ class TestOperationClass(unittest.TestCase):
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         data_item.add_operation(operation)
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].origin, 20.0 + 2000 * 0.2 * 5.0)
-        self.assertAlmostEqual(data_item.calculated_calibrations[1].origin, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
+        self.assertAlmostEqual(data_item.calculated_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
         self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.0)
         self.assertAlmostEqual(data_item.calculated_calibrations[1].scale, 5.5)
         self.assertEqual(data_item.calculated_calibrations[0].units, "dogs")
         self.assertEqual(data_item.calculated_calibrations[1].units, "cats")
 
-    def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_origin(self):
+    def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         spatial_calibration_0 = data_item.intrinsic_calibrations[0]
-        spatial_calibration_0.origin = 20.0
+        spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
         spatial_calibration_1 = data_item.intrinsic_calibrations[1]
-        spatial_calibration_1.origin = 55.0
+        spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
         data_item.set_spatial_calibration(0, spatial_calibration_0)
@@ -431,7 +431,7 @@ class TestOperationClass(unittest.TestCase):
         operation = Operation.OperationItem("projection-operation")
         data_item.add_operation(operation)
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].origin, 55.0)
+        self.assertAlmostEqual(data_item.calculated_calibrations[0].offset, 55.0)
         self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.5)
         self.assertEqual(data_item.calculated_calibrations[0].units, "cats")
 

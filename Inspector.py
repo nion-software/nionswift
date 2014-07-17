@@ -270,22 +270,22 @@ class BoundSpatialCalibration(Observable.Observable):
     def data_item_calibration_changed(self):
         """ Message comes from data item. """
         new_value = self.data_item.intrinsic_calibrations[self.spatial_index]
-        if new_value.origin != self.__cached_value.origin:
-            self.notify_set_property("origin", new_value.origin)
+        if new_value.offset != self.__cached_value.offset:
+            self.notify_set_property("offset", new_value.offset)
         if new_value.scale != self.__cached_value.scale:
             self.notify_set_property("scale", new_value.scale)
         if new_value.units != self.__cached_value.units:
             self.notify_set_property("units", new_value.units)
         self.__cached_value = new_value
 
-    def __get_origin(self):
-        return self.__cached_value.origin
-    def __set_origin(self, origin):
+    def __get_offset(self):
+        return self.__cached_value.offset
+    def __set_offset(self, offset):
         spatial_calibration = self.__cached_value
-        spatial_calibration.origin = origin
+        spatial_calibration.offset = offset
         self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
-        self.notify_set_property("origin", spatial_calibration.origin)
-    origin = property(__get_origin, __set_origin)
+        self.notify_set_property("offset", spatial_calibration.offset)
+    offset = property(__get_offset, __set_offset)
 
     def __get_scale(self):
         return self.__cached_value.scale
@@ -320,22 +320,22 @@ class BoundIntensityCalibration(Observable.Observable):
     def data_item_calibration_changed(self):
         """ Message comes from data item. """
         new_value = self.data_item.intrinsic_intensity_calibration
-        if new_value.origin != self.__cached_value.origin:
-            self.notify_set_property("origin", new_value.origin)
+        if new_value.offset != self.__cached_value.offset:
+            self.notify_set_property("offset", new_value.offset)
         if new_value.scale != self.__cached_value.scale:
             self.notify_set_property("scale", new_value.scale)
         if new_value.units != self.__cached_value.units:
             self.notify_set_property("units", new_value.units)
         self.__cached_value = new_value
 
-    def __get_origin(self):
-        return self.__cached_value.origin
-    def __set_origin(self, origin):
+    def __get_offset(self):
+        return self.__cached_value.offset
+    def __set_offset(self, offset):
         intensity_calibration = self.__cached_value
-        intensity_calibration.origin = origin
+        intensity_calibration.offset = offset
         self.data_item.set_intensity_calibration(intensity_calibration)
-        self.notify_set_property("origin", intensity_calibration.origin)
-    origin = property(__get_origin, __set_origin)
+        self.notify_set_property("offset", intensity_calibration.offset)
+    offset = property(__get_offset, __set_offset)
 
     def __get_scale(self):
         return self.__cached_value.scale
@@ -378,16 +378,16 @@ class CalibrationsInspectorSection(InspectorSection):
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
-            origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
+            offset_field = self.ui.create_line_edit_widget(properties={"width": 60})
             scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
             units_field = self.ui.create_line_edit_widget(properties={"width": 60})
             float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
-            origin_field.bind_text(Binding.PropertyBinding(intensity_calibration, "origin", converter=float_point_2_converter))
+            offset_field.bind_text(Binding.PropertyBinding(intensity_calibration, "offset", converter=float_point_2_converter))
             scale_field.bind_text(Binding.PropertyBinding(intensity_calibration, "scale", float_point_2_converter))
             units_field.bind_text(Binding.PropertyBinding(intensity_calibration, "units"))
             intensity_row.add(row_label)
             intensity_row.add_spacing(12)
-            intensity_row.add(origin_field)
+            intensity_row.add(offset_field)
             intensity_row.add_spacing(12)
             intensity_row.add(scale_field)
             intensity_row.add_spacing(12)
@@ -411,12 +411,12 @@ class CalibrationsInspectorSection(InspectorSection):
     def __create_header_widget(self):
         header_row = self.ui.create_row_widget()
         axis_header_label = self.ui.create_label_widget("Axis", properties={"width": 60})
-        origin_header_label = self.ui.create_label_widget(_("Origin"), properties={"width": 60})
+        offset_header_label = self.ui.create_label_widget(_("Offset"), properties={"width": 60})
         scale_header_label = self.ui.create_label_widget(_("Scale"), properties={"width": 60})
         units_header_label = self.ui.create_label_widget(_("Units"), properties={"width": 60})
         header_row.add(axis_header_label)
         header_row.add_spacing(12)
-        header_row.add(origin_header_label)
+        header_row.add(offset_header_label)
         header_row.add_spacing(12)
         header_row.add(scale_header_label)
         header_row.add_spacing(12)
@@ -434,7 +434,7 @@ class CalibrationsInspectorSection(InspectorSection):
     def __create_list_item_widget(self, calibration):
         calibration_row = self.ui.create_row_widget()
         row_label = self.ui.create_label_widget(properties={"width": 60})
-        origin_field = self.ui.create_line_edit_widget(properties={"width": 60})
+        offset_field = self.ui.create_line_edit_widget(properties={"width": 60})
         scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
         units_field = self.ui.create_line_edit_widget(properties={"width": 60})
         # convert list item to index string
@@ -452,13 +452,13 @@ class CalibrationsInspectorSection(InspectorSection):
         # binding
         row_label.bind_text(Binding.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
-        origin_field.bind_text(Binding.PropertyBinding(calibration, "origin", converter=float_point_2_converter))
+        offset_field.bind_text(Binding.PropertyBinding(calibration, "offset", converter=float_point_2_converter))
         scale_field.bind_text(Binding.PropertyBinding(calibration, "scale", float_point_2_converter))
         units_field.bind_text(Binding.PropertyBinding(calibration, "units"))
         # notice the binding of calibration_index below.
         calibration_row.add(row_label)
         calibration_row.add_spacing(12)
-        calibration_row.add(origin_field)
+        calibration_row.add(offset_field)
         calibration_row.add_spacing(12)
         calibration_row.add(scale_field)
         calibration_row.add_spacing(12)

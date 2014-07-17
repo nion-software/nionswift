@@ -588,7 +588,7 @@ class TestImagePanelClass(unittest.TestCase):
         data_item = self.image_panel.display.data_item
         # adjust image panel display and trigger layout
         intensity_calibration = data_item.intrinsic_intensity_calibration
-        intensity_calibration.origin = -0.2
+        intensity_calibration.offset = -0.2
         data_item.set_intensity_calibration(intensity_calibration)
         self.image_panel.line_plot_canvas_item.paint_display_on_thread()
         self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)

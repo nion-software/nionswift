@@ -255,14 +255,14 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             spatial_calibrations = data_element.get("spatial_calibrations")
             if len(spatial_calibrations) == len(data_item.spatial_shape):
                 for dimension, dimension_calibration in enumerate(spatial_calibrations):
-                    origin = float(dimension_calibration["origin"])
+                    offset = float(dimension_calibration["offset"])
                     scale = float(dimension_calibration["scale"])
                     units = unicode(dimension_calibration["units"])
                     if scale != 0.0:
-                        data_item.set_spatial_calibration(dimension, Calibration.Calibration(origin, scale, units))
+                        data_item.set_spatial_calibration(dimension, Calibration.Calibration(offset, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
-            origin = float(intensity_calibration["origin"])
+            offset = float(intensity_calibration["offset"])
             scale = float(intensity_calibration["scale"])
             units = unicode(intensity_calibration["units"])
         # properties (general tags)
@@ -331,12 +331,12 @@ def create_data_element_from_data_item(data_item, include_data=True):
     if calculated_calibrations is not None:
         calibrations_element = list()
         for calibration in calculated_calibrations:
-            calibration_element = { "origin": calibration.origin, "scale": calibration.scale, "units": calibration.units }
+            calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
             calibrations_element.append(calibration_element)
         data_element["spatial_calibrations"] = calibrations_element
     intensity_calibration = data_item.calculated_intensity_calibration
     if intensity_calibration is not None:
-        intensity_calibration_element = { "origin": intensity_calibration.origin, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
+        intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
         data_element["intensity_calibration"] = calibration_element
     data_element["properties"] = dict(data_item.get_metadata("hardware_source"))
     data_element["title"] = data_item.title

@@ -9,58 +9,55 @@ import numpy
 from nion.swift.model import Storage
 
 
-# Calibration notes:
-#   The user wants calibrations to persist during pixel-by-pixel processing
-#   The user expects operations to handle calibrations and perhaps other metadata
-#   The user expects that calibrating a processed item adjust source calibration
-
-# origin: the calibrated value at the origin
-# scale: the calibrated value at location 1.0
-# units: the units of the calibrated value
-
-
 class Calibration(object):
-    def __init__(self, origin=None, scale=None, units=None):
+
+    """
+        Represents a transformation from one coordinate system to another.
+        
+        Uses a transformation x' = x * scale + offset
+    """
+
+    def __init__(self, offset=None, scale=None, units=None):
         super(Calibration, self).__init__()
-        self.__origin = float(origin) if origin else None
+        self.__offset = float(offset) if offset else None
         self.__scale = float(scale) if scale else None
         self.__units = unicode(units) if units else None
 
     def __str__(self):
-        return "{0:s} origin:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.origin, self.scale, self.units)
+        return "{0:s} offset:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.offset, self.scale, self.units)
 
     def __copy__(self):
-        return type(self)(self.__origin, self.__scale, self.__units)
+        return type(self)(self.__offset, self.__scale, self.__units)
 
     def read_dict(self, storage_dict):
-        self.origin = storage_dict["origin"] if "origin" in storage_dict else None
+        self.offset = storage_dict["offset"] if "offset" in storage_dict else None
         self.scale = storage_dict["scale"] if "scale" in storage_dict else None
         self.units = storage_dict["units"] if "units" in storage_dict else None
         return self  # for convenience
 
     def write_dict(self):
         storage_dict = dict()
-        storage_dict["origin"] = self.origin
+        storage_dict["offset"] = self.offset
         storage_dict["scale"] = self.scale
         storage_dict["units"] = self.units
         return storage_dict
 
     def __get_is_calibrated(self):
-        return self.__origin is not None or self.__scale is not None or self.__units is not None
+        return self.__offset is not None or self.__scale is not None or self.__units is not None
     is_calibrated = property(__get_is_calibrated)
 
     def clear(self):
-        self.__origin = None
+        self.__offset = None
         self.__scale = None
         self.__units = None
 
-    def __get_origin(self):
-        return self.__origin if self.__origin else 0.0
-    def __set_origin(self, value):
+    def __get_offset(self):
+        return self.__offset if self.__offset else 0.0
+    def __set_offset(self, value):
         value = float(value) if value else None
-        if self.__origin != value:
-            self.__origin = value
-    origin = property(__get_origin, __set_origin)
+        if self.__offset != value:
+            self.__offset = value
+    offset = property(__get_offset, __set_offset)
 
     def __get_scale(self):
         return self.__scale if self.__scale else 1.0
@@ -79,11 +76,11 @@ class Calibration(object):
     units = property(__get_units, __set_units)
 
     def convert_to_calibrated_value(self, value):
-        return self.origin + value * self.scale
+        return self.offset + value * self.scale
     def convert_to_calibrated_size(self, size):
         return size * self.scale
     def convert_from_calibrated_value(self, value):
-        return (value - self.origin) / self.scale
+        return (value - self.offset) / self.scale
     def convert_from_calibrated_size(self, size):
         return size / self.scale
     def convert_to_calibrated_value_str(self, value, include_units=True):
