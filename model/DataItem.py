@@ -239,8 +239,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.min_reader_version = 2
-        self.writer_version = 3
+        self.min_reader_version = 4  # minimum version required to read this version when written
+        self.writer_version = 4  # writes this version
+        self.reader_version = 4  # won't read versions older than this
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None

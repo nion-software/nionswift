@@ -385,10 +385,7 @@ class NDataHandler(object):
                     # TODO: make sure ndata isn't compressed, or handle it
                     if len(dir_files) != file_count or file_count == 0:
                         return False
-                    _, properties = self.read_properties(self.get_reference(file_path))
-                    reader_version = properties.get("reader_version")
-                    current_version = 3
-                    return reader_version <= current_version
+                    return True
             except Exception, e:
                 logging.error("Exception parsing ndata file: %s", file_path)
                 logging.error(str(e))

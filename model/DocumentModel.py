@@ -241,6 +241,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             version = properties.get("version", 0)
+            reader_version = properties.get("reader_version", 0)
             if version == 1:
                 if "spatial_calibrations" in properties:
                     properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
@@ -282,15 +283,31 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 3
                 logging.info("Updated %s to %s", reference, version)
+            if version == 3:
+                # version 3 -> 4 changes origin to offset in all calibrations.
+                calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
+                if "origin" in calibration_dict:
+                    calibration_dict["offset"] = calibration_dict["origin"]
+                    del calibration_dict["origin"]
+                for calibration_dict in properties.get("intrinsic_spatial_calibrations", list()):
+                    if "origin" in calibration_dict:
+                        calibration_dict["offset"] = calibration_dict["origin"]
+                        del calibration_dict["origin"]
+                properties["version"] = 4
+                properties["reader_version"] = 4
+                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                version = 4
+                logging.info("Updated %s to %s", reference, version)
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
-            data_item.read_from_dict(persistent_storage.properties)
-            # validate the metadata to the current version
-            data_item.validate_metadata_version(writer_version=3, min_reader_version=2)
-            assert(len(data_item.displays) > 0)
-            self.set_persistent_storage_for_object(data_item, persistent_storage)
-            data_item.managed_object_context = self
-            data_items.append(data_item)
+            if reader_version <= data_item.reader_version:
+                persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
+                data_item.read_from_dict(persistent_storage.properties)
+                # validate the metadata to the current version
+                data_item.validate_metadata_version(writer_version=data_item.writer_version, min_reader_version=data_item.min_reader_version)
+                assert(len(data_item.displays) > 0)
+                self.set_persistent_storage_for_object(data_item, persistent_storage)
+                data_item.managed_object_context = self
+                data_items.append(data_item)
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         data_items.sort(key=sort_by_date_key)

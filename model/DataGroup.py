@@ -107,8 +107,9 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Observable.Manage
             if data_item is None:
                 import logging
                 logging.debug("data_item not found %s", data_item_uuid)
-            assert data_item is not None
-            self.__data_items.append(data_item)
+            else:
+                assert data_item is not None
+                self.__data_items.append(data_item)
         self.__get_data_item_by_uuid = lookup_data_item
 
     def disconnect_data_items(self):
