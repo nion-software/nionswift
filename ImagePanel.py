@@ -128,52 +128,57 @@ class WidgetImageMapping(object):
             self.canvas_rect = Geometry.fit_to_size(rect, self.data_shape)
 
     def map_point_image_norm_to_widget(self, p):
+        p = Geometry.FloatPoint.make(p)
         if self.data_shape:
-            return (float(p[0])*self.canvas_rect[1][0] + self.canvas_rect[0][0], float(p[1])*self.canvas_rect[1][1] + self.canvas_rect[0][1])
+            return Geometry.FloatPoint(y=p.y * self.canvas_rect.height + self.canvas_rect.top, x=p.x * self.canvas_rect.width + self.canvas_rect.left)
         return None
 
     def map_size_image_norm_to_widget(self, s):
         ms = self.map_point_image_norm_to_widget(s)
         ms0 = self.map_point_image_norm_to_widget((0,0))
-        return (ms[0] - ms0[0], ms[1] - ms0[1])
+        return ms - ms0
 
     def map_size_image_to_image_norm(self, s):
         ms = self.map_point_image_to_image_norm(s)
         ms0 = self.map_point_image_to_image_norm((0,0))
-        return (ms[0] - ms0[0], ms[1] - ms0[1])
+        return ms - ms0
 
     def map_size_widget_to_image_norm(self, s):
         ms = self.map_point_widget_to_image_norm(s)
         ms0 = self.map_point_widget_to_image_norm((0,0))
-        return (ms[0] - ms0[0], ms[1] - ms0[1])
+        return ms - ms0
 
     def map_point_widget_to_image_norm(self, p):
         if self.data_shape:
+            p = Geometry.FloatPoint.make(p)
             p_image = self.map_point_widget_to_image(p)
-            return (float(p_image[0]) / self.data_shape[0], float(p_image[1]) / self.data_shape[1])
+            return Geometry.FloatPoint(y=p_image.y / self.data_shape[0], x=p_image.x / self.data_shape[1])
         return None
 
     def map_point_widget_to_image(self, p):
         if self.canvas_rect and self.data_shape:
-            if self.canvas_rect[1][0] != 0.0:
-                image_y = self.data_shape[0] * (float(p[0]) - self.canvas_rect[0][0])/self.canvas_rect[1][0]
+            p = Geometry.FloatPoint.make(p)
+            if self.canvas_rect.height != 0.0:
+                image_y = self.data_shape[0] * (p.y - self.canvas_rect.top) / self.canvas_rect.height
             else:
-                image_y = 0
-            if self.canvas_rect[1][1] != 0.0:
-                image_x = self.data_shape[1] * (float(p[1]) - self.canvas_rect[0][1])/self.canvas_rect[1][1]
+                image_y = 0.0
+            if self.canvas_rect.width != 0.0:
+                image_x = self.data_shape[1] * (p.x - self.canvas_rect.left) / self.canvas_rect.width
             else:
-                image_x = 0
-            return (image_y, image_x) # c-indexing
+                image_x = 0.0
+            return Geometry.FloatPoint(y=image_y, x=image_x) # c-indexing
         return None
 
     def map_point_image_norm_to_image(self, p):
         if self.data_shape:
-            return (float(p[0]) * self.data_shape[0], float(p[1]) * self.data_shape[1])
+            p = Geometry.FloatPoint.make(p)
+            return Geometry.FloatPoint(y=p.y * self.data_shape[0], x=p.x * self.data_shape[1])
         return None
 
     def map_point_image_to_image_norm(self, p):
         if self.data_shape:
-            return (float(p[0]) / self.data_shape[0], float(p[1]) / self.data_shape[1])
+            p = Geometry.FloatPoint.make(p)
+            return Geometry.FloatPoint(y=p.y / self.data_shape[0], x=p.x / self.data_shape[1])
         return None
 
 
