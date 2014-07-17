@@ -117,9 +117,9 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.change_layout("3x1", preferred_data_items)
         document_controller.workspace.change_to_previous_layout()
-        self.assertEqual(document_controller.workspace.current_layout_id, "1x1")
+        self.assertEqual(document_controller.workspace.layout_id, "1x1")
         document_controller.workspace.change_to_next_layout()
-        self.assertEqual(document_controller.workspace.current_layout_id, "3x1")
+        self.assertEqual(document_controller.workspace.layout_id, "3x1")
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), preferred_data_items[0])
         self.assertEqual(document_controller.workspace.image_panels[1].get_displayed_data_item(), preferred_data_items[1])
         self.assertEqual(document_controller.workspace.image_panels[2].get_displayed_data_item(), preferred_data_items[2])
@@ -134,9 +134,9 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.selected_image_panel = document_controller.workspace.image_panels[1]
         document_controller.workspace.change_layout("1x1")
         document_controller.workspace.change_to_previous_layout()
-        self.assertEqual(document_controller.workspace.current_layout_id, "3x1")
+        self.assertEqual(document_controller.workspace.layout_id, "3x1")
         document_controller.workspace.change_to_next_layout()
-        self.assertEqual(document_controller.workspace.current_layout_id, "1x1")
+        self.assertEqual(document_controller.workspace.layout_id, "1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), document_controller.document_model.data_items[2])
 
     def test_add_processing_in_4x4_bottom_left_puts_processed_image_in_empty_bottom_right(self):

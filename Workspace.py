@@ -67,7 +67,7 @@ class Workspace(object):
 
         self.create_panels(visible_panels)
 
-        self.__current_layout_id = None
+        self.__layout_id = None
 
         self.__layout_stack = list()
         self.__layout_stack_current = None
@@ -83,7 +83,7 @@ class Workspace(object):
         for image_panel in self.image_panels:
             content_map[image_panel.element_id] = image_panel.save_content()
         self.ui.set_persistent_string("Workspace/%s/Content" % self.workspace_id, pickle.dumps(content_map))
-        self.ui.set_persistent_string("Workspace/%s/Layout" % self.workspace_id, self.__current_layout_id)
+        self.ui.set_persistent_string("Workspace/%s/Layout" % self.workspace_id, self.__layout_id)
         for dock_widget in copy.copy(self.dock_widgets):
             dock_widget.panel.close()
             dock_widget.close()
@@ -122,9 +122,9 @@ class Workspace(object):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
 
-    def __get_current_layout_id(self):
-        return self.__current_layout_id
-    current_layout_id = property(__get_current_layout_id)
+    def __get_layout_id(self):
+        return self.__layout_id
+    layout_id = property(__get_layout_id)
 
     def find_dock_widget(self, panel_id):
         for dock_widget in self.dock_widgets:
@@ -250,7 +250,7 @@ class Workspace(object):
             return image_panel.widget, image_panel, "1x1"
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
-        if layout_id is not None and layout_id == self.__current_layout_id:  # check for None as special test case
+        if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case
             # TODO: don't change layout if new layout not requested
             pass  # return  ## tests don't pass with the check.
         # remember what's current being displayed
@@ -263,7 +263,7 @@ class Workspace(object):
         # 1321
         # first store the existing layout in the current slot
         if self.__layout_stack_current is not None:  # handle startup case
-            self.__layout_stack[self.__layout_stack_current] = (self.__current_layout_id, [weakref.ref(data_item) for data_item in old_displayed_data_items])
+            self.__layout_stack[self.__layout_stack_current] = (self.__layout_id, [weakref.ref(data_item) for data_item in old_displayed_data_items])
         # now insert new layout placeholder
         if adjust is not None:
             self.__layout_stack_current += adjust
@@ -318,7 +318,7 @@ class Workspace(object):
             displayed_data_items.append(data_item_to_display)
         # fill in the missing items if possible
         # save the layout id
-        self.__current_layout_id = layout_id
+        self.__layout_id = layout_id
 
     def debugit(self):
         logging.debug("self.__layout_stack_current %s", self.__layout_stack_current)
