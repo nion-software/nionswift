@@ -1657,16 +1657,16 @@ class InfoPanel(Panel.Panel):
                 # 3d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1] and pos[2] >= 0 and pos[2] < data_size[2]:
-                    position_text = u"{0}, {1}, {2}".format(calibrations[2].convert_to_calibrated_value_str(pos[2] - 0.5 * data_size[2]),
-                                                            calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
-                                                            calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    position_text = u"{0}, {1}, {2}".format(calibrations[2].convert_to_calibrated_value_str(pos[2]),
+                                                            calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                                                            calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 2:
                 # 2d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
-                    position_text = u"{0}, {1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1] - 0.5 * data_size[1]),
-                                                     calibrations[0].convert_to_calibrated_value_str(0.5 * data_size[0] - pos[0]))
+                    position_text = u"{0}, {1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                                                       calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 1:
                 # 1d plot
