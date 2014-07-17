@@ -16,6 +16,8 @@ import struct
 import time
 import uuid
 
+from nion.ui import Geometry
+
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
 # https://issues.apache.org/jira/browse/COMPRESS-210
@@ -161,8 +163,14 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
     if properties is not None:
         json_str = unicode()
         try:
+            class JSONEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, Geometry.IntPoint) or isinstance(obj, Geometry.IntSize) or isinstance(obj, Geometry.IntRect) or isinstance(obj, Geometry.FloatPoint) or isinstance(obj, Geometry.FloatSize) or isinstance(obj, Geometry.FloatRect):
+                        return tuple(obj)
+                    else:
+                        return json.JSONEncoder.default(self, obj)
             json_io = StringIO.StringIO()
-            json.dump(properties, json_io)
+            json.dump(properties, json_io, cls=JSONEncoder)
             json_str = json_io.getvalue()
         except Exception, e:
             # catch exceptions to avoid corrupt zip files
