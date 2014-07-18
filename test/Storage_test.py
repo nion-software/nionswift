@@ -745,6 +745,25 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_reloaded_display_has_correct_storage_cache(self):
+        db_name = ":memory:"
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_controller.close()
+        # read it back
+        storage_cache = Storage.DbStorageCache(db_name)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        # check storage caches
+        self.assertEqual(document_model.data_items[0].storage_cache, storage_cache)
+        self.assertEqual(document_model.data_items[0].displays[0].storage_cache, storage_cache)
+        # clean up
+        document_controller.close()
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

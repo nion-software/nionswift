@@ -87,8 +87,12 @@ class Cacheable(object):
         return self.__storage_cache
     def set_storage_cache(self, storage_cache):
         self.__storage_cache = storage_cache
+        self.storage_cache_changed(storage_cache)
         self.spill_cache()
     storage_cache = property(get_storage_cache, set_storage_cache)
+
+    def storage_cache_changed(self, storage_cache):
+        pass
 
     def _is_cache_delayed(self):
         return False

@@ -376,6 +376,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for display in self.displays:
             display.about_to_be_removed()
 
+    def storage_cache_changed(self, storage_cache):
+        # override from Cacheable to update the children that need updating
+        for display in self.displays:
+            display.storage_cache = storage_cache
+
     def _is_cache_delayed(self):
         """ Override from Cacheable base class to indicate when caching is delayed. """
         return self.__transaction_count > 0
