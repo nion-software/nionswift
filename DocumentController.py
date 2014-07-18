@@ -11,6 +11,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataPanel
+from nion.swift import FilterPanel
 from nion.swift import Task
 from nion.swift import Workspace
 from nion.swift.model import DataGroup
@@ -62,6 +63,8 @@ class DocumentController(Observable.Broadcaster):
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
         self.__last_display_filter = None
 
+        self.filter_controller = FilterPanel.FilterController(self)
+
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
@@ -74,6 +77,7 @@ class DocumentController(Observable.Broadcaster):
         # get rid of the bindings first to improve performance
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
+        self.filter_controller.close()
         self.__data_items_binding.close()
         self.__data_items_binding = None
         # close the workspace before closing the image panels, to save their position
@@ -292,6 +296,7 @@ class DocumentController(Observable.Broadcaster):
             self.workspace.periodic()
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.periodic()
+        self.filter_controller.periodic()
 
     def __get_workspace_controller(self):
         if not self.__workspace_controller:

@@ -32,10 +32,10 @@ _ = gettext.gettext
 # TODO: Add text field browser for searching
 
 
-class DateModelController(object):
+class FilterController(object):
 
     """
-        The DateModelController creates, updates, and provides access to an item model controller.
+        The FilterController creates, updates, and provides access to an item model controller.
 
         An item model controller is the controller associated with the UI system for displaying trees.
 
@@ -267,12 +267,12 @@ class FilterPanel(object):
         self.ui = document_controller.ui
         self.document_controller = document_controller
 
-        self.date_model_controller = DateModelController(document_controller)
+        self.__filter_controller = self.document_controller.filter_controller
 
         date_browser_tree_widget = self.ui.create_tree_widget()
         date_browser_tree_widget.selection_mode = "extended"
-        date_browser_tree_widget.item_model_controller = self.date_model_controller.item_model_controller
-        date_browser_tree_widget.on_selection_changed = self.date_model_controller.date_browser_selection_changed
+        date_browser_tree_widget.item_model_controller = self.__filter_controller.item_model_controller
+        date_browser_tree_widget.on_selection_changed = self.__filter_controller.date_browser_selection_changed
 
         date_browser = self.ui.create_column_widget()
         date_browser.add(self.ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
@@ -285,11 +285,11 @@ class FilterPanel(object):
         filter_bar_row.add(self.ui.create_label_widget(_("Search")))
         filter_text_widget = self.ui.create_line_edit_widget(properties={"width": 160})
         filter_text_widget.placeholder_text = _("No Filter")
-        filter_text_widget.on_text_edited = self.date_model_controller.text_filter_changed
+        filter_text_widget.on_text_edited = self.__filter_controller.text_filter_changed
         clear_filter_text_widget = self.ui.create_push_button_widget(_("Clear"))
         def clear_filter():
             filter_text_widget.text = ""
-            self.date_model_controller.text_filter_changed("")
+            self.__filter_controller.text_filter_changed("")
         clear_filter_text_widget.on_clicked = clear_filter
         filter_bar_row.add_spacing(8)
         filter_bar_row.add(filter_text_widget)
@@ -306,14 +306,6 @@ class FilterPanel(object):
         filter_column.add_spacing(4)
 
         self.widget = filter_column
-
-    def close(self):
-        """ Close the filter panel. Clients must call this to destroy it. """
-        self.date_model_controller.close()
-
-    def periodic(self):
-        """ Clients must call this periodically. """
-        self.date_model_controller.periodic()
 
 
 class TreeNode(object):

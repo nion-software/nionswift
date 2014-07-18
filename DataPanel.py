@@ -649,6 +649,24 @@ class DataPanel(Panel.Panel):
             column.add_spacing(1)
             return column
 
+        search_widget = ui.create_row_widget()
+        search_widget.add_spacing(8)
+        search_widget.add(ui.create_label_widget(_("Filter")))
+        search_widget.add_spacing(8)
+        search_line_edit = ui.create_line_edit_widget()
+        search_line_edit.placeholder_text = _("No Filter")
+        # search_line_edit.clear_button_enabled = True  # Qt 5.3 doesn't signal text edited or editing finished when clearing. useless so disabled.
+        search_line_edit.on_text_edited = self.document_controller.filter_controller.text_filter_changed
+        search_line_edit.on_editing_finished = self.document_controller.filter_controller.text_filter_changed
+        search_widget.add(search_line_edit)
+        search_widget.add_spacing(16)
+
+        slave_widget = ui.create_column_widget()
+        slave_widget.add(self.data_item_widget)
+        slave_widget.add_spacing(6)
+        slave_widget.add(search_widget)
+        slave_widget.add_spacing(6)
+
         class StringListBinding(Binding.Binding):
             def __init__(self, items):
                 super(StringListBinding, self).__init__(None)
@@ -672,7 +690,7 @@ class DataPanel(Panel.Panel):
         self.splitter = ui.create_splitter_widget("vertical", properties)
         self.splitter.orientation = "vertical"
         self.splitter.add(self.master_widget)
-        self.splitter.add(self.data_item_widget)
+        self.splitter.add(slave_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
         self.widget = self.splitter
