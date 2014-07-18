@@ -242,6 +242,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         before_index = len(self.__drawn_graphics)
         self.__drawn_graphics.insert(before_index, region_graphic)
         self.graphic_selection.insert_index(before_index)
+        self.notify_listeners("display_changed", self)
 
     def remove_region_graphic(self, region_graphic):
         if region_graphic in self.__drawn_graphics:
@@ -253,6 +254,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
             self.graphic_selection.remove_index(index)
+            self.notify_listeners("display_changed", self)
 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)

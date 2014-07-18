@@ -644,6 +644,28 @@ class TestDataItemClass(unittest.TestCase):
         data_item.add_display(Display.Display())
         self.assertEqual(len(data_item.displays[1].drawn_graphics), 1)
 
+    # necessary to make inspector display updated values properly
+    def test_adding_region_generates_display_changed(self):
+        # data_item_content_changed
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self._display_changed = False
+            def display_changed(self, display):
+                self._display_changed = True
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        listener = Listener()
+        data_item.displays[0].add_listener(listener)
+        crop_region = Region.RectRegion()
+        data_item.add_region(crop_region)
+        self.assertTrue(listener._display_changed)
+        listener.reset()
+        data_item.remove_region(crop_region)
+        self.assertTrue(listener._display_changed)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
