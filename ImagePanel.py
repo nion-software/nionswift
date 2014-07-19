@@ -361,6 +361,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
+        self.__layout_state = "no_info"
+
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
@@ -402,8 +404,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
             self.line_graph_regions_canvas_item.regions = list()
+            self.__layout_state = "done_layout"
         else:
             self.selection_changed(self.__display.graphic_selection)
+            self.__layout_state = "no_info"
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -439,6 +443,16 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             regions.append(region)
         self.line_graph_regions_canvas_item.regions = regions
         self.line_graph_regions_canvas_item.update()
+
+    def update_layout(self, canvas_origin, canvas_size):
+        super(LinePlotCanvasItem, self).update_layout(canvas_origin, canvas_size)
+        self.__layout_state = "done_layout"
+
+    def _repaint(self, drawing_context):
+        if self.__layout_state == "done_layout":
+            super(LinePlotCanvasItem, self)._repaint(drawing_context)
+        if self.__layout_state == "has_info":
+            self.update()
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -485,7 +499,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__update_data_info(data_info)
 
     def __update_data_info(self, data_info):
-        self.line_graph_canvas_item.data_info = data_info
+        self.line_graph_canvas_item.data_info = copy.copy(data_info)
         self.line_graph_canvas_item.update()
         self.line_graph_regions_canvas_item.data_info = data_info
         self.line_graph_regions_canvas_item.update()
@@ -507,6 +521,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.canvas_origin and self.canvas_size:
             self.update_layout(self.canvas_origin, self.canvas_size)
             self.update()
+        self.__layout_state = "has_info"
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
