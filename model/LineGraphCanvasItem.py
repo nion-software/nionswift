@@ -583,11 +583,12 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             font = "{0:d}px".format(self.font_size)
 
             max_width = 0
+            y_range = data_info.calibrated_data_max - data_info.calibrated_data_min
             label = (u"{0:0." + u"{0:d}".format(data_info.y_tick_precision) + "f}").format(
-                data_info.y_tick_calibrated_data_max + data_info.y_tick_division * 15)
+                data_info.y_tick_calibrated_data_max + y_range * 5)
             max_width = max(max_width, ui.get_font_metrics(font, label).width)
             label = (u"{0:0." + u"{0:d}".format(data_info.y_tick_precision) + "f}").format(
-                data_info.y_tick_calibrated_data_min - data_info.y_tick_division * 15)
+                data_info.y_tick_calibrated_data_min - y_range * 5)
             max_width = max(max_width, ui.get_font_metrics(font, label).width)
 
             self.sizing.minimum_width = max_width
