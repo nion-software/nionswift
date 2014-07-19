@@ -49,9 +49,9 @@ class TestImagePanelClass(unittest.TestCase):
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
-        self.image_panel.image_canvas_item.update_layout((0, 0), (1000, 1000))
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.set_displayed_data_item(self.data_item)
+        self.image_panel.display_canvas_item.update_layout((0, 0), (1000, 1000))
 
     def tearDown(self):
         self.image_panel.close()
@@ -59,17 +59,17 @@ class TestImagePanelClass(unittest.TestCase):
 
     def simulate_click(self, p, modifiers=None):
         modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
-        self.image_panel.image_canvas_item.mouse_pressed(p[1], p[0], modifiers)
-        self.image_panel.image_canvas_item.mouse_released(p[1], p[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_pressed(p[1], p[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_released(p[1], p[0], modifiers)
 
     def simulate_drag(self, p1, p2, modifiers=None):
         modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
-        self.image_panel.image_canvas_item.mouse_pressed(p1[1], p1[0], modifiers)
-        self.image_panel.image_canvas_item.mouse_position_changed(p1[1], p1[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_pressed(p1[1], p1[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_position_changed(p1[1], p1[0], modifiers)
         midp = Geometry.midpoint(p1, p2)
-        self.image_panel.image_canvas_item.mouse_position_changed(midp[1], midp[0], modifiers)
-        self.image_panel.image_canvas_item.mouse_position_changed(p2[1], p2[0], modifiers)
-        self.image_panel.image_canvas_item.mouse_released(p2[1], p2[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_position_changed(midp[1], midp[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_position_changed(p2[1], p2[0], modifiers)
+        self.image_panel.display_canvas_item.mouse_released(p2[1], p2[0], modifiers)
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_deleting_data_item_removes_it_from_image_panel(self):
@@ -105,8 +105,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
         # now shift the view and try again
         self.simulate_click((0, 0))
-        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
-        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
+        self.image_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.image_panel.display_canvas_item.move_left()  # 10 pixels left
         self.simulate_click((200, 200))
         self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 0)
         self.simulate_click((220, 200))
@@ -237,24 +237,24 @@ class TestImagePanelClass(unittest.TestCase):
         # select it
         self.image_panel.display.graphic_selection.set(0)
         # move it left
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.200, 0.199))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.200, 0.189))
         # move it up
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.199, 0.189))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.189, 0.189))
         # move it right
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.189, 0.190))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.189, 0.200))
         # move it down
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.190, 0.200))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].start, (0.200, 0.200))
 
     def test_nudge_rect(self):
@@ -263,24 +263,24 @@ class TestImagePanelClass(unittest.TestCase):
         # select it
         self.image_panel.display.graphic_selection.set(0)
         # move it left
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.249))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.249, 0.239))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.240))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.240, 0.250))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.250))
 
     def test_nudge_ellipse(self):
@@ -289,24 +289,24 @@ class TestImagePanelClass(unittest.TestCase):
         # select it
         self.image_panel.display.graphic_selection.set(0)
         # move it left
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.249))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.239))
         # move it up
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.249, 0.239))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("up", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.239))
         # move it right
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.240))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("right", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.239, 0.250))
         # move it down
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down"))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.240, 0.250))
-        self.image_panel.image_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("down", self.app.ui.create_modifiers_by_id_list(["shift"])))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.250, 0.250))
 
     def test_drag_point_moves_the_point_graphic(self):
@@ -334,22 +334,22 @@ class TestImagePanelClass(unittest.TestCase):
     # this helps test out cursor positioning
     def test_map_widget_to_image(self):
         # assumes the test widget is 640x480
-        self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
-        self.assertIsNotNone(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)), (500.0, 500.0))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((0, 80)), (0.0, 0.0))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((480, 560)), (1000.0, 1000.0))
+        self.image_panel.display_canvas_item.update_layout((0, 0), (480, 640))
+        self.assertIsNotNone(self.image_panel.display_canvas_item.map_widget_to_image((240, 320)))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((240, 320)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((0, 80)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((480, 560)), (1000.0, 1000.0))
 
     # this helps test out cursor positioning
     def test_map_widget_to_offset_image(self):
         # assumes the test widget is 640x480
-        self.image_panel.image_canvas_item.update_layout((0, 0), (480, 640))
-        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
-        self.image_panel.image_canvas_item.move_left()  # 10 pixels left
-        self.assertIsNotNone(self.image_panel.image_canvas_item.map_widget_to_image((240, 320)))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((240, 300)), (500.0, 500.0))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((0, 60)), (0.0, 0.0))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_widget_to_image((480, 540)), (1000.0, 1000.0))
+        self.image_panel.display_canvas_item.update_layout((0, 0), (480, 640))
+        self.image_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.image_panel.display_canvas_item.move_left()  # 10 pixels left
+        self.assertIsNotNone(self.image_panel.display_canvas_item.map_widget_to_image((240, 320)))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((240, 300)), (500.0, 500.0))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((0, 60)), (0.0, 0.0))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_widget_to_image((480, 540)), (1000.0, 1000.0))
 
     def test_resize_rectangle(self):
         # add rect (0.25, 0.25), (0.5, 0.5)
@@ -369,46 +369,46 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[1], (0.4, 0.4))
 
     def test_resize_nonsquare_rectangle(self):
-        self.image_panel.image_canvas_item.update_layout((0, 0), (2000, 1000))
+        self.image_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
         # make sure items it is in the right place
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
         # select it
         self.image_panel.display.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (700, 500))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (700, 500))
         # drag with shift key
         self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (1000, 250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (500, 500))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (1000, 250))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (500, 500))
 
     def test_resize_nonsquare_ellipse(self):
-        self.image_panel.image_canvas_item.update_layout((0, 0), (2000, 1000))
+        self.image_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_graphic()
         # make sure items it is in the right place
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.data_item.displays[0].graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (500, 250))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (1000, 500))
         # select it
         self.image_panel.display.graphic_selection.set(0)
         # drag top left corner
         self.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (400, 500))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (800, 250))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (400, 500))
         # drag with shift key
         self.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (900, 400))
-        self.assertClosePoint(self.image_panel.image_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (200, 200))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[0]), (900, 400))
+        self.assertClosePoint(self.image_panel.display_canvas_item.map_image_norm_to_image(self.data_item.displays[0].graphics[0].bounds[1]), (200, 200))
 
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.image_panel.display.graphic_selection.indexes)
@@ -427,13 +427,13 @@ class TestImagePanelClass(unittest.TestCase):
     def setup_line_plot(self):
         data_item_1d = self.document_model.set_data_by_key("test_1d", create_1d_data())
         self.image_panel.set_displayed_data_item(data_item_1d)
-        self.image_panel.line_plot_canvas_item.update_layout((0, 0), (480, 640))  # yes I know these are backwards
+        self.image_panel.display_canvas_item.update_layout((0, 0), (480, 640))  # yes I know these are backwards
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
         # trigger layout
-        self.image_panel.line_plot_canvas_item.wait_for_paint()  # force paint_display_on_thread to finish before _repaint
-        #self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
-        return self.image_panel.line_plot_canvas_item
+        self.image_panel.display_canvas_item.wait_for_paint()  # force paint_display_on_thread to finish before _repaint
+        #self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        return self.image_panel.display_canvas_item
 
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -546,8 +546,8 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -567,8 +567,8 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.2
         self.image_panel.display.y_max = 0.8
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -590,8 +590,8 @@ class TestImagePanelClass(unittest.TestCase):
         intensity_calibration = data_item.intrinsic_intensity_calibration
         intensity_calibration.offset = -0.2
         data_item.set_intensity_calibration(intensity_calibration)
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -611,8 +611,8 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
         modifiers = Test.KeyboardModifiers()
@@ -633,8 +633,8 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
         modifiers = Test.KeyboardModifiers()
@@ -655,8 +655,8 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_pressed(plot_left, 430, Test.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers(control=True))
         # trigger layout. necessary so that drawn values get updated. bad architecture!
-        self.image_panel.line_plot_canvas_item.paint_display_on_thread()
-        self.image_panel.line_plot_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.paint_display_on_thread()
+        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # continue
         line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, 430, Test.KeyboardModifiers())
@@ -780,7 +780,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertEqual(len(line_plot_data_item.regions), 1)
         self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 1)
         # hit the delete key
-        self.image_panel.line_plot_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
+        self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(line_plot_data_item.regions), 0)
 
 

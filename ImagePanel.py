@@ -337,6 +337,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
 
         # canvas items get added back to front
+        # create the child canvas items
+        # the background
+        self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.line_graph_background_canvas_item)
         self.add_canvas_item(self.focus_ring_canvas_item)
 
@@ -1370,47 +1373,29 @@ class ImagePanel(Panel.Panel):
 
         self.__display = None
 
-        self.image_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
-        self.image_root_canvas_item.focusable = True
-        self.image_root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.image_canvas_item = ImageCanvasItem(document_controller, self)
-        self.image_root_canvas_item.add_canvas_item(self.image_canvas_item)
-        self.image_header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
-        self.image_header_controller.on_drag_pressed = lambda: self.__begin_drag()
-        self.image_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
-        self.image_widget = self.ui.create_column_widget()
-        self.image_widget.add(self.image_header_controller.canvas_widget)
-        self.image_widget.add(self.image_root_canvas_item.canvas_widget, fill=True)
-
-        self.line_plot_root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
-        self.line_plot_root_canvas_item.focusable = True
-        self.line_plot_root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.line_plot_canvas_item = LinePlotCanvasItem(document_controller, self)
-        self.line_plot_root_canvas_item.add_canvas_item(self.line_plot_canvas_item)
-        self.line_plot_header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
-        self.line_plot_header_controller.on_drag_pressed = lambda: self.__begin_drag()
-        self.line_plot_header_controller.on_sync_clicked = lambda: self.__sync_data_item()
-        self.line_plot_widget = self.ui.create_column_widget()
-        self.line_plot_widget.add(self.line_plot_header_controller.canvas_widget)
-        self.line_plot_widget.add(self.line_plot_root_canvas_item.canvas_widget, fill=True)
-
-        self.widget = self.ui.create_stack_widget()
-        self.widget.add(self.image_widget)
-        self.widget.add(self.line_plot_widget)
+        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+        self.root_canvas_item.focusable = True
+        self.root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
+        self.header_controller.on_drag_pressed = lambda: self.__begin_drag()
+        self.header_controller.on_sync_clicked = lambda: self.__sync_data_item()
+        self.widget = self.ui.create_column_widget()
+        self.widget.add(self.header_controller.canvas_widget)
+        self.widget.add(self.root_canvas_item.canvas_widget, fill=True)
 
         self.document_controller.register_image_panel(self)
 
         # this results in data_item_deleted messages
         self.document_controller.document_model.add_listener(self)
 
+        self.display_canvas_item = None
+
         self.closed = False
 
     def close(self):
         self.closed = True
-        self.image_root_canvas_item.close()
-        self.image_root_canvas_item = None
-        self.line_plot_root_canvas_item.close()
-        self.line_plot_root_canvas_item = None
+        self.root_canvas_item.close()
+        self.display_canvas_item = None  # now closed
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
@@ -1433,15 +1418,14 @@ class ImagePanel(Panel.Panel):
                 self.__set_display(data_item.displays[0])
 
     def set_selected(self, selected):
-        if self.closed: return  # argh
-        self.image_canvas_item.selected = selected
-        self.line_plot_canvas_item.selected = selected
+        if self.display_canvas_item:
+            self.display_canvas_item.selected = selected
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
         if self.closed: return  # argh
-        self.image_canvas_item.focused = focused
-        self.line_plot_canvas_item.focused = focused
+        if self.display_canvas_item:
+            self.display_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_image_panel = self
             self.document_controller.set_selected_data_item(self.get_displayed_data_item())
@@ -1467,10 +1451,22 @@ class ImagePanel(Panel.Panel):
         if self.__display:
             self.__display.data_item.decrement_data_ref_count()  # don't keep data in memory anymore
             self.__display.remove_listener(self)
+        if self.display_canvas_item:
+            self.root_canvas_item.remove_canvas_item(self.display_canvas_item)
+            self.display_canvas_item.close()
+            self.display_canvas_item = None
+            self.root_canvas_item.update()
+        data_item = display.data_item if display else None
+        if data_item and data_item.is_data_1d:
+            self.display_canvas_item = LinePlotCanvasItem(self.document_controller, self)
+            self.root_canvas_item.add_canvas_item(self.display_canvas_item)
+        elif data_item and (data_item.is_data_2d or data_item.is_data_3d):
+            self.display_canvas_item = ImageCanvasItem(self.document_controller, self)
+            self.root_canvas_item.add_canvas_item(self.display_canvas_item)
+            self.display_canvas_item.image_canvas_mode = "fit"
+            self.display_canvas_item.update_image_canvas_size()
         self.__display = display
         self.display_changed(self.__display)
-        self.image_canvas_item.image_canvas_mode = "fit"
-        self.image_canvas_item.update_image_canvas_size()
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
@@ -1505,29 +1501,15 @@ class ImagePanel(Panel.Panel):
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
     def display_changed(self, display):
-        self.image_header_controller.title = display.data_item.title if display else unicode()
-        self.line_plot_header_controller.title = display.data_item.title if display else unicode()
-        selected = self.document_controller.selected_image_panel == self
-        if display:
-            data_item = display.data_item
-            if data_item.is_data_1d:
-                self.widget.current_index = 1
-                self.line_plot_canvas_item.update_display(display)
-                self.line_plot_canvas_item.selected = selected
-                self.image_canvas_item.update_display(None)
-                self.image_canvas_item.selected = False
-            elif data_item.is_data_2d or data_item.is_data_3d:
-                # TODO: fix me 3d
-                self.widget.current_index = 0
-                self.image_canvas_item.update_display(display)
-                self.image_canvas_item.selected = selected
-                self.line_plot_canvas_item.update_display(None)
-                self.line_plot_canvas_item.selected = False
-        else:
-            self.line_plot_canvas_item.update_display(None)
-            self.image_canvas_item.update_display(None)
-            self.image_canvas_item.selected = False
-            self.line_plot_canvas_item.selected = False
+        self.header_controller.title = display.data_item.title if display else unicode()
+        if self.display_canvas_item:
+            selected = self.document_controller.selected_image_panel == self
+            if display:
+                self.display_canvas_item.update_display(display)
+                self.display_canvas_item.selected = selected
+            else:
+                self.display_canvas_item.update_display(None)
+                self.display_canvas_item.selected = False
 
     # ths message comes from the widget
     def key_pressed(self, key):
