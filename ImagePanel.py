@@ -380,8 +380,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __get_selected(self):
         return self.focus_ring_canvas_item.selected
     def __set_selected(self, selected):
-        self.focus_ring_canvas_item.selected = selected
-        self.focus_ring_canvas_item.update()
+        was_selected = self.focus_ring_canvas_item.selected
+        if was_selected != selected:
+            self.focus_ring_canvas_item.selected = selected
+            self.focus_ring_canvas_item.update()
     selected = property(__get_selected, __set_selected)
 
     # when the display changes, set the data using this property.
