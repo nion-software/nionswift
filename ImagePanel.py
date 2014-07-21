@@ -333,15 +333,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
         self.line_graph_background_canvas_item.add_canvas_item(self.line_graph_group_canvas_item)
 
-        # overlay a focus ring
-        self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
-
         # canvas items get added back to front
         # create the child canvas items
         # the background
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.line_graph_background_canvas_item)
-        self.add_canvas_item(self.focus_ring_canvas_item)
 
         # thread for drawing
         self.__display = None
@@ -369,24 +365,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.update_display(None)
         # call super
         super(LinePlotCanvasItem, self).close()
-
-    def __get_focused(self):
-        return self.focus_ring_canvas_item.focused
-    def __set_focused(self, focused):
-        was_focused = self.focus_ring_canvas_item.focused
-        if was_focused != focused:
-            self.focus_ring_canvas_item.focused = focused
-            self.focus_ring_canvas_item.update()
-    focused = property(__get_focused, __set_focused)
-
-    def __get_selected(self):
-        return self.focus_ring_canvas_item.selected
-    def __set_selected(self, selected):
-        was_selected = self.focus_ring_canvas_item.selected
-        if was_selected != selected:
-            self.focus_ring_canvas_item.selected = selected
-            self.focus_ring_canvas_item.update()
-    selected = property(__get_selected, __set_selected)
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -822,26 +800,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             else:
                 self.document_controller.cursor_changed(self, None, None, None)
 
-    def drag_enter(self, mime_data):
-        if self.image_panel:
-            return self.image_panel.handle_drag_enter(mime_data)
-        return "ignore"
-
-    def drag_leave(self):
-        if self.image_panel:
-            self.image_panel.handle_drag_leave()
-        return False
-
-    def drag_move(self, mime_data, x, y):
-        if self.image_panel:
-            return self.image_panel.handle_drag_move(mime_data, x, y)
-        return "ignore"
-
-    def drop(self, mime_data, x, y):
-        if self.image_panel:
-            return self.image_panel.handle_drop(mime_data, x, y)
-        return "ignore"
-
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
@@ -871,13 +829,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.scroll_area_canvas_item.updated_layout = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_updated_layout(canvas_size)
         # info overlay (scale marker, etc.)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
-        # and focus ring
-        self.focus_ring_canvas_item = CanvasItem.FocusRingCanvasItem()
         # canvas items get added back to front
         self.add_canvas_item(self.background_canvas_item)
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
-        self.add_canvas_item(self.focus_ring_canvas_item)
 
         # thread for drawing
         self.__display = None
@@ -1237,24 +1192,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         return self.image_panel.key_pressed(key)
 
-    def __get_focused(self):
-        return self.focus_ring_canvas_item.focused
-    def __set_focused(self, focused):
-        was_focused = self.focus_ring_canvas_item.focused
-        if was_focused != focused:
-            self.focus_ring_canvas_item.focused = focused
-            self.focus_ring_canvas_item.update()
-    focused = property(__get_focused, __set_focused)
-
-    def __get_selected(self):
-        return self.focus_ring_canvas_item.selected
-    def __set_selected(self, selected):
-        was_selected = self.focus_ring_canvas_item.selected
-        if was_selected != selected:
-            self.focus_ring_canvas_item.selected = selected
-            self.focus_ring_canvas_item.update()
-    selected = property(__get_selected, __set_selected)
-
     def __get_image_size(self):
         data_item = self.display.data_item if self.display else None
         data_shape = data_item.spatial_shape if data_item else None
@@ -1329,26 +1266,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.display = display
             self.info_overlay_canvas_item.update()
 
-    def drag_enter(self, mime_data):
-        if self.image_panel:
-            return self.image_panel.handle_drag_enter(mime_data)
-        return "ignore"
-
-    def drag_leave(self):
-        if self.image_panel:
-            self.image_panel.handle_drag_leave()
-        return False
-
-    def drag_move(self, mime_data, x, y):
-        if self.image_panel:
-            return self.image_panel.handle_drag_move(mime_data, x, y)
-        return "ignore"
-
-    def drop(self, mime_data, x, y):
-        if self.image_panel:
-            return self.image_panel.handle_drop(mime_data, x, y)
-        return "ignore"
-
     def set_fit_mode(self):
         #logging.debug("---------> fit")
         self.image_canvas_mode = "fit"
@@ -1389,6 +1306,99 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.update_image_canvas_position((-amount, 0.0))
 
 
+class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self, image_panel):
+        super(ImagePanelOverlayCanvasItem, self).__init__()
+        self.image_panel = image_panel
+        self.__dimmed = False
+        self.__focused = False
+        self.__selected = False
+        self.__selected_style = "#CCC"  # TODO: platform dependent
+        self.__focused_style = "#3876D6"  # TODO: platform dependent
+
+    def __get_dimmed(self):
+        return self.__dimmed
+    def __set_dimmed(self, dimmed):
+        if self.__dimmed != dimmed:
+            self.__dimmed = dimmed
+            self.update()
+    dimmed = property(__get_dimmed, __set_dimmed)
+
+    def __get_focused(self):
+        return self.__focused
+    def __set_focused(self, focused):
+        if self.__focused != focused:
+            self.__focused = focused
+            self.update()
+    focused = property(__get_focused, __set_focused)
+
+    def __get_selected(self):
+        return self.__selected
+    def __set_selected(self, selected):
+        if self.__selected != selected:
+            self.__selected = selected
+            self.update()
+    selected = property(__get_selected, __set_selected)
+
+    def _repaint(self, drawing_context):
+
+        super(ImagePanelOverlayCanvasItem, self)._repaint(drawing_context)
+
+        # canvas size
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
+
+        if self.__dimmed:
+
+            drawing_context.save()
+
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+            drawing_context.fill()
+
+            drawing_context.restore()
+
+        if self.selected:
+
+            stroke_style = self.__focused_style if self.focused else self.__selected_style
+
+            drawing_context.save()
+
+            drawing_context.begin_path()
+            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
+            drawing_context.line_join = "miter"
+            drawing_context.stroke_style = stroke_style
+            drawing_context.line_width = 4.0
+            drawing_context.stroke()
+
+            drawing_context.restore()
+
+    def drag_enter(self, mime_data):
+        self.dimmed = True
+        if self.image_panel:
+            return self.image_panel.handle_drag_enter(mime_data)
+        return "ignore"
+
+    def drag_leave(self):
+        self.dimmed = False
+        if self.image_panel:
+            self.image_panel.handle_drag_leave()
+        return False
+
+    def drag_move(self, mime_data, x, y):
+        if self.image_panel:
+            return self.image_panel.handle_drag_move(mime_data, x, y)
+        return "ignore"
+
+    def drop(self, mime_data, x, y):
+        self.dimmed = False
+        if self.image_panel:
+            return self.image_panel.handle_drop(mime_data, x, y)
+        return "ignore"
+
+
 class ImagePanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
@@ -1399,6 +1409,8 @@ class ImagePanel(Panel.Panel):
         self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
         self.root_canvas_item.focusable = True
         self.root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.overlay_canvas_item = ImagePanelOverlayCanvasItem(self)
+        self.root_canvas_item.add_canvas_item(self.overlay_canvas_item)
         self.header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
         self.header_controller.on_drag_pressed = lambda: self.__begin_drag()
         self.header_controller.on_sync_clicked = lambda: self.__sync_data_item()
@@ -1442,14 +1454,12 @@ class ImagePanel(Panel.Panel):
                 self.__set_display(data_item.displays[0])
 
     def set_selected(self, selected):
-        if self.display_canvas_item:
-            self.display_canvas_item.selected = selected
+        self.overlay_canvas_item.selected = selected
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
         if self.closed: return  # argh
-        if self.display_canvas_item:
-            self.display_canvas_item.focused = focused
+        self.overlay_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_image_panel = self
             self.document_controller.set_selected_data_item(self.get_displayed_data_item())
@@ -1526,18 +1536,18 @@ class ImagePanel(Panel.Panel):
                 self.display_canvas_item = None
             if display_type == "line_plot":
                 self.display_canvas_item = LinePlotCanvasItem(self.document_controller, self)
-                self.root_canvas_item.add_canvas_item(self.display_canvas_item)
+                self.root_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
                 self.display_canvas_item = ImageCanvasItem(self.document_controller, self)
-                self.root_canvas_item.add_canvas_item(self.display_canvas_item)
+                self.root_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.image_canvas_mode = "fit"
                 self.display_canvas_item.update_image_canvas_size()
             self.__display_type = display_type
             self.root_canvas_item.update()
         if self.display_canvas_item:
-            selected = self.document_controller.selected_image_panel == self
             self.display_canvas_item.update_display(display)
-            self.display_canvas_item.selected = display is not None and selected
+        selected = self.document_controller.selected_image_panel == self
+        self.overlay_canvas_item.selected = display is not None and selected
 
     # ths message comes from the widget
     def key_pressed(self, key):
