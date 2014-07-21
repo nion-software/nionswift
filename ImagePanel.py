@@ -1523,7 +1523,6 @@ class ImagePanel(Panel.Panel):
         if display_type != self.__display_type:
             if self.display_canvas_item:
                 self.root_canvas_item.remove_canvas_item(self.display_canvas_item)
-                self.display_canvas_item.close()
                 self.display_canvas_item = None
             if display_type == "line_plot":
                 self.display_canvas_item = LinePlotCanvasItem(self.document_controller, self)
