@@ -446,7 +446,12 @@ class CalibrationsInspectorSection(InspectorSection):
             def __init__(self, calibrations):
                 self.__calibrations = calibrations
             def convert(self, value):
-                return str(self.__calibrations.index(value))
+                index = self.__calibrations.index(value)
+                if len(self.__calibrations) == 1:
+                    return _("Channel")
+                if len(self.__calibrations) == 2:
+                    return (_("Y"), _("X"))[index]
+                return str(index)
             def convert_back(self, str):
                 raise NotImplementedError()
         # binding
