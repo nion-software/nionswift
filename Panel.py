@@ -1,5 +1,6 @@
 # standard libraries
 import code
+import copy
 from contextlib import contextmanager
 import gettext
 import logging
@@ -165,11 +166,12 @@ class HeaderWidgetController(object):
         self.__display_sync_control = display_sync_control
         header_height = 20 if sys.platform == "win32" else 22
         self.canvas_widget = self.ui.create_canvas_widget(properties={"height": header_height})
-        self.__layer = self.canvas_widget.create_layer()
         self.canvas_widget.on_size_changed = lambda width, height: self.__header_size_changed(width, height)
         self.canvas_widget.on_mouse_pressed = lambda x, y, modifiers: self.__mouse_pressed(x, y, modifiers)
         self.canvas_widget.on_mouse_released = lambda x, y, modifiers: self.__mouse_released(x, y, modifiers)
         self.canvas_widget.on_mouse_position_changed = lambda x, y, modifiers: self.__mouse_position_changed(x, y, modifiers)
+        self.canvas_widget.on_build_draw_commands = self.__build_draw_commands
+        self.__drawing_context = self.canvas_widget.create_drawing_context()
         self.__update_header()
         self.on_drag_pressed = None
         self.on_sync_clicked = None
@@ -202,11 +204,14 @@ class HeaderWidgetController(object):
     def __mouse_position_changed(self, x, y, modifiers):
         pass
 
+    def __build_draw_commands(self):
+        return copy.deepcopy(self.__drawing_context.commands)
+
     def __update_header(self):
 
         canvas_widget = self.canvas_widget
 
-        ctx = self.__layer.drawing_context
+        ctx = self.__drawing_context
 
         ctx.clear()
 
