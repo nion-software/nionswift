@@ -430,11 +430,19 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         super(LinePlotCanvasItem, self).update_layout(canvas_origin, canvas_size)
         self.__layout_state = "done_layout"
 
-    def _repaint(self, drawing_context):
+    def repaint_if_needed(self):
         if self.__layout_state == "done_layout":
-            super(LinePlotCanvasItem, self)._repaint(drawing_context)
-        if self.__layout_state == "has_info":
-            self.update()
+            super(LinePlotCanvasItem, self).repaint_if_needed()
+        elif self.__layout_state == "has_info":
+            self.update_layout(self.canvas_origin, self.canvas_size)
+            super(LinePlotCanvasItem, self).repaint_if_needed()
+        else:
+            # it is not legal to call 'update' from within repaint. so queue
+            # this to the future. overall, this is a bad architecture since
+            # the layout is not really complete in this case. hopefully this will
+            # go away once the canvas updating is reworked to ensure repaint only
+            # happens after layout. for now, this behavior is hacked into this class.
+            self.image_panel.add_task("update", lambda: self.update())
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -1518,7 +1526,7 @@ class ImagePanel(Panel.Panel):
             self.document_controller.sync_data_item(data_item)
 
     # this message comes from the data item associated with this panel.
-    # the connection is established in __set_data_item via data_item.add_listener.
+    # the connection is established in __set_display via data_item.add_listener.
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
     def display_changed(self, display):
