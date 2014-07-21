@@ -1548,7 +1548,7 @@ class DbStorageCache(object):
     def set_cached_value(self, object, key, value, dirty=False):
         event = threading.Event()
         self.queue.put((functools.partial(self.__set_cached_value, object, key, value, dirty), None, event, "set_cached_value"))
-        event.wait()
+        #event.wait()
 
     def get_cached_value(self, object, key, default_value=None):
         event = threading.Event()
@@ -1560,7 +1560,7 @@ class DbStorageCache(object):
     def remove_cached_value(self, object, key):
         event = threading.Event()
         self.queue.put((functools.partial(self.__remove_cached_value, object, key), None, event, "remove_cached_value"))
-        event.wait()
+        #event.wait()
 
     def is_cached_value_dirty(self, object, key):
         event = threading.Event()
@@ -1572,4 +1572,4 @@ class DbStorageCache(object):
     def set_cached_value_dirty(self, object, key, dirty=True):
         event = threading.Event()
         self.queue.put((functools.partial(self.__set_cached_value_dirty, object, key, dirty), None, event, "set_cached_value_dirty"))
-        event.wait()
+        #event.wait()
