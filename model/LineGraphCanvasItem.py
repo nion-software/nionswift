@@ -487,7 +487,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_height = self.font_size + 4
         self.sizing.maximum_height = self.font_size + 4
 
-    def size_to_content(self, ui):
+    def size_to_content(self, ui, canvas_bounds):
         """ Size the canvas item to the proper height. """
         self.sizing.minimum_height = 0
         self.sizing.maximum_height = 0
@@ -566,7 +566,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.data_info = None
         self.font_size = 12
 
-    def size_to_content(self, ui):
+    def size_to_content(self, ui, canvas_bounds):
         """ Size the canvas item to the proper width, the maximum of any label. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
@@ -574,7 +574,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         data_info = self.data_info
         if data_info is not None and data_info.data is not None:
 
-            plot_height = int(self.canvas_size[0]) - 1
+            plot_height = int(canvas_bounds.height) - 1
 
             # calculate the axes drawing info
             data_info.calculate_y_axis(plot_height)
@@ -635,7 +635,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_width = self.font_size + 4
         self.sizing.maximum_width = self.font_size + 4
 
-    def size_to_content(self, ui):
+    def size_to_content(self, ui, canvas_bounds):
         """ Size the canvas item to the proper width. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0

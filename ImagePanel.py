@@ -493,23 +493,27 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_canvas_item.update()
         self.line_graph_regions_canvas_item.data_info = data_info
         self.line_graph_regions_canvas_item.update()
+        canvas_bounds = self.canvas_bounds
         self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
-        self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui)
+        if canvas_bounds:
+            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
         self.line_graph_vertical_axis_label_canvas_item.update()
         self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
-        self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui)
+        if canvas_bounds:
+            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
         self.line_graph_vertical_axis_scale_canvas_item.update()
         self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_vertical_axis_ticks_canvas_item.update()
         self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
-        self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui)
+        if canvas_bounds:
+            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
         self.line_graph_horizontal_axis_label_canvas_item.update()
         self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
         self.line_graph_horizontal_axis_scale_canvas_item.update()
         self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_horizontal_axis_ticks_canvas_item.update()
-        if self.canvas_origin and self.canvas_size:
-            self.update_layout(self.canvas_origin, self.canvas_size)
+        if canvas_bounds:
+            self.update_layout(canvas_bounds.origin, canvas_bounds.size)
             self.update()
         self.__layout_state = "has_info"
 
