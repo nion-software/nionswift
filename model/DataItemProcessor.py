@@ -12,6 +12,9 @@ class DataItemProcessor(object):
         self.__in_progress = False
         self.__finish_event = threading.Event()
         self.__finish_event.set()
+        # the next two fields represent a memory cache -- a cache of the cache values.
+        # if self.__cached_value_dirty is None then this first level cache has not yet
+        # been initialized.
         self.__cached_value = None
         self.__cached_value_dirty = None
 
@@ -36,7 +39,9 @@ class DataItemProcessor(object):
 
     def set_cached_value_dirty(self):
         self.item.set_cached_value_dirty(self.__cache_property_name)
-        self.__cached_value_dirty = True
+        # is the memory cache initialized? only set it dirty if so.
+        if self.__cached_value_dirty is not None:
+            self.__cached_value_dirty = True
 
     def get_calculated_data(self, ui, data):
         """ Subclasses must implement. """
@@ -50,7 +55,11 @@ class DataItemProcessor(object):
         raise NotImplementedError()
 
     def get_data(self, ui, completion_fn=None):
-        if (self.__cached_value_dirty is not None and self.__cached_value_dirty) or self.item.is_cached_value_dirty(self.__cache_property_name):
+        if self.__cached_value_dirty is None:
+            # initialize the memory cache.
+            self.__cached_value_dirty = self.item.is_cached_value_dirty(self.__cache_property_name)
+            self.__cached_value = self.item.get_cached_value(self.__cache_property_name)
+        if self.__cached_value_dirty:
             item = self.item  # hold it
             data_item = self.get_data_item()
             if not data_item.closed:
@@ -87,7 +96,7 @@ class DataItemProcessor(object):
                             self.__in_progress = True
                             self.__finish_event.clear()
                             self.item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread(item))
-        calculated_data = self.__cached_value  # self.item.get_cached_value(self.__cache_property_name)
+        calculated_data = self.__cached_value
         if calculated_data is not None:
             return calculated_data
         return self.get_default_data()
