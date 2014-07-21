@@ -185,15 +185,15 @@ class DocumentController(Observable.Broadcaster):
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
             if self.selected_image_panel is not None:
-                self.selected_image_panel.image_canvas_item.set_fit_mode()
+                self.selected_image_panel.display_canvas_item.set_fit_mode()
         self.fit_view_action = self.view_menu.add_menu_item(_("Fit to View"), lambda: fit_to_view(), key_sequence="0")
         def fill_view():
             if self.selected_image_panel is not None:
-                self.selected_image_panel.image_canvas_item.set_fill_mode()
+                self.selected_image_panel.display_canvas_item.set_fill_mode()
         self.fill_view_action = self.view_menu.add_menu_item(_("Fill View"), lambda: fill_view(), key_sequence="Shift+0")
         def one_to_one_view():
             if self.selected_image_panel is not None:
-                self.selected_image_panel.image_canvas_item.set_one_to_one_mode()
+                self.selected_image_panel.display_canvas_item.set_one_to_one_mode()
         self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), lambda: one_to_one_view(), key_sequence="1")
         self.view_menu.add_separator()
         self.view_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
