@@ -627,6 +627,31 @@ class CalibratedValueBinding(Binding.Binding):
         return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
 
 
+def make_point_type_inspector(ui, graphic_widget, display, image_size, graphic):
+    def new_display_calibrated_values_binding():
+        return Binding.PropertyBinding(display, "display_calibrated_values")
+    # calculate values from rectangle type graphic
+    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    position_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
+    position_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
+    # create the ui
+    graphic_position_row = ui.create_row_widget()
+    graphic_position_row.add_spacing(20)
+    graphic_position_row.add(ui.create_label_widget(_("Position"), properties={"width": 40}))
+    graphic_position_x_line_edit = ui.create_line_edit_widget(properties={"width": 80})
+    graphic_position_y_line_edit = ui.create_line_edit_widget(properties={"width": 80})
+    graphic_position_x_line_edit.bind_text(position_x_binding)
+    graphic_position_y_line_edit.bind_text(position_y_binding)
+    graphic_position_row.add(graphic_position_x_line_edit)
+    graphic_position_row.add_spacing(8)
+    graphic_position_row.add(graphic_position_y_line_edit)
+    graphic_position_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_position_row)
+    graphic_widget.add_spacing(4)
+
+
 def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display, "display_calibrated_values")
@@ -767,6 +792,9 @@ class GraphicsInspectorSection(InspectorSection):
         graphic_title_row.add_stretch()
         graphic_widget = self.ui.create_column_widget()
         graphic_widget.add(graphic_title_row)
+        if isinstance(graphic, Graphics.PointGraphic):
+            graphic_title_type_label.text = _("Point")
+            make_point_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
             make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
