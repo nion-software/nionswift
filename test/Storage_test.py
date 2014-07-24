@@ -723,17 +723,13 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.isfile(data_file_path))
             self.assertTrue(os.path.exists(data2_file_path))
             self.assertTrue(os.path.isfile(data2_file_path))
-            # make sure original file gets deleted
-            document_model.remove_data_item(data_item)
-            self.assertFalse(os.path.exists(data_file_path))
-            self.assertFalse(os.path.isfile(data_file_path))
-            self.assertTrue(os.path.exists(data2_file_path))
-            self.assertTrue(os.path.isfile(data2_file_path))
             # clean up
             document_model = None
             storage_cache.close()
             storage_cache = None
-            # read it back
+            # delete the original file
+            os.remove(data_file_path)
+            # read it back the library
             data_reference_handler = Application.DataReferenceHandler(workspace_dir)
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)

@@ -13,6 +13,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.ui import Test
 
@@ -434,6 +435,26 @@ class TestOperationClass(unittest.TestCase):
         self.assertAlmostEqual(data_item.calculated_calibrations[0].offset, 55.0)
         self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.5)
         self.assertEqual(data_item.calculated_calibrations[0].units, "cats")
+
+    def test_crop_2d_region_connects_if_operation_added_after_data_item_is_in_document(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        crop_region = Region.RectRegion()
+        data_item.add_region(crop_region)
+        # configure the dependent item
+        data_item2 = DataItem.DataItem()
+        document_model.append_data_item(data_item2)
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.region_uuid = crop_region.uuid
+        data_item2.add_operation(crop_operation)
+        # see if the region is connected to the operation
+        self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
+        bounds = ((0.3, 0.4), (0.5, 0.6))
+        crop_operation.set_property("bounds", bounds)
+        self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

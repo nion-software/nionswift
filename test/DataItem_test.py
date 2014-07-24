@@ -666,6 +666,19 @@ class TestDataItemClass(unittest.TestCase):
         data_item.remove_region(crop_region)
         self.assertTrue(listener._display_changed)
 
+    def test_data_source_connects_if_added_after_data_item_is_already_in_document(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        # configure the dependent item
+        data_item2 = DataItem.DataItem()
+        document_model.append_data_item(data_item2)
+        # add data source AFTER data_item2 is in library
+        data_item2.add_data_source(data_item)
+        # see if the data source got connected
+        self.assertIsNotNone(data_item2.data)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

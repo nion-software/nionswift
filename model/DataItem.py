@@ -286,6 +286,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_change_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_changes = set()
+        self.__lookup_data_item = None
+        self.__direct_data_sources = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
@@ -763,6 +765,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # is a function to look up data items by uuid. this method also establishes the
     # display graphics for this items operations. direct data source is used for testing.
     def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None):
+        self.__lookup_data_item = lookup_data_item
+        self.__direct_data_sources = direct_data_sources
         if direct_data_sources is not None:
             data_items = direct_data_sources
         else:
@@ -784,6 +788,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             for data_source in copy.copy(self.__data_sources):
                 data_source.remove_listener(self)
                 self.__data_sources.remove(data_source)
+        self.__lookup_data_item = None
+        self.__direct_data_sources = None
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
@@ -816,6 +822,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_source_uuid_list = self.data_source_uuid_list
         data_source_uuid_list.list.append(str(data_source.uuid))
         self.data_source_uuid_list = data_source_uuid_list
+        # connect to the data source if possible
+        if self.__lookup_data_item or self.__direct_data_sources:
+            self.connect_data_sources(self.__lookup_data_item, self.__direct_data_sources)
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
