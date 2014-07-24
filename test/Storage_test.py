@@ -604,7 +604,7 @@ class TestStorageClass(unittest.TestCase):
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_property("start", (0.1, 0.2))
         line_profile_operation.set_property("end", (0.3, 0.4))
-        line_profile_operation.establish_associated_region(data_item, Region.LineRegion())
+        line_profile_operation.establish_associated_region("line", data_item, Region.LineRegion())
         data_item2.add_operation(line_profile_operation)
         data_item2.add_data_source(data_item)
         # read it back

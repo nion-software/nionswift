@@ -446,7 +446,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
-        crop_operation.establish_associated_region(data_item, crop_region)
+        crop_operation.establish_associated_region("crop", data_item, crop_region)
         data_item2.add_operation(crop_operation)
         # see if the region is connected to the operation
         self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)

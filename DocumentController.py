@@ -629,7 +629,7 @@ class DocumentController(Observable.Broadcaster):
         if data_item and len(data_item.spatial_shape) == 2:
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            operation.establish_associated_region(data_item, Region.RectRegion())  # after setting operation properties
+            operation.establish_associated_region("crop", data_item, Region.RectRegion())  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
@@ -651,7 +651,7 @@ class DocumentController(Observable.Broadcaster):
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
-            operation.establish_associated_region(data_item, Region.LineRegion())  # after setting operation properties
+            operation.establish_associated_region("line", data_item, Region.LineRegion())  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
         return None
 

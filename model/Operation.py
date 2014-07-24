@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import functools
 import gettext
 import logging
 import math
@@ -43,16 +44,22 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__weak_region = None
 
-        class UuidToStringConverter(object):
+        class UuidMapToStringConverter(object):
             def convert(self, value):
-                return str(value) if value is not None else None
+                d = dict()
+                for k in value:
+                    d[k] = str(value[k])
+                return d
             def convert_back(self, value):
-                return uuid.UUID(value) if value is not None else None
+                d = dict()
+                for k in value:
+                    d[k] = uuid.UUID(value[k])
+                return d
 
         self.define_property("operation_id", operation_id, read_only=True)
         self.define_property("enabled", True, changed=self.__property_changed)
         self.define_property("values", dict(), changed=self.__property_changed)
-        self.define_property("region_uuid", None, converter=UuidToStringConverter())
+        self.define_property("region_connections", dict(), converter=UuidMapToStringConverter())
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -88,16 +95,15 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def managed_object_context_changed(self):
         """ Override from ManagedObject. """
-        region_uuid = self.region_uuid
-        if region_uuid is not None:
-            def registered(region):
-                self.__set_region(region)
+        for region_connection_id in self.region_connections:
+            def registered(region_connection_id, region):
+                self.__set_region(region_connection_id, region)
             def unregistered(region=None):
                 for binding in self.__bindings:
                     binding.close()
                 self.__bindings = list()
             if self.managed_object_context:
-                self.managed_object_context.subscribe(region_uuid, registered, unregistered)
+                self.managed_object_context.subscribe(self.region_connections[region_connection_id], functools.partial(registered, region_connection_id), unregistered)
             else:
                 unregistered()
 
@@ -121,29 +127,29 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.notify_set_property(name, value)
         self.notify_listeners("operation_changed", self)
 
-    def __set_region(self, region):
+    def __set_region(self, region_connection_id, region):
         # When region becomes available, establish bindings. Also add listener to watch for its deletion.
         if self.operation:
-            for operation_property, region_property in self.operation.region_bindings:
+            for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 self.__bindings.append(OperationPropertyToRegionBinding(self, operation_property, region, region_property))
                 self.set_property(operation_property, getattr(region, region_property))
-            assert region.type == self.operation.region_type
+            assert region.type == self.operation.region_types[region_connection_id]
             region.add_listener(self)
             # save this to remove region if this object gets removed.
             self.__weak_region = weakref.ref(region)
 
-    def establish_associated_region(self, source_data_item, region):
+    def establish_associated_region(self, region_connection_id, source_data_item, region):
         """
             Add the region to the source data item, update its initial values, and connect it to this operation.
         """
         if self.operation:
             assert region
-            assert region.type == self.operation.region_type
+            assert region.type == self.operation.region_types[region_connection_id]
             source_data_item.add_region(region)
             # copy the properties from the operation to the region
-            for operation_property, region_property in self.operation.region_bindings:
+            for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 setattr(region, region_property, self.get_property(operation_property))
-            self.region_uuid = region.uuid
+            self.region_connections[region_connection_id] = region.uuid
 
     # this message comes from the region.
     # it is generated when the user deletes a region graphic
@@ -236,8 +242,8 @@ class Operation(object):
         self.name = name
         self.operation_id = operation_id
         self.description = description if description else []
-        self.region_type = None
-        self.region_bindings = []
+        self.region_types = dict()
+        self.region_bindings = dict()
 
     # handle properties from the description of the operation.
     def get_property(self, property_id, default_value=None):
@@ -430,8 +436,8 @@ class Crop2dOperation(Operation):
         ]
         super(Crop2dOperation, self).__init__(_("Crop"), "crop-operation", description)
         self.bounds = (0.0, 0.0), (1.0, 1.0)
-        self.region_type = "rectangle-region"
-        self.region_bindings = [RegionBinding("bounds", "bounds")]
+        self.region_types = {"crop": "rectangle-region"}
+        self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
     def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
         cropped_spatial_calibrations = list()
@@ -577,10 +583,10 @@ class LineProfileOperation(Operation):
         self.start = (0.25, 0.25)
         self.end = (0.75, 0.75)
         self.integration_width = 1
-        self.region_type = "line-region"
-        self.region_bindings = [RegionBinding("start", "start"),
-                                RegionBinding("end", "end"),
-                                RegionBinding("integration_width", "width")]
+        self.region_types = {"line": "line-region"}
+        self.region_bindings = {"line": [RegionBinding("start", "start"),
+                                         RegionBinding("end", "end"),
+                                         RegionBinding("integration_width", "width")]}
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         start = self.get_property("start")

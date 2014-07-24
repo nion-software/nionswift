@@ -273,7 +273,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 properties["reader_version"] = 2
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 2
-                logging.info("Updated %s to %s", reference, version)
+                logging.info("Updated %s to %s (ndata1)", reference, version)
             if version == 2:
                 # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
                 for display_properties in properties.get("displays", list()):
@@ -286,7 +286,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 properties["reader_version"] = 2
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 3
-                logging.info("Updated %s to %s", reference, version)
+                logging.info("Updated %s to %s (add uuids)", reference, version)
             if version == 3:
                 # version 3 -> 4 changes origin to offset in all calibrations.
                 calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
@@ -301,7 +301,23 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 properties["reader_version"] = 4
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 4
-                logging.info("Updated %s to %s", reference, version)
+                logging.info("Updated %s to %s (calibration offset)", reference, version)
+            if version == 4:
+                # version 4 -> 5 changes region_uuid to region_connections map.
+                operations_list = properties.get("operations", list())
+                for operation_dict in operations_list:
+                    if operation_dict["operation_id"] == "crop-operation" and "region_uuid" in operation_dict:
+                        operation_dict["region_connections"] = { "crop": operation_dict["region_uuid"] }
+                        del operation_dict["region_uuid"]
+                    elif operation_dict["operation_id"] == "line-profile-operation" and "region_uuid" in operation_dict:
+                        operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
+                        del operation_dict["region_uuid"]
+                properties["version"] = 5
+                properties["reader_version"] = 5
+                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                version = 5
+                logging.info("Updated %s to %s (region_uuid)", reference, version)
+            # NOTE: change reader_version / writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
             if reader_version <= data_item.reader_version:
                 persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
