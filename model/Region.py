@@ -13,7 +13,6 @@ import weakref
 
 # local libraries
 from nion.swift.model import Graphics
-from nion.swift.model import Operation
 from nion.ui import Binding
 from nion.ui import Observable
 
@@ -72,7 +71,7 @@ class LineRegion(Region):
         self.define_property("start", (0.0, 0.0), changed=self._property_changed)
         self.define_property("end", (1.0, 1.0), changed=self._property_changed)
         self.define_property("width", 1.0, changed=self._property_changed)
-        self.__graphic = Operation.LineProfileGraphic()
+        self.__graphic = Graphics.LineProfileGraphic()
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
         self.__graphic.add_listener(self)

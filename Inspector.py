@@ -770,7 +770,7 @@ class GraphicsInspectorSection(InspectorSection):
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
             make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
-        if isinstance(graphic, Operation.LineProfileGraphic):
+        if isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_title_type_label.text = _("Line Profile")
             make_line_profile_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
         if isinstance(graphic, Graphics.RectangleGraphic):

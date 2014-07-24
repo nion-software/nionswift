@@ -472,6 +472,48 @@ class LineGraphic(LineTypeGraphic):
             self.draw_marker(ctx, p2)
 
 
+class LineProfileGraphic(LineTypeGraphic):
+    def __init__(self):
+        super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
+        self.define_property("width", 1.0, changed=self._property_changed)
+    # accessors
+    def draw(self, ctx, mapping, is_selected=False):
+        p1 = mapping.map_point_image_norm_to_widget(self.start)
+        p2 = mapping.map_point_image_norm_to_widget(self.end)
+        ctx.save()
+        ctx.begin_path()
+        ctx.move_to(p1[1], p1[0])
+        ctx.line_to(p2[1], p2[0])
+        if self.start_arrow_enabled:
+            self.draw_arrow(ctx, p2, p1)
+        if self.end_arrow_enabled:
+            self.draw_arrow(ctx, p1, p2)
+        ctx.line_width = 1
+        ctx.stroke_style = self.color
+        ctx.stroke()
+        if self.width > 1.0:
+            half_width = self.width * 0.5
+            length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
+            dy = (p2[0] - p1[0]) / length
+            dx = (p2[1] - p1[1]) / length
+            ctx.save()
+            ctx.begin_path()
+            ctx.move_to(p1[1] + dy * half_width, p1[0] - dx * half_width)
+            ctx.line_to(p2[1] + dy * half_width, p2[0] - dx * half_width)
+            ctx.line_to(p2[1] - dy * half_width, p2[0] + dx * half_width)
+            ctx.line_to(p1[1] - dy * half_width, p1[0] + dx * half_width)
+            ctx.close_path()
+            ctx.line_width = 1
+            ctx.line_dash = 2
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            ctx.restore()
+        ctx.restore()
+        if is_selected:
+            self.draw_marker(ctx, p1)
+            self.draw_marker(ctx, p2)
+
+
 class PointTypeGraphic(Graphic):
     def __init__(self, type, title):
         super(PointTypeGraphic, self).__init__(type)

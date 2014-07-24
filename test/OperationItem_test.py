@@ -441,13 +441,12 @@ class TestOperationClass(unittest.TestCase):
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
-        crop_region = Region.RectRegion()
-        data_item.add_region(crop_region)
         # configure the dependent item
         data_item2 = DataItem.DataItem()
         document_model.append_data_item(data_item2)
         crop_operation = Operation.OperationItem("crop-operation")
-        crop_operation.region_uuid = crop_region.uuid
+        crop_region = Region.RectRegion()
+        crop_operation.establish_associated_region(data_item, crop_region)
         data_item2.add_operation(crop_operation)
         # see if the region is connected to the operation
         self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)

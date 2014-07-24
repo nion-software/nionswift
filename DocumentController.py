@@ -627,13 +627,9 @@ class DocumentController(Observable.Broadcaster):
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
         if data_item and len(data_item.spatial_shape) == 2:
-            crop_region = Region.RectRegion()
-            crop_region.center = 0.5, 0.5
-            crop_region.size = 0.5, 0.5
-            data_item.add_region(crop_region)
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            operation.region_uuid = crop_region.uuid
+            operation.establish_associated_region(data_item, Region.RectRegion())  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
@@ -652,14 +648,10 @@ class DocumentController(Observable.Broadcaster):
     def processing_line_profile(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            line_region = Region.LineRegion()
-            line_region.start = 0.25, 0.25
-            line_region.end = 0.75, 0.75
-            data_item.add_region(line_region)
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
-            operation.region_uuid = line_region.uuid
+            operation.establish_associated_region(data_item, Region.LineRegion())  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
         return None
 

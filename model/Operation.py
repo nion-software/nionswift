@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import gettext
 import logging
@@ -18,52 +19,14 @@ import scipy.ndimage.fourier
 from nion.swift.model import Calibration
 from nion.swift.model import Graphics
 from nion.swift.model import Image
+from nion.swift.model import Region
 from nion.ui import Binding
 from nion.ui import Observable
 
 _ = gettext.gettext
 
 
-class LineProfileGraphic(Graphics.LineTypeGraphic):
-    def __init__(self):
-        super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property("width", 1.0, changed=self._property_changed)
-    # accessors
-    def draw(self, ctx, mapping, is_selected=False):
-        p1 = mapping.map_point_image_norm_to_widget(self.start)
-        p2 = mapping.map_point_image_norm_to_widget(self.end)
-        ctx.save()
-        ctx.begin_path()
-        ctx.move_to(p1[1], p1[0])
-        ctx.line_to(p2[1], p2[0])
-        if self.start_arrow_enabled:
-            self.draw_arrow(ctx, p2, p1)
-        if self.end_arrow_enabled:
-            self.draw_arrow(ctx, p1, p2)
-        ctx.line_width = 1
-        ctx.stroke_style = self.color
-        ctx.stroke()
-        if self.width > 1.0:
-            half_width = self.width * 0.5
-            length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
-            dy = (p2[0] - p1[0]) / length
-            dx = (p2[1] - p1[1]) / length
-            ctx.save()
-            ctx.begin_path()
-            ctx.move_to(p1[1] + dy * half_width, p1[0] - dx * half_width)
-            ctx.line_to(p2[1] + dy * half_width, p2[0] - dx * half_width)
-            ctx.line_to(p2[1] - dy * half_width, p2[0] + dx * half_width)
-            ctx.line_to(p1[1] - dy * half_width, p1[0] + dx * half_width)
-            ctx.close_path()
-            ctx.line_width = 1
-            ctx.line_dash = 2
-            ctx.stroke_style = self.color
-            ctx.stroke()
-            ctx.restore()
-        ctx.restore()
-        if is_selected:
-            self.draw_marker(ctx, p1)
-            self.draw_marker(ctx, p2)
+RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
 
 
 class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
@@ -159,23 +122,28 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.notify_listeners("operation_changed", self)
 
     def __set_region(self, region):
-        # TODO: operation item should not have to know about specific operations (for regions)
-        if self.operation_id == "line-profile-operation":
-            assert region.type == "line-region"
-            self.__bindings.append(OperationPropertyToRegionBinding(self, "start", region, "start"))
-            self.__bindings.append(OperationPropertyToRegionBinding(self, "end", region, "end"))
-            self.__bindings.append(OperationPropertyToRegionBinding(self, "integration_width", region, "width"))
-            self.set_property("start", region.start)
-            self.set_property("end", region.end)
-            self.set_property("width", region.width)
+        # When region becomes available, establish bindings. Also add listener to watch for its deletion.
+        if self.operation:
+            for operation_property, region_property in self.operation.region_bindings:
+                self.__bindings.append(OperationPropertyToRegionBinding(self, operation_property, region, region_property))
+                self.set_property(operation_property, getattr(region, region_property))
+            assert region.type == self.operation.region_type
             region.add_listener(self)
+            # save this to remove region if this object gets removed.
             self.__weak_region = weakref.ref(region)
-        elif self.operation_id == "crop-operation":
-            assert region.type == "rectangle-region"
-            self.__bindings.append(OperationPropertyToRegionBinding(self, "bounds", region, "bounds"))
-            self.set_property("bounds", region.bounds)
-            region.add_listener(self)
-            self.__weak_region = weakref.ref(region)
+
+    def establish_associated_region(self, source_data_item, region):
+        """
+            Add the region to the source data item, update its initial values, and connect it to this operation.
+        """
+        if self.operation:
+            assert region
+            assert region.type == self.operation.region_type
+            source_data_item.add_region(region)
+            # copy the properties from the operation to the region
+            for operation_property, region_property in self.operation.region_bindings:
+                setattr(region, region_property, self.get_property(operation_property))
+            self.region_uuid = region.uuid
 
     # this message comes from the region.
     # it is generated when the user deletes a region graphic
@@ -268,6 +236,8 @@ class Operation(object):
         self.name = name
         self.operation_id = operation_id
         self.description = description if description else []
+        self.region_type = None
+        self.region_bindings = []
 
     # handle properties from the description of the operation.
     def get_property(self, property_id, default_value=None):
@@ -460,6 +430,8 @@ class Crop2dOperation(Operation):
         ]
         super(Crop2dOperation, self).__init__(_("Crop"), "crop-operation", description)
         self.bounds = (0.0, 0.0), (1.0, 1.0)
+        self.region_type = "rectangle-region"
+        self.region_bindings = [RegionBinding("bounds", "bounds")]
 
     def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
         cropped_spatial_calibrations = list()
@@ -605,6 +577,10 @@ class LineProfileOperation(Operation):
         self.start = (0.25, 0.25)
         self.end = (0.75, 0.75)
         self.integration_width = 1
+        self.region_type = "line-region"
+        self.region_bindings = [RegionBinding("start", "start"),
+                                RegionBinding("end", "end"),
+                                RegionBinding("integration_width", "width")]
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         start = self.get_property("start")
