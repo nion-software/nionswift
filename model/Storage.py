@@ -1456,7 +1456,8 @@ class DictStorageCache(object):
 
 class DbStorageCache(object):
     def __init__(self, cache_filename):
-        self.queue = Queue.Queue()
+        self.__queue = Queue.Queue()
+        self.__queue_lock = threading.RLock()
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[cache_filename])
         self.__thread.daemon = True
@@ -1464,8 +1465,11 @@ class DbStorageCache(object):
         self.__started_event.wait()
 
     def close(self):
-        self.queue.put((None, None, None, None))
-        self.queue.join()
+        with self.__queue_lock:
+            assert self.__queue is not None
+            self.__queue.put((None, None, None, None))
+            self.__queue.join()
+            self.__queue = None
 
     def __run(self, cache_filename):
         self.conn = sqlite3.connect(cache_filename)
@@ -1473,11 +1477,9 @@ class DbStorageCache(object):
         self.create()
         self.__started_event.set()
         while True:
-            action = self.queue.get()
-            item = action[0]
-            result = action[1]
-            event = action[2]
-            action_name = action[3]
+            action = self.__queue.get()
+            item, result, event, action_name = action
+            #logging.debug("item %s  result %s  event %s  action %s", item, result, event, action_name)
             if item:
                 try:
                     #logging.debug("EXECUTE %s", action_name)
@@ -1496,7 +1498,7 @@ class DbStorageCache(object):
                     #logging.debug("FINISH")
                     if event:
                         event.set()
-            self.queue.task_done()
+            self.__queue.task_done()
             if not item:
                 break
         self.conn.close()
@@ -1547,29 +1549,44 @@ class DbStorageCache(object):
 
     def set_cached_value(self, object, key, value, dirty=False):
         event = threading.Event()
-        self.queue.put((functools.partial(self.__set_cached_value, object, key, value, dirty), None, event, "set_cached_value"))
+        with self.__queue_lock:
+            queue = self.__queue
+        if queue:
+            queue.put((functools.partial(self.__set_cached_value, object, key, value, dirty), None, event, "set_cached_value"))
         #event.wait()
 
     def get_cached_value(self, object, key, default_value=None):
         event = threading.Event()
         result = list()
-        self.queue.put((functools.partial(self.__get_cached_value, object, key, default_value), result, event, "get_cached_value"))
-        event.wait()
+        with self.__queue_lock:
+            queue = self.__queue
+        if queue:
+            queue.put((functools.partial(self.__get_cached_value, object, key, default_value), result, event, "get_cached_value"))
+            event.wait()
         return result[0] if len(result) > 0 else None
 
     def remove_cached_value(self, object, key):
         event = threading.Event()
-        self.queue.put((functools.partial(self.__remove_cached_value, object, key), None, event, "remove_cached_value"))
+        with self.__queue_lock:
+            queue = self.__queue
+        if queue:
+            queue.put((functools.partial(self.__remove_cached_value, object, key), None, event, "remove_cached_value"))
         #event.wait()
 
     def is_cached_value_dirty(self, object, key):
         event = threading.Event()
         result = list()
-        self.queue.put((functools.partial(self.__is_cached_value_dirty, object, key), result, event, "is_cached_value_dirty"))
-        event.wait()
+        with self.__queue_lock:
+            queue = self.__queue
+        if queue:
+            queue.put((functools.partial(self.__is_cached_value_dirty, object, key), result, event, "is_cached_value_dirty"))
+            event.wait()
         return result[0]
 
     def set_cached_value_dirty(self, object, key, dirty=True):
         event = threading.Event()
-        self.queue.put((functools.partial(self.__set_cached_value_dirty, object, key, dirty), None, event, "set_cached_value_dirty"))
+        with self.__queue_lock:
+            queue = self.__queue
+        if queue:
+            queue.put((functools.partial(self.__set_cached_value_dirty, object, key, dirty), None, event, "set_cached_value_dirty"))
         #event.wait()
