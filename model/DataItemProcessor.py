@@ -83,9 +83,16 @@ class DataItemProcessor(object):
                             calculated_data = None
                         if calculated_data is None:
                             calculated_data = self.get_default_data()
-                            self.item.remove_cached_value(self.__cache_property_name)
-                            self.__cached_value = None
-                            self.__cached_value_dirty = None
+                            if calculated_data is not None:
+                                # if the default is not None, treat is as valid cached data
+                                self.item.set_cached_value(self.__cache_property_name, calculated_data)
+                                self.__cached_value = calculated_data
+                                self.__cached_value_dirty = False
+                            else:
+                                # otherwise remove everything from the cache
+                                self.item.remove_cached_value(self.__cache_property_name)
+                                self.__cached_value = None
+                                self.__cached_value_dirty = None
                         if completion_fn:
                             completion_fn(calculated_data)
                         with self.__mutex:
