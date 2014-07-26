@@ -526,13 +526,8 @@ class PointTypeGraphic(Graphic):
         # are specified in widget coordinates
         cross_hair_size = 12
         p = mapping.map_point_image_norm_to_widget(self.position)
-        left = p - Geometry.FloatPoint(x=12, y=0)
-        right = p + Geometry.FloatPoint(x=12, y=0)
-        top = p - Geometry.FloatPoint(x=0, y=12)
-        bottom = p + Geometry.FloatPoint(x=0, y=12)
-        if self.test_line(left, right, test_point, 4):
-            return "all"
-        if self.test_line(top, bottom, test_point, 4):
+        bounds = Geometry.FloatRect.from_center_and_size(p, Geometry.FloatSize(width=cross_hair_size*2, height=cross_hair_size*2))
+        if self.test_inside_bounds(bounds, test_point, 2):
             return "all"
         # didn't find anything
         return None
@@ -580,7 +575,10 @@ class PointGraphic(PointTypeGraphic):
         ctx.stroke()
         ctx.restore()
         if is_selected:
-            self.draw_marker(ctx, p)
+            self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size))
+            self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))
+            self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size))
+            self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size))
 
 
 class IntervalGraphic(Graphic):
