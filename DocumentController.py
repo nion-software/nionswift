@@ -844,7 +844,7 @@ class DocumentController(Observable.Broadcaster):
             def show_source():
                 self.sync_data_item(data_item.data_source)
             def show_in_new_window():
-                self.new_window("data", DataPanel.DataPanelSelection(container, data_item, self.__data_items_binding.filter_id))
+                self.new_window("data", DataPanel.DataPanelSelection(container, data_item))
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
             data_inputs = data_item.data_inputs
             if len(data_inputs) == 1 and isinstance(data_inputs[0], DataItem.DataItem):
