@@ -535,10 +535,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         if self.document_controller.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
-            if self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
+            if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                 self.reset_horizontal()
                 return True
-            elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
+            elif self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_vertical_axis_group_canvas_item)):
                 self.reset_vertical()
                 return True
         return False
@@ -546,8 +546,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_position_changed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
-        plot_rect = self.line_graph_regions_canvas_item.canvas_rect
-        # x,y already have transform applied
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         new_rescale = modifiers.control
@@ -564,17 +562,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         pos = Geometry.IntPoint(x=x, y=y)
         if self.document_controller.tool_mode == "pointer":
-            if self.line_graph_regions_canvas_item.canvas_rect.contains_point(pos):
+            if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
                 return True
-            elif self.line_graph_horizontal_axis_group_canvas_item.canvas_rect.contains_point(pos):
+            elif self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                 self.begin_tracking_horizontal(pos, rescale=modifiers.control)
                 return True
-            elif self.line_graph_vertical_axis_group_canvas_item.canvas_rect.contains_point(pos):
+            elif self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_vertical_axis_group_canvas_item)):
                 self.begin_tracking_vertical(pos, rescale=modifiers.control)
                 return True
         elif self.document_controller.tool_mode == "interval":
-            if self.line_graph_regions_canvas_item.canvas_rect.contains_point(pos):
+            if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 data_size = self.__get_data_size()
                 display = self.display
                 if display and data_size and len(data_size) == 1:
@@ -638,7 +636,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_mouse_mapping(self):
         data_size = self.__get_data_size()
-        plot_rect = self.line_graph_regions_canvas_item.canvas_rect
+        plot_origin = self.line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         left_channel = self.line_graph_canvas_item.drawn_left_channel
         right_channel = self.line_graph_canvas_item.drawn_right_channel
         drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
@@ -682,7 +681,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 display.graphic_selection.clear()
 
     def begin_tracking_horizontal(self, pos, rescale):
-        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
+        plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         self.__tracking_horizontal = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
@@ -693,7 +693,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
     def begin_tracking_vertical(self, pos, rescale):
-        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
+        plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
@@ -702,7 +703,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_start_drawn_data_per_pixel = self.line_graph_canvas_item.drawn_data_per_pixel  # = float(self.__tracking_start_drawn_data_max - self.__tracking_start_drawn_data_min) / (plot_rect.height - 1)
         self.__tracking_start_calibrated_data_min = self.line_graph_canvas_item.calibrated_data_min
         self.__tracking_start_calibrated_data_max = self.line_graph_canvas_item.calibrated_data_max
-        plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
+        plot_origin = self.line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:
             calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1)
             origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
@@ -728,7 +730,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     self.line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if self.__tracking_rescale:
-                plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_rect
+                plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
                 pixel_offset_x = pos.x - self.__tracking_start_pos.x
                 scaling = math.pow(10, pixel_offset_x/96.0)  # 10x per inch of travel, assume 96dpi
                 new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
@@ -741,7 +744,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         elif self.__tracking_vertical:
             if self.__tracking_rescale:
-                plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_rect
+                plot_origin = self.line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
                 origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
                 data_offset = self.__tracking_start_drawn_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
                 pixel_offset = origin_y - pos.y
@@ -807,7 +811,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_size = self.__get_data_size()
             if self.__mouse_in and self.__last_mouse:
                 if data_size and len(data_size) == 1:
-                    pos = self.line_graph_canvas_item.map_mouse_to_position(self.__last_mouse, data_size)
+                    last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
+                    pos = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
                 self.document_controller.cursor_changed(self, self.display, pos, data_size)
             else:
                 self.document_controller.cursor_changed(self, None, None, None)
@@ -1103,7 +1108,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if super(ImageCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
         # x,y already have transform applied
-        self.__last_mouse = (y, x)
+        self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.graphic_drag_items:
             for graphic in self.graphic_drag_items:

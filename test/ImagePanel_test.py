@@ -471,8 +471,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_shrink_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
         modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
@@ -485,8 +486,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_expand_scale_by_10_around_center(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
         modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
@@ -500,8 +502,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_shrink_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + 200, y=465)
         modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
@@ -514,8 +517,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_expand_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
         pos = Geometry.IntPoint(x=plot_left + 400, y=465)
         modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
@@ -528,8 +532,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_bottom(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         pos = Geometry.IntPoint(x=30, y=plot_bottom - 200)
         modifiers = Test.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=40)
@@ -542,8 +547,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_shrink_with_origin_in_middle(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
@@ -563,8 +569,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_shrink_with_origin_at_200(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.2
         self.image_panel.display.y_max = 0.8
@@ -584,8 +591,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_shrink_with_calibrated_origin_at_200(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         data_item = self.image_panel.display.data_item
         # adjust image panel display and trigger layout
         intensity_calibration = data_item.intrinsic_intensity_calibration
@@ -607,8 +615,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_drag_down_does_not_go_negative(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
@@ -629,8 +638,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_mouse_tracking_vertical_drag_up_does_not_go_negative(self):
         line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1
+        plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
@@ -651,7 +661,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_combined_horizontal_drag_and_expand_works_nominally(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_canvas_item.mouse_pressed(plot_left, 430, Test.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers(control=True))
@@ -668,7 +679,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_click_on_selection_makes_it_selected(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         region = Region.IntervalRegion()
@@ -685,7 +697,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_click_outside_selection_makes_it_unselected(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         region = Region.IntervalRegion()
@@ -707,7 +720,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_click_drag_interval_end_channel_to_right_adjust_end_channel(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         region = Region.IntervalRegion()
@@ -727,7 +741,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_click_drag_interval_end_channel_to_left_of_start_channel_results_in_left_less_than_right(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         region = Region.IntervalRegion()
@@ -747,7 +762,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_click_drag_interval_tool_creates_selection(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         self.document_controller.tool_mode = "interval"
@@ -769,7 +785,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_delete_line_profile_with_key(self):
         line_plot_canvas_item = self.setup_line_plot()
-        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         line_plot_data_item = self.document_model.data_items[1]
         region = Region.IntervalRegion()

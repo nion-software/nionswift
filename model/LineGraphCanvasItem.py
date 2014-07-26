@@ -183,7 +183,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         """ Map the mouse to the 1-d position within the line graph. """
         if self.drawn_left_channel is not None and self.drawn_right_channel is not None:
             mouse = Geometry.IntPoint.make(mouse)
-            plot_rect = self.canvas_rect
+            plot_rect = self.canvas_bounds
             if plot_rect.contains_point(mouse):
                 mouse = mouse - plot_rect.origin
                 x = float(mouse.x) / plot_rect.width
