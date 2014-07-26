@@ -1275,7 +1275,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             # grab the bitmap image
             rgba_image = display.preview_2d
             self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
-            self.bitmap_canvas_item.update()
 
             self.graphics_canvas_item.display = display
             self.graphics_canvas_item.update()
