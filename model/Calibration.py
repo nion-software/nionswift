@@ -23,6 +23,11 @@ class Calibration(object):
         self.__scale = float(scale) if scale else None
         self.__units = unicode(units) if units else None
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.offset == other.offset and self.scale == other.scale and self.units == other.units
+        return False
+
     def __str__(self):
         return "{0:s} offset:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.offset, self.scale, self.units)
 

@@ -490,7 +490,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __update_data_info(self, data_info):
         self.line_graph_canvas_item.data_info = copy.copy(data_info)
-        self.line_graph_canvas_item.update()
+        # self.line_graph_canvas_item.update()  # unused, setting data_info handles this automatically
         self.line_graph_regions_canvas_item.data_info = data_info
         self.line_graph_regions_canvas_item.update()
         canvas_bounds = self.canvas_bounds

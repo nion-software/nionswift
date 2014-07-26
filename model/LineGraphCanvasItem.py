@@ -14,6 +14,7 @@
 import gettext
 import logging
 import math
+import threading
 
 # third party libraries
 import numpy
@@ -61,6 +62,17 @@ class LineGraphDataInfo(object):
         self.drawn_data_per_pixel = None
         self.drawn_left_channel = None
         self.drawn_right_channel = None
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return numpy.array_equal(self.data, other.data) and \
+                self.data_min == other.data_min and \
+                self.data_max == other.data_max and \
+                self.data_left == other.data_left and \
+                self.data_right == other.data_right and \
+                self.spatial_calibration == other.spatial_calibration and \
+                self.intensity_calibration == other.intensity_calibration
+        return False
 
     def calculate_y_axis(self, plot_height):
 
@@ -164,7 +176,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(LineGraphCanvasItem, self).__init__()
-        self.data_info = None
+        self.__drawing_context = None
+        self.__needs_update = True
+        self.__data_info = None
         self.draw_grid = True
         self.draw_frame = True
         self.background_color = "#FFF"
@@ -178,6 +192,14 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.drawn_right_channel = None
         self.calibrated_data_left = None
         self.calibrated_data_right = None
+
+    def __get_data_info(self):
+        return self.__data_info
+    def __set_data_info(self, data_info):
+        if not (self.__data_info == data_info):
+            self.__data_info = data_info
+            self.update()
+    data_info = property(__get_data_info, __set_data_info)
 
     def map_mouse_to_position(self, mouse, data_size):
         """ Map the mouse to the 1-d position within the line graph. """
@@ -193,6 +215,22 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         return None
 
     def _repaint(self, drawing_context):
+        if not self.__drawing_context and self.canvas_widget:
+            self.__drawing_context = self.canvas_widget.create_drawing_context()
+        if self.__drawing_context:
+            if self.__needs_update:
+                self.__needs_update = False
+                self.__drawing_context.clear()
+                self.__paint(self.__drawing_context)
+            drawing_context.add(self.__drawing_context)
+        else: # handle the non-cache case
+            self.__paint(drawing_context)
+
+    def update(self):
+        self.__needs_update = True
+        super(LineGraphCanvasItem, self).update()
+
+    def __paint(self, drawing_context):
 
         # draw the data, if any
         data_info = self.data_info
