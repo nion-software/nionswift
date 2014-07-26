@@ -170,8 +170,6 @@ class HeaderWidgetController(object):
         self.canvas_widget.on_mouse_pressed = lambda x, y, modifiers: self.__mouse_pressed(x, y, modifiers)
         self.canvas_widget.on_mouse_released = lambda x, y, modifiers: self.__mouse_released(x, y, modifiers)
         self.canvas_widget.on_mouse_position_changed = lambda x, y, modifiers: self.__mouse_position_changed(x, y, modifiers)
-        self.canvas_widget.on_build_draw_commands = self.__build_draw_commands
-        self.__drawing_context = self.canvas_widget.create_drawing_context()
         self.__update_header()
         self.on_drag_pressed = None
         self.on_sync_clicked = None
@@ -204,14 +202,11 @@ class HeaderWidgetController(object):
     def __mouse_position_changed(self, x, y, modifiers):
         pass
 
-    def __build_draw_commands(self):
-        return copy.deepcopy(self.__drawing_context.commands)
-
     def __update_header(self):
 
         canvas_widget = self.canvas_widget
 
-        ctx = self.__drawing_context
+        ctx = canvas_widget.create_drawing_context()
 
         ctx.clear()
 
@@ -283,7 +278,7 @@ class HeaderWidgetController(object):
         ctx.fill_text(self.title, canvas_widget.width/2, canvas_widget.height/2+1)
         ctx.restore()
 
-        canvas_widget.draw()
+        canvas_widget.draw(ctx)
 
     def __header_size_changed(self, width, height):
         if width > 0 and height > 0:
