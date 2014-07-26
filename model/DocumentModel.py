@@ -494,7 +494,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
             for sample_path in sorted(sample_paths):
                 def source_file_path_in_document(sample_path_):
                     for member_data_item in self.data_items:
-                        if os.path.normpath(member_data_item.source_file_path) == sample_path_:
+                        if member_data_item.source_file_path and os.path.normpath(member_data_item.source_file_path) == sample_path_:
                             return True
                     return False
                 if not source_file_path_in_document(sample_path):
