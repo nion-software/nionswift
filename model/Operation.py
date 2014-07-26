@@ -601,7 +601,7 @@ class LineProfileOperation(Operation):
             return (length, ), numpy.dtype(numpy.double)
 
     def get_processed_spatial_calibrations(self, data_shape, data_dtype, source_calibrations):
-        return [Calibration.Calibration(0.0, source_calibrations[0].scale, source_calibrations[0].units)]
+        return [Calibration.Calibration(0.0, source_calibrations[1].scale, source_calibrations[1].units)]
 
     # calculate grid of coordinates. returns n coordinate arrays for each row.
     # start and end are in data coordinates.
