@@ -1,4 +1,5 @@
 # standard libraries
+import functools
 import gettext
 import logging
 import os.path
@@ -854,9 +855,9 @@ class DocumentController(Observable.Broadcaster):
             if len(dependent_data_items) > 0:
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:
-                    def show_dependent_data_item():
-                        self.sync_data_item(dependent_data_item)
-                menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), show_dependent_data_item)
+                    def show_dependent_data_item(data_item):
+                        self.sync_data_item(data_item)
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), functools.partial(show_dependent_data_item, dependent_data_item))
             menu.popup(gx, gy)
 
 
