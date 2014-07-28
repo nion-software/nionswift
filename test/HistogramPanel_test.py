@@ -33,8 +33,6 @@ class TestHistogramPanelClass(unittest.TestCase):
             data_ref.data  # trigger data loading
         # create the histogram canvas object
         class CanvasItemContainer(object):
-            def _begin_repaint(self, drawing_context):
-                pass
             def draw(self):
                 pass
             def _child_updated(self, child):
