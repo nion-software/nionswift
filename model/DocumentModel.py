@@ -29,31 +29,33 @@ _ = gettext.gettext
 
 class DataReferenceMemoryHandler(object):
 
+    """ Used for testing. """
+
     def __init__(self):
-        self.__data = dict()
-        self.__properties = dict()
+        self.data = dict()
+        self.properties = dict()
 
     def find_data_item_tuples(self):
         tuples = []
-        for key in self.__properties:
-            properties = self.__properties[key]
-            tuples.append((properties["uuid"], copy.deepcopy(properties), "relative_file", key))
+        for key in self.properties:
+            properties = self.properties[key]
+            tuples.append((properties.setdefault("uuid", str(uuid.uuid4())), copy.deepcopy(properties), "relative_file", key))
         return tuples
 
     def load_data_reference(self, reference_type, reference):
-        return self.__data.get(reference)
+        return self.data.get(reference)
 
     def write_data_reference(self, data, reference_type, reference, file_datetime):
-        self.__data[reference] = data.copy()
+        self.data[reference] = data.copy()
 
     def write_properties(self, properties, reference_type, reference, file_datetime):
-        self.__properties[reference] = copy.deepcopy(properties)
+        self.properties[reference] = copy.deepcopy(properties)
 
     def remove_data_reference(self, reference_type, reference):
-        if reference in self.__data:
-            del self.__data[reference]
-        if reference in self.__properties:
-            del self.__properties[reference]
+        if reference in self.data:
+            del self.data[reference]
+        if reference in self.properties:
+            del self.properties[reference]
 
 
 class FilePersistentStorage(object):
@@ -233,11 +235,20 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     """
         A ManagedObjectContext that adds extra methods for handling data items.
+
+        Versioning
+        ==========
+        If the file is too old, it must be migrated to the newer version.
+        If the file is too new, it cannot be loaded.
+
+        When writing, the version the file format is written to the 'version' property.
+
     """
 
-    def __init__(self, data_reference_handler):
+    def __init__(self, data_reference_handler, log_migrations):
         super(ManagedDataItemContext, self).__init__()
         self.__data_reference_handler = data_reference_handler
+        self.__log_migrations = log_migrations
 
     def read_data_items(self):
         """ Read data items from the data reference handler and return as a list. Data items will have managed_object_context set upon return. """
@@ -245,8 +256,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             version = properties.get("version", 0)
-            reader_version = properties.get("reader_version", 0)
-            if version == 1:
+            if version <= 1:
                 if "spatial_calibrations" in properties:
                     properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
                     del properties["spatial_calibrations"]
@@ -270,23 +280,23 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 properties["displays"] = [{}]
                 properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
                 properties["version"] = 2
-                properties["reader_version"] = 2
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 2
-                logging.info("Updated %s to %s (ndata1)", reference, version)
+                if self.__log_migrations:
+                    logging.info("Updated %s to %s (ndata1)", reference, version)
             if version == 2:
                 # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
                 for display_properties in properties.get("displays", list()):
                     display_properties.setdefault("uuid", str(uuid.uuid4()))
                     for graphic_properties in display_properties.get("graphics", list()):
                         graphic_properties.setdefault("uuid", str(uuid.uuid4()))
-                for operation_properties in display_properties.get("operations", list()):
+                for operation_properties in properties.get("operations", list()):
                     operation_properties.setdefault("uuid", str(uuid.uuid4()))
                 properties["version"] = 3
-                properties["reader_version"] = 2
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 3
-                logging.info("Updated %s to %s (add uuids)", reference, version)
+                if self.__log_migrations:
+                    logging.info("Updated %s to %s (add uuids)", reference, version)
             if version == 3:
                 # version 3 -> 4 changes origin to offset in all calibrations.
                 calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
@@ -298,10 +308,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         calibration_dict["offset"] = calibration_dict["origin"]
                         del calibration_dict["origin"]
                 properties["version"] = 4
-                properties["reader_version"] = 4
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 4
-                logging.info("Updated %s to %s (calibration offset)", reference, version)
+                if self.__log_migrations:
+                    logging.info("Updated %s to %s (calibration offset)", reference, version)
             if version == 4:
                 # version 4 -> 5 changes region_uuid to region_connections map.
                 operations_list = properties.get("operations", list())
@@ -313,17 +323,15 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
                         del operation_dict["region_uuid"]
                 properties["version"] = 5
-                properties["reader_version"] = 5
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 5
-                logging.info("Updated %s to %s (region_uuid)", reference, version)
-            # NOTE: change reader_version / writer_version in DataItem.py
+                if self.__log_migrations:
+                    logging.info("Updated %s to %s (region_uuid)", reference, version)
+            # NOTE: change writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            if reader_version <= data_item.reader_version:
+            if version <= data_item.writer_version:
                 persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
                 data_item.read_from_dict(persistent_storage.properties)
-                # validate the metadata to the current version
-                data_item.validate_metadata_version(writer_version=data_item.writer_version, min_reader_version=data_item.min_reader_version)
                 assert(len(data_item.displays) > 0)
                 self.set_persistent_storage_for_object(data_item, persistent_storage)
                 data_item.managed_object_context = self
@@ -341,7 +349,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         data_item.managed_object_context = self  # this may cause persistent_storage or data_reference_handler to be used. so put it after establishing those two.
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
-        self.property_changed(data_item, "reader_version", data_item.min_reader_version)
         with data_item.data_ref() as data_ref:
             self.rewrite_data_item_data(data_item, data=data_ref.master_data)
 
@@ -365,13 +372,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
 class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
 
-    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None):
+    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
         super(DocumentModel, self).__init__()
         data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
-        self.managed_object_context = ManagedDataItemContext(data_reference_handler)
+        self.managed_object_context = ManagedDataItemContext(data_reference_handler, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.managed_object_context.set_persistent_storage_for_object(self, self.__library_storage)
-        self.validate_metadata_version(writer_version=1, min_reader_version=1)
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_items = list()
         self.define_type("library")
@@ -379,6 +385,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.session_id = None
         self.start_new_session()
         self.__read()
+        self.__library_storage.set_value(self, "uuid", str(self.uuid))
+        self.__library_storage.set_value(self, "version", 0)
 
     def __read(self):
         # first read the items

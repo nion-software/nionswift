@@ -563,7 +563,6 @@ class Application(object):
         c.execute("SELECT uuid FROM nodes WHERE type='document'")
         document_uuid_str = c.fetchone()[0]
         properties["version"] = 1
-        properties["reader_version"] = 1
         properties["uuid"] = document_uuid_str
         c.execute("SELECT item_uuid FROM relationships WHERE parent_uuid=? AND key='data_groups' ORDER BY item_index ASC", (document_uuid_str, ))
         item_uuid_strs = list()
@@ -591,8 +590,13 @@ class Application(object):
             add_data_group(properties, item_uuid_str)
         with open(lib_filename, "w") as fp:
             json.dump(properties, fp)
+        conn.close()
+        try:
+            os.remove(db_filename)
+        except Exception, e:
+            logging.error("Exception removing old workspace: %s", db_filename)
+            logging.error(str(e))
         logging.debug("Migrated workspace %s to library %s.", db_filename, lib_filename)
-        os.remove(db_filename)
 
     def migrate_library(self, workspace_dir, lib_filename):
         """ Migrate library to latest version. """

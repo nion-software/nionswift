@@ -5,6 +5,7 @@ import os
 import shutil
 import threading
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -692,7 +693,6 @@ class TestStorageClass(unittest.TestCase):
         self.assertTrue("master_data_dtype" in data_item.properties)
         self.assertTrue("uuid" in data_item.properties)
         self.assertTrue("version" in data_item.properties)
-        self.assertTrue("reader_version" in data_item.properties)
 
     def test_deleting_dependent_after_deleting_source_succeeds(self):
         current_working_directory = os.getcwd()
@@ -761,6 +761,109 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].displays[0].storage_cache, storage_cache)
         # clean up
         document_controller.close()
+
+    def test_data_items_written_with_newer_version_get_ignored(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        # increment the version on the data item
+        data_reference_handler.properties.values()[0]["version"] = data_item.writer_version + 1
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        # check it
+        self.assertEqual(len(document_model.data_items), 0)
+
+    def test_data_items_v1_migration(self):
+        # construct v1 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
+        data_item_dict["intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["data_source_uuid"] = str(uuid.uuid4())
+        data_item_dict["properties"] = { "voltage": 200.0, "session_uuid": str(uuid.uuid4()) }
+        data_item_dict["version"] = 1
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check it
+        self.assertEqual(len(document_model.data_items), 1)
+        data_item = document_model.data_items[0]
+        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        self.assertEqual(data_item.intrinsic_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intrinsic_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intrinsic_intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+        self.assertEqual(data_item.get_metadata("hardware_source")["voltage"], 200.0)
+        self.assertFalse("session_uuid" in data_item.get_metadata("hardware_source"))
+        self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
+        self.assertEqual(data_item.master_data_dtype, numpy.uint32)
+        self.assertEqual(data_item.master_data_shape, (256, 256))
+
+    def test_data_items_v2_migration(self):
+        # construct v2 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
+        data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
+        data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["version"] = 2
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check it
+        self.assertEqual(len(document_model.data_items), 1)
+        data_item = document_model.data_items[0]
+        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0])
+        self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0]["graphics"][0])
+        self.assertTrue("uuid" in data_reference_handler.properties["A"]["operations"][0])
+
+    def test_data_items_v3_migration(self):
+        # construct v3 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
+        data_item_dict["intrinsic_intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["version"] = 3
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check it
+        self.assertEqual(len(document_model.data_items), 1)
+        data_item = document_model.data_items[0]
+        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        self.assertEqual(data_item.intrinsic_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intrinsic_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intrinsic_intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+
+    def test_data_items_v4_migration(self):
+        # construct v4 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        region_uuid_str = str(uuid.uuid4())
+        data_item_dict["regions"] = [{"type": "rectangle-region", "uuid": region_uuid_str}]
+        data_item_dict["operations"] = [{"operation_id": "crop-operation", "region_uuid": region_uuid_str}]
+        data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["version"] = 4
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check it
+        self.assertEqual(len(document_model.data_items), 1)
+        data_item = document_model.data_items[0]
+        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(len(data_item.operations[0].region_connections), 1)
+        self.assertEqual(data_item.operations[0].region_connections["crop"], uuid.UUID(region_uuid_str))
+        self.assertFalse("region_uuid" in data_reference_handler.properties["A"]["operations"][0])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
