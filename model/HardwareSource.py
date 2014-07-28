@@ -609,6 +609,8 @@ def get_data_element_generator_by_id(hardware_source_id):
     # handle them by making sure to close the port.
     try:
         yield get_last_data_element
+    except AttributeError as e:
+        logging.error("Hardware source {:s} not found.  Please check your script.".format(hardware_source_id))
     finally:
         port.close()
 
@@ -618,6 +620,7 @@ def get_data_generator_by_id(hardware_source_id):
     with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
         def get_last_data():
             return data_element_generator()["data"]
+        # error handling not necessary here - occurs above with get_data_element_generator_by_id function
         yield get_last_data
 
 
