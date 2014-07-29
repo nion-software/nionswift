@@ -49,6 +49,7 @@ class DocumentController(Observable.Broadcaster):
         self.workspace = None
         self.__workspace_controller = None
         self.app = app
+        self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
@@ -715,7 +716,9 @@ class DocumentController(Observable.Broadcaster):
                     return r_var
             return None
         lines = list()
-        lines.append("%s = _data_item[uuid.UUID(\"%s\")]" % (find_var(), self.selected_data_item.uuid))
+        weak_data_item = weakref.ref(self.selected_data_item)
+        data_item_var = self.__data_item_vars.setdefault(weak_data_item, find_var())
+        lines.append("%s = _data_item[uuid.UUID(\"%s\")]" % (data_item_var, self.selected_data_item.uuid))
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
