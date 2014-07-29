@@ -588,6 +588,16 @@ class DocumentController(Observable.Broadcaster):
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
+    def display_data_item(self, data_item, source_data_item=None, select=True):
+        self.document_model.append_data_item(data_item)
+        if select:
+            self.set_data_item_selection(data_item, source_data_item=source_data_item)
+            self.sync_data_item(data_item)
+            self.set_selected_data_item(data_item)
+            inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+            if inspector_panel is not None:
+                inspector_panel.request_focus = True
+
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
         data_item = self.selected_data_item
         if data_item:
@@ -600,14 +610,7 @@ class DocumentController(Observable.Broadcaster):
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
                 new_data_item.add_operation(operation)
                 new_data_item.add_data_source(data_item)
-                self.document_model.append_data_item(new_data_item)
-                if select:
-                    self.set_data_item_selection(new_data_item, source_data_item=data_item)
-                    self.sync_data_item(new_data_item)
-                    self.set_selected_data_item(new_data_item)
-                    inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
-                    if inspector_panel is not None:
-                        inspector_panel.request_focus = True
+                self.display_data_item(new_data_item, source_data_item=data_item, select=select)
                 return new_data_item
         return None
 
@@ -722,6 +725,10 @@ class DocumentController(Observable.Broadcaster):
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
+
+    def __get_data_item_vars(self):
+        return self.__data_item_vars
+    data_item_vars = property(__get_data_item_vars)
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
