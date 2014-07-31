@@ -194,7 +194,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         if display:
 
-            widget_mapping = WidgetImageMapping(display.data_item.spatial_shape, (0, 0), self.canvas_size)
+            widget_mapping = WidgetImageMapping(display.preview_2d_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
             for graphic_index, graphic in enumerate(display.drawn_graphics):
@@ -245,8 +245,8 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
-                widget_mapping = WidgetImageMapping(display.data_item.spatial_shape, image_canvas_origin, image_canvas_size)
-                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / display.data_item.spatial_shape[0]
+                widget_mapping = WidgetImageMapping(display.preview_2d_shape, image_canvas_origin, image_canvas_size)
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / display.preview_2d_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
                     calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[1].scale)
@@ -874,7 +874,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_preferred_aspect_ratio(self):
         if self.display:
-            spatial_shape = self.display.data_item.spatial_shape
+            spatial_shape = self.display.preview_2d_shape
             return spatial_shape[1] / spatial_shape[0] if spatial_shape[0] != 0 else 1.0
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
@@ -923,7 +923,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def update_image_canvas_position(self, widget_delta):
         if self.display:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = WidgetImageMapping(self.display.data_item.spatial_shape, (0, 0), self.composite_canvas_item.canvas_size)
+            widget_mapping = WidgetImageMapping(self.display.preview_2d_shape, (0, 0), self.composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -948,7 +948,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.image_canvas_size = None
             return
         if self.image_canvas_mode == "fill":
-            spatial_shape = self.display.data_item.spatial_shape
+            spatial_shape = self.display.preview_2d_shape
             scale_h = float(spatial_shape[1]) / scroll_area_canvas_size[1]
             scale_v = float(spatial_shape[0]) / scroll_area_canvas_size[0]
             if scale_v < scale_h:
@@ -962,12 +962,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (0, 0)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         elif self.image_canvas_mode == "1:1":
-            image_canvas_size = self.display.data_item.spatial_shape
+            image_canvas_size = self.display.preview_2d_shape
             image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         else:
             c = self.__last_image_norm_center
-            spatial_shape = self.display.data_item.spatial_shape
+            spatial_shape = self.display.preview_2d_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
             canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
@@ -976,13 +976,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         # the image will be drawn centered within the canvas size
-        spatial_shape = self.display.data_item.spatial_shape
+        spatial_shape = self.display.preview_2d_shape
         #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
         #logging.debug("image_canvas_origin %s", image_canvas_origin)
         #logging.debug("image_canvas_size %s", image_canvas_size)
         #logging.debug("spatial_shape %s", spatial_shape)
         #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / spatial_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / spatial_shape[1])
-        widget_mapping = WidgetImageMapping(self.display.data_item.spatial_shape, (0, 0), image_canvas_size)
+        widget_mapping = WidgetImageMapping(self.display.preview_2d_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
         canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
@@ -1210,8 +1210,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return self.image_panel.key_pressed(key)
 
     def __get_image_size(self):
-        data_item = self.display.data_item if self.display else None
-        data_shape = data_item.spatial_shape if data_item else None
+        data_shape = self.display.preview_2d_shape if self.display else None
         if not data_shape:
             return None
         for d in data_shape:
@@ -1691,7 +1690,7 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         if display and data_size:
-            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.data_item.spatial_shape))]
+            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
             intensity_calibration = display.data_item.calculated_intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d

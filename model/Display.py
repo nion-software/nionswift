@@ -178,6 +178,15 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
+    def __get_preview_2d_shape(self):
+        if self.data_item.is_data_2d:
+            return self.data_item.spatial_shape
+        elif self.data_item.is_data_3d:
+            return self.data_item.spatial_shape[1:]
+        else:
+            return None
+    preview_2d_shape = property(__get_preview_2d_shape)
+
     def get_processed_data(self, processor_id, ui, completion_fn):
         return self.get_processor(processor_id).get_data(ui, completion_fn)
 
