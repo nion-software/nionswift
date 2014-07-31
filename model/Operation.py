@@ -469,18 +469,25 @@ class Slice3dOperation(Operation):
 
     def __init__(self):
         description = [
-            { "name": _("Slice"), "property": "slice", "type": "slice-field", "default": 0 }
+            { "name": _("Slice Center"), "property": "slice_center", "type": "slice-center-field", "default": 0 },
+            { "name": _("Slice Width"), "property": "slice_width", "type": "slice-width-field", "default": 0 }
         ]
         super(Slice3dOperation, self).__init__(_("Slice"), "slice-operation", description)
-        self.slice = 0
+        self.slice_center = 0
+        self.slice_width = 1
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape[1:], data_dtype
 
     def process(self, data):
         shape = data.shape
-        slice = self.get_property("slice")
-        return data[slice,:].copy()
+        slice_center = self.get_property("slice_center")
+        slice_width = self.get_property("slice_width")
+        slice_start = slice_center + 1 - slice_width
+        slice_start = max(slice_start, 0)
+        slice_end = slice_start + slice_width
+        slice_end = min(shape[0], slice_end)
+        return numpy.average(data[slice_start:slice_end,:], 0)
 
 
 class Projection2dOperation(Operation):

@@ -18,6 +18,7 @@ from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
+from nion.swift.model import Operation
 from nion.swift.model import Storage
 from nion.ui import Model
 from nion.ui import Observable
@@ -113,6 +114,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.define_property("y_max", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
+        self.define_property("slice_center", 0, changed=self.__property_changed)
+        self.define_property("slice_width", 1, changed=self.__property_changed)
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
@@ -162,7 +165,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                 data_2d = Image.scalar_from_array(data)
             # TODO: fix me 3d
             elif Image.is_data_3d(data):
-                data_2d = Image.scalar_from_array(data.reshape(tuple([data.shape[0] * data.shape[1], ] + list(data.shape[2::]))))
+                slice_operation = Operation.Slice3dOperation()
+                slice_operation.slice_center = self.slice_center
+                slice_operation.slice_width = self.slice_width
+                data_2d = slice_operation.process(data)
             else:
                 data_2d = None
             if data_2d is not None:

@@ -563,6 +563,49 @@ class LinePlotInspectorSection(InspectorSection):
         self.add_widget_to_content(self.channels_row)
 
 
+class SliceInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement slice inspector.
+    """
+
+    def __init__(self, ui, display):
+        super(SliceInspectorSection, self).__init__(ui, _("Display"))
+
+        data_item = display.data_item
+
+        slice_center_row_widget = self.ui.create_row_widget()
+        slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
+        slice_center_line_edit_widget = self.ui.create_line_edit_widget()
+        slice_center_slider_widget = self.ui.create_slider_widget()
+        slice_center_slider_widget.maximum = data_item.spatial_shape[0] - 1
+        slice_center_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_center"))
+        slice_center_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_center", converter=Converter.IntegerToStringConverter()))
+        slice_center_row_widget.add(slice_center_label_widget)
+        slice_center_row_widget.add_spacing(8)
+        slice_center_row_widget.add(slice_center_slider_widget)
+        slice_center_row_widget.add_spacing(8)
+        slice_center_row_widget.add(slice_center_line_edit_widget)
+        slice_center_row_widget.add_stretch()
+
+        slice_width_row_widget = self.ui.create_row_widget()
+        slice_width_label_widget = self.ui.create_label_widget(_("Slice"))
+        slice_width_line_edit_widget = self.ui.create_line_edit_widget()
+        slice_width_slider_widget = self.ui.create_slider_widget()
+        slice_width_slider_widget.maximum = data_item.spatial_shape[0] - 1
+        slice_width_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_width"))
+        slice_width_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_width", converter=Converter.IntegerToStringConverter()))
+        slice_width_row_widget.add(slice_width_label_widget)
+        slice_width_row_widget.add_spacing(8)
+        slice_width_row_widget.add(slice_width_slider_widget)
+        slice_width_row_widget.add_spacing(8)
+        slice_width_row_widget.add(slice_width_line_edit_widget)
+        slice_width_row_widget.add_stretch()
+
+        self.add_widget_to_content(slice_center_row_widget)
+        self.add_widget_to_content(slice_width_row_widget)
+
+
 class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
@@ -875,12 +918,29 @@ class OperationsInspectorSection(InspectorSection):
                 row_widget.add_stretch()
                 operation_widget.add_spacing(4)
                 operation_widget.add(row_widget)
-            elif type == "slice-field":
+            elif type == "slice-center-field":
                 row_widget = self.ui.create_row_widget()
                 label_widget = self.ui.create_label_widget(name)
                 line_edit_widget = self.ui.create_line_edit_widget()
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.maximum = operation.data_item.data_source.spatial_shape[0] - 1
+                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
+                line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
+                row_widget.add(label_widget)
+                row_widget.add_spacing(8)
+                row_widget.add(slider_widget)
+                row_widget.add_spacing(8)
+                row_widget.add(line_edit_widget)
+                row_widget.add_stretch()
+                operation_widget.add_spacing(4)
+                operation_widget.add(row_widget)
+            elif type == "slice-width-field":
+                row_widget = self.ui.create_row_widget()
+                label_widget = self.ui.create_label_widget(name)
+                line_edit_widget = self.ui.create_line_edit_widget()
+                slider_widget = self.ui.create_slider_widget()
+                slider_widget.minimum = 1
+                slider_widget.maximum = operation.data_item.data_source.spatial_shape[0]
                 slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
                 line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)
@@ -914,9 +974,13 @@ class DataItemInspector(object):
         self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
         if data_item.is_data_1d:
             self.__inspectors.append(LinePlotInspectorSection(self.ui, display))
-        elif data_item.is_data_2d or data_item.is_data_3d:
+        elif data_item.is_data_2d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
+        elif data_item.is_data_3d:
+            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
+            self.__inspectors.append(SliceInspectorSection(self.ui, display))
         self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
 
         for inspector in self.__inspectors:
