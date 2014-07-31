@@ -22,6 +22,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.ui import Binding
+from nion.ui import Geometry
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -490,6 +491,31 @@ class Slice3dOperation(Operation):
         return numpy.average(data[slice_start:slice_end,:], 0)
 
 
+class Pick3dOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Position"), "property": "position", "type": "point", "default": (0.5, 0.5) },
+        ]
+        super(Pick3dOperation, self).__init__(_("Pick"), "pick-operation", description)
+        self.position = (0.5, 0.5)
+        self.region_types = {"pick": "point-region"}
+        self.region_bindings = {"pick": [RegionBinding("position", "position")]}
+
+    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+        return (data_shape[0], ), data_dtype
+
+    def process(self, data):
+        shape = data.shape
+        position = self.get_property("position")
+        position = Geometry.FloatPoint.make(position)
+        position_i = Geometry.IntPoint(y=position.y * shape[1], x=position.x * shape[2])
+        if position_i.y >= 0 and position_i.y < shape[1] and position_i.x >= 0 and position_i.x < shape[2]:
+            return data[:, position_i[0], position_i[1]].copy()
+        else:
+            return numpy.zeros((shape[0], ), dtype=data.dtype)
+
+
 class Projection2dOperation(Operation):
 
     def __init__(self):
@@ -796,6 +822,7 @@ OperationManager().register_operation("invert-operation", lambda: InvertOperatio
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
 OperationManager().register_operation("crop-operation", lambda: Crop2dOperation())
 OperationManager().register_operation("slice-operation", lambda: Slice3dOperation())
+OperationManager().register_operation("pick-operation", lambda: Pick3dOperation())
 OperationManager().register_operation("projection-operation", lambda: Projection2dOperation())
 OperationManager().register_operation("resample-operation", lambda: Resample2dOperation())
 OperationManager().register_operation("histogram-operation", lambda: HistogramOperation())

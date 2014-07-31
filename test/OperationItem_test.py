@@ -134,6 +134,28 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
+    def test_operations_3d(self):
+        data_item_real = DataItem.DataItem(numpy.zeros((256,16,16), numpy.double))
+        self.document_model.append_data_item(data_item_real)
+
+        operation_list = []
+        operation_list.append((data_item_real, Operation.OperationItem("slice-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("pick-operation")))
+
+        for source_data_item, operation in operation_list:
+            data_item = DataItem.DataItem()
+            data_item.add_operation(operation)
+            data_item.add_data_source(source_data_item)
+            self.document_model.append_data_item(data_item)
+            with data_item.data_ref() as data_ref:
+                self.assertEqual(data_item.data_source, source_data_item)
+                self.assertIsNotNone(data_ref.data)
+                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+
+    # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgb(self):
         data_item_rgb = DataItem.DataItem(numpy.zeros((256,256,3), numpy.uint8))
         self.document_model.append_data_item(data_item_rgb)
