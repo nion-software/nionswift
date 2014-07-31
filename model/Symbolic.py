@@ -125,6 +125,11 @@ class DataNode(object):
     def __float__(self):
         return ScalarDataNode(numpy.astype(numpy.float64))
 
+    def __getitem__(self, key):
+        def take_slice(data):
+            return data[key].copy()
+        return UnaryOperationDataNode([self], take_slice)
+
 
 def min(data_node):
     return ScalarDataNode(numpy.amin(data_node.data))

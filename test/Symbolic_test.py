@@ -57,6 +57,15 @@ class TestSymbolicClass(unittest.TestCase):
         data = data_node.data
         assert numpy.array_equal(data, d - numpy.amin(d))
 
+    def test_ability_to_take_slice(self):
+        d = numpy.zeros((32, 8, 8), dtype=numpy.uint32)
+        d[:] = random.randint(0, 100)
+        data_item = DataItem.DataItem(d)
+        map = { weakref.ref(data_item): "a" }
+        data_node = Symbolic.calculate("a[:,4,4]", map)
+        data = data_node.data
+        assert numpy.array_equal(data, d[:,4,4])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
