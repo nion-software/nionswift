@@ -435,6 +435,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             super(LinePlotCanvasItem, self).repaint_if_needed()
         elif self.__layout_state == "has_info":
             self.update_layout(self.canvas_origin, self.canvas_size)
+            self.update()
             super(LinePlotCanvasItem, self).repaint_if_needed()
         else:
             # it is not legal to call 'update' from within repaint. so queue
