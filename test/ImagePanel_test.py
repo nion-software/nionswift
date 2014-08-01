@@ -424,10 +424,11 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
-    def setup_line_plot(self):
+    def setup_line_plot(self, canvas_shape=None):
+        canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = self.document_model.set_data_by_key("test_1d", create_1d_data())
         self.image_panel.set_displayed_data_item(data_item_1d)
-        self.image_panel.display_canvas_item.update_layout((0, 0), (480, 640))  # yes I know these are backwards
+        self.image_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
         # trigger layout
         self.image_panel.display_canvas_item.wait_for_paint()  # force paint_display_on_thread to finish before _repaint
@@ -664,14 +665,15 @@ class TestImagePanelClass(unittest.TestCase):
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        line_plot_canvas_item.mouse_pressed(plot_left, 430, Test.KeyboardModifiers(control=True))
-        line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers(control=True))
+        v = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)[0] + 8
+        line_plot_canvas_item.mouse_pressed(plot_left, v, Test.KeyboardModifiers(control=True))
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers(control=True))
         # trigger layout. necessary so that drawn values get updated. bad architecture!
         self.image_panel.display_canvas_item.paint_display_on_thread()
         self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
         # continue
-        line_plot_canvas_item.mouse_position_changed(plot_left+96, 430, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_position_changed(plot_left+196, 430, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_position_changed(plot_left+196, v, Test.KeyboardModifiers())
         line_plot_canvas_item.mouse_released(plot_left+116, 190, Test.KeyboardModifiers())
         channel_per_pixel = 1024.0/10 / plot_width
         self.assertEqual(self.image_panel.display.left_channel, int(0 - channel_per_pixel * 100))
