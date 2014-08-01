@@ -119,6 +119,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
+        self.__preview_data = None
         self.__preview = None
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
@@ -159,6 +160,16 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __get_preview_2d(self):
         if self.__preview is None:
+            data_2d = self.preview_2d_data
+            if data_2d is not None:
+                data_range = self.data_range
+                display_limits = self.display_limits
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
+        return self.__preview
+    preview_2d = property(__get_preview_2d)
+
+    def __get_preview_2d_data(self):
+        if self.__preview_data is None:
             with self.data_item.data_ref() as data_ref:
                 data = data_ref.data
             if Image.is_data_2d(data):
@@ -171,12 +182,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                 data_2d = slice_operation.process(data)
             else:
                 data_2d = None
-            if data_2d is not None:
-                data_range = self.data_range
-                display_limits = self.display_limits
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
-        return self.__preview
-    preview_2d = property(__get_preview_2d)
+            self.__preview_data = data_2d
+        return self.__preview_data
+    preview_2d_data = property(__get_preview_2d_data)
 
     def __get_preview_2d_shape(self):
         if self.data_item.is_data_2d:
@@ -226,6 +234,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __property_changed(self, property_name, value):
         self.notify_set_property(property_name, value)
+        self.__preview_data = None
         self.__preview = None
         self.notify_listeners("display_changed", self)
 
@@ -233,6 +242,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.__lookup
     def __set_lookup_table(self, lookup):
         self.__lookup = lookup
+        self.__preview_data = None
         self.__preview = None
         self.notify_listeners("display_changed", self)
     lookup_table = property(__get_lookup_table, __set_lookup_table)
@@ -253,6 +263,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # message sent from data_item or graphics. established using add/remove observer.
     def property_changed(self, object, property, value):
         if property == "data_range":
+            self.__preview_data = None
             self.__preview = None
             self.notify_set_property(property, value)
             if self.data_item:
@@ -265,6 +276,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         METADATA = 2
         SOURCE = 5
         if DATA in changes or METADATA in changes or SOURCE in changes:
+            self.__preview_data = None
             self.__preview = None
             self.notify_listeners("display_changed", self)
             # clear the processor caches
@@ -355,10 +367,12 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
     def item_property_changed(self, key, value):
         """ Called directly from data item. """
         super(HistogramDataItemProcessor, self).item_property_changed(key, value)
-        if key == "display_limits":
+        if key == "display_limits" or key == "slice_interval":
             self.set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
+        if Image.is_data_3d(data):
+            data = self.item.preview_2d_data
         display_range = self.item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
         histogram_max = float(numpy.max(histogram_data))
@@ -388,10 +402,10 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
             display_limits = self.item.display_limits
             thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
         elif Image.is_data_3d(data):
-            # TODO: fix me 3d
+            data = self.item.preview_2d_data
             data_range = self.item.data_range
             display_limits = self.item.display_limits
-            thumbnail_data = self.__get_thumbnail_3d_data(ui, data, self.height, self.width, data_range, display_limits)
+            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
         return thumbnail_data
 
     def get_default_data(self):
@@ -432,30 +446,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         assert image_height > 0 and image_width > 0
         scaled_height = height if image_height > image_width else height * image_height / image_width
         scaled_width = width if image_width > image_height else width * image_width / image_height
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-
-    # TODO: fix me 3d
-    def __get_thumbnail_3d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert image.ndim in (3,4)
-        new_shape = tuple([image.shape[0] * image.shape[1], ] + list(image.shape[2::]))
-        image = Image.scalar_from_array(image.reshape(new_shape))
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = max(height if image_height > image_width else height * image_height / image_width, 1)
-        scaled_width = max(width if image_width > image_height else width * image_width / image_height, 1)
         thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
         if numpy.ndim(thumbnail_image) == 2:
             return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
