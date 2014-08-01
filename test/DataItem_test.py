@@ -663,6 +663,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.add_data_source(data_item)
         # see if the data source got connected
         self.assertIsNotNone(data_item2.data)
+        self.assertIsNotNone(data_item2.data_source)
+
 
 
 if __name__ == '__main__':

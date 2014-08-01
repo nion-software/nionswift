@@ -43,7 +43,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__weak_data_item = None
 
-        self.__weak_region = None
+        self.__weak_regions = []
 
         class UuidMapToStringConverter(object):
             def convert(self, value):
@@ -83,16 +83,17 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def about_to_be_removed(self):
         """ When the operation is about to be removed, remove the region on data source, if any. """
-        region = self.__weak_region and self.__weak_region()
         data_item = self.data_item
         data_source = data_item and data_item.data_source
-        if region and data_source:
-            # this is a hack because graphics can cause operations to be
-            # deleted in multiple ways. there are tests to account for the
-            # various ways, but there is probably a better way to handle this
-            # in the long run.
-            if region in data_source.regions:
-                data_source.remove_region(region)
+        if data_source:
+            for weak_region in self.__weak_regions:
+                region = weak_region()
+                # this is a hack because graphics can cause operations to be
+                # deleted in multiple ways. there are tests to account for the
+                # various ways, but there is probably a better way to handle this
+                # in the long run.
+                if region and (region in data_source.regions):
+                    data_source.remove_region(region)
 
     def managed_object_context_changed(self):
         """ Override from ManagedObject. """
@@ -137,11 +138,13 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             assert region.type == self.operation.region_types[region_connection_id]
             region.add_listener(self)
             # save this to remove region if this object gets removed.
-            self.__weak_region = weakref.ref(region)
+            self.__weak_regions.append(weakref.ref(region))
 
     def establish_associated_region(self, region_connection_id, source_data_item, region):
         """
             Add the region to the source data item, update its initial values, and connect it to this operation.
+
+            This must be called before operation is added to data item.
         """
         if self.operation:
             assert region

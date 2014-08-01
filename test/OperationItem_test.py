@@ -476,6 +476,38 @@ class TestOperationClass(unittest.TestCase):
         crop_operation.set_property("bounds", bounds)
         self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
 
+    class Dummy2Operation(Operation.Operation):
+        def __init__(self):
+            description = [ { "name": "A", "property": "a", "type": "point", "default": 0.0 }, { "name": "B", "property": "b", "type": "point", "default": 1.0 } ]
+            super(TestOperationClass.Dummy2Operation, self).__init__("Dummy", "dummy-operation", description)
+            self.param = 0.0
+            self.region_types = {"a": "point-region", "b": "point-region"}
+            self.region_bindings = {"a": [Operation.RegionBinding("a", "position")], "b": [Operation.RegionBinding("b", "position")]}
+        def process(self, data):
+            d = numpy.zeros((16, 16))
+            return d
+
+    def test_removing_operation_with_multiple_associated_regions_removes_all_regions(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        # configure the dependent item
+        data_item2 = DataItem.DataItem()
+        document_model.append_data_item(data_item2)
+        Operation.OperationManager().register_operation("dummy2-operation", lambda: TestOperationClass.Dummy2Operation())
+        dummy_operation = Operation.OperationItem("dummy2-operation")
+        dummy_operation.establish_associated_region("a", data_item, Region.PointRegion())
+        dummy_operation.establish_associated_region("b", data_item, Region.PointRegion())
+        data_item2.add_operation(dummy_operation)
+        data_item2.add_data_source(data_item)
+        # assumptions
+        self.assertEqual(len(data_item.regions), 2)
+        # now remove the operation
+        data_item2.remove_operation(dummy_operation)
+        # check to make sure regions were removed
+        self.assertEqual(len(data_item.regions), 0)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
