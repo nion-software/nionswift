@@ -14,6 +14,7 @@ import numpy
 
 # local libraries
 from nion.swift.model import Calibration
+from nion.swift.model import Connection
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Display
 from nion.swift.model import Image
@@ -167,7 +168,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         calibrations, creation and modification dates, titles, captions, etc.
 
         The derivation description includes a list of source data items, operations, regions, and relationships
-        between data/metadata.
+        between data/metadata (connections).
 
         If a data item represents a single data/metadata, the following direct properties are available:
 
@@ -187,6 +188,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         * *flag* a flag (-1, 0, 1)
         * *session_id* a string representing the session
         * *regions* a list of regions
+        * *connections* a list of connections between objects
         * *operations* a list of operations
 
         For more complex data items, the following properties are also available:
@@ -269,6 +271,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
+        self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
         self.__metadata = dict()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
@@ -369,6 +372,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def about_to_be_removed(self):
         """ Tell contained objects that this data item is about to be removed from its container. """
+        for connection in self.connections:
+            connection.about_to_be_removed()
         for operation in self.operations:
             operation.about_to_be_removed()
         for region in self.regions:
@@ -709,6 +714,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def remove_region(self, region):
         self.remove_item("regions", region)
+
+    def __insert_connection(self, name, before_index, connection):
+        # listen
+        connection.add_listener(self)
+        connection._set_data_item(self)
+
+    def __remove_connection(self, name, index, connection):
+        # unlisten
+        connection.remove_listener(self)
+        connection._set_data_item(None)
+
+    def add_connection(self, connection):
+        self.append_item("connections", connection)
+
+    def remove_connection(self, connection):
+        self.remove_item("connections", connection)
 
     # call this when operations change or data souce changes
     # this allows operations to update their default values
