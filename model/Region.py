@@ -128,8 +128,8 @@ class IntervalRegion(Region):
 
     def __init__(self):
         super(IntervalRegion, self).__init__("interval-region")
-        self.define_property("start", 0.0, changed=self._property_changed)
-        self.define_property("end", 1.0, changed=self._property_changed)
+        self.define_property("start", 0.0, changed=self.__interval_changed)
+        self.define_property("end", 1.0, changed=self.__interval_changed)
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
@@ -143,6 +143,20 @@ class IntervalRegion(Region):
     def remove_region_graphic(self, region_graphic):
         # message from the graphic when its being removed
         self.notify_listeners("remove_region_because_graphic_removed", self)
+
+    def __interval_changed(self, name, value):
+        # override to implement dependency. argh.
+        self.notify_set_property(name, value)
+        self.notify_set_property("interval", self.interval)
+
+    def __get_interval(self):
+        return (self.start, self.end)
+    def __set_interval(self, interval):
+        self.start = interval[0]
+        self.end = interval[1]
+    interval = property(__get_interval, __set_interval)
+
+
 
 
 class RegionPropertyToGraphicBinding(Binding.PropertyBinding):

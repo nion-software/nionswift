@@ -114,8 +114,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.define_property("y_max", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
-        self.define_property("slice_center", 0, changed=self.__property_changed)
-        self.define_property("slice_width", 1, changed=self.__property_changed)
+        self.define_property("slice_center", 0, changed=self.__slice_interval_changed)
+        self.define_property("slice_width", 1, changed=self.__slice_interval_changed)
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
@@ -204,6 +204,25 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             processor.data_item_changed()
         self.__property_changed(name, value)
         self.notify_set_property("display_range", self.display_range)
+
+    def __get_slice_interval(self):
+        if self.data_item:
+            depth = self.data_item.spatial_shape[0]
+            slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
+            slice_interval_end = slice_interval_start + self.slice_width
+            return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
+        return None
+    def __set_slice_interval(self, slice_interval):
+        depth = self.data_item.spatial_shape[0]
+        slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
+        slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
+        self.slice_center = slice_interval_center
+        self.slice_width = slice_interval_width
+    slice_interval = property(__get_slice_interval, __set_slice_interval)
+
+    def __slice_interval_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.notify_set_property("slice_interval", self.slice_interval)
 
     def __property_changed(self, property_name, value):
         self.notify_set_property(property_name, value)

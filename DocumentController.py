@@ -15,6 +15,7 @@ from nion.swift import DataPanel
 from nion.swift import FilterPanel
 from nion.swift import Task
 from nion.swift import Workspace
+from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
@@ -649,8 +650,13 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item and len(data_item.spatial_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
-            operation.establish_associated_region("pick", data_item, Region.PointRegion())  # after setting operation properties
-            return self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
+            pick_point_region = Region.PointRegion()
+            operation.establish_associated_region("pick", data_item, pick_point_region)  # after setting operation properties
+            pick_data_item = self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
+            pick_interval = Region.IntervalRegion()
+            pick_data_item.add_region(pick_interval)
+            pick_data_item.add_connection(Connection.PropertyConnection(data_item.displays[0], "slice_interval", pick_interval, "interval"))
+            return pick_data_item
 
     def processing_projection(self, select=True):
         data_item = self.selected_data_item
