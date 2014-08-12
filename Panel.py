@@ -162,6 +162,7 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self, title=None, display_drag_control=False, display_sync_control=False):
         super(HeaderCanvasItem, self).__init__()
+        self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__display_drag_control = display_drag_control
         self.__display_sync_control = display_sync_control
