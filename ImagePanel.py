@@ -1423,7 +1423,6 @@ class ImagePanel(object):
 
         self.__document_controller_weakref = weakref.ref(document_controller)
         self.ui = document_controller.ui
-        self.widget = None
 
         # useful for many panels.
         self.__periodic_task_queue = Process.TaskQueue()
@@ -1431,17 +1430,20 @@ class ImagePanel(object):
 
         self.__display = None
 
-        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
-        self.root_canvas_item.focusable = True
-        self.root_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.overlay_canvas_item = ImagePanelOverlayCanvasItem(self)
-        self.root_canvas_item.add_canvas_item(self.overlay_canvas_item)
-        self.header_controller = Panel.HeaderWidgetController(self.ui, display_drag_control=True, display_sync_control=True)
-        self.header_controller.on_drag_pressed = lambda: self.__begin_drag()
-        self.header_controller.on_sync_clicked = lambda: self.__sync_data_item()
-        self.widget = self.ui.create_column_widget()
-        self.widget.add(self.header_controller.canvas_widget)
-        self.widget.add(self.root_canvas_item.canvas_widget, fill=True)
+        self.__content_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__content_canvas_item.focusable = True
+        self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.__overlay_canvas_item = ImagePanelOverlayCanvasItem(self)
+        self.__content_canvas_item.add_canvas_item(self.__overlay_canvas_item)
+        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True)
+        self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
+        self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
+
+        self.canvas_item = CanvasItem.CanvasItemComposition()
+        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+
+        self.canvas_item.add_canvas_item(self.__header_canvas_item)
+        self.canvas_item.add_canvas_item(self.__content_canvas_item)
 
         self.document_controller.register_image_panel(self)
 
@@ -1455,7 +1457,7 @@ class ImagePanel(object):
 
     def close(self):
         self.closed = True
-        self.root_canvas_item.close()
+        self.__content_canvas_item.close()
         self.display_canvas_item = None  # now closed
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
@@ -1496,15 +1498,23 @@ class ImagePanel(object):
                 self.__set_display(data_item.displays[0])
 
     def set_selected(self, selected):
-        self.overlay_canvas_item.selected = selected
+        self.__overlay_canvas_item.selected = selected
+
+    def _is_selected(self):
+        """ Used for testing. """
+        return self.__overlay_canvas_item.selected
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
         if self.closed: return  # argh
-        self.overlay_canvas_item.focused = focused
+        self.__overlay_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_image_panel = self
             self.document_controller.set_selected_data_item(self.get_displayed_data_item())
+
+    def _is_focused(self):
+        """ Used for testing. """
+        return self.__overlay_canvas_item.focused
 
     # gets the data item that this panel displays
     def get_displayed_data_item(self):
@@ -1549,7 +1559,8 @@ class ImagePanel(object):
         if data_item is not None:
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-            action = self.widget.drag(mime_data)
+            root_canvas_item = self.canvas_item.root_container
+            action = root_canvas_item.canvas_widget.drag(mime_data)
             if action == "move" and self.document_controller.replaced_data_item is not None:
                 self.__set_display(self.document_controller.replaced_data_item.displays[0])
                 self.document_controller.replaced_data_item = None
@@ -1565,7 +1576,7 @@ class ImagePanel(object):
     # like graphics or the data itself.
     def display_changed(self, display):
         data_item = display.data_item if display else None
-        self.header_controller.title = data_item.title if data_item else unicode()
+        self.__header_canvas_item.title = data_item.title if data_item else unicode()
         display_type = None
         if data_item:
             if data_item.is_data_1d:
@@ -1574,22 +1585,22 @@ class ImagePanel(object):
                 display_type = "image"
         if display_type != self.__display_type:
             if self.display_canvas_item:
-                self.root_canvas_item.remove_canvas_item(self.display_canvas_item)
+                self.__content_canvas_item.remove_canvas_item(self.display_canvas_item)
                 self.display_canvas_item = None
             if display_type == "line_plot":
                 self.display_canvas_item = LinePlotCanvasItem(self.document_controller, self)
-                self.root_canvas_item.insert_canvas_item(0, self.display_canvas_item)
+                self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
                 self.display_canvas_item = ImageCanvasItem(self.document_controller, self)
-                self.root_canvas_item.insert_canvas_item(0, self.display_canvas_item)
+                self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.image_canvas_mode = "fit"
                 self.display_canvas_item.update_image_canvas_size()
             self.__display_type = display_type
-            self.root_canvas_item.update()
+            self.__content_canvas_item.update()
         if self.display_canvas_item:
             self.display_canvas_item.update_display(display)
         selected = self.document_controller.selected_image_panel == self
-        self.overlay_canvas_item.selected = display is not None and selected
+        self.__overlay_canvas_item.selected = display is not None and selected
 
     # ths message comes from the widget
     def key_pressed(self, key):

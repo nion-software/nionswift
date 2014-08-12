@@ -17,6 +17,7 @@ import weakref
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
+from nion.ui import CanvasItem
 
 _ = gettext.gettext
 
@@ -281,7 +282,9 @@ class FilterPanel(object):
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 
-        self.header_widget_controller = Panel.HeaderWidgetController(self.ui, _("Filter"))
+        header_canvas_item = Panel.HeaderCanvasItem(_("Filter"))
+        self.header_canvas_item_container = CanvasItem.RootCanvasItem(self.ui, properties={"height": header_canvas_item.header_height})
+        self.header_canvas_item_container.add_canvas_item(Panel.HeaderCanvasItem(_("Filter")))
 
         filter_bar_row = self.ui.create_row_widget()
         filter_bar_row.add(self.ui.create_label_widget(_("Search")))
@@ -300,7 +303,7 @@ class FilterPanel(object):
         filter_bar_row.add_stretch()
 
         filter_column = self.ui.create_column_widget(properties={"height": 180})
-        filter_column.add(self.header_widget_controller.canvas_widget)
+        filter_column.add(self.header_canvas_item_container.canvas_widget)
         filter_column.add_spacing(4)
         filter_column.add(filter_bar_row)
         filter_column.add_spacing(4)

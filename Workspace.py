@@ -16,6 +16,7 @@ from nion.swift import Decorators
 from nion.swift import ImagePanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.ui import CanvasItem
 
 
 _ = gettext.gettext
@@ -176,6 +177,11 @@ class Workspace(object):
         self.image_panels.append(image_panel)
         return image_panel
 
+    def __create_canvas_widget_from_image_panel(self, image_panel):
+        image_panel.root_canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        image_panel.root_canvas_item.add_canvas_item(image_panel.canvas_item)
+        return image_panel.root_canvas_item.canvas_widget
+
     def __get_primary_image_panel(self):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
@@ -184,25 +190,25 @@ class Workspace(object):
         if layout_id == "2x1":
             image_row = self.ui.create_splitter_widget("horizontal")
             image_panel = self.create_image_panel("primary-image")
-            image_row.add(image_panel.widget)
+            image_row.add(self.__create_canvas_widget_from_image_panel(image_panel))
             image_panel2 = self.create_image_panel("secondary-image")
-            image_row.add(image_panel2.widget)
+            image_row.add(self.__create_canvas_widget_from_image_panel(image_panel2))
             return image_row, image_panel, layout_id
         elif layout_id == "1x2":
             image_column = self.ui.create_splitter_widget("vertical")
             image_panel = self.create_image_panel("primary-image")
-            image_column.add(image_panel.widget)
+            image_column.add(self.__create_canvas_widget_from_image_panel(image_panel))
             image_panel2 = self.create_image_panel("secondary-image")
-            image_column.add(image_panel2.widget)
+            image_column.add(self.__create_canvas_widget_from_image_panel(image_panel2))
             return image_column, image_panel, layout_id
         elif layout_id == "3x1":
             image_row = self.ui.create_splitter_widget("horizontal")
             image_panel1 = self.create_image_panel("primary-image")
             image_panel2 = self.create_image_panel("secondary-image")
             image_panel3 = self.create_image_panel("3rd-image")
-            image_row.add(image_panel1.widget)
-            image_row.add(image_panel2.widget)
-            image_row.add(image_panel3.widget)
+            image_row.add(self.__create_canvas_widget_from_image_panel(image_panel1))
+            image_row.add(self.__create_canvas_widget_from_image_panel(image_panel2))
+            image_row.add(self.__create_canvas_widget_from_image_panel(image_panel3))
             return image_row, image_panel1, layout_id
         elif layout_id == "2x2":
             image_row = self.ui.create_splitter_widget("horizontal")
@@ -214,10 +220,10 @@ class Workspace(object):
             image_panel2 = self.create_image_panel("secondary-image")
             image_panel3 = self.create_image_panel("3rd-image")
             image_panel4 = self.create_image_panel("4th-image")
-            image_column1.add(image_panel1.widget)
-            image_column1.add(image_panel3.widget)
-            image_column2.add(image_panel2.widget)
-            image_column2.add(image_panel4.widget)
+            image_column1.add(self.__create_canvas_widget_from_image_panel(image_panel1))
+            image_column1.add(self.__create_canvas_widget_from_image_panel(image_panel3))
+            image_column2.add(self.__create_canvas_widget_from_image_panel(image_panel2))
+            image_column2.add(self.__create_canvas_widget_from_image_panel(image_panel4))
             return image_row, image_panel1, layout_id
         elif layout_id == "3x2":
             image_row = self.ui.create_splitter_widget("horizontal")
@@ -233,16 +239,16 @@ class Workspace(object):
             image_panel4 = self.create_image_panel("4th-image")
             image_panel5 = self.create_image_panel("5th-image")
             image_panel6 = self.create_image_panel("6th-image")
-            image_column1.add(image_panel1.widget)
-            image_column1.add(image_panel4.widget)
-            image_column2.add(image_panel2.widget)
-            image_column2.add(image_panel5.widget)
-            image_column3.add(image_panel3.widget)
-            image_column3.add(image_panel6.widget)
+            image_column1.add(self.__create_canvas_widget_from_image_panel(image_panel1))
+            image_column1.add(self.__create_canvas_widget_from_image_panel(image_panel4))
+            image_column2.add(self.__create_canvas_widget_from_image_panel(image_panel2))
+            image_column2.add(self.__create_canvas_widget_from_image_panel(image_panel5))
+            image_column3.add(self.__create_canvas_widget_from_image_panel(image_panel3))
+            image_column3.add(self.__create_canvas_widget_from_image_panel(image_panel6))
             return image_row, image_panel1, layout_id
         else:  # default 1x1
             image_panel = self.create_image_panel("primary-image")
-            return image_panel.widget, image_panel, "1x1"
+            return self.__create_canvas_widget_from_image_panel(image_panel), image_panel, "1x1"
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
         if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case
