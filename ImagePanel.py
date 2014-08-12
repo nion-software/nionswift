@@ -1435,7 +1435,19 @@ class ImagePanel(object):
 
         self.__display = None
 
-        self.__content_canvas_item = CanvasItem.CanvasItemComposition()
+        class ContentCanvasItem(CanvasItem.CanvasItemComposition):
+
+            def __init__(self, image_panel):
+                super(ContentCanvasItem, self).__init__()
+                self.image_panel = image_panel
+
+            def key_pressed(self, key):
+                if self.image_panel.display_canvas_item:
+                    return self.image_panel.display_canvas_item.key_pressed(key)
+                return super(ContentCanvasItem, self).key_pressed(key)
+
+
+        self.__content_canvas_item = ContentCanvasItem(self)
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__overlay_canvas_item = ImagePanelOverlayCanvasItem(self)

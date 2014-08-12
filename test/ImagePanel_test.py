@@ -9,6 +9,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import ImagePanel
+from nion.swift import Panel
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -49,7 +50,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
         self.image_panel.set_displayed_data_item(self.data_item)
-        self.image_panel.display_canvas_item.update_layout((0, 0), (1000, 1000))
+        header_height = Panel.HeaderCanvasItem().header_height
+        self.image_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
     def tearDown(self):
         self.image_panel.close()
@@ -800,6 +802,14 @@ class TestImagePanelClass(unittest.TestCase):
         # hit the delete key
         self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(line_plot_data_item.regions), 0)
+
+    def test_key_gets_dispatched_to_image_canvas_item(self):
+        modifiers = Test.KeyboardModifiers()
+        self.image_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.image_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "up", modifiers))
+        # self.image_panel.display_canvas_item.key_pressed(Test.Key(None, "up", modifiers))  # direct dispatch, should work
+        self.assertEqual(self.image_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
+
 
 if __name__ == '__main__':
     unittest.main()

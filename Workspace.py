@@ -44,8 +44,6 @@ class Workspace(object):
 
         self.workspace_id = workspace_id
 
-        header_height = 20 if sys.platform == "win32" else 22
-
         self.dock_widgets = []
         self.image_panels = []
 
