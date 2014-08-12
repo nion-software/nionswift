@@ -122,6 +122,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self):
         super(HistogramCanvasItem, self).__init__()
+        self.wants_mouse_events = True
         self.adornments_canvas_item = AdornmentsCanvasItem()
         self.simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
         # canvas items get added back to front

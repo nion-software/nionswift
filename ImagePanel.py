@@ -291,6 +291,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self, document_controller, image_panel):
         super(LinePlotCanvasItem, self).__init__()
 
+        self.wants_mouse_events = True
+
         font_size = 12
 
         # ugh
@@ -825,6 +827,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, document_controller, image_panel):
         super(ImageCanvasItem, self).__init__()
+
+        self.wants_mouse_events = True
 
         # ugh. these are optional.
         self.document_controller = document_controller
