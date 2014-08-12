@@ -44,9 +44,7 @@ class TestImagePanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
-        cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
-        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
@@ -802,7 +800,6 @@ class TestImagePanelClass(unittest.TestCase):
         # hit the delete key
         self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(line_plot_data_item.regions), 0)
-
 
 if __name__ == '__main__':
     unittest.main()

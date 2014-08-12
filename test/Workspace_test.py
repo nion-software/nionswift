@@ -3,12 +3,15 @@ import logging
 import unittest
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.swift.test import DocumentController_test
+from nion.ui import Geometry
 from nion.ui import Test
 
 
@@ -154,6 +157,41 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace.display_data_item(derived_data_item2, source_data_item)
         self.assertEqual(document_controller.workspace.image_panels[2].get_displayed_data_item(), source_data_item)
         self.assertEqual(document_controller.workspace.image_panels[3].get_displayed_data_item(), derived_data_item2)
+
+    def test_image_panel_focused_when_clicked(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace.change_layout("2x1")
+        # assumes that each image panel has its own root canvas item.
+        root_canvas_item1 = document_controller.workspace.image_row.children[0].children[0]._root_canvas_item()
+        root_canvas_item1.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=480))
+        root_canvas_item2 = document_controller.workspace.image_row.children[0].children[1]._root_canvas_item()
+        root_canvas_item2.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=480))
+        # click in first panel
+        modifiers = Test.KeyboardModifiers()
+        root_canvas_item1.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        self.assertTrue(document_controller.workspace.image_panels[0]._is_focused())
+        self.assertTrue(document_controller.workspace.image_panels[0]._is_selected())
+        self.assertFalse(document_controller.workspace.image_panels[1]._is_focused())
+        self.assertFalse(document_controller.workspace.image_panels[1]._is_selected())
+        # now click the second panel
+        root_canvas_item2.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        self.assertFalse(document_controller.workspace.image_panels[0]._is_focused())
+        self.assertFalse(document_controller.workspace.image_panels[0]._is_selected())
+        self.assertTrue(document_controller.workspace.image_panels[1]._is_focused())
+        self.assertTrue(document_controller.workspace.image_panels[1]._is_selected())
+        # and back to the first panel
+        modifiers = Test.KeyboardModifiers()
+        root_canvas_item1.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        self.assertTrue(document_controller.workspace.image_panels[0]._is_focused())
+        self.assertTrue(document_controller.workspace.image_panels[0]._is_selected())
+        self.assertFalse(document_controller.workspace.image_panels[1]._is_focused())
+        self.assertFalse(document_controller.workspace.image_panels[1]._is_selected())
 
 
 if __name__ == '__main__':
