@@ -13,6 +13,7 @@ import weakref
 
 # local libraries
 from nion.swift import Decorators
+from nion.swift import ImagePanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 
@@ -63,7 +64,7 @@ class Workspace(object):
 
         visible_panels = []
         if self.workspace_id == "library":
-            visible_panels = ["image-panel", "toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "console-panel"]
+            visible_panels = ["toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "console-panel"]
 
         self.create_panels(visible_panels)
 
@@ -98,6 +99,8 @@ class Workspace(object):
             elapsed = time.time() - start
             if elapsed > 0.15:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
+        for image_panel in self.image_panels:
+            image_panel.periodic()
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
@@ -167,7 +170,7 @@ class Workspace(object):
             return None
 
     def create_image_panel(self, element_id):
-        image_panel = self.workspace_manager.create_panel_content("image-panel", self.document_controller)
+        image_panel = ImagePanel.ImagePanel(self.document_controller)
         image_panel.title = _("Image")
         image_panel.element_id = element_id
         self.image_panels.append(image_panel)
@@ -176,12 +179,6 @@ class Workspace(object):
     def __get_primary_image_panel(self):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
-
-    def get_image_panel_by_id(self, element_id):
-        for image_panel in self.image_panels:
-            if image_panel.element_id == element_id:
-                return image_panel
-        return None
 
     def __default_layout_fn(self, workspace, layout_id):
         if layout_id == "2x1":
@@ -343,7 +340,7 @@ class Workspace(object):
     # returns the image panel in which the data is placed.
     # TODO: HANDLE CASE WHERE IT IS ALREADY DISPLAYED
     # TODO: PREFER TO USE ACQUISITION SLOTS FIRST, THEN PAUSED ONES
-    def display_data_item(self, primary_data_item, source_data_item=None):
+    def display_data_item(self, primary_data_item, source_data_item=None, panel_id=None):
 
         def is_data_item_for_hardware_source(data_item):
             if data_item is None:
@@ -354,6 +351,11 @@ class Workspace(object):
                 return True
             return False
 
+        if panel_id:
+            for image_panel in self.image_panels:
+                if image_panel.element_id == panel_id:
+                    image_panel.set_displayed_data_item(primary_data_item)
+                    return image_panel
         if source_data_item is None:
             # first look for exact match
             for image_panel in self.image_panels:

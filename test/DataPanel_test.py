@@ -61,7 +61,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
+        image_panel = ImagePanel.ImagePanel(document_controller)
         image_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))

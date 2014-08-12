@@ -5,6 +5,7 @@ import gettext
 import logging
 import math
 import uuid
+import weakref
 
 # third party libraries
 
@@ -23,6 +24,7 @@ from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import Process
 from nion.ui import ThreadPool
 
 _ = gettext.gettext
@@ -1415,10 +1417,17 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         return "ignore"
 
 
-class ImagePanel(Panel.Panel):
+class ImagePanel(object):
 
-    def __init__(self, document_controller, panel_id, properties):
-        super(ImagePanel, self).__init__(document_controller, panel_id, _("Image Panel"))
+    def __init__(self, document_controller):
+
+        self.__document_controller_weakref = weakref.ref(document_controller)
+        self.ui = document_controller.ui
+        self.widget = None
+
+        # useful for many panels.
+        self.__periodic_task_queue = Process.TaskQueue()
+        self.__periodic_task_set = Process.TaskSet()
 
         self.__display = None
 
@@ -1451,7 +1460,24 @@ class ImagePanel(Panel.Panel):
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
-        super(ImagePanel, self).close()
+
+    def __get_document_controller(self):
+        return self.__document_controller_weakref()
+    document_controller = property(__get_document_controller)
+
+    # not thread safe. always call from main thread.
+    def periodic(self):
+        self.__periodic_task_queue.perform_tasks()
+        self.__periodic_task_set.perform_tasks()
+
+    # tasks can be added in two ways, queued or added
+    # queued tasks are guaranteed to be executed in the order queued.
+    # added tasks are only executed if not replaced before execution.
+    # added tasks do not guarantee execution order or execution at all.
+    def add_task(self, key, task):
+        self.__periodic_task_set.add_task(key, task)
+    def queue_task(self, task):
+        self.__periodic_task_queue.put(task)
 
     # return a dictionary that can be used to restore the content of this image panel
     def save_content(self):

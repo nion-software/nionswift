@@ -298,8 +298,6 @@ class DocumentController(Observable.Broadcaster):
         # workspace
         if self.workspace:
             self.workspace.periodic()
-        for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
-            image_panel.periodic()
         self.filter_controller.periodic()
 
     def __get_workspace_controller(self):

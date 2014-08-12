@@ -76,7 +76,7 @@ class TestStorageClass(unittest.TestCase):
         data_group.append_data_item(data_item2b)
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
-        image_panel = ImagePanel.ImagePanel(document_controller, "image-panel", {})
+        image_panel = ImagePanel.ImagePanel(document_controller)
         document_controller.selected_image_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_data_item, data_item)
