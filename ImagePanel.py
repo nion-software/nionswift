@@ -1332,6 +1332,7 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self, image_panel):
         super(ImagePanelOverlayCanvasItem, self).__init__()
+        self.wants_drag_events = True
         self.image_panel = image_panel
         self.__dimmed = False
         self.__focused = False
