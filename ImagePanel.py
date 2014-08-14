@@ -357,8 +357,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
-        self.__layout_state = "no_info"
-
     def close(self):
         self.__paint_thread.close()
         self.__paint_thread = None
@@ -387,10 +385,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
             self.line_graph_regions_canvas_item.regions = list()
-            self.__layout_state = "done_layout"
         else:
             self.selection_changed(self.__display.graphic_selection)
-            self.__layout_state = "no_info"
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -427,20 +423,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_regions_canvas_item.regions = regions
         self.line_graph_regions_canvas_item.update()
 
-    def update_layout(self, canvas_origin, canvas_size):
-        super(LinePlotCanvasItem, self).update_layout(canvas_origin, canvas_size)
-        self.__layout_state = "done_layout"
-
-    def repaint_if_needed(self):
-        if self.__layout_state == "done_layout":
-            super(LinePlotCanvasItem, self).repaint_if_needed()
-        elif self.__layout_state == "has_info":
-            self.update_layout(self.canvas_origin, self.canvas_size)
-            self.update()
-            super(LinePlotCanvasItem, self).repaint_if_needed()
-        else:
-            self.update()
-
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
     def paint_display_on_thread(self):
@@ -448,6 +430,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         display = self.__display
 
         if display:
+
             # grab the data item
             data_item = display.data_item
 
@@ -512,7 +495,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if canvas_bounds:
             self.update_layout(canvas_bounds.origin, canvas_bounds.size)
             self.update()
-        self.__layout_state = "has_info"
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -904,6 +886,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # finally, trigger the paint thread (if there still is one) to update
         if self.__paint_thread:
             self.__paint_thread.trigger()
+
+    def wait_for_paint(self):
+        self.__paint_thread.trigger(wait=True)
 
     def selection_changed(self, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
