@@ -11,7 +11,6 @@ import weakref
 
 # local libraries
 from nion.swift import Decorators
-from nion.swift import HistogramPanel
 from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
