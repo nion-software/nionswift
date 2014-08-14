@@ -500,17 +500,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_bounds = self.canvas_bounds
         self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
         if canvas_bounds:
-            self.line_graph_vertical_axis_label_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
+            self.line_graph_vertical_axis_label_canvas_item.size_to_content(canvas_bounds)
         self.line_graph_vertical_axis_label_canvas_item.update()
         self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
         if canvas_bounds:
-            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
+            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui.get_font_metrics, canvas_bounds)
         self.line_graph_vertical_axis_scale_canvas_item.update()
         self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_vertical_axis_ticks_canvas_item.update()
         self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
         if canvas_bounds:
-            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(self.document_controller.ui, canvas_bounds)
+            self.line_graph_horizontal_axis_label_canvas_item.size_to_content(canvas_bounds)
         self.line_graph_horizontal_axis_label_canvas_item.update()
         self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
         self.line_graph_horizontal_axis_scale_canvas_item.update()

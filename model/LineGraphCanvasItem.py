@@ -525,7 +525,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_height = self.font_size + 4
         self.sizing.maximum_height = self.font_size + 4
 
-    def size_to_content(self, ui, canvas_bounds):
+    def size_to_content(self, canvas_bounds):
         """ Size the canvas item to the proper height. """
         self.sizing.minimum_height = 0
         self.sizing.maximum_height = 0
@@ -604,7 +604,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.data_info = None
         self.font_size = 12
 
-    def size_to_content(self, ui, canvas_bounds):
+    def size_to_content(self, get_font_metrics_fn, canvas_bounds):
         """ Size the canvas item to the proper width, the maximum of any label. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
@@ -624,10 +624,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             y_range = data_info.calibrated_data_max - data_info.calibrated_data_min
             label = (u"{0:0." + u"{0:d}".format(data_info.y_tick_precision) + "f}").format(
                 data_info.y_tick_calibrated_data_max + y_range * 5)
-            max_width = max(max_width, ui.get_font_metrics(font, label).width)
+            max_width = max(max_width, get_font_metrics_fn(font, label).width)
             label = (u"{0:0." + u"{0:d}".format(data_info.y_tick_precision) + "f}").format(
                 data_info.y_tick_calibrated_data_min - y_range * 5)
-            max_width = max(max_width, ui.get_font_metrics(font, label).width)
+            max_width = max(max_width, get_font_metrics_fn(font, label).width)
 
             self.sizing.minimum_width = max_width
             self.sizing.maximum_width = max_width
@@ -673,7 +673,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_width = self.font_size + 4
         self.sizing.maximum_width = self.font_size + 4
 
-    def size_to_content(self, ui, canvas_bounds):
+    def size_to_content(self, canvas_bounds):
         """ Size the canvas item to the proper width. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
