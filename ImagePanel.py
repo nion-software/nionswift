@@ -5,7 +5,6 @@ import gettext
 import logging
 import math
 import uuid
-import weakref
 
 # third party libraries
 
@@ -287,16 +286,14 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, document_controller, image_panel):
+    def __init__(self, delegate):
         super(LinePlotCanvasItem, self).__init__()
+
+        self.delegate = delegate
 
         self.wants_mouse_events = True
 
         font_size = 12
-
-        # ugh
-        self.document_controller = document_controller
-        self.image_panel = image_panel
 
         self.line_graph_canvas_area_item = CanvasItem.CanvasItemComposition()
         self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
@@ -376,6 +373,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     display = property(__get_display)
 
     def update_display(self, display):
+        """ Update the display (model) associated with this canvas item. """
         # first take care of listeners and update the __display field
         old_display = self.__display
         if old_display and display != old_display:
@@ -441,12 +439,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.update()
             super(LinePlotCanvasItem, self).repaint_if_needed()
         else:
-            # it is not legal to call 'update' from within repaint. so queue
-            # this to the future. overall, this is a bad architecture since
-            # the layout is not really complete in this case. hopefully this will
-            # go away once the canvas updating is reworked to ensure repaint only
-            # happens after layout. for now, this behavior is hacked into this class.
-            self.image_panel.add_task("update", lambda: self.update())
+            self.update()
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
@@ -504,7 +497,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_vertical_axis_label_canvas_item.update()
         self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
         if canvas_bounds:
-            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.document_controller.ui.get_font_metrics, canvas_bounds)
+            self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.delegate.image_panel_get_font_metrics, canvas_bounds)
         self.line_graph_vertical_axis_scale_canvas_item.update()
         self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_vertical_axis_ticks_canvas_item.update()
@@ -537,7 +530,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_double_clicked(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_clicked(x, y, modifiers):
             return True
-        if self.document_controller.tool_mode == "pointer":
+        if self.delegate.image_panel_get_tool_mode() == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
             if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                 self.reset_horizontal()
@@ -565,7 +558,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
         pos = Geometry.IntPoint(x=x, y=y)
-        if self.document_controller.tool_mode == "pointer":
+        if self.delegate.image_panel_get_tool_mode() == "pointer":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
                 return True
@@ -575,7 +568,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             elif self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_vertical_axis_group_canvas_item)):
                 self.begin_tracking_vertical(pos, rescale=modifiers.control)
                 return True
-        elif self.document_controller.tool_mode == "interval":
+        elif self.delegate.image_panel_get_tool_mode() == "interval":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 data_size = self.__get_data_size()
                 display = self.display
@@ -599,7 +592,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def context_menu_event(self, x, y, gx, gy):
-        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display.data_item, gx, gy)
+        self.delegate.image_panel_show_context_menu(gx, gy)
         return True
 
     # ths message comes from the widget
@@ -607,7 +600,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).key_pressed(key):
             return True
         # only handle keys if we're directly embedded in an image panel
-        if not self.image_panel:
+        if not self.delegate:
             return False
         display = self.display
         if display:
@@ -616,7 +609,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             if len(graphics):
                 if key.is_delete:
-                    self.document_controller.remove_graphic()
+                    self.delegate.image_panel_remove_graphic()
                     return True
                 elif key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
@@ -628,7 +621,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                         for graphic in graphics:
                             graphic.nudge(widget_mapping, (0, amount))
                     return True
-        return self.image_panel.key_pressed(key)
+        return self.delegate.image_panel_key_pressed(key)
 
     def reset_horizontal(self):
         self.__display.left_channel = None
@@ -794,7 +787,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.graphic_drag_item = None
             self.graphic_part_data = {}
             self.graphic_drag_indexes = []
-            self.document_controller.tool_mode = "pointer"
+            self.delegate.image_panel_set_tool_mode("pointer")
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
@@ -810,28 +803,25 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return data_shape
 
     def __update_cursor_info(self):
-        if self.document_controller:
-            pos = None
-            data_size = self.__get_data_size()
-            if self.__mouse_in and self.__last_mouse:
-                if data_size and len(data_size) == 1:
-                    last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
-                    pos = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
-                self.document_controller.cursor_changed(self, self.display, pos, data_size)
-            else:
-                self.document_controller.cursor_changed(self, None, None, None)
+        pos = None
+        data_size = self.__get_data_size()
+        if self.__mouse_in and self.__last_mouse:
+            if data_size and len(data_size) == 1:
+                last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
+                pos = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
+            self.delegate.image_panel_cursor_changed(self, self.display, pos, data_size)
+        else:
+            self.delegate.image_panel_cursor_changed(self, None, None, None)
 
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, document_controller, image_panel):
+    def __init__(self, delegate):
         super(ImageCanvasItem, self).__init__()
 
-        self.wants_mouse_events = True
+        self.delegate = delegate
 
-        # ugh. these are optional.
-        self.document_controller = document_controller
-        self.image_panel = image_panel
+        self.wants_mouse_events = True
 
         self.__last_image_zoom = 1.0
         self.__last_image_norm_center = (0.5, 0.5)
@@ -1009,7 +999,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         # now let the image panel handle mouse clicking if desired
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        ImagePanelManager().mouse_clicked(self.image_panel, self.display.data_item, image_position, modifiers)
+        self.delegate.image_panel_mouse_clicked(image_position, modifiers)
         return True
 
     def mouse_double_clicked(self, x, y, modifiers):
@@ -1028,7 +1018,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.graphic_drag_item_was_selected = False
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
-        if self.document_controller.tool_mode == "pointer":
+        if self.delegate.image_panel_get_tool_mode() == "pointer":
             drawn_graphics = display.drawn_graphics
             for graphic_index, graphic in enumerate(drawn_graphics):
                 start_drag_pos = Geometry.IntPoint(y=y, x=x)
@@ -1060,7 +1050,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     break
             if not self.graphic_drag_items and not modifiers.shift:
                 display.graphic_selection.clear()
-        elif self.document_controller.tool_mode == "hand":
+        elif self.delegate.image_panel_get_tool_mode() == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
             self.__is_dragging = True
@@ -1140,7 +1130,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def context_menu_event(self, x, y, gx, gy):
-        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display.data_item, gx, gy)
+        self.delegate.image_panel_show_context_menu(gx, gy)
         return True
 
     # ths message comes from the widget
@@ -1148,7 +1138,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if super(ImageCanvasItem, self).key_pressed(key):
             return True
         # only handle keys if we're directly embedded in an image panel
-        if not self.image_panel:
+        if not self.delegate:
             return False
         display = self.display
         if display:
@@ -1157,7 +1147,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             if len(graphics):
                 if key.is_delete:
-                    self.document_controller.remove_graphic()
+                    self.delegate.image_panel_remove_graphic()
                     return True
                 elif key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
@@ -1213,7 +1203,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if key.text == ")":
                 self.set_fill_mode()
                 return True
-        return self.image_panel.key_pressed(key)
+        return self.delegate.image_panel_key_pressed(key)
 
     def __get_image_size(self):
         data_shape = self.display.preview_2d_shape if self.display else None
@@ -1252,15 +1242,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return None
 
     def __update_cursor_info(self):
-        if self.document_controller:
-            pos = None
-            image_size = self.__get_image_size()
-            if self.__mouse_in and self.__last_mouse:
-                if image_size and len(image_size) > 1:
-                    pos = self.map_widget_to_image(self.__last_mouse)
-                self.document_controller.cursor_changed(self, self.display, pos, image_size)
-            else:
-                self.document_controller.cursor_changed(self, None, None, None)
+        pos = None
+        image_size = self.__get_image_size()
+        if self.__mouse_in and self.__last_mouse:
+            if image_size and len(image_size) > 1:
+                pos = self.map_widget_to_image(self.__last_mouse)
+            self.delegate.image_panel_cursor_changed(self, self.display, pos, image_size)
+        else:
+            self.delegate.image_panel_cursor_changed(self, None, None, None)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
@@ -1425,7 +1414,7 @@ class ImagePanel(object):
 
     def __init__(self, document_controller):
 
-        self.__document_controller_weakref = weakref.ref(document_controller)
+        self.document_controller = document_controller
         self.ui = document_controller.ui
 
         # useful for many panels.
@@ -1478,10 +1467,6 @@ class ImagePanel(object):
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
-
-    def __get_document_controller(self):
-        return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
 
     # not thread safe. always call from main thread.
     def periodic(self):
@@ -1604,10 +1589,10 @@ class ImagePanel(object):
                 self.__content_canvas_item.remove_canvas_item(self.display_canvas_item)
                 self.display_canvas_item = None
             if display_type == "line_plot":
-                self.display_canvas_item = LinePlotCanvasItem(self.document_controller, self)
+                self.display_canvas_item = LinePlotCanvasItem(self)
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
-                self.display_canvas_item = ImageCanvasItem(self.document_controller, self)
+                self.display_canvas_item = ImageCanvasItem(self)
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.image_canvas_mode = "fit"
                 self.display_canvas_item.update_image_canvas_size()
@@ -1618,10 +1603,31 @@ class ImagePanel(object):
         selected = self.document_controller.selected_image_panel == self
         self.__overlay_canvas_item.selected = display is not None and selected
 
-    # ths message comes from the widget
-    def key_pressed(self, key):
+    # ths message comes from the canvas item via the delegate.
+    def image_panel_key_pressed(self, key):
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
         return ImagePanelManager().key_pressed(self, key)
+
+    def image_panel_mouse_clicked(self, image_position, modifiers):
+        ImagePanelManager().mouse_clicked(self, self.get_displayed_data_item(), image_position, modifiers)
+
+    def image_panel_get_font_metrics(self, font, text):
+        return self.ui.get_font_metrics(font, text)
+
+    def image_panel_get_tool_mode(self):
+        return self.document_controller.tool_mode
+
+    def image_panel_set_tool_mode(self, tool_mode):
+        self.document_controller.tool_mode = tool_mode
+
+    def image_panel_show_context_menu(self, gx, gy):
+        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.get_displayed_data_item(), gx, gy)
+
+    def image_panel_cursor_changed(self, source, display, pos, image_size):
+        self.document_controller.cursor_changed(source, display, pos, image_size)
+
+    def image_panel_remove_graphic(self):
+        self.document_controller.remove_graphic()
 
     def handle_drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
