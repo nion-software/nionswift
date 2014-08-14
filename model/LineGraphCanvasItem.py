@@ -423,6 +423,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         if region_selected:
                             draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
                             drawing_context.fill_style = '#F00'
+                            drawing_context.font = "{0:d}px".format(self.font_size)
                             if middle_text:
                                 drawing_context.text_align = "center"
                                 drawing_context.text_baseline = "bottom"
@@ -506,6 +507,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the tick marks
             drawing_context.save()
+            drawing_context.font = "{0:d}px".format(self.font_size)
             for x, label in x_ticks:
                 drawing_context.text_align = "center"
                 drawing_context.text_baseline = "middle"
@@ -552,6 +554,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.text_baseline = "middle"
                 drawing_context.fill_style = "#000"
                 value_str = u"({0})".format(data_info.spatial_calibration.units)
+                drawing_context.font = "{0:d}px".format(self.font_size)
                 drawing_context.fill_text(value_str, plot_width * 0.5, height * 0.5)
                 drawing_context.restore()
 
@@ -705,6 +708,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.translate(x, y)
                 drawing_context.rotate(-math.pi*0.5)
                 drawing_context.translate(-x, -y)
+                drawing_context.font = "{0:d}px".format(self.font_size)
                 drawing_context.fill_text(u"{0} ({1})".format(_("Intensity"), data_info.intensity_calibration.units), x, y)
                 drawing_context.translate(x, y)
                 drawing_context.rotate(+math.pi*0.5)
