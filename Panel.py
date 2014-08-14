@@ -209,7 +209,7 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.line_to(canvas_size.width, canvas_size.height)
         drawing_context.line_to(canvas_size.width, 0)
         drawing_context.close_path()
-        gradient = drawing_context.create_linear_gradient(0, 0, 0, canvas_size.height)
+        gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
         gradient.add_color_stop(0, '#ededed')
         gradient.add_color_stop(1, '#cacaca')
         drawing_context.fill_style = gradient
