@@ -821,7 +821,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.composite_canvas_item.add_canvas_item(self.graphics_canvas_item)
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.composite_canvas_item)
-        self.scroll_area_canvas_item.updated_layout = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_updated_layout(canvas_size)
+        self.scroll_area_canvas_item.on_layout_updated = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_layout_updated(canvas_size)
         # info overlay (scale marker, etc.)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         # canvas items get added back to front
@@ -921,7 +921,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.update_image_canvas_size()
 
     # update the image canvas origin and size
-    def scroll_area_canvas_item_updated_layout(self, scroll_area_canvas_size):
+    def scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size):
         if not self.display:
             self.__last_image_norm_center = (0.5, 0.5)
             self.__last_image_zoom = 1.0
@@ -976,7 +976,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def update_image_canvas_size(self):
         scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
         if scroll_area_canvas_size is not None:
-            self.scroll_area_canvas_item_updated_layout(scroll_area_canvas_size)
+            self.scroll_area_canvas_item_layout_updated(scroll_area_canvas_size)
             self.composite_canvas_item.update()
 
     def mouse_clicked(self, x, y, modifiers):
