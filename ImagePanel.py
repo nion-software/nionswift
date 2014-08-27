@@ -813,7 +813,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # the background
         self.background_canvas_item = CanvasItem.BackgroundCanvasItem()
         # next the zoomable items
-        self.bitmap_canvas_item = CanvasItem.BitmapCanvasItem()
+        self.bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888")
         self.graphics_canvas_item = GraphicsCanvasItem()
         # put the zoomable items into a composition
         self.composite_canvas_item = CanvasItem.CanvasItemComposition()

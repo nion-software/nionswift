@@ -1016,6 +1016,20 @@ class DataPanel(Panel.Panel):
             column.add_spacing(1)
             return column
 
+        self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
+        self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+
+        list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/list_icon_20.png"))
+        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/grid_icon_20.png"))
+
+        list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
+        grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
+
+        list_icon_button.background_color = "#CCC"
+
+        self.buttons_canvas_item.add_canvas_item(list_icon_button)
+        self.buttons_canvas_item.add_canvas_item(grid_icon_button)
+
         search_widget = ui.create_row_widget()
         search_widget.add_spacing(8)
         search_widget.add(ui.create_label_widget(_("Filter")))
@@ -1026,18 +1040,27 @@ class DataPanel(Panel.Panel):
         search_line_edit.on_text_edited = self.document_controller.filter_controller.text_filter_changed
         search_line_edit.on_editing_finished = self.document_controller.filter_controller.text_filter_changed
         search_widget.add(search_line_edit)
-        search_widget.add_spacing(16)
+        search_widget.add_spacing(6)
+        search_widget.add(self.buttons_canvas_item.canvas_widget)
+        search_widget.add_spacing(8)
+
+        data_view_widget = ui.create_stack_widget()
+        data_view_widget.add(self.data_item_widget)
+        data_view_widget.add(self.data_grid_controller.widget)
 
         def tab_changed(index):
+            data_view_widget.current_index = index
             if index == 0:  # switching to data list?
                 data_item_widget_selection_changed(self.data_item_widget.selected_indexes)
+                list_icon_button.background_color = "#CCC"
+                grid_icon_button.background_color = None
             elif index == 1:  # switching to data grid?
                 data_item_widget_selection_changed(self.data_grid_controller.selected_indexes)
+                list_icon_button.background_color = None
+                grid_icon_button.background_color = "#CCC"
 
-        data_view_widget = ui.create_tab_widget()
-        data_view_widget.on_current_index_changed = tab_changed
-        data_view_widget.add(self.data_item_widget, "List")
-        data_view_widget.add(self.data_grid_controller.widget, "Grid")
+        list_icon_button.on_button_clicked = lambda: tab_changed(0)
+        grid_icon_button.on_button_clicked = lambda: tab_changed(1)
 
         slave_widget = ui.create_column_widget()
         slave_widget.add(data_view_widget)
