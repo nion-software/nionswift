@@ -3,6 +3,7 @@ import copy
 import functools
 import gettext
 import logging
+import numbers
 import threading
 import uuid
 import weakref
@@ -14,8 +15,11 @@ import weakref
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.ui import Binding
+from nion.ui import CanvasItem
 from nion.ui import Geometry
+from nion.ui import Observable
 from nion.ui import Process
 
 _ = gettext.gettext
@@ -513,6 +517,356 @@ class DataPanel(Panel.Panel):
             ctx.fill_text(display4, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
             ctx.restore()
 
+
+    class GridCanvasItem(CanvasItem.AbstractCanvasItem):
+
+        def __init__(self, delegate):
+            super(DataPanel.GridCanvasItem, self).__init__()
+            self.wants_mouse_events = True
+            self.focusable = True
+            self.__mouse_pressed = False
+            self.__mouse_index = None
+            self.__mouse_position = None
+            self.__mouse_dragging = False
+            self.__delegate = delegate
+            self.__item_count = 0
+
+        def update_layout(self, canvas_origin, canvas_size):
+            canvas_size = Geometry.IntSize.make(canvas_size)
+            canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(canvas_size.width), width=canvas_size.width)
+            super(DataPanel.GridCanvasItem, self).update_layout(canvas_origin, canvas_size)
+
+        def wheel_changed(self, dx, dy, is_horizontal):
+            dy = dy if not is_horizontal else 0.0
+            new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=0, y=dy)
+            self.update_layout(new_canvas_origin, self.canvas_size)
+            self.update()
+
+        def __calculate_layout_height(self, width):
+            items_per_row = 4
+            item_width = int(width / items_per_row)
+            item_rows = (len(self.__delegate.data_items) + items_per_row - 1) / items_per_row
+            return item_rows * item_width
+
+        def update(self):
+            if self.canvas_origin and self.canvas_size:
+                if self.__calculate_layout_height(self.canvas_size[1]) != self.canvas_size[0]:
+                    self.update_layout(self.canvas_origin, self.canvas_size)
+            super(DataPanel.GridCanvasItem, self).update()
+
+        def _repaint_visible(self, drawing_context, visible_rect):
+            canvas_bounds = self.canvas_bounds
+
+            items_per_row = 4
+            item_width = int(canvas_bounds.width / items_per_row)
+            item_rows = int(canvas_bounds.height / item_width) + 1
+
+            drawing_context.save()
+
+            try:
+                max_index = len(self.__delegate.data_items)
+                top_visible_row = visible_rect.top / item_width
+                bottom_visible_row = visible_rect.bottom / item_width
+                index = top_visible_row * items_per_row
+                for row in xrange(top_visible_row, bottom_visible_row + 1):
+                    for column in xrange(items_per_row):
+                        if index < max_index:
+                            data_item = self.__delegate.data_items[index]
+                            is_selected = self.__delegate.selection.contains(index)
+                            def update_thumbail_data(thumbail_data):
+                                self.update()
+                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
+                            draw_rect = rect.inset(6)
+                            if rect.intersects_rect(visible_rect):
+                                thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.__delegate.ui, completion_fn=update_thumbail_data)
+                                if is_selected:
+                                    drawing_context.save()
+                                    drawing_context.begin_path()
+                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                    drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
+                                    drawing_context.fill()
+                                    drawing_context.restore()
+                                if thumbnail_data is not None:
+                                    draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                                    drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+                        index += 1
+            finally:
+                drawing_context.restore()
+
+        def _repaint(self, drawing_context):
+            self._repaint_visible(drawing_context, self.canvas_bounds)
+
+        def context_menu_event(self, x, y, gx, gy):
+            canvas_bounds = self.canvas_bounds
+
+            items_per_row = 4
+            item_width = int(canvas_bounds.width / items_per_row)
+            item_rows = int(canvas_bounds.height / item_width) + 1
+
+            max_index = len(self.__delegate.data_items)
+            mouse_row = int(y / item_width)
+            mouse_column = int(x / item_width)
+            mouse_index = mouse_row * items_per_row + mouse_column
+
+            if mouse_index >= 0 and mouse_index < max_index:
+                data_item = self.__delegate.data_items[mouse_index]
+                if self.__delegate.on_context_menu_event:
+                    self.__delegate.on_context_menu_event(data_item, x, y, gx, gy)
+
+        def mouse_pressed(self, x, y, modifiers):
+            canvas_bounds = self.canvas_bounds
+
+            items_per_row = 4
+            item_width = int(canvas_bounds.width / items_per_row)
+            item_rows = int(canvas_bounds.height / item_width) + 1
+
+            max_index = len(self.__delegate.data_items)
+            mouse_row = int(y / item_width)
+            mouse_column = int(x / item_width)
+            mouse_index = mouse_row * items_per_row + mouse_column
+
+            if mouse_index >= 0 and mouse_index < max_index:
+                if modifiers.shift:
+                    self.__delegate.selection.extend(mouse_index)
+                elif modifiers.control:
+                    self.__delegate.selection.toggle(mouse_index)
+                else:
+                    self.__delegate.selection.set(mouse_index)
+                    self.__mouse_pressed = True
+                    self.__mouse_position = Geometry.IntPoint(y=y, x=x)
+                    self.__mouse_index = mouse_index
+                self.update()
+                return True
+
+            return super(DataPanel.GridCanvasItem, self).mouse_pressed(x, y, modifiers)
+
+        def mouse_released(self, x, y, modifiers):
+            self.__mouse_pressed = False
+            self.__mouse_index = None
+            self.__mouse_position = None
+            self.__mouse_dragging = False
+            return True
+
+        def mouse_position_changed(self, x, y, modifiers):
+            if self.__mouse_pressed:
+                data_item = self.__delegate.data_items[self.__mouse_index]
+                if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
+                    self.__mouse_dragging = True
+                    self.__delegate.drag_started(data_item, x, y, modifiers)
+                    self.mouse_released(x, y, modifiers)  # once a drag starts, mouse release will not be called; call it here instead
+                    return True
+            return super(DataPanel.GridCanvasItem, self).mouse_position_changed(x, y, modifiers)
+
+
+    class DataItemSelection(Observable.Broadcaster):
+        def __init__(self):
+            super(DataPanel.DataItemSelection, self).__init__()
+            self.__indexes = set()
+            self.__anchor_index = None
+        # manage selection
+        def has_selection(self):
+            return len(self.__indexes) > 0
+        def contains(self, index):
+            return index in self.__indexes
+        def __get_indexes(self):
+            return self.__indexes
+        indexes = property(__get_indexes)
+        def clear(self):
+            old_index = self.__indexes.copy()
+            self.__indexes = set()
+            self.__anchor_index = None
+            if old_index != self.__indexes:
+                self.notify_listeners("selection_changed", self)
+        def __update_anchor_index(self):
+            for index in self.__indexes:
+                if self.__anchor_index is None or index < self.__anchor_index:
+                    self.__anchor_index = index
+        def add(self, index):
+            assert isinstance(index, numbers.Integral)
+            old_index = self.__indexes.copy()
+            self.__indexes.add(index)
+            if len(old_index) == 0:
+                self.__anchor_index = index
+            if old_index != self.__indexes:
+                self.notify_listeners("selection_changed", self)
+        def remove(self, index):
+            assert isinstance(index, numbers.Integral)
+            old_index = self.__indexes.copy()
+            self.__indexes.remove(index)
+            if not self.__anchor_index in self.__indexes:
+                self.__update_anchor_index()
+            if old_index != self.__indexes:
+                self.notify_listeners("selection_changed", self)
+        def set(self, index):
+            assert isinstance(index, numbers.Integral)
+            old_index = self.__indexes.copy()
+            self.__indexes = set()
+            self.__indexes.add(index)
+            self.__anchor_index = index
+            if old_index != self.__indexes:
+                self.notify_listeners("selection_changed", self)
+        def toggle(self, index):
+            assert isinstance(index, numbers.Integral)
+            if index in self.__indexes:
+                self.remove(index)
+            else:
+                self.add(index)
+        def extend(self, index):
+            assert isinstance(index, numbers.Integral)
+            old_index = self.__indexes.copy()
+            if index > self.__anchor_index:
+                for new_index in range(self.__anchor_index, index + 1):
+                    self.__indexes.add(new_index)
+            elif index < self.__anchor_index:
+                for new_index in range(index, self.__anchor_index + 1):
+                    self.__indexes.add(new_index)
+            if old_index != self.__indexes:
+                self.notify_listeners("selection_changed", self)
+        def insert_index(self, new_index):
+            new_indexes = set()
+            for index in self.__indexes:
+                if index < new_index:
+                    new_indexes.add(index)
+                else:
+                    new_indexes.add(index+1)
+            if self.__anchor_index is not None:
+                if new_index <= self.__anchor_index:
+                    self.__anchor_index += 1
+            if self.__indexes != new_indexes:
+                self.__indexes = new_indexes
+                self.notify_listeners("selection_changed", self)
+        def remove_index(self, remove_index):
+            new_indexes = set()
+            for index in self.__indexes:
+                if index != remove_index:
+                    if index > remove_index:
+                        new_indexes.add(index-1)
+                    else:
+                        new_indexes.add(index)
+            if self.__anchor_index is not None:
+                if remove_index == self.__anchor_index:
+                    self.__update_anchor_index()
+                elif remove_index < self.__anchor_index:
+                    self.__anchor_index -= 1
+            if self.__indexes != new_indexes:
+                self.__indexes = new_indexes
+                self.notify_listeners("selection_changed", self)
+
+
+    class DataGridController(object):
+
+        def __init__(self, document_controller):
+            super(DataPanel.DataGridController, self).__init__()
+            self.ui = document_controller.ui
+            self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+            self.icon_view_canvas_item = DataPanel.GridCanvasItem(self)
+            self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
+            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+            self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
+            self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
+            self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
+            self.widget = self.root_canvas_item.canvas_widget
+            self.__task_queue = Process.TaskQueue()
+            self.__binding = document_controller.filtered_data_items_binding
+            self.__data_items = list()  # data items being listened to
+            self.selection = DataPanel.DataItemSelection()
+            self.selection.add_listener(self)
+            self.selected_indexes = list()
+            self.on_selection_changed = None
+            self.on_context_menu_event = None
+            def data_item_inserted(data_item, before_index):
+                self.__data_item_inserted(data_item, before_index)
+            def data_item_removed(data_item, index):
+                self.__data_item_removed(data_item, index)
+            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
+            self.__document_controller_weakref = weakref.ref(document_controller)
+            # changed data items keep track of items whose content has changed
+            # the content changed messages may come from a thread so have to be
+            # moved to the main thread via this object.
+            self.__changed_data_items = set()
+            self.__changed_data_items_mutex = threading.RLock()
+
+        def close(self):
+            while len(self.__data_items) > 0:
+                self.__data_item_removed(self.__data_items[0], 0)
+            del self.__binding.inserters[id(self)]
+            del self.__binding.removers[id(self)]
+
+        def periodic(self):
+            self.__task_queue.perform_tasks()
+            # handle the 'changed' stuff
+            with self.__changed_data_items_mutex:
+                changed_data_items = self.__changed_data_items
+                self.__changed_data_items = set()
+            data_items = copy.copy(self.__binding.data_items)
+            # we might be receiving this message for an item that is no longer in the list
+            # if the item updates and the user switches panels. check and skip it if so.
+            for data_item in changed_data_items:
+                if data_item in data_items:
+                    index = data_items.index(data_item)
+                    # notify of change... nothing for now
+            if len(changed_data_items) > 0:
+                self.icon_view_canvas_item.update()
+
+        # thread safe
+        def queue_task(self, task):
+            self.__task_queue.put(task)
+
+        def __get_document_controller(self):
+            return self.__document_controller_weakref()
+        document_controller = property(__get_document_controller)
+
+        # this message comes from the data_item_selection and is set up in add_listener
+        def selection_changed(self, data_item_selection):
+            self.selected_indexes = list(data_item_selection.indexes)
+            if self.on_selection_changed:
+                self.on_selection_changed(list(data_item_selection.indexes))
+
+        # this messages from from the canvas item when a drag is started
+        def drag_started(self, data_item, x, y, modifiers):
+            mime_data = self.ui.create_mime_data()
+            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
+            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+
+        def __get_data_items(self):
+            return self.__binding.data_items
+        data_items = property(__get_data_items)
+
+        def get_data_item_by_index(self, index):
+            data_items = self.__binding.data_items
+            return data_items[index] if index >= 0 and index < len(data_items) else None
+
+        def get_data_item_index(self, data_item):
+            data_items = self.__binding.data_items
+            return data_items.index(data_item) if data_item in data_items else -1
+
+        # data_item_content_changed is received from data items tracked in this model.
+        # the connection is established in add_data_item using add_listener.
+        def data_item_content_changed(self, data_item, changes):
+            with self.__changed_data_items_mutex:
+                self.__changed_data_items.add(data_item)
+
+        # this method if called when one of our listened to items changes.
+        def __data_item_inserted(self, data_item, before_index):
+            # add the listener. this will result in calls to data_item_content_changed
+            data_item.add_listener(self)
+            self.__data_items.append(data_item)
+            self.selection.insert_index(before_index)
+            self.icon_view_canvas_item.update()
+
+        # this method if called when one of our listened to items changes
+        def __data_item_removed(self, data_item, index):
+            assert isinstance(data_item, DataItem.DataItem)
+            # remove the listener.
+            data_item.remove_listener(self)
+            self.__data_items.remove(data_item)
+            self.selection.insert_index(index)
+            self.icon_view_canvas_item.update()
+
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
@@ -625,6 +979,19 @@ class DataPanel(Panel.Panel):
 
         self.data_item_widget.on_context_menu_event = context_menu_event
 
+        def data_grid_focus_changed(focused):
+            self.data_grid_controller.icon_view_canvas_item.update()
+            self.__set_focused(focused)
+
+        def data_grid_context_menu_event(data_item, x, y, gx, gy):
+            container = DataGroup.get_data_item_container(self.data_item_model_controller.container, data_item)
+            self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
+
+        self.data_grid_controller = DataPanel.DataGridController(document_controller)
+        self.data_grid_controller.on_selection_changed = data_item_widget_selection_changed
+        self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
+        self.data_grid_controller.icon_view_canvas_item.on_focus_changed = data_grid_focus_changed
+
         library_label_row = ui.create_row_widget()
         library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
         library_label_row.add_spacing(8)
@@ -661,8 +1028,19 @@ class DataPanel(Panel.Panel):
         search_widget.add(search_line_edit)
         search_widget.add_spacing(16)
 
+        def tab_changed(index):
+            if index == 0:  # switching to data list?
+                data_item_widget_selection_changed(self.data_item_widget.selected_indexes)
+            elif index == 1:  # switching to data grid?
+                data_item_widget_selection_changed(self.data_grid_controller.selected_indexes)
+
+        data_view_widget = ui.create_tab_widget()
+        data_view_widget.on_current_index_changed = tab_changed
+        data_view_widget.add(self.data_item_widget, "List")
+        data_view_widget.add(self.data_grid_controller.widget, "Grid")
+
         slave_widget = ui.create_column_widget()
-        slave_widget.add(self.data_item_widget)
+        slave_widget.add(data_view_widget)
         slave_widget.add_spacing(6)
         slave_widget.add(search_widget)
         slave_widget.add_spacing(6)
@@ -720,6 +1098,7 @@ class DataPanel(Panel.Panel):
         super(DataPanel, self).periodic()
         self.data_item_model_controller.periodic()
         self.library_model_controller.periodic()
+        self.data_grid_controller.periodic()
 
     def restore_state(self):
         data_group_uuid_str = self.ui.get_persistent_string("selected_data_group")
@@ -754,7 +1133,10 @@ class DataPanel(Panel.Panel):
     def __set_focused(self, focused):
         self.__focused = focused
         if not self.__closing:
-            self.document_controller.set_selected_data_item(self.__selection.data_item)
+            if focused:
+                self.document_controller.set_selected_data_item(self.__selection.data_item)
+            else:
+                self.document_controller.set_selected_data_item(None)
     focused = property(__get_focused, __set_focused)
 
     def __get_data_item(self):
