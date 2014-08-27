@@ -635,7 +635,6 @@ class DataPanel(Panel.Panel):
                     self.__mouse_pressed = True
                     self.__mouse_position = Geometry.IntPoint(y=y, x=x)
                     self.__mouse_index = mouse_index
-                self.update()
                 return True
 
             return super(DataPanel.GridCanvasItem, self).mouse_pressed(x, y, modifiers)
@@ -824,6 +823,7 @@ class DataPanel(Panel.Panel):
             self.selected_indexes = list(data_item_selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed(list(data_item_selection.indexes))
+            self.icon_view_canvas_item.update()
 
         # this messages from from the canvas item when a drag is started
         def drag_started(self, data_item, x, y, modifiers):
@@ -1044,12 +1044,13 @@ class DataPanel(Panel.Panel):
         search_widget.add(self.buttons_canvas_item.canvas_widget)
         search_widget.add_spacing(8)
 
-        data_view_widget = ui.create_stack_widget()
-        data_view_widget.add(self.data_item_widget)
-        data_view_widget.add(self.data_grid_controller.widget)
+        self.data_view_widget = ui.create_stack_widget()
+        self.data_view_widget.add(self.data_item_widget)
+        self.data_view_widget.add(self.data_grid_controller.widget)
+        self.data_view_widget.current_index = 0
 
         def tab_changed(index):
-            data_view_widget.current_index = index
+            self.data_view_widget.current_index = index
             if index == 0:  # switching to data list?
                 data_item_widget_selection_changed(self.data_item_widget.selected_indexes)
                 list_icon_button.background_color = "#CCC"
@@ -1063,7 +1064,7 @@ class DataPanel(Panel.Panel):
         grid_icon_button.on_button_clicked = lambda: tab_changed(1)
 
         slave_widget = ui.create_column_widget()
-        slave_widget.add(data_view_widget)
+        slave_widget.add(self.data_view_widget)
         slave_widget.add_spacing(6)
         slave_widget.add(search_widget)
         slave_widget.add_spacing(6)
@@ -1195,7 +1196,10 @@ class DataPanel(Panel.Panel):
         self.periodic()  # ugh. sync the update so that it occurs before setting the index below.
         # update the data item selection
         #self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
-        self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
+        if self.data_view_widget.current_index == 0:
+            self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
+        else:
+            self.data_grid_controller.selection.set(self.data_grid_controller.get_data_item_index(data_item))
         self.__selection = data_panel_selection
         # save the users selection
         self.save_state()
