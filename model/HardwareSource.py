@@ -370,15 +370,17 @@ class HardwareSource(Observable.Broadcaster):
     def stop_acquisition(self):
         pass
 
+    # return whether acquisition is running
+    def __is_playing(self):
+        return self.data_buffer.is_playing
+    is_playing = property(__is_playing)
+
     # subclasses are expected to implement this function efficiently since it will
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
     # or indirectly) unless the data is immediately available, which it shouldn't be on
     # a regular basis. it is an error for this function to return an empty list of data_elements.
     # must be thread safe
     def acquire_data_elements(self):
-        raise NotImplementedError()
-
-    def __str__(self):
         raise NotImplementedError()
 
     # call this to start acquisition
