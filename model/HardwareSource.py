@@ -420,7 +420,7 @@ class HardwareSource(Observable.Broadcaster):
                     break
             return are_all_channel_stopped
 
-    # call this to update data items
+    # call this to update data items. returns the new channel state.
     # thread safe
     def __update_channel(self, channel, data_item, data_element):
         with self.__channel_states_mutex:
@@ -431,6 +431,7 @@ class HardwareSource(Observable.Broadcaster):
             # i.e. 'marked' can only transition to 'stopped'. leave it as 'marked' if nothing else.
             if not channel in self.__channel_states or self.__channel_states[channel] != "marked" or new_channel_state == "stopped":
                 self.__channel_states[channel] = new_channel_state
+        return self.__channel_states[channel]
 
     # update channel state.
     # channel state during normal acquisition: started -> (partial -> complete) -> stopped
@@ -450,6 +451,7 @@ class HardwareSource(Observable.Broadcaster):
         return channel_state
 
     # this message comes from the data buffer.
+    # data_elements is a list of data_elements; entries may be None
     # thread safe
     def data_elements_changed(self, hardware_source, data_elements):
         # TODO: deal wth overrun by asking for latest values.
@@ -471,10 +473,14 @@ class HardwareSource(Observable.Broadcaster):
             data_item.begin_transaction()
 
         # update the data items with the new data.
+        completed_data_items = []
         for channel in channels:
             data_element = channel_to_data_element_map[channel]
             data_item = new_channel_to_data_item_dict[channel]
-            self.__update_channel(channel, data_item, data_element)
+            if self.__update_channel(channel, data_item, data_element) == "complete":
+                completed_data_items.append(data_item)
+        if completed_data_items:
+            self.notify_listeners("hardware_source_updated_data_items", self, completed_data_items)
 
         # these items are no longer live. mark live_data as False.
         for channel, data_item in self.last_channel_to_data_item_dict.iteritems():
@@ -580,6 +586,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
 
     # thread safe
     # this will typically be called on the acquisition thread
+    # data_elements is a list of data_elements; entries may be None
     def on_new_data_elements(self, data_elements):
         if not self.hardware_port:
             data_elements = []
