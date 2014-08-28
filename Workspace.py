@@ -570,7 +570,9 @@ class WorkspaceController(AbstractWorkspaceController):
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
                 with self.__mutex:
                     self.__channel_activations.discard(channel_key)
-            data_item.session_id = self.session_id
+            # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
+            if data_item.session_id != self.session_id:
+                data_item.session_id = self.session_id
             with self.__mutex:
                 self.__channel_data_items[channel_key] = data_item
                 data_items[channel] = data_item
