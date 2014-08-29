@@ -416,7 +416,7 @@ class HardwareSource(Observable.Broadcaster):
             return self.__should_abort
         with self.__channel_states_mutex:
             are_all_channel_stopped = len(self.__channel_states) > 0
-            for channel, state in self.__channel_states.iteritems():
+            for state in self.__channel_states.values():
                 if state != "stopped":
                     are_all_channel_stopped = False
                     break
