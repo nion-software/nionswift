@@ -382,14 +382,8 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
                 self.__changed_data_items = set()
-            data_items = copy.copy(self.__binding.data_items)
-            # we might be receiving this message for an item that is no longer in the list
-            # if the item updates and the user switches panels. check and skip it if so.
-            for data_item in changed_data_items:
-                if data_item in data_items:
-                    index = data_items.index(data_item)
-                    properties = self.list_model_controller.model[index]
-                    self.list_model_controller.data_changed()
+            if len(changed_data_items) > 0:
+                self.list_model_controller.data_changed()
 
         # thread safe
         def queue_task(self, task):
@@ -789,13 +783,6 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
                 self.__changed_data_items = set()
-            data_items = copy.copy(self.__binding.data_items)
-            # we might be receiving this message for an item that is no longer in the list
-            # if the item updates and the user switches panels. check and skip it if so.
-            for data_item in changed_data_items:
-                if data_item in data_items:
-                    index = data_items.index(data_item)
-                    # notify of change... nothing for now
             if len(changed_data_items) > 0:
                 self.icon_view_canvas_item.update()
 
