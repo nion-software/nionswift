@@ -1455,7 +1455,7 @@ class ImagePanel(object):
     # added tasks do not guarantee execution order or execution at all.
 
     def add_task(self, key, task):
-        self.document_controller.add_task(key, task)
+        self.document_controller.add_task(key + str(id(self)), task)
 
     def queue_task(self, task):
         self.document_controller.put(task)

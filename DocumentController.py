@@ -42,9 +42,11 @@ class DocumentController(Observable.Broadcaster):
         self.ui = ui
         self.document_model = document_model
         self.document_window = self.ui.create_document_window()
-        self.document_window.on_periodic = lambda: self.periodic()
-        self.document_window.on_about_to_show = lambda: self.about_to_show()
-        self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
+        self.document_window.on_periodic = self.periodic
+        self.document_window.on_queue_task = self.queue_task
+        self.document_window.on_add_task = self.add_task
+        self.document_window.on_about_to_show = self.about_to_show
+        self.document_window.on_about_to_close = self.about_to_close
         if app:
             self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), os.path.splitext(os.path.split(app.workspace_dir)[1])[0])
         self.workspace = None
@@ -296,7 +298,7 @@ class DocumentController(Observable.Broadcaster):
     # added tasks do not guarantee execution order or execution at all.
 
     def add_task(self, key, task):
-        self.__periodic_set.add_task(key, task)
+        self.__periodic_set.add_task(key + str(id(self)), task)
 
     def queue_task(self, task):
         self.__periodic_queue.put(task)
