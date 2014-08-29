@@ -90,19 +90,19 @@ class DataSourceUuidList(object):
 
 class IntermediateDataItem(object):
 
+    class IntermediateDataAccessor(object):
+        def __init__(self, data_item):
+            self.__data_item = data_item
+        def __get_data(self):
+            with self.__data_item.data_ref() as data_ref:
+                return data_ref.master_data
+        data = property(__get_data)
+
     def __init__(self, data_item, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
         super(IntermediateDataItem, self).__init__()
 
-        class IntermediateDataAccessor(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __get_data(self):
-                with self.__data_item.data_ref() as data_ref:
-                    return data_ref.master_data
-            data = property(__get_data)
-
         self.__data_item = data_item
-        self.__data_accessor = IntermediateDataAccessor(data_item)
+        self.__data_accessor = IntermediateDataItem.IntermediateDataAccessor(data_item)
         self.data_shape_and_dtype = data_shape_and_dtype
         self.calculated_intensity_calibration = intensity_calibration
         self.calculated_calibrations = spatial_calibrations
@@ -240,6 +240,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
+        self.__cached_data_shape_and_dtype = None
         self.uuid = item_uuid if item_uuid else self.uuid
         self.writer_version = 5  # writes this version
         self.__transaction_count = 0
@@ -494,6 +495,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             # clear the data cache and preview if the data changed
             if DATA in changes or SOURCE in changes:
                 self.__clear_cached_data()
+                self.__cached_data_shape_and_dtype = None
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -797,6 +799,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     # we will receive data_item_content_changed from data_source
                     data_source.add_listener(self)
                     self.__data_sources.append(data_source)
+                    self.__cached_data_shape_and_dtype = None
             self.sync_operations()
         self.data_item_content_changed(None, set([SOURCE]))
 
@@ -807,6 +810,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             for data_source in copy.copy(self.__data_sources):
                 data_source.remove_listener(self)
                 self.__data_sources.remove(data_source)
+                self.__cached_data_shape_and_dtype = None
         self.__lookup_data_item = None
         self.__direct_data_sources = None
 
@@ -828,6 +832,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # we don't care about display changes to the data source; only data changes.
         if DATA in changes:
             # propogate to listeners
+            self.__cached_data_shape_and_dtype = None
             self.notify_data_item_content_changed(changes)
 
     def __get_data_source(self):
@@ -857,6 +862,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __get_master_data(self):
         return self.__master_data
     def __set_master_data(self, data):
+        self.__cached_data_shape_and_dtype = None
         with self.data_item_changes():
             assert not self.closed or data is None
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
@@ -1008,8 +1014,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     data_outputs = property(__get_data_outputs)
 
     def __get_data_shape_and_dtype(self):
-        data_outputs = self.data_outputs
-        return data_outputs[0].data_shape_and_dtype if len(data_outputs) == 1 else (None, None)
+        if self.__cached_data_shape_and_dtype is None:
+            data_outputs = self.data_outputs
+            self.__cached_data_shape_and_dtype = data_outputs[0].data_shape_and_dtype if len(data_outputs) == 1 else (None, None)
+        return self.__cached_data_shape_and_dtype
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):
