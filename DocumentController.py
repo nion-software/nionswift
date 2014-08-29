@@ -57,6 +57,7 @@ class DocumentController(Observable.Broadcaster):
         self.weak_data_panel = None
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
+        self.__periodic_set = Process.TaskSet()
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -289,16 +290,34 @@ class DocumentController(Observable.Broadcaster):
         return []
     panels = property(__get_panels)
 
+    # tasks can be added in two ways, queued or added
+    # queued tasks are guaranteed to be executed in the order queued.
+    # added tasks are only executed if not replaced before execution.
+    # added tasks do not guarantee execution order or execution at all.
+
+    def add_task(self, key, task):
+        self.__periodic_set.add_task(key, task)
+
+    def queue_task(self, task):
+        self.__periodic_queue.put(task)
+
     def queue_main_thread_task(self, task):
         self.__periodic_queue.put(task)
 
     def periodic(self):
+        #import time
+        #t0 = time.time()
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
+        self.__periodic_set.perform_tasks()
+        #t1 = time.time()
         # workspace
         if self.workspace:
             self.workspace.periodic()
+        #t2 = time.time()
         self.filter_controller.periodic()
+        #t3 = time.time()
+        #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
 
     def __get_workspace_controller(self):
         if not self.__workspace_controller:

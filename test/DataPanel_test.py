@@ -332,11 +332,13 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item3)
         data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group, data_item2))
+        document_controller.periodic()
         data_panel.periodic()
         # verify assumptions
         self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 3)
         # delete 2nd item
         data_group.remove_data_item(data_group.data_items[1])
+        document_controller.periodic()
         data_panel.periodic()
         self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 2)
         self.assertEqual(data_panel.data_item_model_controller._get_model_data(0)["uuid"], str(data_item1.uuid))
@@ -345,6 +347,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item4 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item4.title = "data_item4"
         data_group.insert_data_item(1, data_item4)
+        document_controller.periodic()
         data_panel.periodic()
         self.assertEqual(data_panel.data_item_model_controller._get_model_data_count(), 3)
         self.assertEqual(data_panel.data_item_model_controller._get_model_data(0)["uuid"], str(data_item1.uuid))

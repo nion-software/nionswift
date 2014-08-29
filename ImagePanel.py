@@ -1402,10 +1402,6 @@ class ImagePanel(object):
         self.document_controller = document_controller
         self.ui = document_controller.ui
 
-        # useful for many panels.
-        self.__periodic_task_queue = Process.TaskQueue()
-        self.__periodic_task_set = Process.TaskSet()
-
         self.__display = None
 
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
@@ -1453,19 +1449,16 @@ class ImagePanel(object):
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
 
-    # not thread safe. always call from main thread.
-    def periodic(self):
-        self.__periodic_task_queue.perform_tasks()
-        self.__periodic_task_set.perform_tasks()
-
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
     # added tasks are only executed if not replaced before execution.
     # added tasks do not guarantee execution order or execution at all.
+
     def add_task(self, key, task):
-        self.__periodic_task_set.add_task(key, task)
+        self.document_controller.add_task(key, task)
+
     def queue_task(self, task):
-        self.__periodic_task_queue.put(task)
+        self.document_controller.put(task)
 
     # return a dictionary that can be used to restore the content of this image panel
     def save_content(self):

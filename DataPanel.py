@@ -62,8 +62,8 @@ class DataPanel(Panel.Panel):
 
     class LibraryItemController(object):
 
-        def __init__(self, binding):
-            self.__task_queue = Process.TaskQueue()
+        def __init__(self, document_controller, binding):
+            self.document_controller = document_controller
             self.__count = 0
             self.title_updater = None
             self.__binding = binding
@@ -90,12 +90,9 @@ class DataPanel(Panel.Panel):
             self.__binding.close()
             self.__binding = None
 
-        def periodic(self):
-            self.__task_queue.perform_tasks()
-
         # thread safe
         def queue_task(self, task):
-            self.__task_queue.put(task)
+            self.document_controller.queue_task(task)
 
 
     class LibraryModelController(object):
@@ -111,8 +108,8 @@ class DataPanel(Panel.Panel):
             self.__item_controllers = list()
             self.__item_count = 0
             # build the items
-            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, None)))
-            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller.create_data_item_binding(None, "latest-session")))
+            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller, document_controller.create_data_item_binding(None, None)))
+            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller, document_controller.create_data_item_binding(None, "latest-session")))
 
         def close(self):
             for item_controller in self.__item_controllers:
@@ -120,10 +117,6 @@ class DataPanel(Panel.Panel):
             self.__item_controllers = None
             self.item_model_controller.close()
             self.item_model_controller = None
-
-        def periodic(self):
-            for item_controller in self.__item_controllers:
-                item_controller.periodic()
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -358,7 +351,6 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
-            self.__task_queue = Process.TaskQueue()
             self.__binding = document_controller.filtered_data_items_binding
             self.__data_items = list()  # data items being listened to
             def data_item_inserted(data_item, before_index):
@@ -386,7 +378,6 @@ class DataPanel(Panel.Panel):
             self.list_model_controller = None
 
         def periodic(self):
-            self.__task_queue.perform_tasks()
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
@@ -402,7 +393,7 @@ class DataPanel(Panel.Panel):
 
         # thread safe
         def queue_task(self, task):
-            self.__task_queue.put(task)
+            self.document_controller.queue_task(task)
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -767,7 +758,6 @@ class DataPanel(Panel.Panel):
             self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
             self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
             self.widget = self.root_canvas_item.canvas_widget
-            self.__task_queue = Process.TaskQueue()
             self.__binding = document_controller.filtered_data_items_binding
             self.__data_items = list()  # data items being listened to
             self.selection = DataPanel.DataItemSelection()
@@ -795,7 +785,6 @@ class DataPanel(Panel.Panel):
             del self.__binding.removers[id(self)]
 
         def periodic(self):
-            self.__task_queue.perform_tasks()
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
@@ -812,7 +801,7 @@ class DataPanel(Panel.Panel):
 
         # thread safe
         def queue_task(self, task):
-            self.__task_queue.put(task)
+            self.document_controller.queue_task(task)
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -1121,7 +1110,6 @@ class DataPanel(Panel.Panel):
     def periodic(self):
         super(DataPanel, self).periodic()
         self.data_item_model_controller.periodic()
-        self.library_model_controller.periodic()
         self.data_grid_controller.periodic()
 
     def restore_state(self):

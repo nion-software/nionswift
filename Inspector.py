@@ -58,11 +58,6 @@ class InspectorPanel(Panel.Panel):
         # finish closing
         super(InspectorPanel, self).close()
 
-    def periodic(self):
-        super(InspectorPanel, self).periodic()
-        if self.__display_inspector:
-            self.__display_inspector.periodic()
-
     # close the old data item inspector, and create a new one
     # not thread safe.
     def __update_display_inspector(self):
@@ -90,7 +85,7 @@ class InspectorPanel(Panel.Panel):
     def data_item_binding_display_changed(self, display):
         def update_display():
             self.__set_display(display)
-        self.add_task("update_display", update_display)
+        self.document_controller.add_task("update_display", update_display)
 
 
 class InspectorSection(object):
@@ -103,7 +98,6 @@ class InspectorSection(object):
 
     def __init__(self, ui, section_title):
         self.ui = ui
-        self.__task_set = Process.TaskSet()
         self.__section_widget = self.ui.create_column_widget()
         section_title_row = self.ui.create_row_widget()
         #section_title_row.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
@@ -120,12 +114,6 @@ class InspectorSection(object):
 
     def close(self):
         pass
-
-    def periodic(self):
-        self.__task_set.perform_tasks()
-
-    def add_task(self, key, task):
-        self.__task_set.add_task(key, task)
 
     def add_widget_to_content(self, widget):
         self.__section_content_column.add_spacing(4)
@@ -994,11 +982,6 @@ class DataItemInspector(object):
         # close inspectors
         for inspector in self.__inspectors:
             inspector.close()
-
-    # update the values if needed
-    def periodic(self):
-        for inspector in self.__inspectors:
-            inspector.periodic()
 
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """
