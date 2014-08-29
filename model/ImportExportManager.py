@@ -240,16 +240,19 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         with data_item.data_ref() as data_ref:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
-            data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
-            if data_matches and data_ref.master_data is not None and sub_area is not None:
+            if sub_area is not None:
                 top = sub_area[0][0]
                 bottom = sub_area[0][0] + sub_area[1][0]
                 left = sub_area[0][1]
                 right = sub_area[0][1] + sub_area[1][1]
+                if top == 0 and left == 0 and bottom == data.shape[0] and right == data.shape[1]:
+                    sub_area = None  # sub-area is specified, but specifies entire data
+            data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
+            if data_matches and data_ref.master_data is not None and sub_area is not None:
                 data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
                 data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
             else:
-                data_ref.master_data = data
+                data_ref.master_data = data.copy()
         # spatial calibrations
         if "spatial_calibrations" in data_element:
             spatial_calibrations = data_element.get("spatial_calibrations")
