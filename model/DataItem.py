@@ -418,8 +418,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if transaction_count == 0:
             self.spill_cache()
             if self.managed_object_context:
-                self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
+                self.managed_object_context.write_data_item(self)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
+
+    def _update_managed_object_context_property(self, name):
+        if self.__transaction_count == 0:
+            super(DataItem, self)._update_managed_object_context_property(name)
 
     def get_data_file_info(self):
         if self.managed_object_context:
