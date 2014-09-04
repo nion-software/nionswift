@@ -205,14 +205,27 @@ class HardwareSourcePort(object):
         self.hardware_source = hardware_source
         self.on_new_data_elements = None
         self.last_data_elements = None
+        self.__finished_event = threading.Event()
 
     def get_last_data_elements(self):
         return self.last_data_elements
 
+    # thread safe.
+    def get_new_data_elements(self):
+        # wait for the last frame to finish
+        self.__finished_event.clear()
+        self.__finished_event.wait()
+        # wait for the new frame to arrive
+        self.__finished_event.clear()
+        self.__finished_event.wait()
+        return self.last_data_elements
+
+    # thread safe.
     def _set_new_data_elements(self, data_elements):
         self.last_data_elements = data_elements
         if self.on_new_data_elements:
             self.on_new_data_elements(self.last_data_elements)
+        self.__finished_event.set()
 
     def close(self):
         self.hardware_source.remove_port(self)
@@ -611,9 +624,15 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
 
 @contextmanager
 def get_data_element_generator_by_id(hardware_source_id):
+    """
+        Return a generator for data elements.
+
+        NOTE: data elements may return the same ndarray (with different data) each time it is called.
+        Callers should handle appropriately.
+    """
     port = __find_hardware_port_by_id(hardware_source_id)
     def get_last_data_element():
-        return port.get_last_data_elements()[0]
+        return port.get_new_data_elements()[0]
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
     try:
@@ -626,15 +645,25 @@ def get_data_element_generator_by_id(hardware_source_id):
 
 @contextmanager
 def get_data_generator_by_id(hardware_source_id):
+    """
+        Return a generator for data.
+
+        NOTE: a new ndarray is created for each call.
+    """
     with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
         def get_last_data():
-            return data_element_generator()["data"]
+            return data_element_generator()["data"].copy()
         # error handling not necessary here - occurs above with get_data_element_generator_by_id function
         yield get_last_data
 
 
 @contextmanager
 def get_data_item_generator_by_id(hardware_source_id):
+    """
+        Return a generator for data item.
+
+        NOTE: a new data item is created for each call.
+    """
     with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
         def get_last_data_item():
             return ImportExportManager.create_data_item_from_data_element(data_element_generator())
