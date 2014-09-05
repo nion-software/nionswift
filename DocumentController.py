@@ -152,7 +152,7 @@ class DocumentController(Observable.Broadcaster):
         self.new_action = self.file_menu.add_sub_menu(_("Switch Workspace"), self.workspace_menu)
         self.file_menu.add_separator()
         self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
-        self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_file())
+        self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_files())
         #self.file_menu.add_separator()
         #self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
@@ -506,6 +506,23 @@ class DocumentController(Observable.Broadcaster):
         self.ui.set_persistent_string("export_directory", selected_directory)
         if path:
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
+
+    def export_files(self):
+        if len(self.__selected_data_items) > 1:
+            directory = self.ui.get_document_location()
+            existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
+            for index, data_item in enumerate(self.__selected_data_items):
+                try:
+                    pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.spatial_shape])
+                    date_str = Utility.get_datetime_from_datetime_item(data_item.datetime_original).isoformat().replace(':', '')
+                    path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
+                    ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
+                except Exception as e:
+                    logging.debug("Could not export image %s", str(data_item))
+                    traceback.print_exc()
+                    logging.debug("Error: %s", e)
+        else:
+            self.export_file()
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):
