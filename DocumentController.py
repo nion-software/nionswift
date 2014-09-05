@@ -60,6 +60,7 @@ class DocumentController(Observable.Broadcaster):
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
+        self.__selected_data_items = list()  # this will be updated by the data panel when one or more data items are selected
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -416,6 +417,9 @@ class DocumentController(Observable.Broadcaster):
     # element gets focus or the data item is removed from the document.
     def set_selected_data_item(self, selected_data_item):
         self.notify_listeners("selected_data_item_changed", selected_data_item)
+
+    def set_selected_data_items(self, selected_data_items):
+        self.__selected_data_items = selected_data_items
 
     def sync_data_item(self, data_item):
         """
