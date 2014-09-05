@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import functools
 import gettext
 import logging
@@ -508,19 +509,21 @@ class DocumentController(Observable.Broadcaster):
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
     def export_files(self):
-        if len(self.__selected_data_items) > 1:
+        selected_data_items = copy.copy(self.__selected_data_items)
+        if len(selected_data_items) > 1:
             directory = self.ui.get_document_location()
             existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
-            for index, data_item in enumerate(self.__selected_data_items):
-                try:
-                    pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.spatial_shape])
-                    date_str = Utility.get_datetime_from_datetime_item(data_item.datetime_original).isoformat().replace(':', '')
-                    path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
-                    ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
-                except Exception as e:
-                    logging.debug("Could not export image %s", str(data_item))
-                    traceback.print_exc()
-                    logging.debug("Error: %s", e)
+            if directory:
+                for index, data_item in enumerate(selected_data_items):
+                    try:
+                        pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.spatial_shape])
+                        date_str = Utility.get_datetime_from_datetime_item(data_item.datetime_original).isoformat().replace(':', '')
+                        path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
+                        ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
+                    except Exception as e:
+                        logging.debug("Could not export image %s", str(data_item))
+                        traceback.print_exc()
+                        logging.debug("Error: %s", e)
         else:
             self.export_file()
 
