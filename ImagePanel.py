@@ -1629,9 +1629,10 @@ class ImagePanel(object):
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-            self.document_controller.replaced_data_item = self.get_displayed_data_item()
-            self.__set_display(data_item.displays[0])
-            return "copy"
+            if data_item:
+                self.document_controller.replaced_data_item = self.get_displayed_data_item()
+                self.__set_display(data_item.displays[0])
+                return "copy"
         if mime_data.has_format("text/uri-list"):
             def receive_files_complete(received_data_items):
                 def update_displayed_data_item():
