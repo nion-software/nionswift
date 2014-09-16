@@ -341,8 +341,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__display = None
-        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_display_on_thread())
-        self.__paint_thread.start()
+        self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
+        self.__prepare_data_thread.start()
 
         self.preferred_aspect_ratio = 1.618  # the golden ratio
 
@@ -358,8 +358,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_vertical = False
 
     def close(self):
-        self.__paint_thread.close()
-        self.__paint_thread = None
+        self.__prepare_data_thread.close()
+        self.__prepare_data_thread = None
         self.update_display(None)
         # call super
         super(LinePlotCanvasItem, self).close()
@@ -390,11 +390,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
-        if self.__paint_thread:
-            self.__paint_thread.trigger()
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.trigger()
 
-    def wait_for_paint(self):
-        self.__paint_thread.trigger(wait=True)
+    def wait_for_prepare_data(self):
+        self.__prepare_data_thread.trigger(wait=True)
 
     def selection_changed(self, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
@@ -425,7 +425,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas item.
-    def paint_display_on_thread(self):
+    def prepare_display_on_thread(self):
 
         display = self.__display
 
@@ -466,7 +466,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             data_info.data_right = right_channel
             data_info.intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
             data_info.spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
-            self.__update_data_info(data_info)
+
+            def update_data_info():
+                self.__update_data_info(data_info)
+
+            self.delegate.queue_task(update_data_info)
 
     def __update_data_info(self, data_info):
         self.line_graph_canvas_item.data_info = copy.copy(data_info)
@@ -474,6 +478,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_regions_canvas_item.data_info = data_info
         self.line_graph_regions_canvas_item.update()
         canvas_bounds = self.canvas_bounds
+        canvas_rect = self.canvas_rect
         self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
         if canvas_bounds:
             self.line_graph_vertical_axis_label_canvas_item.size_to_content(canvas_bounds)
@@ -493,7 +498,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_horizontal_axis_ticks_canvas_item.update()
         if canvas_bounds:
-            self.update_layout(canvas_bounds.origin, canvas_bounds.size)
+            self.update_layout(canvas_rect.origin, canvas_rect.size)
             self.update()
 
     def mouse_entered(self):
@@ -831,8 +836,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__display = None
-        self.__paint_thread = ThreadPool.ThreadDispatcher(lambda: self.paint_display_on_thread())
-        self.__paint_thread.start()
+        self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
+        self.__prepare_data_thread.start()
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -844,8 +849,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
     def close(self):
-        self.__paint_thread.close()
-        self.__paint_thread = None
+        self.__prepare_data_thread.close()
+        self.__prepare_data_thread = None
         self.update_display(None)
         # call super
         super(ImageCanvasItem, self).close()
@@ -884,11 +889,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
-        if self.__paint_thread:
-            self.__paint_thread.trigger()
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.trigger()
 
-    def wait_for_paint(self):
-        self.__paint_thread.trigger(wait=True)
+    def wait_for_prepare_data(self):
+        self.__prepare_data_thread.trigger(wait=True)
 
     def selection_changed(self, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
@@ -1238,7 +1243,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
-    def paint_display_on_thread(self):
+    def prepare_display_on_thread(self):
 
         display = self.__display
 
@@ -1251,15 +1256,18 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             # TODO: fix me 3d
             assert data_item.is_data_2d or data_item.is_data_3d
 
-            # grab the bitmap image
-            rgba_image = display.preview_2d
-            self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
+            def update_ui():
+                # grab the bitmap image
+                rgba_image = display.preview_2d
+                self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
+                # update the graphics canvas
+                self.graphics_canvas_item.display = display
+                self.graphics_canvas_item.update()
+                # update the info overlay
+                self.info_overlay_canvas_item.display = display
+                self.info_overlay_canvas_item.update()
 
-            self.graphics_canvas_item.display = display
-            self.graphics_canvas_item.update()
-
-            self.info_overlay_canvas_item.display = display
-            self.info_overlay_canvas_item.update()
+            self.delegate.queue_task(update_ui)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
@@ -1458,7 +1466,7 @@ class ImagePanel(object):
         self.document_controller.add_task(key + str(id(self)), task)
 
     def queue_task(self, task):
-        self.document_controller.put(task)
+        self.document_controller.queue_task(task)
 
     # return a dictionary that can be used to restore the content of this image panel
     def save_content(self):
