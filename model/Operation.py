@@ -611,22 +611,18 @@ class LineProfileOperation(Operation):
 
     def __init__(self):
         description = [
-            { "name": _("Start"), "property": "start", "type": "point", "default": (0.25, 0.25) },
-            { "name": _("End"), "property": "end", "type": "point", "default": (0.75, 0.75) },
+            { "name": _("Vector"), "property": "vector", "type": "vector", "default": ((0.25, 0.25), (0.75, 0.75)) },
             { "name": _("Integration Width"), "property": "integration_width", "type": "integer-field", "default": 1 }
         ]
         super(LineProfileOperation, self).__init__(_("Line Profile"), "line-profile-operation", description)
-        self.start = (0.25, 0.25)
-        self.end = (0.75, 0.75)
+        self.vector = ((0.25, 0.25), (0.75, 0.75))
         self.integration_width = 1
         self.region_types = {"line": "line-region"}
-        self.region_bindings = {"line": [RegionBinding("start", "start"),
-                                         RegionBinding("end", "end"),
+        self.region_bindings = {"line": [RegionBinding("vector", "vector"),
                                          RegionBinding("integration_width", "width")]}
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        start = self.get_property("start")
-        end = self.get_property("end")
+        start, end = self.get_property("vector")
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -665,8 +661,7 @@ class LineProfileOperation(Operation):
         assert Image.is_data_2d(data)
         if Image.is_data_rgb_type(data):
             data = Image.convert_to_grayscale(data, numpy.double)
-        start = self.get_property("start")
-        end = self.get_property("end")
+        start, end = self.get_property("vector")
         integration_width = int(self.get_property("integration_width"))
         shape = data.shape
         integration_width = min(max(shape[0], shape[1]), integration_width)  # limit integration width to sensible value

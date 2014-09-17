@@ -603,8 +603,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2 = DataItem.DataItem()
         document_model.append_data_item(data_item2)
         line_profile_operation = Operation.OperationItem("line-profile-operation")
-        line_profile_operation.set_property("start", (0.1, 0.2))
-        line_profile_operation.set_property("end", (0.3, 0.4))
+        line_profile_operation.set_property("vector", ((0.1, 0.2), (0.3, 0.4)))
         line_profile_operation.establish_associated_region("line", data_item, Region.LineRegion())
         data_item2.add_operation(line_profile_operation)
         data_item2.add_data_source(data_item)
@@ -615,11 +614,13 @@ class TestStorageClass(unittest.TestCase):
         # verify that properties read it correctly
         self.assertEqual(document_model.data_items[0].regions[0].start, (0.1, 0.2))
         self.assertEqual(document_model.data_items[0].regions[0].end, (0.3, 0.4))
-        self.assertEqual(document_model.data_items[1].operations[0].values["start"], (0.1, 0.2))
-        self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
+        start,end = document_model.data_items[1].operations[0].values["vector"]
+        self.assertEqual(start, (0.1, 0.2))
+        self.assertEqual(end, (0.3, 0.4))
         document_model.data_items[0].regions[0].start = 0.11, 0.22
-        self.assertEqual(document_model.data_items[1].operations[0].values["start"], (0.11, 0.22))
-        self.assertEqual(document_model.data_items[1].operations[0].values["end"], (0.3, 0.4))
+        start,end = document_model.data_items[1].operations[0].values["vector"]
+        self.assertEqual(start, (0.11, 0.22))
+        self.assertEqual(end, (0.3, 0.4))
         # clean up
         document_controller.close()
 

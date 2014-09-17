@@ -346,7 +346,6 @@ class LineTypeGraphic(Graphic):
     def __init__(self, type, title):
         super(LineTypeGraphic, self).__init__(type)
         self.title = title
-        # start and end points are stored in image normalized coordinates
         def read_vector(managed_property, properties):
             # read the vector defined by managed_property from the properties dict.
             start = properties.get("start", (0.0, 0.0))
@@ -356,6 +355,7 @@ class LineTypeGraphic(Graphic):
             # write the vector (value) defined by managed_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
+        # vector is stored in image normalized coordinates
         self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector)
         self.define_property("start_arrow_enabled", False, changed=self._property_changed)
         self.define_property("end_arrow_enabled", False, changed=self._property_changed)

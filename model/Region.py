@@ -68,16 +68,41 @@ class LineRegion(Region):
 
     def __init__(self):
         super(LineRegion, self).__init__("line-region")
-        self.define_property("start", (0.0, 0.0), changed=self._property_changed)
-        self.define_property("end", (1.0, 1.0), changed=self._property_changed)
+        def read_vector(managed_property, properties):
+            # read the vector defined by managed_property from the properties dict.
+            start = properties.get("start", (0.0, 0.0))
+            end = properties.get("end", (1.0, 1.0))
+            return start, end
+        def write_vector(managed_property, properties, value):
+            # write the vector (value) defined by managed_property to the properties dict.
+            properties["start"] = value[0]
+            properties["end"] = value[1]
+        # vector is stored in image normalized coordinates
+        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector)
         self.define_property("width", 1.0, changed=self._property_changed)
         self.__graphic = Graphics.LineProfileGraphic()
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
         self.__graphic.add_listener(self)
-        self.__start_binding = RegionPropertyToGraphicBinding(self, "start", self.__graphic, "start")
-        self.__end_binding = RegionPropertyToGraphicBinding(self, "end", self.__graphic, "end")
+        self.__vector_binding = RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector")
         self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
+
+    def __vector_changed(self, name, value):
+        super(LineRegion, self)._property_changed(name, value)
+        self.notify_set_property("start", value[0])
+        self.notify_set_property("end", value[1])
+
+    def __get_start(self):
+        return self.vector[0]
+    def __set_start(self, start):
+        self.vector = start, self.end
+    start = property(__get_start, __set_start)
+
+    def __get_end(self):
+        return self.vector[1]
+    def __set_end(self, end):
+        self.vector = self.start, end
+    end = property(__get_end, __set_end)
 
     def __get_graphic(self):
         return self.__graphic
