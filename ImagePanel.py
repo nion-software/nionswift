@@ -470,7 +470,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             def update_data_info():
                 self.__update_data_info(data_info)
 
-            self.delegate.queue_task(update_data_info)
+            self.delegate.add_task("prepare", update_data_info)
 
     def __update_data_info(self, data_info):
         self.line_graph_canvas_item.data_info = copy.copy(data_info)
@@ -1267,7 +1267,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.info_overlay_canvas_item.display = display
                 self.info_overlay_canvas_item.update()
 
-            self.delegate.queue_task(update_ui)
+            self.delegate.add_task("prepare", update_ui)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
