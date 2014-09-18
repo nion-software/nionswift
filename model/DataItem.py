@@ -408,7 +408,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
         assert count > 0
         with self.__transaction_count_mutex:
+            old_transaction_count = self.__transaction_count
             self.__transaction_count += count
+        if old_transaction_count == 0:
+            if self.managed_object_context:
+                self.managed_object_context.write_delayed = True
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
@@ -423,12 +427,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if transaction_count == 0:
             self.spill_cache()
             if self.managed_object_context:
+                self.managed_object_context.write_delayed = False
                 self.managed_object_context.write_data_item(self)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
-
-    def _update_managed_object_context_property(self, name):
-        if self.__transaction_count == 0:
-            super(DataItem, self)._update_managed_object_context_property(name)
 
     def get_data_file_info(self):
         if self.managed_object_context:
@@ -907,9 +908,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.sync_intrinsic_spatial_calibrations()
             # tell the managed object context about it
             if self.__master_data is not None:
-                if self.__transaction_count == 0:  # no race is possible here. just write it.
-                    if self.managed_object_context:
-                        self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
+                if self.managed_object_context:
+                    self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
                 self.notify_set_property("data_range", self.data_range)
             self.notify_data_item_content_changed(set([DATA]))
 

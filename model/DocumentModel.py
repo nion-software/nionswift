@@ -352,8 +352,9 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             self.rewrite_data_item_data(data_item, data=data_ref.master_data)
 
     def rewrite_data_item_data(self, data_item, data):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
-        persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
+        if not self.write_delayed:
+            persistent_storage = self.get_persistent_storage_for_object(data_item)
+            persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
