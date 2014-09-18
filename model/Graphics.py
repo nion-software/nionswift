@@ -603,8 +603,33 @@ class IntervalGraphic(Graphic):
         super(IntervalGraphic, self).__init__("interval-graphic")
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
-        self.define_property("start", 0.0, changed=self._property_changed)
-        self.define_property("end", 1.0, changed=self._property_changed)
+        def read_interval(managed_property, properties):
+            # read the interval defined by managed_property from the properties dict.
+            start = properties.get("start", 0.0)
+            end = properties.get("end", 1.0)
+            return start, end
+        def write_interval(managed_property, properties, value):
+            # write the interval (value) defined by managed_property to the properties dict.
+            properties["start"] = value[0]
+            properties["end"] = value[1]
+        # interval is stored in image normalized coordinates
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval)
+    # accessors
+    def __get_start(self):
+        return self.interval[0]
+    def __set_start(self, start):
+        self.interval = start, self.interval[1]
+    start = property(__get_start, __set_start)
+    def __get_end(self):
+        return self.interval[1]
+    def __set_end(self, end):
+        self.interval = self.interval[0], end
+    end = property(__get_end, __set_end)
+    # dependent properties
+    def __interval_changed(self, name, value):
+        self._property_changed(name, value)
+        self.notify_set_property("start", value[0])
+        self.notify_set_property("end", value[1])
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -635,8 +660,7 @@ class IntervalGraphic(Graphic):
         elif part[0] == "end":
             self.end = p
         elif part[0] == "all":
-            self.start = part[1] + (p - o)
-            self.end = part[2] + (p - o)
+            self.interval = (part[1] + (p - o), part[2] + (p - o))
     def nudge(self, mapping, delta):
         end_channel = mapping.map_point_channel_norm_to_channel(self.end)
         start_channel = mapping.map_point_channel_norm_to_channel(self.start)

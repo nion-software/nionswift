@@ -88,7 +88,7 @@ class LineRegion(Region):
         self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
 
     def __vector_changed(self, name, value):
-        super(LineRegion, self)._property_changed(name, value)
+        self._property_changed(name, value)
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
 
@@ -153,13 +153,20 @@ class IntervalRegion(Region):
 
     def __init__(self):
         super(IntervalRegion, self).__init__("interval-region")
-        self.define_property("start", 0.0, changed=self.__interval_changed)
-        self.define_property("end", 1.0, changed=self.__interval_changed)
+        def read_interval(managed_property, properties):
+            # read the interval defined by managed_property from the properties dict.
+            start = properties.get("start", 0.0)
+            end = properties.get("end", 1.0)
+            return start, end
+        def write_interval(managed_property, properties, value):
+            # write the interval (value) defined by managed_property to the properties dict.
+            properties["start"] = value[0]
+            properties["end"] = value[1]
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval)
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
-        self.__start_binding = RegionPropertyToGraphicBinding(self, "start", self.__graphic, "start")
-        self.__end_binding = RegionPropertyToGraphicBinding(self, "end", self.__graphic, "end")
+        self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
 
     def __get_graphic(self):
         return self.__graphic
@@ -170,16 +177,21 @@ class IntervalRegion(Region):
         self.notify_listeners("remove_region_because_graphic_removed", self)
 
     def __interval_changed(self, name, value):
-        # override to implement dependency. argh.
-        self.notify_set_property(name, value)
-        self.notify_set_property("interval", self.interval)
+        self._property_changed(name, value)
+        self.notify_set_property("start", value[0])
+        self.notify_set_property("end", value[1])
 
-    def __get_interval(self):
-        return (self.start, self.end)
-    def __set_interval(self, interval):
-        self.start = interval[0]
-        self.end = interval[1]
-    interval = property(__get_interval, __set_interval)
+    def __get_start(self):
+        return self.interval[0]
+    def __set_start(self, start):
+        self.interval = start, self.end
+    start = property(__get_start, __set_start)
+
+    def __get_end(self):
+        return self.interval[1]
+    def __set_end(self, end):
+        self.interval = self.start, end
+    end = property(__get_end, __set_end)
 
 
 
