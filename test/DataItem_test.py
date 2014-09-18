@@ -710,6 +710,29 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item.is_live)
         self.assertFalse(data_item2.is_live)
 
+    def test_data_item_added_to_data_item_under_transaction_configures_dependency(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        # begin the transaction
+        if True: #with data_item.transaction():
+            data_item_crop1 = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+            crop_region = Region.RectRegion()
+            crop_operation.establish_associated_region("crop", data_item, crop_region)
+            data_item_crop1.add_operation(crop_operation)
+            data_item_crop1.add_data_source(data_item)
+            document_model.append_data_item(data_item_crop1)
+            # change the bounds of the graphic
+            data_item.displays[0].drawn_graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
+            # make sure it is connected to the crop operation
+            bounds = crop_operation.get_property("bounds")
+            self.assertAlmostEqual(bounds[0][0], 0.31)
+            self.assertAlmostEqual(bounds[0][1], 0.32)
+            self.assertAlmostEqual(bounds[1][0], 0.6)
+            self.assertAlmostEqual(bounds[1][1], 0.4)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -412,7 +412,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__transaction_count += count
         if old_transaction_count == 0:
             if self.managed_object_context:
-                self.managed_object_context.write_delayed = True
+                persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+                if persistent_storage:
+                    persistent_storage.write_delayed = True
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
@@ -427,7 +429,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if transaction_count == 0:
             self.spill_cache()
             if self.managed_object_context:
-                self.managed_object_context.write_delayed = False
+                persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+                if persistent_storage:
+                    persistent_storage.write_delayed = False
                 self.managed_object_context.write_data_item(self)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 

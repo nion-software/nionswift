@@ -135,6 +135,7 @@ class DataItemPersistentStorage(object):
         # reference type and reference indicate how to save/load data and properties
         self.reference_type = reference_type
         self.reference = reference
+        self.write_delayed = False
 
     def __get_data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
@@ -161,10 +162,11 @@ class DataItemPersistentStorage(object):
             return parent_storage_dict[managed_parent.relationship_name][index]
 
     def update_properties(self):
-        self.__ensure_reference_valid(self.data_item)
-        file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-        with self.__data_reference_handler_lock:
-            self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
+        if not self.write_delayed:
+            self.__ensure_reference_valid(self.data_item)
+            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+            with self.__data_reference_handler_lock:
+                self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__get_storage_dict(parent)
@@ -213,11 +215,12 @@ class DataItemPersistentStorage(object):
             self.reference = self.get_default_reference(data_item)
 
     def update_data(self, data_shape, data_dtype, data=None):
-        self.__ensure_reference_valid(self.data_item)
-        file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
-        if data is not None:
-            with self.__data_reference_handler_lock:
-                self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
+        if not self.write_delayed:
+            self.__ensure_reference_valid(self.data_item)
+            file_datetime = Utility.get_datetime_from_datetime_item(self.data_item.datetime_original)
+            if data is not None:
+                with self.__data_reference_handler_lock:
+                    self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
 
     def load_data(self):
         assert self.data_item.has_master_data
@@ -352,9 +355,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             self.rewrite_data_item_data(data_item, data=data_ref.master_data)
 
     def rewrite_data_item_data(self, data_item, data):
-        if not self.write_delayed:
-            persistent_storage = self.get_persistent_storage_for_object(data_item)
-            persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
