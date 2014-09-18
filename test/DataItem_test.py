@@ -665,6 +665,17 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNotNone(data_item2.data)
         self.assertIsNotNone(data_item2.data_source)
 
+    def test_connecting_data_source_updates_dependency_list(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        # configure the dependent item
+        data_item2 = DataItem.DataItem()
+        data_item2.add_data_source(data_item)
+        document_model.append_data_item(data_item2)
+        # make sure the dependency list is updated
+        self.assertEqual(data_item.dependent_data_items, [data_item2])
 
 
 if __name__ == '__main__':

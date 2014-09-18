@@ -290,6 +290,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_changes = set()
         self.__lookup_data_item = None
         self.__direct_data_sources = None
+        self.__dependent_data_item_refs = list()
         self.__shared_thread_pool = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
@@ -788,7 +789,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
-    # display graphics for this items operations. direct data source is used for testing.
+    # display graphics for this items operations. direct_data_sources is used for testing.
     def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None):
         self.__lookup_data_item = lookup_data_item
         self.__direct_data_sources = direct_data_sources
@@ -802,6 +803,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     assert isinstance(data_source, DataItem)
                     # we will receive data_item_content_changed from data_source
                     data_source.add_listener(self)
+                    data_source.add_dependent_data_item(self)
                     self.__data_sources.append(data_source)
                     self.__cached_data_shape_and_dtype = None
             self.sync_operations()
@@ -812,11 +814,24 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def disconnect_data_sources(self):
         with self.__data_mutex:
             for data_source in copy.copy(self.__data_sources):
+                data_source.remove_dependent_data_item(self)
                 data_source.remove_listener(self)
                 self.__data_sources.remove(data_source)
                 self.__cached_data_shape_and_dtype = None
         self.__lookup_data_item = None
         self.__direct_data_sources = None
+
+    # track dependent data items. useful for propogating transaction support.
+    def add_dependent_data_item(self, data_item):
+        self.__dependent_data_item_refs.append(weakref.ref(data_item))
+
+    # track dependent data items. useful for propogating transaction support.
+    def remove_dependent_data_item(self, data_item):
+        self.__dependent_data_item_refs.remove(weakref.ref(data_item))
+
+    def __get_dependent_data_items(self):
+        return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
+    dependent_data_items = property(__get_dependent_data_items)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):

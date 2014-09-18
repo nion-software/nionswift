@@ -463,7 +463,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
     data_items = property(__get_data_items)
 
     def get_dependent_data_items(self, parent_data_item):
-        return [data_item for data_item in self.data_items if data_item.data_source == parent_data_item]
+        return parent_data_item.dependent_data_items
 
     def append_data_group(self, data_group):
         self.insert_data_group(len(self.data_groups), data_group)
