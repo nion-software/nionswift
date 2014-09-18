@@ -409,9 +409,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         assert count > 0
         with self.__transaction_count_mutex:
             self.__transaction_count += count
+        for data_item in self.dependent_data_items:
+            data_item.begin_transaction(count)
 
     def end_transaction(self, count=1):
         assert count > 0
+        for data_item in self.dependent_data_items:
+            data_item.end_transaction(count)
         with self.__transaction_count_mutex:
             self.__transaction_count -= count
             assert self.__transaction_count >= 0
@@ -824,10 +828,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # track dependent data items. useful for propogating transaction support.
     def add_dependent_data_item(self, data_item):
         self.__dependent_data_item_refs.append(weakref.ref(data_item))
+        if self.__transaction_count > 0:
+            data_item.begin_transaction(self.__transaction_count)
 
     # track dependent data items. useful for propogating transaction support.
     def remove_dependent_data_item(self, data_item):
         self.__dependent_data_item_refs.remove(weakref.ref(data_item))
+        if self.__transaction_count > 0:
+            data_item.end_transaction(self.__transaction_count)
 
     def __get_dependent_data_items(self):
         return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]

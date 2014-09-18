@@ -677,6 +677,39 @@ class TestDataItemClass(unittest.TestCase):
         # make sure the dependency list is updated
         self.assertEqual(data_item.dependent_data_items, [data_item2])
 
+    def test_begin_transaction_also_begins_transaction_for_dependent_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        # configure the dependent item
+        data_item2 = DataItem.DataItem()
+        data_item2.add_data_source(data_item)
+        document_model.append_data_item(data_item2)
+        # begin the transaction
+        with data_item.transaction():
+            self.assertTrue(data_item.is_live)
+            self.assertTrue(data_item2.is_live)
+        self.assertFalse(data_item.is_live)
+        self.assertFalse(data_item2.is_live)
+
+    def test_data_item_added_to_data_item_under_transaction_becomes_transacted_too(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        # begin the transaction
+        with data_item.transaction():
+            # configure the dependent item
+            data_item2 = DataItem.DataItem()
+            data_item2.add_data_source(data_item)
+            document_model.append_data_item(data_item2)
+            # check to make sure it is under transaction
+            self.assertTrue(data_item.is_live)
+            self.assertTrue(data_item2.is_live)
+        self.assertFalse(data_item.is_live)
+        self.assertFalse(data_item2.is_live)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
