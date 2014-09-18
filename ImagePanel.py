@@ -1097,13 +1097,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.graphic_drag_items:
-            for graphic in self.graphic_drag_items:
-                index = self.display.drawn_graphics.index(graphic)
-                part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                widget_mapping = self.__get_mouse_mapping()
-                graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
-                self.graphic_drag_changed = True
-                self.graphics_canvas_item.update()
+            with self.display.data_item.data_item_changes():
+                for graphic in self.graphic_drag_items:
+                    index = self.display.drawn_graphics.index(graphic)
+                    part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
+                    widget_mapping = self.__get_mouse_mapping()
+                    graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
+                    self.graphic_drag_changed = True
+                    self.graphics_canvas_item.update()
         elif self.__is_dragging:
             delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
             self.update_image_canvas_position((-delta[0], -delta[1]))
