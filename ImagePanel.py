@@ -705,13 +705,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
             if self.graphic_drag_items:
-                for graphic in self.graphic_drag_items:
-                    index = self.display.drawn_graphics.index(graphic)
-                    part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
-                    widget_mapping = self.__get_mouse_mapping()
-                    graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
-                    self.graphic_drag_changed = True
-                    self.line_graph_regions_canvas_item.update()
+                with self.display.data_item.data_item_changes():
+                    for graphic in self.graphic_drag_items:
+                        index = self.display.drawn_graphics.index(graphic)
+                        part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
+                        widget_mapping = self.__get_mouse_mapping()
+                        graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
+                        self.graphic_drag_changed = True
+                        self.line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if self.__tracking_rescale:
                 plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
