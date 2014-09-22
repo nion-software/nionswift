@@ -640,8 +640,8 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True):
     # handle them by making sure to close the port.
     try:
         yield get_last_data_element
-    except AttributeError as e:
-        logging.error("Hardware source {:s} not found.  Please check your script.".format(hardware_source_id))
+    #except AttributeError as e:
+    #    logging.error("Hardware source {:s} not found.  Please check your script.".format(hardware_source_id))
     finally:
         port.close()
 
