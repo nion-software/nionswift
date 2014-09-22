@@ -716,7 +716,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
         # begin the transaction
-        if True: #with data_item.transaction():
+        with data_item.transaction():
             data_item_crop1 = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
@@ -733,6 +733,16 @@ class TestDataItemClass(unittest.TestCase):
             self.assertAlmostEqual(bounds[0][1], 0.32)
             self.assertAlmostEqual(bounds[1][0], 0.6)
             self.assertAlmostEqual(bounds[1][1], 0.4)
+
+    def test_data_item_under_transaction_added_to_document_does_write_delay(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        # begin the transaction
+        with data_item.transaction():
+            document_model.append_data_item(data_item)
+            persistent_storage = data_item.managed_object_context.get_persistent_storage_for_object(data_item)
+            self.assertTrue(persistent_storage.write_delayed)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

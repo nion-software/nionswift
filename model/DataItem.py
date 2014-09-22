@@ -435,6 +435,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.managed_object_context.write_data_item(self)
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
+    def managed_object_context_changed(self):
+        # handle case where managed object context is set on an item that is already under transaction
+        super(DataItem, self).managed_object_context_changed()
+        if self.__transaction_count > 0 and self.managed_object_context:
+            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+            if persistent_storage:
+                persistent_storage.write_delayed = True
+
     def get_data_file_info(self):
         if self.managed_object_context:
             return self.managed_object_context.get_data_item_file_info(self)
