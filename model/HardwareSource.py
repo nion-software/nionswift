@@ -211,10 +211,11 @@ class HardwareSourcePort(object):
         return self.last_data_elements
 
     # thread safe.
-    def get_new_data_elements(self):
-        # wait for the last frame to finish
-        self.__finished_event.clear()
-        self.__finished_event.wait()
+    def get_new_data_elements(self, sync):
+        if sync:
+            # wait for the last frame to finish
+            self.__finished_event.clear()
+            self.__finished_event.wait()
         # wait for the new frame to arrive
         self.__finished_event.clear()
         self.__finished_event.wait()
@@ -623,16 +624,18 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
 
 
 @contextmanager
-def get_data_element_generator_by_id(hardware_source_id):
+def get_data_element_generator_by_id(hardware_source_id, sync=True):
     """
         Return a generator for data elements.
+
+        :param bool sync: whether to wait for current frame to finish then grab next frame
 
         NOTE: data elements may return the same ndarray (with different data) each time it is called.
         Callers should handle appropriately.
     """
     port = __find_hardware_port_by_id(hardware_source_id)
     def get_last_data_element():
-        return port.get_new_data_elements()[0]
+        return port.get_new_data_elements(sync)[0]
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
     try:
@@ -644,13 +647,15 @@ def get_data_element_generator_by_id(hardware_source_id):
 
 
 @contextmanager
-def get_data_generator_by_id(hardware_source_id):
+def get_data_generator_by_id(hardware_source_id, sync=True):
     """
         Return a generator for data.
 
+        :param bool sync: whether to wait for current frame to finish then grab next frame
+
         NOTE: a new ndarray is created for each call.
     """
-    with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
+    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
         def get_last_data():
             return data_element_generator()["data"].copy()
         # error handling not necessary here - occurs above with get_data_element_generator_by_id function
@@ -658,13 +663,15 @@ def get_data_generator_by_id(hardware_source_id):
 
 
 @contextmanager
-def get_data_item_generator_by_id(hardware_source_id):
+def get_data_item_generator_by_id(hardware_source_id, sync=True):
     """
         Return a generator for data item.
 
+        :param bool sync: whether to wait for current frame to finish then grab next frame
+
         NOTE: a new data item is created for each call.
     """
-    with get_data_element_generator_by_id(hardware_source_id) as data_element_generator:
+    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
         def get_last_data_item():
             return ImportExportManager.create_data_item_from_data_element(data_element_generator())
         yield get_last_data_item
