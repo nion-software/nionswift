@@ -9,7 +9,6 @@ import datetime
 import logging
 import json
 import numpy
-import numpy.lib.format
 import os
 import StringIO
 import struct
@@ -35,32 +34,15 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-def npy_len_and_crc32(data):
+def write_local_file(fp, name, writer, dt):
     """
-        Calculate the length and crc32 for a npy file.
+        Writes a zip file local file header structure at the current file position.
 
-        Uses internal npy format routines to write the magic header to a string
-        and then uses binascii to calculate the remaining checksum on the data.
-
-        :param data: the numpy data array to checksum.
-    """
-    header = StringIO.StringIO()
-    header.write(numpy.lib.format.magic(1, 0))
-    numpy.lib.format.write_array_header_1_0(header, numpy.lib.format.header_data_from_array_1_0(data))
-    data_len = len(header.getvalue()) + len(data.data)
-    crc32 = binascii.crc32(data.data, binascii.crc32(header.getvalue())) & 0xFFFFFFFF
-    return data_len, crc32
-
-
-def write_local_file(fp, name, writer, data_len, crc32, dt):
-    """
-        Writes a zip file local file header structure at the current file position
+        Returns data_len, crc32 for the data.
 
         :param fp: the file point to which to write the header
         :param name: the name of the file
-        :param writer: a function taking an fp parameter to do the writing
-        :param data_len: the length of data that will be written to the archive
-        :param crc32: the crc32 of the data to be written
+        :param writer: a function taking an fp parameter to do the writing, returns crc32
         :param dt: the datetime to write to the archive
     """
     fp.write(struct.pack('I', 0x04034b50))  # local file header
@@ -71,13 +53,25 @@ def write_local_file(fp, name, writer, data_len, crc32, dt):
     msdos_time = int(dt.hour) << 11 | int(dt.minute) << 5 | int(dt.second)
     fp.write(struct.pack('H', msdos_time))  # extract version (default)
     fp.write(struct.pack('H', msdos_date))  # extract version (default)
-    fp.write(struct.pack('I', crc32))       # crc32
-    fp.write(struct.pack('I', data_len))    # compressed length
-    fp.write(struct.pack('I', data_len))    # uncompressed length
+    crc32_pos = fp.tell()
+    fp.write(struct.pack('I', 0))           # crc32 placeholder
+    data_len_pos = fp.tell()
+    fp.write(struct.pack('I', 0))           # compressed length placeholder
+    fp.write(struct.pack('I', 0))           # uncompressed length placeholder
     fp.write(struct.pack('H', len(name)))   # name length
     fp.write(struct.pack('H', 0))           # extra length
     fp.write(name)
-    writer(fp)
+    data_start_pos = fp.tell()
+    crc32 = writer(fp)
+    data_end_pos = fp.tell()
+    data_len = data_end_pos - data_start_pos
+    fp.seek(crc32_pos)
+    fp.write(struct.pack('I', crc32))       # crc32
+    fp.seek(data_len_pos)
+    fp.write(struct.pack('I', data_len))    # compressed length placeholder
+    fp.write(struct.pack('I', data_len))    # uncompressed length placeholder
+    fp.seek(data_end_pos)
+    return data_len, crc32
 
 
 def write_directory_data(fp, offset, name, data_len, crc32, dt):
@@ -151,14 +145,22 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         The properties param must not change during this method. Callers should
         take care to ensure this does not happen.
     """
+    assert data is not None or properties is not None
     # dir_data_list has the format: local file record offset, name, data length, crc32
     dir_data_list = list() if dir_data_list is None else dir_data_list
     dt = datetime.datetime.now()
     if data is not None:
         offset_data = fp.tell()
-        data_len, crc32 = npy_len_and_crc32(data)
-        writer = lambda fp: numpy.save(fp, data)
-        write_local_file(fp, "data.npy", writer, data_len, crc32, dt)
+        def write_data(fp):
+            numpy_start_pos = fp.tell()
+            numpy.save(fp, data)
+            numpy_end_pos = fp.tell()
+            fp.seek(numpy_start_pos)
+            header_data = fp.read((numpy_end_pos - numpy_start_pos) - len(data.data))  # read the header
+            data_crc32 = binascii.crc32(data.data, binascii.crc32(header_data)) & 0xFFFFFFFF
+            fp.seek(numpy_end_pos)
+            return data_crc32
+        data_len, crc32 = write_local_file(fp, "data.npy", write_data, dt)
         dir_data_list.append((offset_data, "data.npy", data_len, crc32))
     if properties is not None:
         json_str = unicode()
@@ -177,11 +179,11 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             logging.error("Exception writing zip file")
             import traceback
             traceback.print_exc()
-        json_len = len(json_str)
-        json_crc32 = binascii.crc32(json_str) & 0xFFFFFFFF
-        writer = lambda fp: fp.write(json_str)
+        def write_json(fp):
+            fp.write(json_str)
+            return binascii.crc32(json_str) & 0xFFFFFFFF
         offset_json = fp.tell()
-        write_local_file(fp, "metadata.json", writer, json_len, json_crc32, dt)
+        json_len, json_crc32 = write_local_file(fp, "metadata.json", write_json, dt)
         dir_data_list.append((offset_json, "metadata.json", json_len, json_crc32))
     dir_offset = fp.tell()
     for offset, name, data_len, crc32 in dir_data_list:
@@ -204,7 +206,7 @@ def write_zip(file_path, data, properties):
 
         See write_zip_fp.
     """
-    with open(file_path, "wb") as fp:
+    with open(file_path, "w+b") as fp:
         write_zip_fp(fp, data, properties)
 
 

@@ -68,7 +68,7 @@ class TestNDataHandlerClass(unittest.TestCase):
             p = {u"abc": 1, u"def": u"bcd", u"uuid": unicode(uuid.uuid4())}
             d = numpy.zeros((12,12), dtype=numpy.float32)
             # write zip file where metadata is first
-            with open(os.path.join(data_dir, "file.ndata"), "wb") as fp:
+            with open(os.path.join(data_dir, "file.ndata"), "w+b") as fp:
                 dir_data_list = list()
                 dt = now
                 properties = p
@@ -79,15 +79,24 @@ class TestNDataHandlerClass(unittest.TestCase):
                     json_str = json_io.getvalue()
                     json_len = len(json_str)
                     json_crc32 = binascii.crc32(json_str) & 0xFFFFFFFF
-                    writer = lambda fp: fp.write(json_str)
+                    def write_json(fp):
+                        fp.write(json_str)
+                        return binascii.crc32(json_str) & 0xFFFFFFFF
                     offset_json = fp.tell()
-                    NDataHandler.write_local_file(fp, "metadata.json", writer, json_len, json_crc32, dt)
+                    json_len, json_crc32 = NDataHandler.write_local_file(fp, "metadata.json", write_json, dt)
                     dir_data_list.append((offset_json, "metadata.json", json_len, json_crc32))
                 if data is not None:
                     offset_data = fp.tell()
-                    data_len, crc32 = NDataHandler.npy_len_and_crc32(data)
-                    writer = lambda fp: numpy.save(fp, data)
-                    NDataHandler.write_local_file(fp, "data.npy", writer, data_len, crc32, dt)
+                    def write_data(fp):
+                        numpy_start_pos = fp.tell()
+                        numpy.save(fp, data)
+                        numpy_end_pos = fp.tell()
+                        fp.seek(numpy_start_pos)
+                        header_data = fp.read(len(data.data) - (numpy_end_pos - numpy_start_pos))  # read the header
+                        data_crc32 = binascii.crc32(data.data, binascii.crc32(header_data)) & 0xFFFFFFFF
+                        fp.seek(numpy_end_pos)
+                        return data_crc32
+                    data_len, crc32 = NDataHandler.write_local_file(fp, "data.npy", write_data, dt)
                     dir_data_list.append((offset_data, "data.npy", data_len, crc32))
                 dir_offset = fp.tell()
                 for offset, name, data_len, crc32 in dir_data_list:
