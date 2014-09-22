@@ -641,6 +641,12 @@ class DataPanel(Panel.Panel):
                     return True
             return super(DataPanel.GridCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
+        def key_pressed(self, key):
+            if key.is_delete:
+                self.__delegate.delete_pressed()
+                return True
+            return super(DataPanel.GridCanvasItem, self).key_pressed(key)
+
 
     class DataItemSelection(Observable.Broadcaster):
         def __init__(self):
@@ -790,6 +796,11 @@ class DataPanel(Panel.Panel):
         def queue_task(self, task):
             self.document_controller.queue_task(task)
 
+        # container is either a data group or a document model
+        def __get_container(self):
+            return self.document_controller.data_items_binding.container
+        container = property(__get_container)
+
         def __get_document_controller(self):
             return self.__document_controller_weakref()
         document_controller = property(__get_document_controller)
@@ -801,12 +812,25 @@ class DataPanel(Panel.Panel):
                 self.on_selection_changed(list(data_item_selection.indexes))
             self.icon_view_canvas_item.update()
 
+        # this message comes from the canvas item when delete key is pressed
+        def delete_pressed(self):
+            selected_data_items = [self.get_data_item_by_index(index) for index in self.selection.indexes]
+            for data_item in selected_data_items:
+                container = DataGroup.get_data_item_container(self.container, data_item)
+                if container and data_item in container.data_items:
+                    container.remove_data_item(data_item)
+
         # this messages from from the canvas item when a drag is started
         def drag_started(self, data_item, x, y, modifiers):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
             self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+
+        def remove_data_item(self, data_item):
+            container = DataGroup.get_data_item_container(self.container, data_item)
+            if container and data_item in container.data_items:
+                container.remove_data_item(data_item)
 
         def __get_data_items(self):
             return self.__binding.data_items
