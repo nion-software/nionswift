@@ -58,6 +58,9 @@ class Panel(object):
     def add_task(self, key, task):
         self.document_controller.add_task(key + str(id(self)), task)
 
+    def clear_task(self, key):
+        self.document_controller.clear_task(key + str(id(self)))
+
     def queue_task(self, task):
         self.document_controller.put(task)
 

@@ -46,6 +46,7 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_periodic = self.periodic
         self.document_window.on_queue_task = self.queue_task
         self.document_window.on_add_task = self.add_task
+        self.document_window.on_clear_task = self.clear_task
         self.document_window.on_about_to_show = self.about_to_show
         self.document_window.on_about_to_close = self.about_to_close
         if app:
@@ -301,6 +302,9 @@ class DocumentController(Observable.Broadcaster):
 
     def add_task(self, key, task):
         self.__periodic_set.add_task(key + str(id(self)), task)
+
+    def clear_task(self, key):
+        self.__periodic_set.clear_task(key + str(id(self)))
 
     def queue_task(self, task):
         self.__periodic_queue.put(task)
