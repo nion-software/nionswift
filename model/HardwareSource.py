@@ -207,6 +207,10 @@ class HardwareSourcePort(object):
         self.last_data_elements = None
         self.__finished_event = threading.Event()
 
+    def close(self):
+        self.hardware_source.remove_port(self)
+        self.on_new_data_elements = None
+
     def get_last_data_elements(self):
         return self.last_data_elements
 
@@ -227,9 +231,6 @@ class HardwareSourcePort(object):
         if self.on_new_data_elements:
             self.on_new_data_elements(self.last_data_elements)
         self.__finished_event.set()
-
-    def close(self):
-        self.hardware_source.remove_port(self)
 
 
 class HardwareSource(Observable.Broadcaster):

@@ -117,6 +117,7 @@ class DataPanel(Panel.Panel):
             self.__item_controllers = None
             self.item_model_controller.close()
             self.item_model_controller = None
+            self.on_receive_files = None
 
         def __get_document_controller(self):
             return self.__document_controller_weakref()
@@ -179,6 +180,7 @@ class DataPanel(Panel.Panel):
             self.document_controller.document_model.remove_observer(self)
             self.item_model_controller.close()
             self.item_model_controller = None
+            self.on_receive_files = None
 
         def log(self, parent_id=-1, indent=""):
             parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
@@ -783,6 +785,8 @@ class DataPanel(Panel.Panel):
                 self.__data_item_removed(self.__data_items[0], 0)
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
+            self.on_selection_changed = None
+            self.on_context_menu_event = None
 
         def periodic(self):
             # handle the 'changed' stuff

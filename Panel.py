@@ -175,6 +175,11 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
         self.on_drag_pressed = None
         self.on_sync_clicked = None
 
+    def close(self):
+        self.on_drag_pressed = None
+        self.on_sync_clicked = None
+        super(HeaderCanvasItem, self).close()
+
     def __str__(self):
         return self.__title
 
