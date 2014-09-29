@@ -1,6 +1,7 @@
 # standard libraries
 import logging
 import unittest
+import weakref
 
 # third party libraries
 import numpy
@@ -70,6 +71,17 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.display_canvas_item.mouse_position_changed(midp[1], midp[0], modifiers)
         self.image_panel.display_canvas_item.mouse_position_changed(p2[1], p2[0], modifiers)
         self.image_panel.display_canvas_item.mouse_released(p2[1], p2[0], modifiers)
+
+    def test_image_panel_gets_destructed(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = ImagePanel.ImagePanel(document_controller)
+        image_panel_weak_ref = weakref.ref(image_panel)
+        image_panel.canvas_item.close()
+        image_panel.close()
+        image_panel = None
+        self.assertIsNone(image_panel_weak_ref())
+        document_controller.close()
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_deleting_data_item_removes_it_from_image_panel(self):

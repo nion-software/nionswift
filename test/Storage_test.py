@@ -96,6 +96,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_controller.selected_data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()
+        image_panel.canvas_item.close()
         image_panel.close()
 
     def test_save_document(self):

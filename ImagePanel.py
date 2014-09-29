@@ -1429,6 +1429,10 @@ class ImagePanel(object):
                 super(ContentCanvasItem, self).__init__()
                 self.image_panel = image_panel
 
+            def close(self):
+                super(ContentCanvasItem, self).close()
+                self.image_panel = None
+
             def key_pressed(self, key):
                 if self.image_panel.display_canvas_item:
                     return self.image_panel.display_canvas_item.key_pressed(key)
@@ -1462,7 +1466,11 @@ class ImagePanel(object):
 
     def close(self):
         self.closed = True
-        self.__content_canvas_item.close()
+        self.__content_canvas_item = None
+        self.__overlay_canvas_item = None
+        self.__header_canvas_item = None
+        # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
+        self.canvas_item = None
         self.display_canvas_item = None  # now closed
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
@@ -1499,7 +1507,8 @@ class ImagePanel(object):
                 self.__set_display(data_item.displays[0])
 
     def set_selected(self, selected):
-        self.__overlay_canvas_item.selected = selected
+        if self.__overlay_canvas_item:  # may be closed
+            self.__overlay_canvas_item.selected = selected
 
     def _is_selected(self):
         """ Used for testing. """
@@ -1578,7 +1587,8 @@ class ImagePanel(object):
     # like graphics or the data itself.
     def display_changed(self, display):
         data_item = display.data_item if display else None
-        self.__header_canvas_item.title = data_item.title if data_item else unicode()
+        if self.__header_canvas_item:  # may be closed
+            self.__header_canvas_item.title = data_item.title if data_item else unicode()
         display_type = None
         if data_item:
             if data_item.is_data_1d:
@@ -1598,11 +1608,13 @@ class ImagePanel(object):
                 self.display_canvas_item.image_canvas_mode = "fit"
                 self.display_canvas_item.update_image_canvas_size()
             self.__display_type = display_type
-            self.__content_canvas_item.update()
-        if self.display_canvas_item:
+            if self.__content_canvas_item:
+                self.__content_canvas_item.update()
+        if self.display_canvas_item:  # may be closed
             self.display_canvas_item.update_display(display)
         selected = self.document_controller.selected_image_panel == self
-        self.__overlay_canvas_item.selected = display is not None and selected
+        if self.__overlay_canvas_item:  # may be closed
+            self.__overlay_canvas_item.selected = display is not None and selected
 
     # ths message comes from the canvas item via the delegate.
     def image_panel_key_pressed(self, key):

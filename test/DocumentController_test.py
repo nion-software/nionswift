@@ -78,6 +78,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel = ImagePanel.ImagePanel(document_controller)
         image_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
+        image_panel.canvas_item.close()
         image_panel.close()
         document_controller.close()
         document_controller = None

@@ -78,6 +78,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_item_widget.on_selection_changed([2])
         data_panel.data_item_widget.on_key_pressed([2], self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(data_group.data_items), 2)
+        image_panel.canvas_item.close()
         image_panel.close()
         document_controller.close()
 
