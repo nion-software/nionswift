@@ -1,5 +1,7 @@
-import unittest
+import logging
+import threading
 import time
+import unittest
 
 import numpy as np
 
@@ -7,26 +9,29 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import Storage
+from nion.swift import Application
+from nion.swift import DocumentController
+from nion.ui import Test
 
 
 class SimpleHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self, sleep=0.2):
+    def __init__(self, sleep=0.05):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
         self.properties = None
         self.sleep = sleep
+        self.event = threading.Event()
+        self.image = np.zeros(256)
 
     def acquire_data_elements(self):
-        SimpleHardwareSource.image += 1.0
+        self.image += 1.0
         time.sleep(self.sleep)
-        data_element = { "version": 1, "data": SimpleHardwareSource.image }
+        data_element = { "version": 1, "data": self.image }
+        self.event.set()
         return [data_element]
 
     def set_from_properties(self, properties):
         self.properties = properties
-
-
-SimpleHardwareSource.image = np.zeros(256)
 
 
 class DummyWorkspaceController(object):
@@ -46,7 +51,13 @@ class DummyWorkspaceController(object):
 
 class TestHardwareSourceClass(unittest.TestCase):
 
-    def test_registration(self):
+    def setUp(self):
+        self.app = Application.Application(Test.UserInterface(), set_global=False)
+
+    def tearDown(self):
+        pass
+
+    def test_registering_and_unregistering_works_as_expected(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
         source = SimpleHardwareSource()
@@ -59,7 +70,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         p = hardware_source_manager.create_port_for_hardware_source_id("simple_hardware_source")
         self.assertIsNone(p)
 
-    def test_alias(self):
+    def test_hardware_source_aliases_works(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
         source = SimpleHardwareSource()
@@ -82,7 +93,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source_manager.unregister_hardware_source(source)
 
     def test_events(self):
-        SimpleHardwareSource.image = np.zeros(256)
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
         source = SimpleHardwareSource()
@@ -92,7 +102,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         def handle_new_data_elements(images):
             pass
         p.on_new_data_elements = handle_new_data_elements
-        time.sleep(1) # wait for a second, we should have 4-6 images after this
+        while source.frame_index < 4:
+            time.sleep(0.01)
         tl_pixel = p.get_last_data_elements()[0]["data"][0]
         # print "got %d images in 1s"%tl_pixel
         self.assertTrue(3.0 < tl_pixel < 7.0)
@@ -111,6 +122,64 @@ class TestHardwareSourceClass(unittest.TestCase):
         source.abort_playing()
         source.data_buffer.current_snapshot = 0
         source.close()
+
+    def test_simple_hardware_start_and_wait_acquires_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(source)
+        hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
+        hardware_source.start_playing(document_controller.workspace_controller)
+        self.assertTrue(hardware_source.is_playing)
+        start_time = time.time()
+        while source.frame_index < 4:
+            hardware_source.periodic()
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.abort_playing()
+        self.assertFalse(hardware_source.is_playing)
+        document_controller.close()
+
+    def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(source)
+        hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
+        hardware_source.event.clear()
+        hardware_source.start_playing(document_controller.workspace_controller)
+        # we're waiting on the hardware source to trigger a finish event, but the acquisition
+        # machinery still needs to process the result. that's the reason for the extra delays
+        # below after the event is triggered.
+        hardware_source.event.wait()    # wait for first frame
+        time.sleep(0.05)                # and some processing time
+        hardware_source.event.clear()
+        self.assertTrue(hardware_source.is_playing)
+        hardware_source.stop_playing()
+        hardware_source.event.wait()    # wait for frame to finish
+        time.sleep(0.05)                # and some processing time
+        hardware_source.periodic()      # required to go to 'stop' state. cem 9/14.
+        self.assertFalse(hardware_source.is_playing)
+        document_controller.close()
+
+    def test_simple_hardware_start_and_abort_works_as_expected(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(source)
+        hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
+        hardware_source.start_playing(document_controller.workspace_controller)
+        self.assertTrue(hardware_source.is_playing)
+        hardware_source.abort_playing()
+        self.assertFalse(hardware_source.is_playing)
+        document_controller.close()
+
 
 if __name__ == '__main__':
     unittest.main()

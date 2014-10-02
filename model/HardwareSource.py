@@ -428,7 +428,7 @@ class HardwareSource(Observable.Broadcaster):
     # thread safe
     def __should_abort(self):
         if self.__abort_signal:
-            return self.__should_abort
+            return True
         with self.__channel_states_mutex:
             are_all_channel_stopped = len(self.__channel_states) > 0
             for state in self.__channel_states.values():
@@ -514,7 +514,6 @@ class HardwareSource(Observable.Broadcaster):
         self.last_channel_to_data_item_dict = new_channel_to_data_item_dict
 
         # remove channel states that are no longer used.
-        # cem 2013-11-16: this is untested and channel shutdown during acquisition may not work as expected.
         with self.__channel_states_mutex:
             for channel in self.__channel_states.keys():
                 if not channel in channels:
