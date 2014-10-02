@@ -55,6 +55,8 @@ class InspectorPanel(Panel.Panel):
         # close the data item inspector
         if self.__display_inspector:
             self.__display_inspector.close()
+            self.__display_inspector = None
+        self.document_controller.clear_task("update_display")
         # finish closing
         super(InspectorPanel, self).close()
 
@@ -74,8 +76,9 @@ class InspectorPanel(Panel.Panel):
             self.__display = display
             self.__update_display_inspector()
         if self.request_focus:
-            self.__display_inspector._get_inspectors()[0].info_title_label.focused = True
-            self.__display_inspector._get_inspectors()[0].info_title_label.select_all()
+            if self.__display_inspector:
+                self.__display_inspector._get_inspectors()[0].info_title_label.focused = True
+                self.__display_inspector._get_inspectors()[0].info_title_label.select_all()
             self.request_focus = False
 
     # this message is received from the data item binding.

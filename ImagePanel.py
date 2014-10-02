@@ -361,6 +361,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__prepare_data_thread.close()
         self.__prepare_data_thread = None
         self.update_display(None)
+        self.delegate.clear_task("prepare")
         # call super
         super(LinePlotCanvasItem, self).close()
 
@@ -860,6 +861,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__prepare_data_thread.close()
         self.__prepare_data_thread = None
         self.update_display(None)
+        self.delegate.clear_task("prepare")
         # call super
         super(ImageCanvasItem, self).close()
 
@@ -1748,6 +1750,7 @@ class InfoPanel(Panel.Panel):
         self.closed = True
         # disconnect self as listener
         self.document_controller.remove_listener(self)
+        self.clear_task("position_and_value")
         # finish closing
         super(InfoPanel, self).close()
 

@@ -262,6 +262,7 @@ class HistogramPanel(Panel.Panel):
         self.data_item_binding_display_changed(None)
         self.data_item_binding.remove_listener(self)
         self.data_item_binding.close()
+        self.clear_task("statistics")
         super(HistogramPanel, self).close()
 
     # this message is received from the data item binding.
