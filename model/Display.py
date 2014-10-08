@@ -131,6 +131,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def close(self):
         self.__shared_thread_queue.close()
         self.__shared_thread_queue = None
+        for processor in self.__processors.values():
+            processor.close()
+        self.__processors = None
 
     def add_shared_task(self, fn):
         self.__shared_thread_queue.add_task(fn)

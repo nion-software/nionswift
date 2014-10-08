@@ -51,6 +51,7 @@ class InspectorPanel(Panel.Panel):
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
         self.__display_binding.close()
+        self.__display_binding = None
         self.__set_display(None)
         # close the data item inspector
         if self.__display_inspector:
@@ -643,7 +644,9 @@ class CalibratedValueBinding(Binding.Binding):
         self.__display_calibrated_values_binding.target_setter = update_target
     def close(self):
         self.__value_binding.close()
+        self.__value_binding = None
         self.__display_calibrated_values_binding.close()
+        self.__display_calibrated_values_binding = None
         super(CalibratedValueBinding, self).close()
     # set the model value from the target ui element text.
     def update_source(self, target_value):
@@ -985,6 +988,7 @@ class DataItemInspector(object):
         # close inspectors
         for inspector in self.__inspectors:
             inspector.close()
+        self.__inspectors = None
 
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """

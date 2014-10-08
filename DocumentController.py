@@ -87,6 +87,7 @@ class DocumentController(Observable.Broadcaster):
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
         self.filter_controller.close()
+        self.filter_controller = None
         self.__data_items_binding.close()
         self.__data_items_binding = None
         # close the workspace before closing the image panels, to save their position
@@ -96,6 +97,7 @@ class DocumentController(Observable.Broadcaster):
             self.__workspace_controller.close()
         for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
             image_panel.close()
+        self.__weak_image_panels = None
         self.document_window = None
         self.document_model.close()
         self.document_model = None

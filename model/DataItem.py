@@ -337,6 +337,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             display.close()
         for processor in self.__processors.values():
             processor.close()
+        self.__processors = None
         self.__shared_thread_queue.close()
         self.__shared_thread_queue = None
 

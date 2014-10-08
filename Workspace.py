@@ -87,7 +87,7 @@ class Workspace(object):
         for dock_widget in copy.copy(self.dock_widgets):
             dock_widget.panel.close()
             dock_widget.close()
-        self.dock_widgets = []
+        self.dock_widgets = None
 
     def periodic(self):
         # for each of the panels too

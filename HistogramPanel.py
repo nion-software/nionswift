@@ -257,10 +257,12 @@ class HistogramPanel(Panel.Panel):
 
     def close(self):
         self.root_canvas_item.close()
+        self.root_canvas_item = None
         # disconnect data item binding
         self.data_item_binding_display_changed(None)
         self.data_item_binding.remove_listener(self)
         self.data_item_binding.close()
+        self.data_item_binding = None
         self.clear_task("statistics")
         super(HistogramPanel, self).close()
 

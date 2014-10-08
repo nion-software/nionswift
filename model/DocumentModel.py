@@ -405,7 +405,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
             data_group.connect_data_items(self.get_data_item_by_uuid)
 
     def close(self):
-        """ Optional method to close the document model. """
         for data_item in self.data_items:
             data_item.close()
 
