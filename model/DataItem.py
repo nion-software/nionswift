@@ -274,6 +274,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
         self.__metadata = dict()
+        self.__metadata_lock = threading.RLock()
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__data_mutex = threading.RLock()
@@ -667,19 +668,20 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # access metadata
 
     def get_metadata(self, name):
-        return copy.deepcopy(self.__metadata.get(name, dict()))
+        with self.__metadata_lock:
+            return copy.deepcopy(self.__metadata.get(name, dict()))
 
     def replace_metadata(self, name, metadata):
-        metadata_group = self.__metadata.setdefault(name, dict())
-        metadata_group.clear()
-        metadata_group.update(metadata)
+        with self.__metadata_lock:
+            metadata_group = self.__metadata.setdefault(name, dict())
+            metadata_group.clear()
+            metadata_group.update(metadata)
+            metadata_group_copy = copy.deepcopy(metadata_group)
         if self.managed_object_context:
-            self.managed_object_context.property_changed(self, name, copy.deepcopy(metadata_group))
+            self.managed_object_context.property_changed(self, name, metadata_group_copy)
         self.__metadata_changed()
 
     def open_metadata(self, name):
-        metadata = self.__metadata
-        metadata_changed = self.__metadata_changed
         class MetadataContextManager(object):
             def __init__(self, data_item, name):
                 self.__data_item = data_item
