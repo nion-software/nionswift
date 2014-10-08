@@ -896,17 +896,6 @@ class DataPanel(Panel.Panel):
 
         self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
 
-        def data_item_model_receive_files(file_paths, row, parent_row):
-            data_group = self.__selection.data_group
-            if parent_row == -1:  # don't accept drops _on top_ of other items
-                # row=-1, parent=-1 means dropping outside of any items; so put it at the end
-                row = row if row >= 0 else len(data_group.data_items)
-                return self.data_group_model_receive_files(file_paths, data_group, row)
-            else:
-                return False
-
-        self.data_item_model_controller.on_receive_files = data_item_model_receive_files
-
         ui = document_controller.ui
 
         def library_widget_selection_changed(selected_indexes):
@@ -1124,8 +1113,13 @@ class DataPanel(Panel.Panel):
         self.update_data_panel_selection(DataPanelSelection())
         # close the models
         self.data_item_model_controller.close()
+        self.data_item_model_controller = None
         self.data_group_model_controller.close()
+        self.data_group_model_controller = None
         self.library_model_controller.close()
+        self.library_model_controller = None
+        self.data_grid_controller.close()
+        self.data_grid_controller = None
         # disconnect self as listener
         self.document_controller.weak_data_panel = None
         self.document_controller.remove_listener(self)
