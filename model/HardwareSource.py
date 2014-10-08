@@ -5,7 +5,7 @@ sources.
 A HardwareSource represents a source of data elements.
 A client accesses data_elements through the create_port function
 which changes the mode of the source, and starts it, and starts notifying the returned
-port object. The port object should not do any significant processing in its on_new_data_elements
+port object. The port object should not do any significant processing in its new_data_elements
 function but should instead just notify another thread that new data is available.
 """
 
@@ -262,6 +262,7 @@ class HardwareSource(Observable.Broadcaster):
     def close(self):
         if self.__data_buffer:
             self.__data_buffer.remove_listener(self)
+            self.__data_buffer.close()
             self.__data_buffer = None
 
     # user interfaces using hardware sources should call this periodically
@@ -545,16 +546,16 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
         self.__current_snapshot = 0
 
     def close(self):
-        logging.debug("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
+        # logging.debug("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
-            self.pause()
+            self.stop()
             # we should be consistent about how we stop live acquisitions:
             # stopping should be identical to acquiring with no channels selected
             # and we should delete/keep data items the same in both cases.
-            # esaiest way is to call on_new_data_elements(None)
+            # easiest way is to call new_data_elements(None)
             # now that we've set hardware_port to None
-            # if we do want to keep data items, it should be done in on_new_data_elements
-            self.on_new_data_elements([])
+            # if we do want to keep data items, it should be done in new_data_elements
+            self.new_data_elements([])
 
     def __get_is_playing(self):
         return self.hardware_port is not None
@@ -587,23 +588,23 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
         # logging.debug("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is None:
             self.hardware_port = self.hardware_source.create_port(mode)
-            self.hardware_port.on_new_data_elements = self.on_new_data_elements
+            self.hardware_port.on_new_data_elements = self.new_data_elements
             self.notify_listeners("playing_state_changed", self.hardware_source, True)
 
     # must be called on the UI thread
     def stop(self):
         # logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
-            self.hardware_port.on_new_data_elements = None
+            self.hardware_port.new_data_elements = None
             self.hardware_port.close()
             self.hardware_port = None
-            self.on_new_data_elements([])
+            self.new_data_elements([])
             self.notify_listeners("playing_state_changed", self.hardware_source, False)
 
     # thread safe
     # this will typically be called on the acquisition thread
     # data_elements is a list of data_elements; entries may be None
-    def on_new_data_elements(self, data_elements):
+    def new_data_elements(self, data_elements):
         if not self.hardware_port:
             data_elements = []
 
