@@ -123,11 +123,11 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self):
         super(HistogramCanvasItem, self).__init__()
         self.wants_mouse_events = True
-        self.adornments_canvas_item = AdornmentsCanvasItem()
-        self.simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
+        self.__adornments_canvas_item = AdornmentsCanvasItem()
+        self.__simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
         # canvas items get added back to front
-        self.add_canvas_item(self.simple_line_graph_canvas_item)
-        self.add_canvas_item(self.adornments_canvas_item)
+        self.add_canvas_item(self.__simple_line_graph_canvas_item)
+        self.add_canvas_item(self.__adornments_canvas_item)
         self.__display = None
         self.__pressed = False
 
@@ -143,9 +143,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     # pass this along to the simple line graph canvas item
     def __get_background_color(self):
-        return self.simple_line_graph_canvas_item.background_color
+        return self.__simple_line_graph_canvas_item.background_color
     def __set_background_color(self, background_color):
-        self.simple_line_graph_canvas_item.background_color = background_color
+        self.__simple_line_graph_canvas_item.background_color = background_color
     background_color = property(__get_background_color, __set_background_color)
 
     # _get_display is only used for testing
@@ -158,12 +158,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
-            self.adornments_canvas_item.display_limits = (0, 1)
+            self.__adornments_canvas_item.display_limits = (0, 1)
         # this will get called twice: once with the initial return values
         # and once with the updated return values once the thread completes.
         def update_histogram_data(histogram_data):
-            self.simple_line_graph_canvas_item.data = histogram_data
-            self.adornments_canvas_item.update()
+            self.__simple_line_graph_canvas_item.data = histogram_data
+            self.__adornments_canvas_item.update()
         histogram_data = self.__display.get_processed_data("histogram", None, completion_fn=update_histogram_data) if self.__display else None
         update_histogram_data(histogram_data)
 
@@ -175,8 +175,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.__shared_thread_queue.add_task(lambda: update_histogram_data_on_thread())
 
     def __set_display_limits(self, display_limits):
-        self.adornments_canvas_item.display_limits = display_limits
-        self.adornments_canvas_item.update()
+        self.__adornments_canvas_item.display_limits = display_limits
+        self.__adornments_canvas_item.update()
 
     def mouse_double_clicked(self, x, y, modifiers):
         if super(HistogramCanvasItem, self).mouse_double_clicked(x, y, modifiers):
@@ -198,11 +198,11 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         if super(HistogramCanvasItem, self).mouse_released(x, y, modifiers):
             return True
         self.__pressed = False
-        display_limit_range = self.adornments_canvas_item.display_limits[1] - self.adornments_canvas_item.display_limits[0]
+        display_limit_range = self.__adornments_canvas_item.display_limits[1] - self.__adornments_canvas_item.display_limits[0]
         if self.__display and (display_limit_range > 0) and (display_limit_range < 1):
             data_min, data_max = self.__display.display_range
-            lower_display_limit = data_min + self.adornments_canvas_item.display_limits[0] * (data_max - data_min)
-            upper_display_limit = data_min + self.adornments_canvas_item.display_limits[1] * (data_max - data_min)
+            lower_display_limit = data_min + self.__adornments_canvas_item.display_limits[0] * (data_max - data_min)
+            upper_display_limit = data_min + self.__adornments_canvas_item.display_limits[1] * (data_max - data_min)
             self.__display.display_limits = (lower_display_limit, upper_display_limit)
         return True
 

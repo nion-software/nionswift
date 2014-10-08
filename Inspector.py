@@ -102,19 +102,19 @@ class InspectorSection(object):
 
     def __init__(self, ui, section_title):
         self.ui = ui
-        self.__section_widget = self.ui.create_column_widget()
+        section_widget = self.ui.create_column_widget()
         section_title_row = self.ui.create_row_widget()
         #section_title_row.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
         section_title_row.add(self.ui.create_label_widget(section_title, properties={"stylesheet": "font-weight: bold"}))
         section_title_row.add_stretch()
-        self.__section_widget.add(section_title_row)
+        section_widget.add(section_title_row)
         section_content_row = self.ui.create_row_widget()
         self.__section_content_column = self.ui.create_column_widget()
         section_content_row.add_spacing(20)
         section_content_row.add(self.__section_content_column)
-        self.__section_widget.add(section_content_row)
-        self.__section_widget.add_spacing(4)
-        self.widget = self.__section_widget
+        section_widget.add(section_content_row)
+        section_widget.add_spacing(4)
+        self.widget = section_widget
 
     def close(self):
         pass
