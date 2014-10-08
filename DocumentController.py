@@ -354,7 +354,7 @@ class DocumentController(Observable.Broadcaster):
 
         def sort_by_date_key(data_item):
             """ A sort key to for the datetime_original field of a data item. """
-            return data_item.is_live, Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+            return data_item.title + str(data_item.uuid) if data_item.is_live else str(), Utility.get_datetime_from_datetime_item(data_item.datetime_original)
 
         with binding.changes():  # change filter and sort together
             if data_group is not None:
