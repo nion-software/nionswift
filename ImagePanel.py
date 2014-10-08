@@ -1478,21 +1478,20 @@ class ImagePanel(object):
         self.display_canvas_item = None
         self.__display_type = None
 
-        self.closed = False
-
     def close(self):
-        self.closed = True
-        self.__content_canvas_item = None
-        self.__overlay_canvas_item = None
-        self.__header_canvas_item = None
         # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
         self.canvas_item = None
         if self.display_canvas_item:
             self.display_canvas_item.about_to_close()
             self.display_canvas_item = None
+        self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
+        # release references
+        self.__content_canvas_item = None
+        self.__overlay_canvas_item = None
+        self.__header_canvas_item = None
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -1534,7 +1533,6 @@ class ImagePanel(object):
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
-        if self.closed: return  # argh
         self.__overlay_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_image_panel = self
@@ -1730,8 +1728,6 @@ class InfoPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        self.closed = False
-
         # used to maintain the display when cursor is not moving
         self.__last_source = None
 
@@ -1763,7 +1759,6 @@ class InfoPanel(Panel.Panel):
         self.document_controller.add_listener(self)
 
     def close(self):
-        self.closed = True
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         self.clear_task("position_and_value")
