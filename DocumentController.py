@@ -343,6 +343,13 @@ class DocumentController(Observable.Broadcaster):
 
     def update_data_item_binding(self, binding, data_group, filter_id):
 
+        """
+            Update the data item binding with a new container, filter, and sorting.
+
+            This is called when the data item binding is created or when the user changes
+            the data group or sorting settings.
+        """
+
         def sort_by_date_key(data_item):
             """ A sort key to for the datetime_original field of a data item. """
             return data_item.is_live, Utility.get_datetime_from_datetime_item(data_item.datetime_original)

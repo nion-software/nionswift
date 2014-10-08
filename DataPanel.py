@@ -82,18 +82,24 @@ class DataPanel(Panel.Panel):
                 if self.title_updater:
                     self.title_updater(self.__count)
             # make sure the count gets properly initialized
-            self.document_controller.add_task("update_count", update_count)
+            self.add_task("update_count", update_count)
 
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
             self.__binding.close()
             self.__binding = None
-            self.document_controller.clear_task("update_count")
+            self.clear_task("update_count")
 
         # thread safe
         def queue_task(self, task):
             self.document_controller.queue_task(task)
+
+        def add_task(self, key, task):
+            self.document_controller.add_task(key + str(id(self)), task)
+
+        def clear_task(self, key):
+            self.document_controller.clear_task(key + str(id(self)))
 
 
     class LibraryModelController(object):

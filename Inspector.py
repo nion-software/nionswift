@@ -56,7 +56,7 @@ class InspectorPanel(Panel.Panel):
         if self.__display_inspector:
             self.__display_inspector.close()
             self.__display_inspector = None
-        self.document_controller.clear_task("update_display")
+        self.document_controller.clear_task("update_display" + str(id(self)))
         # finish closing
         super(InspectorPanel, self).close()
 
@@ -88,7 +88,7 @@ class InspectorPanel(Panel.Panel):
     def data_item_binding_display_changed(self, display):
         def update_display():
             self.__set_display(display)
-        self.document_controller.add_task("update_display", update_display)
+        self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
 class InspectorSection(object):
