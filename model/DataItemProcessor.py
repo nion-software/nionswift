@@ -102,7 +102,7 @@ class DataItemProcessor(object):
                         if not self.__in_progress:
                             self.__in_progress = True
                             self.__finish_event.clear()
-                            self.item.add_shared_task(self.__cache_property_name, None, lambda: load_data_on_thread(item))
+                            self.item.add_shared_task(lambda: load_data_on_thread(item))
         calculated_data = self.__cached_value
         if calculated_data is not None:
             return calculated_data

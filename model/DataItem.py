@@ -291,7 +291,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__lookup_data_item = None
         self.__direct_data_sources = None
         self.__dependent_data_item_refs = list()
-        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -333,6 +333,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Optional method to close the data item. """
         for processor in self.__processors.values():
             processor.close()
+        # TODO: close DataItem.__shared_thread_queue
 
     def copy_metadata_from(self, data_item):
         self.datetime_original = data_item.datetime_original
@@ -472,8 +473,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return dict()
     properties = property(__get_properties)
 
-    def add_shared_task(self, task_id, item, fn):
-        self.__shared_thread_pool.add_task(task_id, item, fn)
+    def add_shared_task(self, fn):
+        self.__shared_thread_queue.add_task(fn)
 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]

@@ -121,15 +121,20 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview_data = None
         self.__preview = None
-        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.graphic_selection = GraphicSelection()
         self.graphic_selection.add_listener(self)
 
-    def add_shared_task(self, task_id, item, fn):
-        self.__shared_thread_pool.add_task(task_id, item, fn)
+    def close(self):
+        # TODO: make sure Display.close gets called
+        # TODO: close Display.__shared_thread_queue
+        pass
+
+    def add_shared_task(self, fn):
+        self.__shared_thread_queue.add_task(fn)
 
     def about_to_be_removed(self):
         self.graphic_selection.remove_listener(self)

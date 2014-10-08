@@ -131,13 +131,13 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display = None
         self.__pressed = False
 
-        self.__shared_thread_pool = ThreadPool.create_thread_queue()
+        self.__shared_thread_queue = ThreadPool.create_thread_queue()
 
         self.preferred_aspect_ratio = 1.618  # golden ratio
 
     def close(self):
-        self.__shared_thread_pool.close()
-        self.__shared_thread_pool = None
+        self.__shared_thread_queue.close()
+        self.__shared_thread_queue = None
         self.update_display(None)
         super(HistogramCanvasItem, self).close()
 
@@ -169,11 +169,10 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
     # TODO: histogram gets updated unnecessarily when dragging graphic items
     def update_display(self, display):
-        if self.__shared_thread_pool and display:
+        if self.__shared_thread_queue and display:
             def update_histogram_data_on_thread():
                 self._set_display(display)
-            # note: display is passed to add_task to keep a reference until task finishes.
-            self.__shared_thread_pool.add_task("update-histogram-data", display, lambda: update_histogram_data_on_thread())
+            self.__shared_thread_queue.add_task(lambda: update_histogram_data_on_thread())
 
     def __set_display_limits(self, display_limits):
         self.adornments_canvas_item.display_limits = display_limits
