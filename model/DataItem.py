@@ -331,9 +331,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def close(self):
         """ Optional method to close the data item. """
+        for display in self.displays:
+            display.remove_listener(self)
+            display._set_data_item(None)
+            display.close()
         for processor in self.__processors.values():
             processor.close()
-        # TODO: close DataItem.__shared_thread_queue
+        self.__shared_thread_queue.close()
+        self.__shared_thread_queue = None
 
     def copy_metadata_from(self, data_item):
         self.datetime_original = data_item.datetime_original
@@ -707,6 +712,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display._set_data_item(None)
+        display.close()
 
     def add_display(self, display):
         self.append_item("displays", display)

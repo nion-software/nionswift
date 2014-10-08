@@ -129,9 +129,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.graphic_selection.add_listener(self)
 
     def close(self):
-        # TODO: make sure Display.close gets called
-        # TODO: close Display.__shared_thread_queue
-        pass
+        self.__shared_thread_queue.close()
+        self.__shared_thread_queue = None
 
     def add_shared_task(self, fn):
         self.__shared_thread_queue.add_task(fn)

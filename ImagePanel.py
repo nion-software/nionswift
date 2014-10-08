@@ -358,12 +358,19 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_vertical = False
 
     def close(self):
-        self.__prepare_data_thread.close()
-        self.__prepare_data_thread = None
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.close()
+            self.__prepare_data_thread = None
         self.update_display(None)
         self.delegate.clear_task("prepare")
         # call super
         super(LinePlotCanvasItem, self).close()
+
+    def about_to_close(self):
+        # message received when image panel closes; otherwise thread is shut down when parent canvas item closes
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.close()
+            self.__prepare_data_thread = None
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -858,12 +865,19 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
     def close(self):
-        self.__prepare_data_thread.close()
-        self.__prepare_data_thread = None
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.close()
+            self.__prepare_data_thread = None
         self.update_display(None)
         self.delegate.clear_task("prepare")
         # call super
         super(ImageCanvasItem, self).close()
+
+    def about_to_close(self):
+        # message received when image panel closes; otherwise thread is shut down when parent canvas item closes
+        if self.__prepare_data_thread:
+            self.__prepare_data_thread.close()
+            self.__prepare_data_thread = None
 
     def __get_preferred_aspect_ratio(self):
         if self.display:
@@ -1432,8 +1446,8 @@ class ImagePanel(object):
                 self.image_panel = image_panel
 
             def close(self):
-                super(ContentCanvasItem, self).close()
                 self.image_panel = None
+                super(ContentCanvasItem, self).close()
 
             def key_pressed(self, key):
                 if self.image_panel.display_canvas_item:
@@ -1473,7 +1487,9 @@ class ImagePanel(object):
         self.__header_canvas_item = None
         # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
         self.canvas_item = None
-        self.display_canvas_item = None  # now closed
+        if self.display_canvas_item:
+            self.display_canvas_item.about_to_close()
+            self.display_canvas_item = None
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
