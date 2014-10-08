@@ -415,6 +415,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
                 if persistent_storage:
                     persistent_storage.write_delayed = True
+            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
@@ -433,6 +434,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if persistent_storage:
                     persistent_storage.write_delayed = False
                 self.managed_object_context.write_data_item(self)
+            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def managed_object_context_changed(self):

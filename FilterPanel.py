@@ -64,10 +64,12 @@ class FilterController(object):
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are added.
             """
-            with self.__data_item_tree_mutex:
-                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
-                self.__data_item_tree.insert_value(indexes, data_item)
+            def perform_insertion():
+                with self.__data_item_tree_mutex:
+                    data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+                    indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                    self.__data_item_tree.insert_value(indexes, data_item)
+            self.document_controller.queue_task(perform_insertion)
 
         # thread safe.
         def data_item_removed(data_item, index):
@@ -77,10 +79,12 @@ class FilterController(object):
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are removed.
             """
-            with self.__data_item_tree_mutex:
-                data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
-                self.__data_item_tree.remove_value(indexes, data_item)
+            def perform_removal():
+                with self.__data_item_tree_mutex:
+                    data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+                    indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                    self.__data_item_tree.remove_value(indexes, data_item)
+            self.document_controller.queue_task(perform_removal)
 
         # connect the data_items_binding from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods

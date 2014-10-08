@@ -135,7 +135,8 @@ class AbstractDataItemsBinding(Binding.Binding):
             Subclasses can call this to notify this object that the master
             data list has been updated.
         """
-        assert self.__change_level == 0
+        if self.__change_level > 0:
+            return
         data_item_filter = self.filter
         if data_item_filter(data_item):
             data_items = self.__data_items
@@ -172,7 +173,8 @@ class AbstractDataItemsBinding(Binding.Binding):
             Subclasses can call this to notify this object that the master
             data list has been updated.
         """
-        assert self.__change_level == 0
+        if self.__change_level > 0:
+            return
         if data_item in self.__data_items:
             index = self.__data_items.index(data_item)
             del self.__data_items[index]
@@ -330,12 +332,13 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Set the container to which to listen. """
         if self.__container:
             self.__container.remove_listener(self)
-        self.__master_data_items = list()
+            for data_item in reversed(copy.copy(self.__container.data_items)):
+                self.data_item_removed(self.__container, data_item, len(self.__master_data_items) - 1, False)
         self.__container = container
         if self.__container:
             self.__container.add_listener(self)
-            self.__master_data_items.extend(self.__container.data_items)
-        self._update_data_items()
+            for index, data_item in enumerate(self.__container.data_items):
+                self.data_item_inserted(self.__container, data_item, index, False)
     container = property(__get_container, __set_container)
 
     # thread safe.
@@ -343,6 +346,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Insert the data item. Called from the container. """
         with self._update_mutex:
             self.__master_data_items.insert(before_index, data_item)
+        data_item.add_listener(self)
         self._inserted_master_data_item(before_index, data_item)
 
     # thread safe.
@@ -350,7 +354,13 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Remove the data item. Called from the container. """
         with self._update_mutex:
             del self.__master_data_items[index]
+        data_item.remove_listener(self)
         self._removed_master_data_item(index, data_item)
+
+    def data_item_content_changed(self, data_item, changes):
+        index = self.__master_data_items.index(data_item)
+        self.data_item_removed(self.__container, data_item, index, False)
+        self.data_item_inserted(self.__container, data_item, index, False)
 
     # thread safe
     def _get_master_data_items(self):

@@ -9,6 +9,7 @@ import numpy
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
+from nion.swift.model import Utility
 
 
 class TestDataItemsBindingModule(unittest.TestCase):
@@ -92,6 +93,23 @@ class TestDataItemsBindingModule(unittest.TestCase):
             data_items.append(data_item)
         self.assertEqual([d.title for d in binding.data_items], sorted([d.title for d in binding.data_items]))
         self.assertEqual([d.title for d in binding.data_items], [d.title for d in binding2.data_items])
+
+    def test_sorted_binding_updates_when_transaction_started(self):
+        def sort_by_date_key(data_item):
+            """ A sort key to for the datetime_original field of a data item. """
+            return data_item.is_live, Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.sort_key = sort_by_date_key
+        binding.sort_reverse = True
+        data_items = list()
+        for value in TestDataItemsBindingModule.values:
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            data_item.title = value
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        live_data_item = binding.data_items[2]
+        with live_data_item.transaction():
+            self.assertEqual(binding.data_items.index(live_data_item), 0)
 
 
 if __name__ == '__main__':
