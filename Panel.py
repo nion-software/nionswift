@@ -62,7 +62,7 @@ class Panel(object):
         self.document_controller.clear_task(key + str(id(self)))
 
     def queue_task(self, task):
-        self.document_controller.put(task)
+        self.document_controller.queue_task(task)
 
     def __str__(self):
         return self.display_name
