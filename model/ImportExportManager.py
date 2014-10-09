@@ -457,6 +457,6 @@ class NDataImportExportHandler(ImportExportHandler):
 
 ImportExportManager().register_io_handler(StandardImportExportHandler("JPEG", ["jpg", "jpeg"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("PNG", ["png"]))
-ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))
+#ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))
 ImportExportManager().register_io_handler(CSVImportExportHandler("CSV", ["csv"]))
 ImportExportManager().register_io_handler(NDataImportExportHandler("NData", ["ndata1"]))
