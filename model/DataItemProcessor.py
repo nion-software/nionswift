@@ -74,6 +74,7 @@ class DataItemProcessor(object):
                             except Exception as e:
                                 import traceback
                                 traceback.print_exc()
+                                traceback.print_stack()
                                 self.__finish_event.set()
                                 raise
                             self.item.set_cached_value(self.__cache_property_name, calculated_data)

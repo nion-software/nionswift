@@ -328,7 +328,9 @@ class HardwareSource(Observable.Broadcaster):
             minimum_period = 1/20.0  # don't allow acquisition to starve main thread
             last_acquire_time = time.time() - minimum_period
         except Exception as e:
+            logging.debug("Acquire error %s", e)
             traceback.print_exc()
+            traceback.print_stack()
             return
         try:
             new_data_elements = None

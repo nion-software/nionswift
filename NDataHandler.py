@@ -176,9 +176,10 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             json_str = json_io.getvalue()
         except Exception, e:
             # catch exceptions to avoid corrupt zip files
-            logging.error("Exception writing zip file")
             import traceback
+            logging.error("Exception writing zip file %s" + str(e))
             traceback.print_exc()
+            traceback.print_stack()
         def write_json(fp):
             fp.write(json_str)
             return binascii.crc32(json_str) & 0xFFFFFFFF

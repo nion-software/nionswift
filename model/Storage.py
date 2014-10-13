@@ -1258,8 +1258,9 @@ class DbDatastoreProxy(object):
                     time.sleep(self._throttling)
                 except Exception as e:
                     import traceback
-                    traceback.print_exc()
                     logging.debug("DB Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
                 finally:
                     #logging.debug("FINISH")
                     event.set()
@@ -1492,8 +1493,9 @@ class DbStorageCache(object):
                     #logging.debug("ELAPSED %s", elapsed)
                 except Exception as e:
                     import traceback
-                    traceback.print_exc()
                     logging.debug("DB Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
                 finally:
                     #logging.debug("FINISH")
                     if event:

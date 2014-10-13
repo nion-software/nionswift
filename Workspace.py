@@ -169,8 +169,9 @@ class Workspace(object):
             return dock_widget
         except Exception, e:
             import traceback
-            traceback.print_exc()
             print "Exception creating panel '" + panel_id + "': " + str(e)
+            traceback.print_exc()
+            traceback.print_stack()
             return None
 
     def create_image_panel(self, element_id):
@@ -616,8 +617,9 @@ class WorkspaceManager(object):
                 return panel
             except Exception, e:
                 import traceback
-                traceback.print_exc()
                 print "Exception creating panel '" + panel_id + "': " + str(e)
+                traceback.print_exc()
+                traceback.print_stack()
         return None
 
     def register_filter_panel(self, filter_panel_class):

@@ -534,9 +534,9 @@ class DocumentController(Observable.Broadcaster):
                         path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
                         ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
                     except Exception as e:
-                        logging.debug("Could not export image %s", str(data_item))
+                        logging.debug("Could not export image %s / %s", str(data_item), str(e))
                         traceback.print_exc()
-                        logging.debug("Error: %s", e)
+                        traceback.print_stack()
         else:
             self.export_file()
 
@@ -895,9 +895,9 @@ class DocumentController(Observable.Broadcaster):
                             received_data_items.extend(data_items)
 
                     except Exception as e:
-                        logging.debug("Could not read image %s", file_path)
+                        logging.debug("Could not read image %s / %s", file_path, str(e))
                         traceback.print_exc()
-                        logging.debug("Error: %s", e)
+                        traceback.print_stack()
 
                 task.update_progress(_("Finishing importing."), (len(file_paths), len(file_paths)))
 
