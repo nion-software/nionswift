@@ -688,10 +688,10 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         # begin the transaction
         with data_item.transaction():
-            self.assertTrue(data_item.is_live)
-            self.assertTrue(data_item2.is_live)
-        self.assertFalse(data_item.is_live)
-        self.assertFalse(data_item2.is_live)
+            self.assertTrue(data_item.transaction_count > 0)
+            self.assertTrue(data_item2.transaction_count > 0)
+        self.assertEqual(data_item.transaction_count, 0)
+        self.assertEqual(data_item2.transaction_count, 0)
 
     def test_data_item_added_to_data_item_under_transaction_becomes_transacted_too(self):
         document_model = DocumentModel.DocumentModel()
@@ -705,10 +705,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2.add_data_source(data_item)
             document_model.append_data_item(data_item2)
             # check to make sure it is under transaction
-            self.assertTrue(data_item.is_live)
-            self.assertTrue(data_item2.is_live)
-        self.assertFalse(data_item.is_live)
-        self.assertFalse(data_item2.is_live)
+            self.assertTrue(data_item.transaction_count > 0)
+            self.assertTrue(data_item2.transaction_count > 0)
+        self.assertEqual(data_item.transaction_count, 0)
+        self.assertEqual(data_item2.transaction_count, 0)
 
     def test_data_item_added_to_data_item_under_transaction_configures_dependency(self):
         document_model = DocumentModel.DocumentModel()

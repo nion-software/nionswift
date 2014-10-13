@@ -108,8 +108,11 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.data_item_inserted(None, data_item, 0, False)
             data_items.append(data_item)
         live_data_item = binding.data_items[2]
-        with live_data_item.transaction():
+        live_data_item.begin_live()
+        try:
             self.assertEqual(binding.data_items.index(live_data_item), 0)
+        finally:
+            live_data_item.end_live()
 
 
 if __name__ == '__main__':

@@ -491,6 +491,7 @@ class HardwareSource(Observable.Broadcaster):
         for data_item in new_channel_to_data_item_dict.values():
             data_item.increment_data_ref_count()
             data_item.begin_transaction()
+            data_item.begin_live()
 
         # update the data items with the new data.
         completed_data_items = []
@@ -509,6 +510,7 @@ class HardwareSource(Observable.Broadcaster):
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
             data_item.end_transaction()
+            data_item.end_live()
             data_item.decrement_data_ref_count()
 
         # keep the channel to data item map around so that we know what changed between

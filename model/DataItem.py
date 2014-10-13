@@ -226,9 +226,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         Data range.
 
         Data values.
-        
+
         Calibrations.
-        
+
         Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
         For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
         coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
@@ -273,6 +273,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
+        self.__live_count = 0  # specially handled property
+        self.__live_count_mutex = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.closed = False
@@ -412,6 +414,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.__object.end_transaction()
         return TransactionContextManager(self)
 
+    def __get_transaction_count(self):
+        """ Return the transaction count for this data item. """
+        return self.__transaction_count
+    transaction_count = property(__get_transaction_count)
+
     def begin_transaction(self, count=1):
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
         assert count > 0
@@ -423,7 +430,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
                 if persistent_storage:
                     persistent_storage.write_delayed = True
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
@@ -442,7 +448,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if persistent_storage:
                     persistent_storage.write_delayed = False
                 self.managed_object_context.write_data_item(self)
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def managed_object_context_changed(self):
@@ -488,8 +493,37 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __get_is_live(self):
         """ Return whether this data item represents a live acquisition data item. """
-        return self.__transaction_count > 0
+        return self.__live_count > 0
     is_live = property(__get_is_live)
+
+    def begin_live(self, count=1):
+        """
+        Begins a live transaction with this item. The live-ness property is propagated to
+        dependent data items, similar to the transactions.
+        """
+        assert count > 0
+        with self.__live_count_mutex:
+            old_live_count = self.__live_count
+            self.__live_count += count
+        if old_live_count == 0:
+            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+        for data_item in self.dependent_data_items:
+            data_item.begin_live(count)
+
+    def end_live(self, count=1):
+        """
+        Ends a live transaction with this item. The live-ness property is propagated to
+        dependent data items, similar to the transactions.
+        """
+        assert count > 0
+        for data_item in self.dependent_data_items:
+            data_item.end_live(count)
+        with self.__live_count_mutex:
+            self.__live_count -= count
+            assert self.__live_count >= 0
+            live_count = self.__live_count
+        if live_count == 0:
+            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
