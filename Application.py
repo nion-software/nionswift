@@ -83,7 +83,7 @@ class Application(object):
 
     def choose_workspace(self):
         documents_dir = self.ui.get_document_location()
-        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Workspace Folder"), documents_dir)
+        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
         return workspace_dir
 
     def migrate_workspace(self, workspace_dir, db_filename):
@@ -623,7 +623,7 @@ class Application(object):
             Creates document model, resources path, etc.
         """
         documents_dir = self.ui.get_document_location()
-        workspace_dir = os.path.join(documents_dir, "Nion Swift Workspace")
+        workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
         workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
         db_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nswrk")
         lib_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
@@ -672,23 +672,23 @@ class Application(object):
         # workspace_history = ["/Users/cmeyer/Movies/Crap/Test1", "/Users/cmeyer/Movies/Crap/Test7_new"]
         return [file_path for file_path in workspace_history if file_path != self.workspace_dir and os.path.exists(file_path)]
 
-    def switch_workspace(self, recent_workspace_file_path, skip_choose=False):
+    def switch_library(self, recent_workspace_file_path, skip_choose=False):
         for document_controller in self.__document_controllers:
             document_controller.document_window.close()
         self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
         self.start(skip_choose=skip_choose)
 
-    def other_workspace(self):
+    def other_libraries(self):
         workspace_dir = self.choose_workspace()
         if workspace_dir:
-            self.switch_workspace(workspace_dir, skip_choose=True)
+            self.switch_library(workspace_dir, skip_choose=True)
 
-    def new_workspace(self):
+    def new_library(self):
         workspace_dir = self.choose_workspace()
         if workspace_dir:
-            self.switch_workspace(workspace_dir, skip_choose=True)
+            self.switch_library(workspace_dir, skip_choose=True)
 
-    def clear_workspaces(self):
+    def clear_libraries(self):
         self.ui.remove_persistent_key("workspace_history")
 
     def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):

@@ -90,6 +90,17 @@ class DocumentController(Observable.Broadcaster):
         self.filter_controller = None
         self.__data_items_binding.close()
         self.__data_items_binding = None
+        # menus
+        self.view_menu.on_about_to_show = None
+        self.window_menu.on_about_to_show = None
+        self.file_menu = None
+        self.edit_menu = None
+        self.processing_menu = None
+        self.view_menu = None
+        self.graphic_menu = None
+        self.window_menu = None
+        self.help_menu = None
+        self.library_menu = None
         # close the workspace before closing the image panels, to save their position
         if self.workspace:
             self.workspace.close()
@@ -101,7 +112,6 @@ class DocumentController(Observable.Broadcaster):
         self.document_window = None
         self.document_model.close()
         self.document_model = None
-        self.window_menu.on_about_to_show = None
         self.notify_listeners("document_controller_did_close", self)
         self.ui.destroy_document_window(self)
 
@@ -135,25 +145,25 @@ class DocumentController(Observable.Broadcaster):
 
         self.help_menu = self.document_window.add_menu(_("Help"))
 
-        self.workspace_menu = self.ui.create_sub_menu(self.document_window)
+        self.library_menu = self.ui.create_sub_menu(self.document_window)
 
         if self.app:
             recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
             for file_path in recent_workspace_file_paths:
                 root_path, file_name = os.path.split(file_path)
                 name, ext = os.path.splitext(file_name)
-                self.workspace_menu.add_menu_item(name, lambda file_path=file_path: self.app.switch_workspace(file_path))
+                self.library_menu.add_menu_item(name, lambda file_path=file_path: self.app.switch_library(file_path))
             if len(recent_workspace_file_paths) > 0:
-                self.workspace_menu.add_separator()
-            self.workspace_menu.add_menu_item(_("Other..."), self.app.other_workspace)
-            self.workspace_menu.add_menu_item(_("New..."), self.app.new_workspace)
-            self.workspace_menu.add_menu_item(_("Clear"), self.app.clear_workspaces)
+                self.library_menu.add_separator()
+            self.library_menu.add_menu_item(_("Other..."), self.app.other_libraries)
+            self.library_menu.add_menu_item(_("New..."), self.app.new_library)
+            self.library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
         self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.document_window.close(), key_sequence="close")
         self.file_menu.add_separator()
-        self.new_action = self.file_menu.add_sub_menu(_("Switch Workspace"), self.workspace_menu)
+        self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()
         self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
         self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_files())
