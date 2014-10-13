@@ -174,6 +174,8 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.set_fixed_height(self.header_height)
         self.on_drag_pressed = None
         self.on_sync_clicked = None
+        self.__start_header_color = "#ededed"
+        self.__end_header_color = "#cacaca"
 
     def close(self):
         self.on_drag_pressed = None
@@ -190,6 +192,27 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__title = title
             self.update()
     title = property(__get_title, __set_title)
+
+    def __get_start_header_color(self):
+        return self.__start_header_color
+    def __set_start_header_color(self, start_header_color):
+        if self.__start_header_color != start_header_color:
+            self.__start_header_color = start_header_color
+            self.update()
+    start_header_color = property(__get_start_header_color, __set_start_header_color)
+
+    def __get_end_header_color(self):
+        return self.__end_header_color
+    def __set_end_header_color(self, end_header_color):
+        if self.__end_header_color != end_header_color:
+            self.__end_header_color = end_header_color
+            self.update()
+    end_header_color = property(__get_end_header_color, __set_end_header_color)
+
+    def reset_header_colors(self):
+        self.__start_header_color = "#ededed"
+        self.__end_header_color = "#cacaca"
+        self.update()
 
     def mouse_pressed(self, x, y, modifiers):
         canvas_size = self.canvas_size
@@ -219,8 +242,8 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.line_to(canvas_size.width, 0)
         drawing_context.close_path()
         gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
-        gradient.add_color_stop(0, '#ededed')
-        gradient.add_color_stop(1, '#cacaca')
+        gradient.add_color_stop(0, self.__start_header_color)
+        gradient.add_color_stop(1, self.__end_header_color)
         drawing_context.fill_style = gradient
         drawing_context.fill()
         drawing_context.restore()
