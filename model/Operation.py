@@ -266,7 +266,7 @@ class Operation(object):
             """
                 Constructs an object that is able to perform operation and return results.
 
-                Delays the calculation until it is requested using closures.
+                Delays the calculation (using closures) until it is requested.
             """
 
             def __init__(self, operation, data_inputs):
