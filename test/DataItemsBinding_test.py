@@ -114,6 +114,65 @@ class TestDataItemsBindingModule(unittest.TestCase):
         finally:
             live_data_item.end_live()
 
+    def test_sorted_filtered_binding_updates_when_data_item_enters_filter(self):
+        def is_live_filter(data_item):
+            return data_item.is_live
+        def sort_by_date_key(data_item):
+            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.filter = is_live_filter
+        binding.sort_key = sort_by_date_key
+        data_items = list()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        self.assertEqual(len(binding.data_items), 0)
+        with data_items[0].live():
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
+            self.assertEqual(len(binding.data_items), 1)
+            with data_items[2].live():
+                binding.data_item_content_changed(data_items[2], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 2)
+                self.assertTrue(binding.data_items.index(data_items[0]) < binding.data_items.index(data_items[2]))
+
+    def test_unsorted_filtered_binding_updates_when_data_item_enters_filter(self):
+        def is_live_filter(data_item):
+            return data_item.is_live
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.filter = is_live_filter
+        data_items = list()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        self.assertEqual(len(binding.data_items), 0)
+        with data_items[0].live():
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
+            self.assertEqual(len(binding.data_items), 1)
+            with data_items[2].live():
+                binding.data_item_content_changed(data_items[2], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 2)
+
+    def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
+        def is_not_live_filter(data_item):
+            return not data_item.is_live
+        def sort_by_date_key(data_item):
+            return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.filter = is_not_live_filter
+        binding.sort_key = sort_by_date_key
+        data_items = list()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        self.assertEqual(len(binding.data_items), 4)
+        with data_items[0].live():
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
+            self.assertEqual(len(binding.data_items), 3)
+
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

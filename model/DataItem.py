@@ -496,6 +496,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.__live_count > 0
     is_live = property(__get_is_live)
 
+    def live(self):
+        """ Return a context manager to put the data item under a live count. """
+        class LiveContextManager(object):
+            def __init__(self, object):
+                self.__object = object
+            def __enter__(self):
+                self.__object.begin_live()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__object.end_live()
+        return LiveContextManager(self)
+
+    def __get_live_count(self):
+        """ Return the live count for this data item. """
+        return self.__live_count
+    live_count = property(__get_live_count)
+
     def begin_live(self, count=1):
         """
         Begins a live transaction with this item. The live-ness property is propagated to

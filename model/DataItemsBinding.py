@@ -142,6 +142,15 @@ class AbstractDataItemsBinding(Binding.Binding):
                 high = mid
         return low
 
+    def __find_unsorted_index_for_data_item(self, data_item, master_data_items, data_item_filter):
+        index = 0
+        for data_item_ in master_data_items:
+            if data_item_ == data_item:
+                break
+            if data_item_filter(data_item_):
+                index += 1
+        return index
+
     # thread safe
     def _inserted_master_data_item(self, before_index, data_item):
         """
@@ -158,13 +167,7 @@ class AbstractDataItemsBinding(Binding.Binding):
                 sort_operator = operator.gt if self.sort_reverse else operator.lt
                 before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
             else:
-                index = 0
-                for data_item_ in self._get_master_data_items():
-                    if data_item_ == data_item:
-                        break
-                    if data_item_filter(data_item_):
-                        index += 1
-                before_index = index
+                before_index = self.__find_unsorted_index_for_data_item(data_item, self._get_master_data_items(), data_item_filter)
             with self._update_mutex:
                 self.__data_items.insert(before_index, data_item)
                 for inserter in self.inserters.values():
@@ -196,18 +199,37 @@ class AbstractDataItemsBinding(Binding.Binding):
             return
         data_item_filter = self.filter
         if data_item_filter(data_item):
+            # data item will be in the list
             data_items = self.__data_items
             sort_key = self.sort_key
             if sort_key is not None:
+                # are items sorted?
                 sort_operator = operator.gt if self.sort_reverse else operator.lt
                 before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
-                index = data_items.index(data_item)
-                if before_index < index:
-                    self._removed_master_data_item(index, data_item)
+                if data_item in data_items:
+                    # data item already in list?
+                    index = data_items.index(data_item)
+                    if before_index < index:
+                        self._removed_master_data_item(index, data_item)
+                        self._inserted_master_data_item(before_index, data_item)
+                    elif before_index > index:
+                        self._removed_master_data_item(index, data_item)
+                        self._inserted_master_data_item(before_index - 1, data_item)
+                else:
+                    # data item is not in list, just insert
                     self._inserted_master_data_item(before_index, data_item)
-                elif before_index > index:
-                    self._removed_master_data_item(index, data_item)
-                    self._inserted_master_data_item(before_index - 1, data_item)
+            else:
+                # items are not sorted
+                if not data_item in data_items:
+                    # data item is not in list, just insert. the before_index we pass will not be used so just pass 0
+                    self._inserted_master_data_item(0, data_item)
+        else:
+            # data item will not be in list
+            data_items = self.__data_items
+            if data_item in data_items:
+                # data item already in list
+                index = data_items.index(data_item)
+                self._removed_master_data_item(index, data_item)
 
     # thread safe.
     def __build_data_items(self):
