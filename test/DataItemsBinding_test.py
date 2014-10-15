@@ -94,6 +94,19 @@ class TestDataItemsBindingModule(unittest.TestCase):
         self.assertEqual([d.title for d in binding.data_items], sorted([d.title for d in binding.data_items]))
         self.assertEqual([d.title for d in binding.data_items], [d.title for d in binding2.data_items])
 
+    def test_filter_binding_inits_with_source_binding(self):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.sort_key = operator.attrgetter("title")
+        data_items = list()
+        for value in TestDataItemsBindingModule.values:
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            data_item.title = value
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        self.assertEqual([d.title for d in binding.data_items], sorted([d.title for d in binding.data_items]))
+        binding2 = DataItemsBinding.DataItemsFilterBinding(binding)
+        self.assertEqual([d.title for d in binding.data_items], [d.title for d in binding2.data_items])
+
     def test_sorted_binding_updates_when_transaction_started(self):
         def sort_by_date_key(data_item):
             """ A sort key to for the datetime_original field of a data item. """
@@ -172,7 +185,23 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 3)
 
-
+    def test_filtered_binding_updates_when_source_binding_has_data_item_that_updates(self):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        data_items = list()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        self.assertEqual(len(binding.data_items), 4)
+        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+        def is_live_filter(data_item):
+            return data_item.is_live
+        filter_binding.filter = is_live_filter
+        self.assertEqual(len(filter_binding.data_items), 0)
+        with data_items[0].live():
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
+            self.assertEqual(len(binding.data_items), 4)  # verify assumption
+            self.assertTrue(data_items[0] in filter_binding.data_items)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

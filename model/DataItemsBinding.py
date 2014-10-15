@@ -328,6 +328,8 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
+        for index, data_item in enumerate(self.__data_items_binding.data_items):
+            self.__data_item_inserted(data_item, index)
 
     def close(self):
         del self.__data_items_binding.inserters[id(self)]
@@ -340,6 +342,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         with self._update_mutex:
             assert data_item not in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
+        data_item.add_listener(self)
         self._inserted_master_data_item(before_index, data_item)
 
     # thread safe.
@@ -348,7 +351,14 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         with self._update_mutex:
             assert data_item in self.__master_data_items
             del self.__master_data_items[index]
+        data_item.remove_listener(self)
         self._removed_master_data_item(index, data_item)
+
+    def data_item_content_changed(self, data_item, changes):
+        if not data_item in self.__master_data_items:
+            logging.debug("Data item not in master list %s", data_item)
+        else:
+            self._updated_master_data_item(data_item)
 
     # thread safe
     def _get_master_data_items(self):
