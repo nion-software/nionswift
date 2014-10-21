@@ -372,7 +372,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         return persistent_storage.reference_type, persistent_storage.reference
 
 
-class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ManagedObject):
 
     def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
         super(DocumentModel, self).__init__()
@@ -407,6 +407,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Ma
     def close(self):
         for data_item in self.data_items:
             data_item.close()
+
+    def about_to_delete(self):
+        # override from ReferenceCounted. several DocumentControllers may retain references
+        self.close()
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

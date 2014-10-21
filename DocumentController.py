@@ -41,7 +41,10 @@ class DocumentController(Observable.Broadcaster):
     def __init__(self, ui, document_model, workspace_id=None, app=None):
         super(DocumentController, self).__init__()
         self.ui = ui
+        # document_model may be shared between several DocumentControllers, so use reference counting
+        # to determine when to close it.
         self.document_model = document_model
+        self.document_model.add_ref()
         self.document_window = self.ui.create_document_window()
         self.document_window.on_periodic = self.periodic
         self.document_window.on_queue_task = self.queue_task
@@ -110,7 +113,9 @@ class DocumentController(Observable.Broadcaster):
             image_panel.close()
         self.__weak_image_panels = None
         self.document_window = None
-        self.document_model.close()
+        # document_model may be shared between several DocumentControllers, so use reference counting
+        # to determine when to close it.
+        self.document_model.remove_ref()
         self.document_model = None
         self.notify_listeners("document_controller_did_close", self)
         self.ui.destroy_document_window(self)

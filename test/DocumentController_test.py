@@ -1,5 +1,6 @@
 # standard libraries
 import gc
+import logging
 import unittest
 import weakref
 
@@ -209,10 +210,20 @@ class TestDocumentControllerClass(unittest.TestCase):
         # clean up
         image_panel.close()
 
-    def test_remove_line_profile_updates_graphic_selection(self):
-        # TODO: enable line in test_remove_line_profile_removes_associated_child_data_item
-        pass
+    def test_document_model_closed_only_after_all_document_controllers_closed(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_controller1 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with data_item.data_item_changes():
+            pass  # triggers usage of 'processors' which gets set to null when closed
+        document_controller1.close()
+        with data_item.data_item_changes():
+            pass  # triggers usage of 'processors' which gets set to null when closed
+        document_controller2.close()  # this would fail even if processors part didn't fail
 
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
