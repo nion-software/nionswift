@@ -906,12 +906,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__dependent_data_item_refs.append(weakref.ref(data_item))
         if self.__transaction_count > 0:
             data_item.begin_transaction(self.__transaction_count)
+        if self.__live_count > 0:
+            data_item.begin_live(self.__live_count)
 
     # track dependent data items. useful for propogating transaction support.
     def remove_dependent_data_item(self, data_item):
         self.__dependent_data_item_refs.remove(weakref.ref(data_item))
         if self.__transaction_count > 0:
             data_item.end_transaction(self.__transaction_count)
+        if self.__live_count > 0:
+            data_item.end_transaction(self.__live_count)
 
     def __get_dependent_data_items(self):
         return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]

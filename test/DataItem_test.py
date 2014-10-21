@@ -744,6 +744,24 @@ class TestDataItemClass(unittest.TestCase):
             persistent_storage = data_item.managed_object_context.get_persistent_storage_for_object(data_item)
             self.assertTrue(persistent_storage.write_delayed)
 
+    def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        with data_item.live():
+            data_item_crop1 = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+            crop_region = Region.RectRegion()
+            crop_operation.establish_associated_region("crop", data_item, crop_region)
+            data_item_crop1.add_operation(crop_operation)
+            data_item_crop1.add_data_source(data_item)
+            document_model.append_data_item(data_item_crop1)
+            self.assertTrue(data_item_crop1.is_live)
+        self.assertFalse(data_item.is_live)
+        self.assertFalse(data_item_crop1.is_live)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
