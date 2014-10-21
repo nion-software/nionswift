@@ -590,7 +590,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy = data_item.snapshot()
         self.assertEqual(data_item_copy.get_metadata("test")["one"], 1)
 
-    def test_data_item_allows_adding_of_two_data_sources(self):
+    def disabled_test_data_item_allows_adding_of_two_data_sources(self):
+        # two data sources are not currently supported
         document_model = DocumentModel.DocumentModel()
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item1)
@@ -601,7 +602,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item.add_data_source(data_item2)
         document_model.append_data_item(data_item)
 
-    def test_data_item_allows_remove_second_of_two_data_sources(self):
+    def disabled_test_data_item_allows_remove_second_of_two_data_sources(self):
+        # two data sources are not currently supported
         document_model = DocumentModel.DocumentModel()
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item1)
@@ -761,6 +763,29 @@ class TestDataItemClass(unittest.TestCase):
             self.assertTrue(data_item_crop1.is_live)
         self.assertFalse(data_item.is_live)
         self.assertFalse(data_item_crop1.is_live)
+
+    def test_data_item_removed_from_live_data_item_becomes_unlive(self):
+        document_model = DocumentModel.DocumentModel()
+        # configure the source item
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_crop1 = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+        crop_region = Region.RectRegion()
+        crop_operation.establish_associated_region("crop", data_item, crop_region)
+        data_item_crop1.add_operation(crop_operation)
+        data_item_crop1.add_data_source(data_item)
+        document_model.append_data_item(data_item_crop1)
+        with data_item.live():
+            # check assumptions
+            self.assertTrue(data_item.is_live)
+            self.assertTrue(data_item_crop1.is_live)
+            data_item_crop1.remove_data_source(data_item)
+            self.assertFalse(data_item_crop1.is_live)
+        self.assertFalse(data_item.is_live)
+        self.assertFalse(data_item_crop1.is_live)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

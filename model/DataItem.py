@@ -915,7 +915,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.__transaction_count > 0:
             data_item.end_transaction(self.__transaction_count)
         if self.__live_count > 0:
-            data_item.end_transaction(self.__live_count)
+            data_item.end_live(self.__live_count)
 
     def __get_dependent_data_items(self):
         return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
@@ -959,12 +959,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
-        #assert len(self.__data_sources) == 0  # for now we assume that this is only called before data sources are connected
+        assert len(self.__data_sources) == 1  # for now we assume that this is only called before data sources are connected
         data_source_uuid_list = self.data_source_uuid_list
         assert str(data_source.uuid) in data_source_uuid_list.list
         data_source_uuid_list.list.remove(str(data_source.uuid))
         self.data_source_uuid_list = data_source_uuid_list
         self.session_id = None
+        self.disconnect_data_sources()
 
     def __get_master_data(self):
         return self.__master_data
