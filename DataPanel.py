@@ -794,6 +794,7 @@ class DataPanel(Panel.Panel):
             del self.__binding.removers[id(self)]
             self.on_selection_changed = None
             self.on_context_menu_event = None
+            self.root_canvas_item.close()
 
         def periodic(self):
             # handle the 'changed' stuff
