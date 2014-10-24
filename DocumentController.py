@@ -277,6 +277,10 @@ class DocumentController(Observable.Broadcaster):
 
     def show_about_box(self):
         version_str = self.app.version_str if self.app else str()
+        root_dir = os.path.dirname(os.path.realpath(__file__))
+        path_ascend_count = 2
+        for i in range(path_ascend_count):
+            root_dir = os.path.dirname(root_dir)
         class AboutDialog(Dialog.OkCancelDialog):
             def __init__(self, ui):
                 super(AboutDialog, self).__init__(ui, include_cancel=False)
@@ -287,7 +291,7 @@ class DocumentController(Observable.Broadcaster):
                 column = self.ui.create_column_widget()
                 row_one = self.ui.create_row_widget()
                 row_one.add_spacing(13)
-                row_one.add(self.ui.create_label_widget("Nion Swift {0}".format(version_str)))
+                row_one.add(self.ui.create_label_widget("Nion Swift {0} {1}".format(version_str, root_dir)))
                 row_one.add_spacing(13)
                 row_one.add_stretch()
                 row_two = self.ui.create_row_widget()
