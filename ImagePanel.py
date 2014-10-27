@@ -1708,9 +1708,11 @@ class ImagePanelManager(Observable.Broadcaster):
         pass
     # events from the image panels
     def key_pressed(self, image_panel, key):
-        return self.notify_listeners("image_panel_key_pressed", image_panel, key)
+        self.notify_listeners("image_panel_key_pressed", image_panel, key)
+        return False
     def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
-        return self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
+        self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
+        return False
 
 
 class InfoPanel(Panel.Panel):
