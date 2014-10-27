@@ -1587,10 +1587,11 @@ class ImagePanel(object):
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
             thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
-            action = root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
-            if action == "move" and self.document_controller.replaced_data_item is not None:
-                self.__set_display(self.document_controller.replaced_data_item.displays[0])
-                self.document_controller.replaced_data_item = None
+            def drag_finished(action):
+                if action == "move" and self.document_controller.replaced_data_item is not None:
+                    self.__set_display(self.document_controller.replaced_data_item.displays[0])
+                    self.document_controller.replaced_data_item = None
+            root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
 
     def __sync_data_item(self):
         data_item = self.get_displayed_data_item()
