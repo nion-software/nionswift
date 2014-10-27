@@ -182,6 +182,7 @@ class FilterController(object):
                         tree_node = item.data["tree_node"]
                         item.data["display"] = self.__display_for_tree_node(tree_node)
                         item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+                self.__node_counts_dirty = False
 
     def date_browser_selection_changed(self, selected_indexes):
         """
