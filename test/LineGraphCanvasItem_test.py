@@ -37,7 +37,6 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
             data_info = LineGraphCanvasItem.LineGraphDataInfo(data, None, None)
-            data_info.calculate_y_axis(400)
             self.assertEqual(data_info.drawn_data_min, expected_drawn_data_min)
             self.assertEqual(data_info.drawn_data_max, expected_drawn_data_max)
 

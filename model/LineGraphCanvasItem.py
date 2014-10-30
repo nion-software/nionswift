@@ -29,12 +29,10 @@ _ = gettext.gettext
 
 class LineGraphDataInfo(object):
 
-    """
-        LineGraphDataInfo is used to pass data, drawing limits, and calibrations to
-        various canvas items.
-    """
+    """ LineGraphDataInfo is used to pass data, drawing limits, and calibrations to various canvas items. """
 
     def __init__(self, data=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None):
+        # these items are considered to be input items
         self.data = data
         self.data_min = data_min
         self.data_max = data_max
@@ -42,26 +40,23 @@ class LineGraphDataInfo(object):
         self.data_right = data_right
         self.spatial_calibration = spatial_calibration
         self.intensity_calibration = intensity_calibration
-        self.raw_data_left = None
-        self.raw_data_right = None
-        self.x_ticks = []
+        # these items are considered to be output items
         self.x_tick_precision = None
         self.x_tick_division = None
-        self.y_ticks = []
         self.y_tick_calibrated_data_min = None
         self.y_tick_calibrated_data_max = None
         self.y_tick_precision = None
         self.y_tick_division = None
         self.calibrated_data_min = None
         self.calibrated_data_max = None
-        self.calibrated_data_left = None
-        self.calibrated_data_right = None
         self.drawn_data_min = None
         self.drawn_data_max = None
         self.drawn_data_range = None
-        self.drawn_data_per_pixel = None
         self.drawn_left_channel = None
         self.drawn_right_channel = None
+        if data is not None:
+            self.__prepare_y_axis()
+            self.__prepare_x_axis()
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -74,15 +69,19 @@ class LineGraphDataInfo(object):
                 self.intensity_calibration == other.intensity_calibration
         return False
 
-    def calculate_y_axis(self, plot_height):
+    def get_drawn_data_per_pixel(self, plot_height):
+        return float(self.drawn_data_range) / plot_height
+
+    def __prepare_y_axis(self):
 
         """ Calculate various parameters relating to the y-axis. """
+
+        calibration = self.intensity_calibration
 
         min_specified = self.data_min is not None
         max_specified = self.data_max is not None
         raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
         raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
-        calibration = self.intensity_calibration
 
         calibrated_data_min = calibration.convert_to_calibrated_value(raw_data_min) if calibration is not None else raw_data_min
         calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max) if calibration is not None else raw_data_max
@@ -90,7 +89,7 @@ class LineGraphDataInfo(object):
         calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
         calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
 
-        graph_minimum, graph_maximum, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_min, calibrated_data_max)
+        graph_minimum, graph_maximum, tick_values, division, precision = Geometry.make_pretty_range(calibrated_data_min, calibrated_data_max)
 
         if min_specified:
             self.drawn_data_min = raw_data_min
@@ -101,12 +100,26 @@ class LineGraphDataInfo(object):
         else:
             self.drawn_data_max = calibration.convert_from_calibrated_value(graph_maximum) if calibration else graph_maximum
         self.drawn_data_range = self.drawn_data_max - self.drawn_data_min
-        self.drawn_data_per_pixel = float(self.drawn_data_range) / plot_height
+
+        self.y_tick_calibrated_data_min = calibrated_data_min
+        self.y_tick_calibrated_data_max = calibrated_data_max
+        self.y_tick_precision = precision
+        self.y_tick_division = division
+        self.y_tick_values = tick_values
+
+        self.calibrated_data_min = calibration.convert_to_calibrated_value(self.drawn_data_min) if calibration else self.drawn_data_min
+        self.calibrated_data_max = calibration.convert_to_calibrated_value(self.drawn_data_max) if calibration else self.drawn_data_max
+
+    def calculate_y_ticks(self, plot_height):
+
+        """ Calculate the y-axis items dependent on the plot height. """
+
+        calibration = self.intensity_calibration
 
         y_ticks = list()
-        for tick in ticks:
-            label = (u"{0:0." + u"{0:d}".format(precision) + "f}").format(tick)
-            data_tick = calibration.convert_from_calibrated_value(tick) if calibration else tick
+        for tick_value in self.y_tick_values:
+            label = (u"{0:0." + u"{0:d}".format(self.y_tick_precision) + "f}").format(tick_value)
+            data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
             if self.drawn_data_range != 0.0:
                 y_tick = plot_height - plot_height * (data_tick - self.drawn_data_min) / self.drawn_data_range
             else:
@@ -114,34 +127,24 @@ class LineGraphDataInfo(object):
             if y_tick >= 0 and y_tick <= plot_height:
                 y_ticks.append((y_tick, label))
 
-        self.y_tick_calibrated_data_min = calibrated_data_min
-        self.y_tick_calibrated_data_max = calibrated_data_max
-        self.y_tick_precision = precision
-        self.y_tick_division = division
+        return y_ticks
 
-        self.y_ticks = y_ticks
-
-        self.calibrated_data_min = calibration.convert_to_calibrated_value(self.drawn_data_min) if calibration else self.drawn_data_min
-        self.calibrated_data_max = calibration.convert_to_calibrated_value(self.drawn_data_max) if calibration else self.drawn_data_max
-
-    def calculate_x_axis(self, plot_width):
+    def __prepare_x_axis(self):
 
         """ Calculate various parameters relating to the x-axis. """
 
-        self.raw_data_left = 0.0
-        self.raw_data_right = self.data.shape[0]
+        calibration = self.spatial_calibration
 
         left_specified = self.data_left is not None
         right_specified = self.data_right is not None
-        raw_data_left = self.data_left if left_specified else self.raw_data_left
-        raw_data_right = self.data_right if right_specified else self.raw_data_right
-        calibration = self.spatial_calibration
+        raw_data_left = self.data_left if left_specified else 0.0
+        raw_data_right = self.data_right if right_specified else self.data.shape[0]
 
         calibrated_data_left = calibration.convert_to_calibrated_value(raw_data_left) if calibration is not None else raw_data_left
         calibrated_data_right = calibration.convert_to_calibrated_value(raw_data_right) if calibration is not None else raw_data_right
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
 
-        graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
+        graph_left, graph_right, tick_values, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
 
         if left_specified:
             self.drawn_left_channel = raw_data_left
@@ -151,23 +154,27 @@ class LineGraphDataInfo(object):
             self.drawn_right_channel = raw_data_right
         else:
             self.drawn_right_channel = calibration.convert_from_calibrated_value(graph_right) if calibration else graph_right
+
+        self.x_tick_precision = precision
+        self.x_tick_division = division
+        self.x_tick_values = tick_values
+
+    def calculate_x_ticks(self, plot_width):
+
+        """ Calculate the x-axis items dependent on the plot width. """
+
+        calibration = self.spatial_calibration
         drawn_data_width = self.drawn_right_channel - self.drawn_left_channel
 
         x_ticks = list()
-        for tick in ticks:
-            label = (u"{0:0." + u"{0:d}".format(precision) + "f}").format(tick)
-            data_tick = calibration.convert_from_calibrated_value(tick) if calibration else tick
+        for tick_value in self.x_tick_values:
+            label = (u"{0:0." + u"{0:d}".format(self.x_tick_precision) + "f}").format(tick_value)
+            data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
             x_tick = plot_width * (data_tick - self.drawn_left_channel) / drawn_data_width
             if x_tick >= 0 and x_tick <= plot_width:
                 x_ticks.append((x_tick, label))
 
-        self.x_tick_precision = precision
-        self.x_tick_division = division
-
-        self.x_ticks = x_ticks
-
-        self.calibrated_data_left = calibration.convert_to_calibrated_value(self.drawn_left_channel) if calibration else raw_data_left
-        self.calibrated_data_right = calibration.convert_to_calibrated_value(self.drawn_right_channel) if calibration else raw_data_right
+        return x_ticks
 
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -183,15 +190,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.draw_frame = True
         self.background_color = "#FFF"
         self.font_size = 12
-        self.drawn_data_per_pixel = None
-        self.drawn_data_min = None
-        self.drawn_data_max = None
-        self.calibrated_data_min = None
-        self.calibrated_data_max = None
-        self.drawn_left_channel = None
-        self.drawn_right_channel = None
-        self.calibrated_data_left = None
-        self.calibrated_data_right = None
 
     def __get_data_info(self):
         return self.__data_info
@@ -203,13 +201,13 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def map_mouse_to_position(self, mouse, data_size):
         """ Map the mouse to the 1-d position within the line graph. """
-        if self.drawn_left_channel is not None and self.drawn_right_channel is not None:
+        if self.data_info.drawn_left_channel is not None and self.data_info.drawn_right_channel is not None:
             mouse = Geometry.IntPoint.make(mouse)
             plot_rect = self.canvas_bounds
             if plot_rect.contains_point(mouse):
                 mouse = mouse - plot_rect.origin
                 x = float(mouse.x) / plot_rect.width
-                px = self.drawn_left_channel + x * (self.drawn_right_channel - self.drawn_left_channel)
+                px = self.data_info.drawn_left_channel + x * (self.data_info.drawn_right_channel - self.data_info.drawn_left_channel)
                 return px,
         # not in bounds
         return None
@@ -249,35 +247,15 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.fill()
             drawing_context.restore()
 
-            # calculate the axes drawing info
-            data_info.calculate_x_axis(plot_width)
-            data_info.calculate_y_axis(plot_height)
-
             # extract the data we need for drawing y-axis
-            drawn_data_per_pixel = data_info.drawn_data_per_pixel
             drawn_data_min = data_info.drawn_data_min
-            drawn_data_max = data_info.drawn_data_max
             drawn_data_range = data_info.drawn_data_range
-            y_ticks = data_info.y_ticks
+            y_ticks = data_info.calculate_y_ticks(plot_height)
 
             # extract the data we need for drawing x-axis
-            raw_data_left = data_info.raw_data_left
-            raw_data_right = data_info.raw_data_right
             data_left = data_info.drawn_left_channel
-            data_right = data_info.drawn_right_channel
             data_width = data_info.drawn_right_channel - data_info.drawn_left_channel
-            x_ticks = data_info.x_ticks
-
-            # save these for mouse tracking use
-            self.drawn_data_per_pixel = drawn_data_per_pixel
-            self.drawn_data_min = drawn_data_min
-            self.drawn_data_max = drawn_data_max
-            self.calibrated_data_min = data_info.calibrated_data_min
-            self.calibrated_data_max = data_info.calibrated_data_max
-            self.drawn_left_channel = data_left
-            self.drawn_right_channel = data_right
-            self.calibrated_data_left = data_info.calibrated_data_left
-            self.calibrated_data_right = data_info.calibrated_data_right
+            x_ticks = data_info.calculate_x_ticks(plot_width)
 
             # draw the horizontal grid lines
             if self.draw_grid:
@@ -314,7 +292,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 binned_length = int(data_info.data.shape[0] * plot_width / data_width)
                 binned_data = Image.rebin_1d(data_info.data, binned_length)
                 binned_left = int(data_left * plot_width / data_width)
-                binned_width = int(data_width * plot_width / data_width)
                 # draw the plot
                 for i in xrange(0, plot_width):
                     px = plot_origin_x + i
@@ -378,12 +355,10 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_rect = self.canvas_bounds
             plot_width = int(plot_rect[1][1]) - 1
             plot_height = int(plot_rect[1][0]) - 1
-            plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
             # calculate the axes drawing info
-            data_info.calculate_x_axis(plot_width)
-            data_info.calculate_y_axis(plot_height)
+            data_info.calculate_x_ticks(plot_width)
 
             data_left = data_info.drawn_left_channel
             data_right = data_info.drawn_right_channel
@@ -461,11 +436,8 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
             plot_width = int(self.canvas_size[1]) - 1
 
-            # calculate the axes drawing info
-            data_info.calculate_x_axis(plot_width)
-
             # extract the data we need for drawing x-axis
-            x_ticks = data_info.x_ticks
+            x_ticks = data_info.calculate_x_ticks(plot_width)
 
             # draw the tick marks
             drawing_context.save()
@@ -499,11 +471,8 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             height = self.canvas_size[0]
             plot_width = int(self.canvas_size[1]) - 1
 
-            # calculate the axes drawing info
-            data_info.calculate_x_axis(plot_width)
-
             # extract the data we need for drawing x-axis
-            x_ticks = data_info.x_ticks
+            x_ticks = data_info.calculate_x_ticks(plot_width)
 
             # draw the tick marks
             drawing_context.save()
@@ -527,7 +496,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_height = self.font_size + 4
         self.sizing.maximum_height = self.font_size + 4
 
-    def size_to_content(self, canvas_bounds):
+    def size_to_content(self):
         """ Size the canvas item to the proper height. """
         self.sizing.minimum_height = 0
         self.sizing.maximum_height = 0
@@ -580,11 +549,8 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
             width = self.canvas_size[1]
             plot_height = int(self.canvas_size[0]) - 1
 
-            # calculate the axes drawing info
-            data_info.calculate_y_axis(plot_height)
-
             # extract the data we need for drawing y-axis
-            y_ticks = data_info.y_ticks
+            y_ticks = data_info.calculate_y_ticks(plot_height)
 
             # draw the y_ticks and labels
             drawing_context.save()
@@ -607,18 +573,13 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.data_info = None
         self.font_size = 12
 
-    def size_to_content(self, get_font_metrics_fn, canvas_bounds):
+    def size_to_content(self, get_font_metrics_fn):
         """ Size the canvas item to the proper width, the maximum of any label. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
 
         data_info = self.data_info
         if data_info is not None and data_info.data is not None:
-
-            plot_height = int(canvas_bounds.height) - 1
-
-            # calculate the axes drawing info
-            data_info.calculate_y_axis(plot_height)
 
             # calculate the width based on the label lengths
             font = "{0:d}px".format(self.font_size)
@@ -645,11 +606,8 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             width = self.canvas_size[1]
             plot_height = int(self.canvas_size[0]) - 1
 
-            # calculate the axes drawing info
-            data_info.calculate_y_axis(plot_height)
-
             # extract the data we need for drawing y-axis
-            y_ticks = data_info.y_ticks
+            y_ticks = data_info.calculate_y_ticks(plot_height)
 
             # draw the y_ticks and labels
             drawing_context.save()
@@ -676,7 +634,7 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.minimum_width = self.font_size + 4
         self.sizing.maximum_width = self.font_size + 4
 
-    def size_to_content(self, canvas_bounds):
+    def size_to_content(self):
         """ Size the canvas item to the proper width. """
         self.sizing.minimum_width = 0
         self.sizing.maximum_width = 0
