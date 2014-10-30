@@ -449,30 +449,31 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             assert data_item.is_data_1d
 
             # grab the data values
-            with data_item.data_ref() as data_ref:
-                data = data_ref.data
-            assert data is not None
+            data = data_item.data
 
-            # make sure complex becomes scalar
-            data = Image.scalar_from_array(data)
-            assert data is not None
+            if data is not None:
+                # make sure complex becomes scalar
+                data = Image.scalar_from_array(data)
+                assert data is not None
 
-            # make sure RGB becomes scalar
-            data = Image.convert_to_grayscale(data)
-            assert data is not None
+                # make sure RGB becomes scalar
+                data = Image.convert_to_grayscale(data)
+                assert data is not None
 
-            # update the line graph data
-            y_min = display.y_min
-            y_max = display.y_max
-            left_channel = display.left_channel
-            right_channel = display.right_channel
-            left_channel = left_channel if left_channel is not None else 0
-            right_channel = right_channel if right_channel is not None else data.shape[0]
-            left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-            dimensional_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
-            intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
-            data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
-                                                              dimensional_calibration, intensity_calibration)
+                # update the line graph data
+                y_min = display.y_min
+                y_max = display.y_max
+                left_channel = display.left_channel
+                right_channel = display.right_channel
+                left_channel = left_channel if left_channel is not None else 0
+                right_channel = right_channel if right_channel is not None else data.shape[0]
+                left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
+                dimensional_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
+                intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
+                data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
+                                                                  dimensional_calibration, intensity_calibration)
+            else:
+                data_info = LineGraphCanvasItem.LineGraphDataInfo()
 
             def update_data_info():
                 self.__update_data_info(data_info)

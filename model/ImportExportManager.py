@@ -138,8 +138,7 @@ class ImportExportHandler(object):
             self.write_file(data_item, extension, f)
 
     def write_file(self, data_item, extension, file):
-        with data_item.data_ref() as data_ref:
-            data = data_ref.data
+        data = data_item.data
         if data is not None:
             self.write_data(data, extension, file)
 
@@ -328,8 +327,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element["version"] = 1
     data_element["reader_version"] = 1
     if include_data:
-        with data_item.data_ref() as d:
-            data_element["data"] = d.data
+        data_element["data"] = data_item.data
     calculated_calibrations = data_item.calculated_calibrations
     if calculated_calibrations is not None:
         calibrations_element = list()
@@ -406,8 +404,7 @@ class CSVImportExportHandler(ImportExportHandler):
         return True
 
     def write(self, ui, data_item, path, extension):
-        with data_item.data_ref() as data_ref:
-            data = data_ref.data
+        data = data_item.data
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
 
@@ -437,8 +434,7 @@ class NDataImportExportHandler(ImportExportHandler):
 
     def write(self, ui, data_item, path, extension):
         data_element = create_data_element_from_data_item(data_item, include_data=False)
-        with data_item.data_ref() as data_ref:
-            data = data_ref.data
+        data = data_item.data
         if data is not None:
             root, ext = os.path.splitext(path)
             metadata_path = root + "_metadata.json"

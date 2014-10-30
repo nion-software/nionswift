@@ -377,9 +377,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # data sources are NOT copied, since this is a snapshot of the data
         data_item_copy.data_source_uuid_list = DataSourceUuidList()
         # master data. operations are NOT copied, since this is a snapshot of the data
-        with self.data_ref() as data_ref:
-            data_copy = numpy.copy(data_ref.data)
-            data_item_copy.__set_master_data(data_copy)
+        data_item_copy.__set_master_data(numpy.copy(self.data))
         return data_item_copy
 
     def about_to_be_removed(self):
@@ -652,9 +650,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.is_cached_value_dirty("data_range"):
             pass  # TODO: calculate data range in thread
         if not data_range:
-            with self.data_ref() as data_ref:
-                data = data_ref.data
-                data_range = self.__get_data_range_for_data(data)
+            data_range = self.__get_data_range_for_data(self.data)
         return data_range
     data_range = property(__get_data_range)
 

@@ -1,9 +1,9 @@
 """
     Provide symbolic math services.
-    
+
     The goal is to provide a module (namespace) where users can be provided with variables representing
     data items (directly or indirectly via reference to workspace panels).
-    
+
     DataNodes represent data items, operations, numpy arrays, and constants.
 """
 

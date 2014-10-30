@@ -553,8 +553,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         def next(self):
             data_item = self.iter.next()
             if data_item:
-                with data_item.data_ref() as data_ref:
-                    return data_ref.data
+                return data_item.data
             return None
 
     class DataAccessor(object):
@@ -649,8 +648,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_data_by_key(self, key):
         data_item = self.get_data_item_by_key(key)
         if data_item:
-            with data_item.data_ref() as data_ref:
-                return data_ref.data
+            return data_item.data
         return None
     def set_data_by_key(self, key, data):
         data_item = self.get_data_item_by_key(key)
@@ -678,8 +676,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_data_by_title(self, title):
         data_item = self.get_data_item_by_title(title)
         if data_item:
-            with data_item.data_ref() as data_ref:
-                return data_ref.data
+            return data_item.data
         return None
 
     # access data items by index
@@ -688,8 +685,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_data_by_index(self, index):
         data_item = self.get_data_item_by_index(index)
         if data_item:
-            with data_item.data_ref() as data_ref:
-                return data_ref.data
+            return data_item.data
         return None
     def set_data_by_index(self, index, data):
         data_item = self.get_data_item_by_index(index)
@@ -710,8 +706,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_data_by_uuid(self, uuid):
         data_item = self.get_data_item_by_uuid(uuid)
         if data_item:
-            with data_item.data_ref() as data_ref:
-                return data_ref.data
+            return data_item.data
         return None
     def set_data_by_uuid(self, uuid, data):
         data_item = self.get_data_item_by_uuid(uuid)

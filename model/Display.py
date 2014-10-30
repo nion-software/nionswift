@@ -177,8 +177,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __get_preview_2d_data(self):
         if self.__preview_data is None:
-            with self.data_item.data_ref() as data_ref:
-                data = data_ref.data
+            data = self.data_item.data
             if Image.is_data_2d(data):
                 data_2d = Image.scalar_from_array(data)
             # TODO: fix me 3d
