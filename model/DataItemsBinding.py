@@ -418,7 +418,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
 
     def data_item_content_changed(self, data_item, changes):
         if not data_item in self.__master_data_items:
-            logging.debug(data_item)
+            logging.debug("data item not in master data %s", data_item)
         else:
             self._updated_master_data_item(data_item)
 

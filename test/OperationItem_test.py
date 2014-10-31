@@ -53,7 +53,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_controller.remove_operation(operation2)
         self.assertEqual(len(self.data_item.operations), 1)
 
-    # make sure defaults get propogated when adding data item to document
+    # make sure defaults get propagated when adding data item to document
     def test_default_propogation(self):
         # first make sure data and calibrations come out OK
         operation = Operation.OperationItem("resample-operation")
