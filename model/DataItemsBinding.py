@@ -6,7 +6,9 @@
 import copy
 import logging
 import operator
+import string
 import threading
+import traceback
 
 # third party libraries
 # None
@@ -157,22 +159,21 @@ class AbstractDataItemsBinding(Binding.Binding):
             Subclasses can call this to notify this object that a data item in
             the master data list has been inserted.
         """
-        if self.__change_level > 0:
-            return
-        data_item_filter = self.filter
-        if data_item_filter(data_item):
-            data_items = self.__data_items
-            sort_key = self.sort_key
-            if sort_key is not None:
-                sort_operator = operator.gt if self.sort_reverse else operator.lt
-                before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
-            else:
-                before_index = self.__find_unsorted_index_for_data_item(data_item, self._get_master_data_items(), data_item_filter)
-            with self._update_mutex:
+        with self._update_mutex:
+            if self.__change_level > 0:
+                return
+            data_item_filter = self.filter
+            if data_item_filter(data_item):
+                data_items = self.__data_items
+                sort_key = self.sort_key
+                if sort_key is not None:
+                    sort_operator = operator.gt if self.sort_reverse else operator.lt
+                    before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
+                else:
+                    before_index = self.__find_unsorted_index_for_data_item(data_item, self._get_master_data_items(), data_item_filter)
                 self.__data_items.insert(before_index, data_item)
                 for inserter in self.inserters.values():
                     inserter(data_item, before_index)
-        # self._update_data_items()
 
     # thread safe
     def _removed_master_data_item(self, index, data_item):
@@ -180,14 +181,15 @@ class AbstractDataItemsBinding(Binding.Binding):
             Subclasses can call this to notify this object that a data item in
             the master data list has been removed.
         """
-        if self.__change_level > 0:
-            return
-        if data_item in self.__data_items:
-            index = self.__data_items.index(data_item)
-            del self.__data_items[index]
-            for remover in self.removers.values():
-                remover(data_item, index)
-        # self._update_data_items()
+        with self._update_mutex:
+            if self.__change_level > 0:
+                return
+            if data_item in self.__data_items:
+                index = self.__data_items.index(data_item)
+                assert self.__data_items[index] == data_item
+                del self.__data_items[index]
+                for remover in self.removers.values():
+                    remover(data_item, index)
 
     # thread safe
     def _updated_master_data_item(self, data_item):
@@ -195,50 +197,52 @@ class AbstractDataItemsBinding(Binding.Binding):
             Subclasses can call this to notify this object that a data item in
             the master data list has been updated.
         """
-        if self.__change_level > 0:
-            return
-        data_item_filter = self.filter
-        if data_item_filter(data_item):
-            # data item will be in the list
+        with self._update_mutex:
+            if self.__change_level > 0:
+                return
             data_items = self.__data_items
-            sort_key = self.sort_key
-            if sort_key is not None:
-                # are items sorted?
-                sort_operator = operator.gt if self.sort_reverse else operator.lt
-                before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
-                if data_item in data_items:
-                    # data item already in list?
-                    index = data_items.index(data_item)
-                    if before_index < index:
-                        self._removed_master_data_item(index, data_item)
+            data_item_filter = self.filter
+            if data_item_filter(data_item):
+                # data item will be in the list
+                sort_key = self.sort_key
+                if sort_key is not None:
+                    # are items sorted?
+                    sort_operator = operator.gt if self.sort_reverse else operator.lt
+                    before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
+                    if data_item in data_items:
+                        # data item already in list?
+                        index = data_items.index(data_item)
+                        if before_index < index:
+                            self._removed_master_data_item(index, data_item)
+                            self._inserted_master_data_item(before_index, data_item)
+                        elif before_index > index:
+                            self._removed_master_data_item(index, data_item)
+                            self._inserted_master_data_item(before_index - 1, data_item)
+                    else:
+                        # data item is not in list, just insert
                         self._inserted_master_data_item(before_index, data_item)
-                    elif before_index > index:
-                        self._removed_master_data_item(index, data_item)
-                        self._inserted_master_data_item(before_index - 1, data_item)
                 else:
-                    # data item is not in list, just insert
-                    self._inserted_master_data_item(before_index, data_item)
+                    # items are not sorted
+                    if not data_item in data_items:
+                        # data item is not in list, just insert. the before_index we pass will not be used so just pass 0
+                        self._inserted_master_data_item(0, data_item)
             else:
-                # items are not sorted
-                if not data_item in data_items:
-                    # data item is not in list, just insert. the before_index we pass will not be used so just pass 0
-                    self._inserted_master_data_item(0, data_item)
-        else:
-            # data item will not be in list
-            data_items = self.__data_items
-            if data_item in data_items:
-                # data item already in list
-                index = data_items.index(data_item)
-                self._removed_master_data_item(index, data_item)
+                # data item will not be in list
+                if data_item in data_items:
+                    # data item already in list
+                    index = data_items.index(data_item)
+                    self._removed_master_data_item(index, data_item)
 
     # thread safe.
     def __build_data_items(self):
-        """
-            Build the data items from the master data items list.
+        """Build the data items from the master data items list.
 
-            This method is thread safe.
+        This method is thread safe.
+
+        Builds the data items from the master list by sorting them and then
+         filtering them.
         """
-        master_data_items = copy.copy(self._get_master_data_items())
+        master_data_items = self._get_master_data_items()
         assert len(set(master_data_items)) == len(master_data_items)
         # sort the master data list. this is optional since it may be sorted downstream.
         if self.sort_key is not None:
@@ -256,9 +260,10 @@ class AbstractDataItemsBinding(Binding.Binding):
 
     # thread safe.
     def _update_data_items(self):
-        """
-            Build the data items from the master list and generate
-            a sequence of change messages.
+        """Build the data items and generate change messages.
+
+        Builds the data items from the master data item list, then generates a sequence of
+         inserter and remover calls representing the changes from the previous list.
         """
         with self._update_mutex:
             if self.__change_level > 0:
@@ -272,14 +277,6 @@ class AbstractDataItemsBinding(Binding.Binding):
             assert len(set(data_items)) == len(data_items)
             index = 0
             for data_item in data_items:
-                # if old data item at current index isn't in new list, remove it
-                if index < len(old_data_items) and old_data_items[index] not in data_items:
-                    data_item_to_remove = old_data_items[index]
-                    assert data_item_to_remove in self.__data_items
-                    del old_data_items[index]
-                    del self.__data_items[index]
-                    for remover in self.removers.values():
-                        remover(data_item_to_remove, index)
                 # otherwise, if new data item at current index is in old list, remove it, then re-insert
                 if data_item in old_data_items:
                     old_index = old_data_items.index(data_item)
@@ -325,6 +322,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
     def __init__(self, data_items_binding):
         super(DataItemsFilterBinding, self).__init__()
         self.__master_data_items = list()
+        self.__master_data_items_lock = threading.RLock()
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
@@ -332,37 +330,44 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             self.__data_item_inserted(data_item, index)
 
     def close(self):
+        for data_item in self._get_master_data_items():
+            self.__data_item_removed(data_item, 0)
         del self.__data_items_binding.inserters[id(self)]
         del self.__data_items_binding.removers[id(self)]
+        self.__master_data_items = None
+        self.__data_items_binding = None
         super(DataItemsFilterBinding, self).close()
 
     # thread safe.
     def __data_item_inserted(self, data_item, before_index):
         """ Handle insertion in the source list by updating this lists items. """
-        with self._update_mutex:
+        with self.__master_data_items_lock:
             assert data_item not in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
-        data_item.add_listener(self)
-        self._inserted_master_data_item(before_index, data_item)
+            data_item.add_listener(self)
+            self._inserted_master_data_item(before_index, data_item)
 
     # thread safe.
     def __data_item_removed(self, data_item, index):
         """ Handle removal from the source list by updating this lists items. """
-        with self._update_mutex:
+        with self.__master_data_items_lock:
             assert data_item in self.__master_data_items
+            assert self.__master_data_items[index] == data_item
             del self.__master_data_items[index]
-        data_item.remove_listener(self)
-        self._removed_master_data_item(index, data_item)
+            data_item.remove_listener(self)
+            self._removed_master_data_item(index, data_item)
 
     def data_item_content_changed(self, data_item, changes):
-        if not data_item in self.__master_data_items:
-            logging.debug("Data item not in master list %s", data_item)
-        else:
-            self._updated_master_data_item(data_item)
+        with self.__master_data_items_lock:
+            if not data_item in self.__master_data_items:
+                logging.debug("Data item not in master list %s", data_item)
+            else:
+                self._updated_master_data_item(data_item)
 
     # thread safe
     def _get_master_data_items(self):
-        return self.__master_data_items
+        with self.__master_data_items_lock:
+            return copy.copy(self.__master_data_items)
 
 
 class DataItemsInContainerBinding(AbstractDataItemsBinding):
@@ -377,6 +382,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         super(DataItemsInContainerBinding, self).__init__()
         self.__container = None
         self.__master_data_items = list()
+        self.__master_data_items_lock = threading.RLock()
 
     def close(self):
         self.container = None
@@ -392,7 +398,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         if self.__container:
             self.__container.remove_listener(self)
             for data_item in reversed(copy.copy(self.__container.data_items)):
-                self.data_item_removed(self.__container, data_item, len(self.__master_data_items) - 1, False)
+                self.data_item_removed(self.__container, data_item, len(self._get_master_data_items()) - 1, False)
         self.__container = container
         if self.__container:
             self.__container.add_listener(self)
@@ -403,25 +409,27 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
     # thread safe.
     def data_item_inserted(self, container, data_item, before_index, is_moving):
         """ Insert the data item. Called from the container. """
-        with self._update_mutex:
+        with self.__master_data_items_lock:
             self.__master_data_items.insert(before_index, data_item)
-        data_item.add_listener(self)
-        self._inserted_master_data_item(before_index, data_item)
+            data_item.add_listener(self)
+            self._inserted_master_data_item(before_index, data_item)
 
     # thread safe.
     def data_item_removed(self, container, data_item, index, is_moving):
         """ Remove the data item. Called from the container. """
-        with self._update_mutex:
+        with self.__master_data_items_lock:
             del self.__master_data_items[index]
-        data_item.remove_listener(self)
-        self._removed_master_data_item(index, data_item)
+            data_item.remove_listener(self)
+            self._removed_master_data_item(index, data_item)
 
     def data_item_content_changed(self, data_item, changes):
-        if not data_item in self.__master_data_items:
-            logging.debug("data item not in master data %s", data_item)
-        else:
-            self._updated_master_data_item(data_item)
+        with self.__master_data_items_lock:
+            if not data_item in self.__master_data_items:
+                logging.debug("data item not in master data %s", data_item)
+            else:
+                self._updated_master_data_item(data_item)
 
     # thread safe
     def _get_master_data_items(self):
-        return self.__master_data_items
+        with self.__master_data_items_lock:
+            return copy.copy(self.__master_data_items)

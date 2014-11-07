@@ -1,6 +1,8 @@
 # standard libraries
 import logging
 import operator
+import random
+import threading
 import unittest
 
 # third party libraries
@@ -202,6 +204,59 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 4)  # verify assumption
             self.assertTrue(data_items[0] in filter_binding.data_items)
+
+    def test_random_filtered_binding_updates(self):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        data_items = list()
+        cc = 30
+        for _ in range(cc):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            data_items.append(data_item)
+        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+        import random
+        for xx in range(10):
+            c1 = [n for n in range(cc)]
+            c2 = [n for n in range(cc) if random.randint(0,100) > 20]
+            random.shuffle(c1)
+            random.shuffle(c2)
+            def is_live_filter(data_item):
+                return data_items.index(data_item) in c1
+            def is_live_filter2(data_item):
+                return data_items.index(data_item) in c2
+            binding.sort_key = lambda x: data_items.index(x)
+            with binding.changes():
+                binding.filter = is_live_filter
+                binding.filter = is_live_filter2
+            self.assertEqual(set(c2), set([data_items.index(d) for d in filter_binding.data_items]))
+
+    def slow_test_threaded_filtered_binding_updates(self):
+        for _ in range(1000):
+            binding = DataItemsBinding.DataItemsInContainerBinding()
+            data_items = list()
+            cc = 30
+            for _ in range(cc):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                data_items.append(data_item)
+            c1 = [n for n in range(cc) if random.randint(0,100) > 50]
+            def is_live_filter(data_item):
+                return data_items.index(data_item) in c1
+            binding.sort_key = lambda x: data_items.index(x)
+            filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+            filter_binding.filter = is_live_filter
+            finished = threading.Event()
+            def update_randomly():
+                for _ in range(cc):
+                    data_item = random.choice(binding._get_master_data_items())
+                    binding.data_item_content_changed(data_item, [])
+                finished.set()
+            binding.data_item_inserted(None, data_items[0], 0, False)
+            threading.Thread(target = update_randomly).start()
+            for index in range(1, cc):
+                binding.data_item_inserted(None, data_items[index], index, False)
+            finished.wait()
+            filter_binding.close()
+            binding.close()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
