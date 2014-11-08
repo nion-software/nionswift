@@ -322,7 +322,6 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
     def __init__(self, data_items_binding):
         super(DataItemsFilterBinding, self).__init__()
         self.__master_data_items = list()
-        self.__master_data_items_lock = threading.RLock()
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
@@ -341,7 +340,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
     # thread safe.
     def __data_item_inserted(self, data_item, before_index):
         """ Handle insertion in the source list by updating this lists items. """
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             assert data_item not in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
             data_item.add_listener(self)
@@ -350,7 +349,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
     # thread safe.
     def __data_item_removed(self, data_item, index):
         """ Handle removal from the source list by updating this lists items. """
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             assert data_item in self.__master_data_items
             assert self.__master_data_items[index] == data_item
             del self.__master_data_items[index]
@@ -358,7 +357,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             self._removed_master_data_item(index, data_item)
 
     def data_item_content_changed(self, data_item, changes):
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             if not data_item in self.__master_data_items:
                 logging.debug("Data item not in master list %s", data_item)
             else:
@@ -366,7 +365,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
 
     # thread safe
     def _get_master_data_items(self):
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             return copy.copy(self.__master_data_items)
 
 
@@ -382,7 +381,6 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         super(DataItemsInContainerBinding, self).__init__()
         self.__container = None
         self.__master_data_items = list()
-        self.__master_data_items_lock = threading.RLock()
 
     def close(self):
         self.container = None
@@ -409,7 +407,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
     # thread safe.
     def data_item_inserted(self, container, data_item, before_index, is_moving):
         """ Insert the data item. Called from the container. """
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             self.__master_data_items.insert(before_index, data_item)
             data_item.add_listener(self)
             self._inserted_master_data_item(before_index, data_item)
@@ -417,13 +415,13 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
     # thread safe.
     def data_item_removed(self, container, data_item, index, is_moving):
         """ Remove the data item. Called from the container. """
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             del self.__master_data_items[index]
             data_item.remove_listener(self)
             self._removed_master_data_item(index, data_item)
 
     def data_item_content_changed(self, data_item, changes):
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             if not data_item in self.__master_data_items:
                 logging.debug("data item not in master data %s", data_item)
             else:
@@ -431,5 +429,5 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
 
     # thread safe
     def _get_master_data_items(self):
-        with self.__master_data_items_lock:
+        with self._update_mutex:
             return copy.copy(self.__master_data_items)
