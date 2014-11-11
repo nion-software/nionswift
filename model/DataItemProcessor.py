@@ -37,6 +37,8 @@ class DataItemProcessor(object):
         # been initialized. these fields are used for optimization.
         self.__cached_value = None
         self.__cached_value_dirty = None
+        self.__cached_value_time = 0
+        self.__recompute_lock = threading.RLock()
 
     def close(self):
         pass
@@ -90,6 +92,17 @@ class DataItemProcessor(object):
         self.__initialize_cache()
         return self.__cached_value_dirty
 
+    def recompute_data_limited(self, ui, minimum_time=0.5):
+        """Compute the data associated with this processor but with a maximum frequency.
+
+        Uses recompute_data. Recompute data will only be called after and as often as the
+        minimum_time parameter, whose default is 0.5s.
+        """
+        current_time = time.time()
+        if current_time < self.__cached_value_time + minimum_time:
+            time.sleep(self.__cached_value_time + minimum_time - current_time)
+        self.recompute_data(ui)
+
     def recompute_data(self, ui):
         """Compute the data associated with this processor.
 
@@ -98,42 +111,48 @@ class DataItemProcessor(object):
          and the cache will not be marked dirty.
         """
         self.__initialize_cache()
-        if self.__cached_value_dirty:
-            item = self.item  # hold a reference in case it gets closed during execution of this method
-            data_item = self.get_data_item()
-            data = data_item.data  # grab the most up to date data
-            if data is not None:  # for data to load and make sure it has data
-                try:
-                    calculated_data = self.get_calculated_data(ui, data)
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    raise
-                self.item.set_cached_value(self.__cache_property_name, calculated_data)
-                self.__cached_value = calculated_data
-                self.__cached_value_dirty = False
-                # import logging
-                # logging.debug("updated %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
-            else:
-                calculated_data = None
-            if calculated_data is None:
-                calculated_data = self.get_default_data()
-                if calculated_data is not None:
-                    # if the default is not None, treat is as valid cached data
+        with self.__recompute_lock:
+            if self.__cached_value_dirty:
+                item = self.item  # hold a reference in case it gets closed during execution of this method
+                data_item = self.get_data_item()
+                data = data_item.data  # grab the most up to date data
+                if data is not None:  # for data to load and make sure it has data
+                    try:
+                        calculated_data = self.get_calculated_data(ui, data)
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        traceback.print_stack()
+                        raise
                     self.item.set_cached_value(self.__cache_property_name, calculated_data)
                     self.__cached_value = calculated_data
                     self.__cached_value_dirty = False
+                    self.__cached_value_time = time.time()
                     # import logging
-                    # logging.debug("default %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
+                    # logging.debug("updated %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
                 else:
-                    # otherwise remove everything from the cache
-                    self.item.remove_cached_value(self.__cache_property_name)
-                    self.__cached_value = None
-                    self.__cached_value_dirty = None
-                    # import logging
-                    # logging.debug("removed %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
-        self.item.notify_processor_data_updated(self)
+                    calculated_data = None
+                if calculated_data is None:
+                    calculated_data = self.get_default_data()
+                    if calculated_data is not None:
+                        # if the default is not None, treat is as valid cached data
+                        self.item.set_cached_value(self.__cache_property_name, calculated_data)
+                        self.__cached_value = calculated_data
+                        self.__cached_value_dirty = False
+                        self.__cached_value_time = time.time()
+                        # import logging
+                        # logging.debug("default %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
+                    else:
+                        # otherwise remove everything from the cache
+                        self.item.remove_cached_value(self.__cache_property_name)
+                        self.__cached_value = None
+                        self.__cached_value_dirty = None
+                        self.__cached_value_time = 0
+                        # import logging
+                        # logging.debug("removed %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
+                self.__recompute_lock.release()
+                self.item.notify_processor_data_updated(self)
+                self.__recompute_lock.acquire()
 
     def get_data(self, ui):
         """Return the computed data for this processor.
