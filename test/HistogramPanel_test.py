@@ -83,8 +83,8 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def test_changing_source_data_marks_statistics_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
-        self.assertIsNone(self.histogram_panel.stats1_property.value)
-        self.assertIsNone(self.histogram_panel.stats2_property.value)
+        self.assertEqual(self.histogram_panel.stats1_property.value, str())
+        self.assertEqual(self.histogram_panel.stats2_property.value, str())
         self.data_item.get_processor("statistics").recompute_data(None)
         stats1_text = self.histogram_panel.stats1_property.value
         stats2_text = self.histogram_panel.stats2_property.value

@@ -18,11 +18,9 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
-from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
-from nion.ui import Process
 from nion.ui import ThreadPool
 
 _ = gettext.gettext

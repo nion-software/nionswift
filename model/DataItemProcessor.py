@@ -82,6 +82,12 @@ class DataItemProcessor(object):
         """Subclasses must implement to return the data item associated with the item."""
         raise NotImplementedError()
 
+    @property
+    def is_data_stale(self):
+        """Return whether the data is stale."""
+        self.__initialize_cache()
+        return self.__cached_value_dirty
+
     def recompute_data(self, ui):
         """Compute the data associated with this processor.
 

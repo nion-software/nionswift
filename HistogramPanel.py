@@ -365,21 +365,32 @@ class HistogramPanel(Panel.Panel):
         self.__set_display(display)
         self.__histogram_canvas_item._set_display(display)
         statistics_data = display.data_item.get_processed_data("statistics") if display else dict()
-        self.add_task("statistics", lambda: self.__update_statistics(statistics_data))
+        if display:
+            document_model = self.document_controller.document_model
+            document_model.dispatch_task(lambda: display.data_item.get_processor("statistics").recompute_data(None))
+            document_model.dispatch_task(lambda: display.get_processor("histogram").recompute_data(None))
+        self.__update_statistics(statistics_data)
 
     # notification from display
-    def processor_needs_recompute(self, processor):
+    def display_processor_needs_recompute(self, display, processor):
+        document_model = self.document_controller.document_model
+        if processor == self.__display.get_processor("histogram"):
+            document_model.dispatch_task(lambda: processor.recompute_data(None))
+
+    # notification from display
+    def display_processor_data_updated(self, display, processor):
+        if processor == self.__display.get_processor("histogram"):
+            histogram_data = self.__display.get_processed_data("histogram")
+            self.__histogram_canvas_item.histogram_data = histogram_data
+
+    # notification from display
+    def data_item_processor_needs_recompute(self, data_item, processor):
         document_model = self.document_controller.document_model
         if processor == self.__display.data_item.get_processor("statistics"):
             document_model.dispatch_task(lambda: processor.recompute_data(None))
-        elif processor == self.__display.get_processor("histogram"):
-            document_model.dispatch_task(lambda: processor.recompute_data(None))
 
     # notification from display
-    def processor_data_updated(self, processor):
+    def data_item_processor_data_updated(self, data_item, processor):
         if processor == self.__display.data_item.get_processor("statistics"):
             statistics_data = self.__display.data_item.get_processed_data("statistics")
             self.__update_statistics(statistics_data)
-        elif processor == self.__display.get_processor("histogram"):
-            histogram_data = self.__display.get_processed_data("histogram")
-            self.__histogram_canvas_item.histogram_data = histogram_data

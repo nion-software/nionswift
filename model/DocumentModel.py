@@ -745,6 +745,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             task()
             self.__dispatcher.task_done()
 
+    def recompute_always(self):
+        while True:
+            task = self.__dispatcher.get()
+            task()
+            self.__dispatcher.task_done()
+
+    def start_dispatcher(self):
+        self.__thread = threading.Thread(target=self.recompute_always)
+        self.__thread.daemon = True
+        self.__thread.start()
+
     def sync_data_item(self, data_item):
         """Synchronizes the data item by applying any pending operations and processing."""
         data_item.recompute_data()

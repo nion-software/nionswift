@@ -364,11 +364,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     # called from processors
     def notify_processor_needs_recompute(self, processor):
-        self.notify_listeners("processor_needs_recompute", processor)
+        self.notify_listeners("display_processor_needs_recompute", self, processor)
 
     # called from processors
     def notify_processor_data_updated(self, processor):
-        self.notify_listeners("processor_data_updated", processor)
+        self.notify_listeners("display_processor_data_updated", self, processor)
 
 
 class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):

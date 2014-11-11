@@ -651,6 +651,7 @@ class Application(object):
         storage_cache = Storage.DbStorageCache(cache_filename)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage, data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_model.create_default_data_groups()
+        document_model.start_dispatcher()
         PlugInManager.notify_modules("document_model_loaded", self, document_model)
         document_controller = self.create_document_controller(document_model, "library")
         if self.resources_path is not None:

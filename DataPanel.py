@@ -440,6 +440,7 @@ class DataPanel(Panel.Panel):
         def __data_item_inserted(self, data_item, before_index):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
+            data_item.displays[0].add_listener(self)
             self.__data_items.append(data_item)
             # do the insert
             properties = {
@@ -458,8 +459,20 @@ class DataPanel(Panel.Panel):
             del self.list_model_controller.model[index]
             self.list_model_controller.end_remove()
             # remove the listener.
+            data_item.displays[0].remove_listener(self)
             data_item.remove_listener(self)
             self.__data_items.remove(data_item)
+
+        # notification from display
+        def display_processor_needs_recompute(self, display, processor):
+            document_model = self.document_controller.document_model
+            if processor == display.get_processor("thumbnail"):
+                document_model.dispatch_task(lambda: processor.recompute_data(self.ui))
+
+        # notification from display
+        def display_processor_data_updated(self, display, processor):
+            if processor == display.get_processor("thumbnail"):
+                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
 
         def item_mime_data(self, row):
             data_item = self.get_data_item_by_index(row)
@@ -479,10 +492,13 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
-            display = data_item.title
-            display2 = data_item.size_and_data_format_as_string
-            display3 = data_item.datetime_original_as_string
+            display = data_item.displays[0]
+            if display.get_processor("thumbnail").is_data_stale:
+                self.document_controller.document_model.dispatch_task(lambda: display.get_processor("thumbnail").recompute_data(self.ui))
+            thumbnail_data = display.get_processed_data("thumbnail")
+            title_str = data_item.title
+            format_str = data_item.size_and_data_format_as_string
+            datetime_str = data_item.datetime_original_as_string
             def get_live_status_as_string(data_item):
                 if data_item.is_live:
                     live_metadata = data_item.get_metadata("hardware_source")
@@ -497,11 +513,11 @@ class DataPanel(Panel.Panel):
                 draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             ctx.fill_style = "#000"
-            ctx.fill_text(display, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
+            ctx.fill_text(title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
             ctx.font = "11px italic"
-            ctx.fill_text(display2, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+            ctx.fill_text(format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
             ctx.font = "11px italic"
-            ctx.fill_text(display3, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+            ctx.fill_text(datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
             ctx.font = "11px italic"
             ctx.fill_text(display4, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
             ctx.restore()
@@ -565,7 +581,10 @@ class DataPanel(Panel.Panel):
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
                             draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
-                                thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
+                                display = data_item.displays[0]
+                                if display.get_processor("thumbnail").is_data_stale:
+                                    self.__delegate.document_controller.document_model.dispatch_task(lambda: display.get_processor("thumbnail").recompute_data(self.__delegate.ui))
+                                thumbnail_data = display.get_processed_data("thumbnail")
                                 if is_selected:
                                     drawing_context.save()
                                     drawing_context.begin_path()
@@ -859,6 +878,7 @@ class DataPanel(Panel.Panel):
         def __data_item_inserted(self, data_item, before_index):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
+            data_item.displays[0].add_listener(self)
             self.__data_items.append(data_item)
             self.selection.insert_index(before_index)
             self.icon_view_canvas_item.update()
@@ -867,10 +887,22 @@ class DataPanel(Panel.Panel):
         def __data_item_removed(self, data_item, index):
             assert isinstance(data_item, DataItem.DataItem)
             # remove the listener.
+            data_item.displays[0].remove_listener(self)
             data_item.remove_listener(self)
             self.__data_items.remove(data_item)
             self.selection.insert_index(index)
             self.icon_view_canvas_item.update()
+
+        # notification from display
+        def display_processor_needs_recompute(self, display, processor):
+            document_model = self.document_controller.document_model
+            if processor == display.get_processor("thumbnail"):
+                document_model.dispatch_task(lambda: processor.recompute_data(self.ui))
+
+        # notification from display
+        def display_processor_data_updated(self, display, processor):
+            if processor == display.get_processor("thumbnail"):
+                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))

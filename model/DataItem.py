@@ -448,11 +448,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # called from processors
     def notify_processor_needs_recompute(self, processor):
-        self.notify_listeners("processor_needs_recompute", processor)
+        self.notify_listeners("data_item_processor_needs_recompute", self, processor)
 
     # called from processors
     def notify_processor_data_updated(self, processor):
-        self.notify_listeners("processor_data_updated", processor)
+        self.notify_listeners("data_item_processor_data_updated", self, processor)
 
     def __get_is_live(self):
         """ Return whether this data item represents a live acquisition data item. """
@@ -1096,9 +1096,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def recompute_data(self):
         """Ensures that the master data is synchronized with the sources/operations by recomputing if necessary."""
-        with self.data_item_changes():  # prevent multiple data changed notifications from the code below
-            with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
-                if self.is_data_stale:
+        with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
+            if self.is_data_stale:
+                with self.data_item_changes():  # prevent multiple data changed notifications from the code below
                     data_output = self.__get_data_output()
                     if data_output:
                         self.increment_data_ref_count()  # make sure master data is loaded
