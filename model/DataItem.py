@@ -833,8 +833,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
-        self.mark_data_stale()
-        self.notify_data_item_content_changed(set([DATA]))
+        if not self._is_reading:
+            self.mark_data_stale()
+            self.notify_data_item_content_changed(set([DATA]))
 
     # this message comes from the operation.
     # it is generated when the user deletes a operation graphic.

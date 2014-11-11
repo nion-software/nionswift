@@ -858,6 +858,41 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         self.assertFalse(document_model.data_items[1].is_data_stale)
 
+    def test_cropped_data_item_with_region_does_not_need_histogram_recompute_when_reloaded(self):
+        # tests caching on display
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        cache_name = os.path.join(workspace_dir, "Data.cache")
+        try:
+            storage_cache = Storage.DbStorageCache(cache_name)
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item_cropped = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            data_item_cropped.add_operation(crop_operation)
+            crop_region = Region.RectRegion()
+            crop_operation.establish_associated_region("crop", data_item, crop_region)
+            data_item_cropped.add_data_source(data_item)
+            document_model.append_data_item(data_item_cropped)
+            histogram1 = numpy.copy(data_item_cropped.displays[0].get_processed_data("histogram"))
+            data_item_cropped.displays[0].get_processor("histogram").recompute_data(None)
+            histogram2 = numpy.copy(data_item_cropped.displays[0].get_processed_data("histogram"))
+            document_model.close()
+            self.assertFalse(numpy.array_equal(histogram1, histogram2))
+            # read it back
+            storage_cache = Storage.DbStorageCache(cache_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            histogram3 = numpy.copy(document_model.data_items[1].displays[0].get_processed_data("histogram"))
+            self.assertTrue(numpy.array_equal(histogram2, histogram3))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_data_items_v1_migration(self):
         # construct v1 data item
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()

@@ -277,8 +277,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             self.__preview = None
             self.notify_listeners("display_changed", self)
             # clear the processor caches
-            for processor in self.__processors.values():
-                processor.data_item_changed()
+            if not self._is_reading:
+                for processor in self.__processors.values():
+                    processor.data_item_changed()
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
