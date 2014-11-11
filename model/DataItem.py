@@ -155,12 +155,24 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     Data items will emit the following notifications to listeners. Listeners should take care to not call
      functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
-     should not read the data property (although cached_data is ok).
+     should not read the data property (although cached_data is ok) since calling data may trigger the data
+     to be computed which will emit data_item_content_changed, resulting in a cycle.
 
     * data_item_content_changed(data_item, changes)
     * data_item_needs_recompute(data_item)
     * data_item_calibration_changed()
     * request_remove_data_item(data_item)
+
+    data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set
+    of changes from DATA, METADATA, DISPLAYS, SOURCE.
+
+    data_item_needs_recompute is invoked when a recompute of the data is necessary. This can happen when an operation
+    changes or when source data changes.
+
+    TODO: merge usage of data_item_calibration_changed with data_item_content_changed.
+
+    request_remove_data_item is invoked when a region associated with an operation is removed by the user. This
+    message can be used to remove the associated dependent data item.
 
     *Stale Data*
 
@@ -822,20 +834,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def add_operation(self, operation):
         self.append_item("operations", operation)
-        self.mark_data_stale()
+        self.__mark_data_stale()
 
     def remove_operation(self, operation):
         operation.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
         self.remove_item("operations", operation)
-        self.mark_data_stale()
+        self.__mark_data_stale()
 
     # this message comes from the operation.
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         if not self._is_reading:
-            self.mark_data_stale()
-            self.notify_data_item_content_changed(set([DATA]))
+            self.__mark_data_stale()
 
     # this message comes from the operation.
     # it is generated when the user deletes a operation graphic.
@@ -922,12 +933,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
     def data_item_content_changed(self, data_source, changes):
-        self.mark_data_stale()
+        if DATA in changes or SOURCE in changes:
+            self.__mark_data_stale()
 
     # data_item_needs_recompute comes from data sources to indicate that data has
     # become stale. the connection is established via add_listener.
     def data_item_needs_recompute(self, data_item):
-        self.mark_data_stale()
+        self.__mark_data_stale()
 
     def __get_data_source(self):
         return self.__data_sources[0] if len(self.__data_sources) == 1 else None
@@ -1012,7 +1024,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """Return whether the data is currently stale."""
         return self.__is_master_data_stale
 
-    def mark_data_stale(self):
+    def __mark_data_stale(self):
         """Mark the master data as stale."""
         with self.__is_master_data_stale_lock:
             self.__is_master_data_stale = True

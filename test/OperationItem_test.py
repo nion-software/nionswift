@@ -15,6 +15,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
+from nion.ui import Geometry
 from nion.ui import Test
 
 
@@ -520,6 +521,89 @@ class TestOperationClass(unittest.TestCase):
         # check to make sure regions were removed
         self.assertEqual(len(data_item.regions), 0)
 
+    def test_modifying_operation_results_in_data_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        # set up the data items
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        blurred_data_item = DataItem.DataItem()
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
+        blurred_data_item.add_operation(blur_operation)
+        blurred_data_item.add_data_source(data_item)
+        document_model.append_data_item(blurred_data_item)
+        # establish listeners
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self._data_changed = False
+                self._display_changed = False
+            def data_item_content_changed(self, data_item, changes):
+                self._data_changed = self._data_changed or DataItem.DATA in changes
+            def display_changed(self, display):
+                self._display_changed = True
+        listener = Listener()
+        blurred_data_item.add_listener(listener)
+        blurred_data_item.displays[0].add_listener(listener)
+        # modify an operation. make sure data and dependent data gets updated.
+        listener.reset()
+        blur_operation.set_property("sigma", 0.1)
+        document_model.recompute_all()
+        self.assertTrue(listener._data_changed)
+        self.assertTrue(listener._display_changed)
+
+    def test_modifying_operation_region_results_in_data_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        # set up the data items
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        blurred_data_item = DataItem.DataItem()
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
+        blurred_data_item.add_operation(blur_operation)
+        blurred_data_item.add_data_source(data_item)
+        document_model.append_data_item(blurred_data_item)
+        # establish listeners
+        class Listener(object):
+            def __init__(self):
+                self.reset()
+            def reset(self):
+                self._data_changed = False
+                self._display_changed = False
+            def data_item_content_changed(self, data_item, changes):
+                self._data_changed = self._data_changed or DataItem.DATA in changes
+            def display_changed(self, display):
+                self._display_changed = True
+        listener = Listener()
+        blurred_data_item.add_listener(listener)
+        blurred_data_item.displays[0].add_listener(listener)
+        # modify an operation. make sure data and dependent data gets updated.
+        listener.reset()
+        blur_operation.set_property("sigma", 0.1)
+        document_model.recompute_all()
+        self.assertTrue(listener._data_changed)
+        self.assertTrue(listener._display_changed)
+
+    def test_changing_region_does_not_trigger_fft_recompute(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        fft_data_item = DataItem.DataItem()
+        fft_data_item.add_operation(Operation.OperationItem("fft-operation"))
+        fft_data_item.add_data_source(data_item)
+        document_model.append_data_item(fft_data_item)
+        crop_data_item = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_region = Region.RectRegion()
+        crop_operation.establish_associated_region("crop", data_item, crop_region)
+        crop_data_item.add_operation(crop_operation)
+        crop_data_item.add_data_source(data_item)
+        document_model.append_data_item(crop_data_item)
+        document_model.recompute_all()
+        self.assertFalse(fft_data_item.is_data_stale)
+        self.assertFalse(crop_data_item.is_data_stale)
+        crop_region.bounds = Geometry.FloatRect(crop_region.bounds[0], Geometry.FloatPoint(0.1, 0.1))
+        self.assertTrue(crop_data_item.is_data_stale)
+        self.assertFalse(fft_data_item.is_data_stale)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

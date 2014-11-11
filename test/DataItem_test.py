@@ -262,6 +262,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item_copy.displays[0].graphics), 1)
 
     def test_data_item_data_changed(self):
+        # TODO: split this large monolithic test into smaller parts (some done already)
         document_model = DocumentModel.DocumentModel()
         # set up the data items
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -363,27 +364,17 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener._data_changed and not listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
-        # modify an operation. make sure data and dependent data gets updated.
-        blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        data_item.add_operation(blur_operation)
-        map(Listener.reset, listeners)
-        blur_operation.set_property("sigma", 0.1)
+
+    def test_appending_data_item_should_trigger_recompute(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        invert_data_item = DataItem.DataItem()
+        invert_data_item.add_operation(Operation.OperationItem("invert-operation"))
+        invert_data_item.add_data_source(data_item)
+        document_model.append_data_item(invert_data_item)
         document_model.recompute_all()
-        self.assertTrue(listener._data_changed and listener._display_changed)
-        self.assertTrue(listener2._data_changed and listener2._display_changed)
-        self.assertTrue(listener3._data_changed and listener3._display_changed)
-        data_item.remove_operation(blur_operation)
-        # modify an operation graphic. make sure data and dependent data gets updated.
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        data_item.add_operation(crop_operation)
-        map(Listener.reset, listeners)
-        crop_operation.set_property("bounds", ((0,0), (0.5, 0.5)))
-        document_model.recompute_all()
-        self.assertTrue(listener._data_changed and listener._display_changed)
-        self.assertTrue(listener2._data_changed and listener2._display_changed)
-        self.assertTrue(listener3._data_changed and listener3._display_changed)
-        data_item.remove_operation(crop_operation)
+        self.assertFalse(invert_data_item.is_data_stale)
 
     def test_data_range(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
