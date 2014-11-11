@@ -828,6 +828,64 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item.is_live)
         self.assertFalse(data_item_crop1.is_live)
 
+    def test_changing_metadata_or_data_does_not_mark_the_data_as_stale(self):
+        # changing metadata or data will override what has been computed
+        # from the data sources, if there are any.
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        self.assertFalse(data_item.is_data_stale)
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
+        data_item.set_intensity_calibration(Calibration.Calibration())
+        self.assertFalse(data_item.is_data_stale)
+
+    def test_changing_metadata_or_data_does_not_mark_the_data_as_stale_for_data_item_with_data_source(self):
+        # changing metadata or data will override what has been computed
+        # from the data sources, if there are any.
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_copy = DataItem.DataItem()
+        data_item_copy.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_copy.add_data_source(data_item)
+        document_model.append_data_item(data_item_copy)
+        data_item_copy.recompute_data()
+        self.assertFalse(data_item_copy.is_data_stale)
+        data_item_copy.set_intensity_calibration(Calibration.Calibration())
+        self.assertFalse(data_item_copy.is_data_stale)
+
+    def test_adding_or_removing_operation_should_mark_the_data_as_stale(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_copy = DataItem.DataItem()
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
+        data_item_copy.add_data_source(data_item)
+        document_model.append_data_item(data_item_copy)
+        data_item_copy.recompute_data()
+        self.assertFalse(data_item_copy.is_data_stale)
+        data_item_copy.add_operation(blur_operation)
+        self.assertTrue(data_item_copy.is_data_stale)
+        data_item_copy.recompute_data()
+        self.assertFalse(data_item_copy.is_data_stale)
+        data_item_copy.remove_operation(blur_operation)
+        self.assertTrue(data_item_copy.is_data_stale)
+
+    def test_changing_operation_should_mark_the_data_as_stale(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_copy = DataItem.DataItem()
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
+        data_item_copy.add_operation(blur_operation)
+        data_item_copy.add_data_source(data_item)
+        document_model.append_data_item(data_item_copy)
+        data_item_copy.recompute_data()
+        self.assertFalse(data_item_copy.is_data_stale)
+        blur_operation.set_property("sigma", 0.1)
+        self.assertTrue(data_item_copy.is_data_stale)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

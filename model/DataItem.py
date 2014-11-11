@@ -584,9 +584,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
     def notify_data_item_content_changed(self, changes):
-        if len(self.__data_sources) > 0:
-            with self.__master_data_lock:
-                self.__is_master_data_stale = True
         with self.data_item_changes():
             with self.__data_item_change_mutex:
                 self.__data_item_changes.update(changes)
@@ -819,15 +816,21 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def add_operation(self, operation):
         self.append_item("operations", operation)
+        with self.__master_data_lock:
+            self.__is_master_data_stale = True
 
     def remove_operation(self, operation):
         operation.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
         self.remove_item("operations", operation)
+        with self.__master_data_lock:
+            self.__is_master_data_stale = True
 
     # this message comes from the operation.
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
+        with self.__master_data_lock:
+            self.__is_master_data_stale = True
         self.notify_data_item_content_changed(set([DATA]))
 
     # this message comes from the operation.
@@ -852,6 +855,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_items = direct_data_sources
         else:
             data_items = [lookup_data_item(uuid.UUID(data_source_uuid_str)) for data_source_uuid_str in self.data_source_uuid_list.list]
+        data_source_connected = False  # keep track of whether a data source was connected during this call
         with self.__data_mutex:
             for data_source in data_items:
                 if data_source is not None:
@@ -860,8 +864,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     data_source.add_listener(self)
                     data_source.add_dependent_data_item(self)
                     self.__data_sources.append(data_source)
+                    data_source_connected = True
             self.__sync_operations()
-        self.data_item_content_changed(None, set([SOURCE]))
+        if data_source_connected:  # notify of changes if a data source was connected
+            self.data_item_content_changed(None, set([SOURCE]))
 
     # disconnect this item from its data source. also removes the graphics for this
     # items operations.
@@ -873,6 +879,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.__data_sources.remove(data_source)
         self.__lookup_data_item = None
         self.__direct_data_sources = None
+        # notify of changes
+        self.data_item_content_changed(None, set([SOURCE]))
 
     # track dependent data items. useful for propogating transaction support.
     def add_dependent_data_item(self, data_item):
@@ -1002,6 +1010,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     data_source.decrement_data_ref_count()
                 self.__unload_master_data()
         return final_count
+
+    @property
+    def is_data_stale(self):
+        """Return whether the data is currently stale."""
+        return self.__is_master_data_stale
 
     # used for testing
     def __is_data_loaded(self):
