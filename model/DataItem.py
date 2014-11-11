@@ -995,7 +995,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     is_data_loaded = property(__is_data_loaded)
 
     def __get_has_master_data(self):
-        return len(self.__data_sources) == 0 and self.master_data_shape is not None and self.master_data_dtype is not None
+        return self.master_data_shape is not None and self.master_data_dtype is not None
     has_master_data = property(__get_has_master_data)
 
     # grab a data reference as a context manager. the object
