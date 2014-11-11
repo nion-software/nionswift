@@ -254,14 +254,14 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 data_ref.master_data = data.copy()
         # spatial calibrations
         if "spatial_calibrations" in data_element:
-            spatial_calibrations = data_element.get("spatial_calibrations")
-            if len(spatial_calibrations) == len(data_item.spatial_shape):
-                for dimension, dimension_calibration in enumerate(spatial_calibrations):
+            dimensional_calibrations = data_element.get("spatial_calibrations")
+            if len(dimensional_calibrations) == len(data_item.spatial_shape):
+                for dimension, dimension_calibration in enumerate(dimensional_calibrations):
                     offset = float(dimension_calibration.get("offset", 0.0))
                     scale = float(dimension_calibration.get("scale", 1.0))
                     units = unicode(dimension_calibration.get("units", ""))
                     if scale != 0.0:
-                        data_item.set_spatial_calibration(dimension, Calibration.Calibration(offset, scale, units))
+                        data_item.set_dimensional_calibration(dimension, Calibration.Calibration(offset, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
             offset = float(intensity_calibration.get("offset", 0.0))
@@ -328,14 +328,14 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element["reader_version"] = 1
     if include_data:
         data_element["data"] = data_item.data
-    calculated_calibrations = data_item.calculated_calibrations
-    if calculated_calibrations is not None:
+    dimensional_calibrations = data_item.dimensional_calibrations
+    if dimensional_calibrations is not None:
         calibrations_element = list()
-        for calibration in calculated_calibrations:
+        for calibration in dimensional_calibrations:
             calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
             calibrations_element.append(calibration_element)
         data_element["spatial_calibrations"] = calibrations_element
-    intensity_calibration = data_item.calculated_intensity_calibration
+    intensity_calibration = data_item.intensity_calibration
     if intensity_calibration is not None:
         intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
         data_element["intensity_calibration"] = calibration_element

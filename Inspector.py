@@ -253,7 +253,7 @@ class BoundSpatialCalibration(Observable.Observable):
         super(BoundSpatialCalibration, self).__init__()
         self.data_item = data_item
         self.spatial_index = spatial_index
-        self.__cached_value = self.data_item.intrinsic_calibrations[self.spatial_index]
+        self.__cached_value = self.data_item.dimensional_calibrations[self.spatial_index]
         self.data_item.add_listener(self)
 
     def close(self):
@@ -261,7 +261,7 @@ class BoundSpatialCalibration(Observable.Observable):
 
     def data_item_calibration_changed(self):
         """ Message comes from data item. """
-        new_value = self.data_item.intrinsic_calibrations[self.spatial_index]
+        new_value = self.data_item.dimensional_calibrations[self.spatial_index]
         if new_value.offset != self.__cached_value.offset:
             self.notify_set_property("offset", new_value.offset)
         if new_value.scale != self.__cached_value.scale:
@@ -275,7 +275,7 @@ class BoundSpatialCalibration(Observable.Observable):
     def __set_offset(self, offset):
         spatial_calibration = self.__cached_value
         spatial_calibration.offset = offset
-        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
         self.notify_set_property("offset", spatial_calibration.offset)
     offset = property(__get_offset, __set_offset)
 
@@ -284,7 +284,7 @@ class BoundSpatialCalibration(Observable.Observable):
     def __set_scale(self, scale):
         spatial_calibration = self.__cached_value
         spatial_calibration.scale = scale
-        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
         self.notify_set_property("scale", spatial_calibration.scale)
     scale = property(__get_scale, __set_scale)
 
@@ -293,7 +293,7 @@ class BoundSpatialCalibration(Observable.Observable):
     def __set_units(self, units):
         spatial_calibration = self.__cached_value
         spatial_calibration.units = units
-        self.data_item.set_spatial_calibration(self.spatial_index, spatial_calibration)
+        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
         self.notify_set_property("units", spatial_calibration.units)
     units = property(__get_units, __set_units)
 
@@ -303,7 +303,7 @@ class BoundIntensityCalibration(Observable.Observable):
     def __init__(self, data_item):
         super(BoundIntensityCalibration, self).__init__()
         self.data_item = data_item
-        self.__cached_value = self.data_item.intrinsic_intensity_calibration
+        self.__cached_value = self.data_item.intensity_calibration
         self.data_item.add_listener(self)
 
     def close(self):
@@ -311,7 +311,7 @@ class BoundIntensityCalibration(Observable.Observable):
 
     def data_item_calibration_changed(self):
         """ Message comes from data item. """
-        new_value = self.data_item.intrinsic_intensity_calibration
+        new_value = self.data_item.intensity_calibration
         if new_value.offset != self.__cached_value.offset:
             self.notify_set_property("offset", new_value.offset)
         if new_value.scale != self.__cached_value.scale:
@@ -357,7 +357,7 @@ class CalibrationsInspectorSection(InspectorSection):
     def __init__(self, ui, display):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
         data_item = display.data_item
-        self.__calibrations = [BoundSpatialCalibration(data_item, index) for index in xrange(len(data_item.intrinsic_calibrations))]
+        self.__calibrations = [BoundSpatialCalibration(data_item, index) for index in xrange(len(data_item.dimensional_calibrations))]
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -607,10 +607,10 @@ class CalibratedValueFloatToStringConverter(object):
         self.__index = index
         self.__data_size = data_size
     def convert(self, value):
-        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
-        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -623,10 +623,10 @@ class CalibratedSizeFloatToStringConverter(object):
         self.__index = index
         self.__data_size = data_size
     def convert(self, size):
-        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
-        calibration = self.__display.data_item.calculated_calibrations[self.__index]
+        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -800,7 +800,7 @@ class GraphicsInspectorSection(InspectorSection):
     def __init__(self, ui, data_item, display):
         super(GraphicsInspectorSection, self).__init__(ui, _("Graphics"))
         self.__image_size = data_item.spatial_shape
-        self.__calibrations = data_item.calculated_calibrations
+        self.__calibrations = data_item.dimensional_calibrations
         self.__graphics = display.drawn_graphics
         self.__display = display
         # ui

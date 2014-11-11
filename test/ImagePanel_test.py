@@ -611,7 +611,7 @@ class TestImagePanelClass(unittest.TestCase):
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         data_item = self.image_panel.display.data_item
         # adjust image panel display and trigger layout
-        intensity_calibration = data_item.intrinsic_intensity_calibration
+        intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = -0.2
         data_item.set_intensity_calibration(intensity_calibration)
         self.image_panel.display_canvas_item.wait_for_prepare_data()  # force prepare_display_on_thread to finish before _repaint

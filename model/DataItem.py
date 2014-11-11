@@ -56,8 +56,8 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
 class CalibrationList(object):
 
-    def __init__(self):
-        self.list = list()
+    def __init__(self, calibrations=None):
+        self.list = list() if calibrations is None else copy.deepcopy(calibrations)
 
     def read_dict(self, storage_list):
         # storage_list will be whatever is returned by write_dict.
@@ -93,8 +93,6 @@ class DataSourceUuidList(object):
 # from another data item (data source).
 
 # displays: list of displays for this data item
-
-# intrinsic_calibrations: calibration for each dimension
 
 # data: data with all operations applied
 
@@ -225,7 +223,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         master_data_shape = data.shape if has_master_data else None
         master_data_dtype = data.dtype if has_master_data else None
         current_datetime_item = Utility.get_current_datetime_item()
-        spatial_calibrations = CalibrationList()
+        dimensional_calibrations = CalibrationList()
         class DtypeToStringConverter(object):
             def convert(self, value):
                 return str(value) if value is not None else None
@@ -233,8 +231,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 return numpy.dtype(value) if value is not None else None
         self.define_property("master_data_shape", master_data_shape, changed=self.__property_changed)
         self.define_property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed)
-        self.define_property("intrinsic_intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__intrinsic_intensity_calibration_changed)
-        self.define_property("intrinsic_spatial_calibrations", spatial_calibrations, make=CalibrationList, changed=self.__intrinsic_spatial_calibrations_changed)
+        # TODO: file format rename calibrations to match property names
+        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__intensity_calibration_changed, key="intrinsic_intensity_calibration")
+        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed, key="intrinsic_spatial_calibrations")
         self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)
@@ -285,8 +284,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # metadata
         data_item_copy.copy_metadata_from(self)
         # calibrations
-        data_item_copy.intrinsic_intensity_calibration = self.intrinsic_intensity_calibration
-        data_item_copy.intrinsic_spatial_calibrations = self.intrinsic_spatial_calibrations
+        data_item_copy.set_intensity_calibration(self.intensity_calibration)
+        data_item_copy.set_dimensional_calibrations(self.dimensional_calibrations)
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
@@ -341,9 +340,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # metadata
         data_item_copy.copy_metadata_from(self)
         # calibrations
-        data_item_copy.set_intensity_calibration(self.calculated_intensity_calibration)
+        data_item_copy.set_intensity_calibration(self.intensity_calibration)
         for index in xrange(len(self.spatial_shape)):
-            data_item_copy.set_spatial_calibration(index, self.calculated_calibrations[index])
+            data_item_copy.set_dimensional_calibration(index, self.dimensional_calibrations[index])
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
@@ -570,11 +569,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             value = os.path.normpath(value)
         return unicode(value)
 
-    def __intrinsic_intensity_calibration_changed(self, name, value):
-        self.notify_set_property(name, value)
-        self.notify_data_item_content_changed(set([METADATA]))
-        self.notify_listeners("data_item_calibration_changed")
-
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
         self.__metadata_changed()
@@ -618,53 +612,58 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # calibration stuff
 
-    def set_spatial_calibration(self, dimension, calibration):
-        spatial_calibrations = self.intrinsic_spatial_calibrations
-        while len(spatial_calibrations.list) <= dimension:
-            spatial_calibrations.list.append(Calibration.Calibration())
-        spatial_calibrations.list[dimension] = calibration
-        self.intrinsic_spatial_calibrations = spatial_calibrations
+    @property
+    def intensity_calibration(self):
+        """ Return the intensity calibration. """
+        if self.__is_master_data_stale:
+            data_output = self.__get_data_output()
+            if data_output:
+                return data_output.intensity_calibration
+        return self._get_managed_property("intensity_calibration")
 
-    def __intrinsic_spatial_calibrations_changed(self, name, value):
+    @property
+    def dimensional_calibrations(self):
+        """ Return the dimensional calibrations as a list. """
+        if self.__is_master_data_stale:
+            data_output = self.__get_data_output()
+            if data_output:
+                return data_output.dimensional_calibrations
+        return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
+
+    def set_intensity_calibration(self, calibration):
+        """ Set the intenisty calibration. """
+        self._set_managed_property("intensity_calibration", calibration)
+
+    def set_dimensional_calibrations(self, dimensional_calibrations):
+        """ Set the dimensional calibrations. """
+        self._set_managed_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+
+    def set_dimensional_calibration(self, dimension, calibration):
+        dimensional_calibrations = self.dimensional_calibrations
+        while len(dimensional_calibrations) <= dimension:
+            dimensional_calibrations.append(Calibration.Calibration())
+        dimensional_calibrations[dimension] = calibration
+        self.set_dimensional_calibrations(dimensional_calibrations)
+
+    def __intensity_calibration_changed(self, name, value):
+        self.notify_set_property(name, value)
         self.notify_data_item_content_changed(set([METADATA]))
         self.notify_listeners("data_item_calibration_changed")
 
-    def set_intensity_calibration(self, calibration):
-        self.intrinsic_intensity_calibration = calibration
-
-    def __get_intrinsic_calibrations(self):
-        return copy.deepcopy(self.intrinsic_spatial_calibrations.list)
-    intrinsic_calibrations = property(__get_intrinsic_calibrations)
-
-    def __get_calculated_intensity_calibration(self):
-        if self.__is_master_data_stale:
-            data_output = self.__get_data_output()
-            if data_output:
-                return data_output.calculated_intensity_calibration
-        return self.intrinsic_intensity_calibration
-    calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
+    def __dimensional_calibrations_changed(self, name, value):
+        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_listeners("data_item_calibration_changed")
 
     # call this when data changes. this makes sure that the right number
-    # of intrinsic_calibrations exist in this object.
-    def __sync_intrinsic_spatial_calibrations(self, ndim):
-        spatial_calibrations = self.intrinsic_spatial_calibrations
-        if len(spatial_calibrations.list) != ndim and not self.closed:
-            while len(spatial_calibrations.list) < ndim:
-                spatial_calibrations.list.append(Calibration.Calibration())
-            while len(spatial_calibrations.list) > ndim:
-                spatial_calibrations.list.remove(spatial_calibrations.list[-1])
-            self.intrinsic_spatial_calibrations = spatial_calibrations
-
-    # calculate the calibrations by starting with the source calibration
-    # and then applying calibration transformations for each enabled
-    # operation.
-    def __get_calculated_calibrations(self):
-        if self.__is_master_data_stale:
-            data_output = self.__get_data_output()
-            if data_output:
-                return data_output.calculated_calibrations
-        return self.intrinsic_spatial_calibrations.list
-    calculated_calibrations = property(__get_calculated_calibrations)
+    # of dimensional_calibrations exist in this object.
+    def __sync_dimensional_calibrations(self, ndim):
+        dimensional_calibrations = self.dimensional_calibrations
+        if len(dimensional_calibrations) != ndim and not self.closed:
+            while len(dimensional_calibrations) < ndim:
+                dimensional_calibrations.append(Calibration.Calibration())
+            while len(dimensional_calibrations) > ndim:
+                dimensional_calibrations.remove(dimensional_calibrations[-1])
+            self.set_dimensional_calibrations(dimensional_calibrations)
 
     # date times
 
@@ -945,7 +944,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.master_data_shape = data.shape if data is not None else None
                 self.master_data_dtype = data.dtype if data is not None else None
                 spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
-                self.__sync_intrinsic_spatial_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
+                self.__sync_dimensional_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
                 self.__calculate_data_range_for_data(data)
             # tell the managed object context about it
             if self.__master_data is not None:
@@ -1055,10 +1054,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     data_output = self.__get_data_output()
                     if data_output:
                         self.__set_master_data(data_output.data)
-                        self.set_intensity_calibration(data_output.calculated_intensity_calibration)
+                        self.set_intensity_calibration(data_output.intensity_calibration)
                         spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
                         for index in xrange(len(spatial_shape)):
-                            self.set_spatial_calibration(index, data_output.calculated_calibrations[index])
+                            self.set_dimensional_calibration(index, data_output.dimensional_calibrations[index])
                 self.__is_master_data_stale = False
         finally:
             with self.__data_item_change_mutex:

@@ -282,23 +282,23 @@ class Operation(object):
                 return None, None
             data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
-            def __get_calculated_intensity_calibration(self):
+            def __get_intensity_calibration(self):
                 assert len(self.__data_inputs) == 1
                 input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
                 input_data_shape = input_data_shape_and_dtype[0]
                 input_data_dtype = input_data_shape_and_dtype[1]
-                input_intensity_calibration = self.__data_inputs[0].calculated_intensity_calibration
+                input_intensity_calibration = self.__data_inputs[0].intensity_calibration
                 return self.__operation.get_processed_intensity_calibration(input_data_shape, input_data_dtype, input_intensity_calibration)
-            calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
+            intensity_calibration = property(__get_intensity_calibration)
 
-            def __get_calculated_calibrations(self):
+            def __get_dimensional_calibrations(self):
                 assert len(self.__data_inputs) == 1
                 input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
                 input_data_shape = input_data_shape_and_dtype[0]
                 input_data_dtype = input_data_shape_and_dtype[1]
-                input_spatial_calibrations = self.__data_inputs[0].calculated_calibrations
-                return self.__operation.get_processed_spatial_calibrations(input_data_shape, input_data_dtype, input_spatial_calibrations)
-            calculated_calibrations = property(__get_calculated_calibrations)
+                input_dimensional_calibrations = self.__data_inputs[0].dimensional_calibrations
+                return self.__operation.get_processed_dimensional_calibrations(input_data_shape, input_data_dtype, input_dimensional_calibrations)
+            dimensional_calibrations = property(__get_dimensional_calibrations)
 
             def __get_data(self):
                 assert len(self.__data_inputs) == 1
@@ -320,8 +320,8 @@ class Operation(object):
         return new_data
 
     # spatial calibrations
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
-        return spatial_calibrations
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
+        return dimensional_calibrations
 
     # intensity calibration
     def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
@@ -354,7 +354,7 @@ class FFTOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape, numpy.dtype(numpy.complex128)
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, source_calibrations):
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
@@ -374,7 +374,7 @@ class IFFTOperation(Operation):
         else:
             raise NotImplementedError()
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, source_calibrations):
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
@@ -424,15 +424,15 @@ class Crop2dOperation(Operation):
         self.region_types = {"crop": "rectangle-region"}
         self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
-        cropped_spatial_calibrations = list()
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
+        cropped_dimensional_calibrations = list()
         bounds = self.get_property("bounds")
-        for index, spatial_calibration in enumerate(spatial_calibrations):
-            cropped_calibration = Calibration.Calibration(spatial_calibration.offset + data_shape[index] * bounds[0][index] * spatial_calibration.scale,
-                                                          spatial_calibration.scale,
-                                                          spatial_calibration.units)
-            cropped_spatial_calibrations.append(cropped_calibration)
-        return cropped_spatial_calibrations
+        for index, dimensional_calibration in enumerate(dimensional_calibrations):
+            cropped_calibration = Calibration.Calibration(dimensional_calibration.offset + data_shape[index] * bounds[0][index] * dimensional_calibration.scale,
+                                                          dimensional_calibration.scale,
+                                                          dimensional_calibration.units)
+            cropped_dimensional_calibrations.append(cropped_calibration)
+        return cropped_dimensional_calibrations
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         shape = data_shape
@@ -506,8 +506,8 @@ class Projection2dOperation(Operation):
         # hardcoded to axis 0 right now
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, spatial_calibrations):
-        return copy.deepcopy(spatial_calibrations)[1:]
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
+        return copy.deepcopy(dimensional_calibrations)[1:]
 
     def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
         return data_shape[1:], data_dtype
@@ -549,7 +549,7 @@ class Resample2dOperation(Operation):
             return data.copy()
         return Image.scaled(data, (height, width))
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, source_calibrations):
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
         assert len(source_calibrations) == 2
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
@@ -613,7 +613,7 @@ class LineProfileOperation(Operation):
         else:
             return (length, ), numpy.dtype(numpy.double)
 
-    def get_processed_spatial_calibrations(self, data_shape, data_dtype, source_calibrations):
+    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
         return [Calibration.Calibration(0.0, source_calibrations[1].scale, source_calibrations[1].units)]
 
     # calculate grid of coordinates. returns n coordinate arrays for each row.

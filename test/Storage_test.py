@@ -172,7 +172,7 @@ class TestStorageClass(unittest.TestCase):
         document_model_uuid = document_controller.document_model.uuid
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
-        data_item0_calibration_len = len(document_controller.document_model.data_items[0].intrinsic_calibrations)
+        data_item0_calibration_len = len(document_controller.document_model.data_items[0].dimensional_calibrations)
         data_item0_uuid = document_controller.document_model.data_items[0].uuid
         data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
         document_controller.close()
@@ -187,15 +187,15 @@ class TestStorageClass(unittest.TestCase):
         with document_controller.document_model.data_items[0].data_ref() as data_ref:
             self.assertIsNotNone(data_ref.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.data_items[0].uuid)
-        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.data_items[0].intrinsic_calibrations))
+        self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.data_items[0].dimensional_calibrations))
         new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
         self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
         # check over the data item
         data_item = document_controller.document_model.data_items[0]
         self.assertEqual(data_item.displays[0].display_limits, (500, 1000))
-        self.assertEqual(data_item.intrinsic_intensity_calibration.offset, 1.0)
-        self.assertEqual(data_item.intrinsic_intensity_calibration.scale, 2.0)
-        self.assertEqual(data_item.intrinsic_intensity_calibration.units, "three")
+        self.assertEqual(data_item.intensity_calibration.offset, 1.0)
+        self.assertEqual(data_item.intensity_calibration.scale, 2.0)
+        self.assertEqual(data_item.intensity_calibration.units, "three")
         self.assertEqual(data_item.get_metadata("test")["one"], 1)
         document_controller.close()
 
@@ -531,13 +531,13 @@ class TestStorageClass(unittest.TestCase):
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
         data_item.end_transaction()
-        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify calibrations
-        self.assertEqual(len(document_model.data_items[0].intrinsic_calibrations), 2)
+        self.assertEqual(len(document_model.data_items[0].dimensional_calibrations), 2)
         # clean up
         document_controller.close()
 
@@ -792,10 +792,10 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
         self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
-        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
-        self.assertEqual(data_item.intrinsic_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-        self.assertEqual(data_item.intrinsic_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-        self.assertEqual(data_item.intrinsic_intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
+        self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
         self.assertEqual(data_item.get_metadata("hardware_source")["voltage"], 200.0)
         self.assertFalse("session_uuid" in data_item.get_metadata("hardware_source"))
         self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
@@ -839,10 +839,10 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
         self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
-        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
-        self.assertEqual(data_item.intrinsic_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-        self.assertEqual(data_item.intrinsic_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
-        self.assertEqual(data_item.intrinsic_intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
+        self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
 
     def test_data_items_v4_migration(self):
         # construct v4 data item

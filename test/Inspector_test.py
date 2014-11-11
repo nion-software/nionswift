@@ -81,8 +81,8 @@ class TestInspectorClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display)
-        data_item.set_spatial_calibration(0, Calibration.Calibration(units="mm"))
-        data_item.set_spatial_calibration(1, Calibration.Calibration(units="mm"))
+        data_item.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+        data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

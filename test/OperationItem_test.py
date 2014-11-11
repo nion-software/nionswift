@@ -60,7 +60,7 @@ class TestOperationClass(unittest.TestCase):
         self.data_item.add_operation(operation)
         with self.data_item.data_ref() as data_ref:
             data_ref.data  # just calculate it
-        self.data_item.calculated_calibrations  # just calculate it
+        self.data_item.dimensional_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
         operation2 = Operation.OperationItem("resample-operation")
@@ -94,7 +94,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -128,7 +128,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -150,7 +150,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -183,7 +183,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -216,7 +216,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -238,7 +238,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -260,7 +260,7 @@ class TestOperationClass(unittest.TestCase):
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.data_source, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.calculated_calibrations)
+                self.assertIsNotNone(data_item.dimensional_calibrations)
                 self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
@@ -395,10 +395,10 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba_copy = self.document_controller.processing_snapshot()
         self.assertTrue(data_item_rgba_copy.has_master_data)
 
-    def test_snapshot_of_operation_should_copy_calibrations_not_intrinsic_calibrations(self):
+    def test_snapshot_of_operation_should_copy_calibrations_not_dimensional_calibrations(self):
         # setup
-        self.data_item.set_spatial_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
-        self.data_item.set_spatial_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.data_item.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.data_item.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
         self.data_item.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
         data_item2 = DataItem.DataItem()
         data_item2.add_operation(Operation.OperationItem("invert-operation"))
@@ -406,39 +406,36 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item2)
         data_item2.data  # trigger data calculation
         # make sure our assumptions are correct
-        self.assertEqual(len(self.data_item.calculated_calibrations), 2)
-        self.assertEqual(len(self.data_item.intrinsic_calibrations), 2)
-        self.assertEqual(len(data_item2.calculated_calibrations), 2)
-        self.assertEqual(len(data_item2.intrinsic_calibrations), 2)
+        self.assertEqual(len(self.data_item.dimensional_calibrations), 2)
+        self.assertEqual(len(data_item2.dimensional_calibrations), 2)
         # take snapshot
         self.image_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_data_item, data_item2)
         data_item_copy = self.document_controller.processing_snapshot()
         # check calibrations
-        self.assertEqual(len(data_item_copy.calculated_calibrations), 2)
-        self.assertEqual(len(data_item_copy.intrinsic_calibrations), 2)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[0].scale, 2.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[0].offset, 5.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[0].units, u"nm")
-        self.assertEqual(data_item_copy.intrinsic_calibrations[1].scale, 2.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[1].offset, 5.0)
-        self.assertEqual(data_item_copy.intrinsic_calibrations[1].units, u"nm")
-        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.scale, 2.5)
-        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.offset, 7.5)
-        self.assertEqual(data_item_copy.intrinsic_intensity_calibration.units, u"ll")
+        self.assertEqual(len(data_item_copy.dimensional_calibrations), 2)
+        self.assertEqual(data_item_copy.dimensional_calibrations[0].scale, 2.0)
+        self.assertEqual(data_item_copy.dimensional_calibrations[0].offset, 5.0)
+        self.assertEqual(data_item_copy.dimensional_calibrations[0].units, u"nm")
+        self.assertEqual(data_item_copy.dimensional_calibrations[1].scale, 2.0)
+        self.assertEqual(data_item_copy.dimensional_calibrations[1].offset, 5.0)
+        self.assertEqual(data_item_copy.dimensional_calibrations[1].units, u"nm")
+        self.assertEqual(data_item_copy.intensity_calibration.scale, 2.5)
+        self.assertEqual(data_item_copy.intensity_calibration.offset, 7.5)
+        self.assertEqual(data_item_copy.intensity_calibration.units, u"ll")
 
     def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0 = data_item.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
-        spatial_calibration_1 = data_item.intrinsic_calibrations[1]
+        spatial_calibration_1 = data_item.dimensional_calibrations[1]
         spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
-        data_item.set_spatial_calibration(0, spatial_calibration_0)
-        data_item.set_spatial_calibration(1, spatial_calibration_1)
+        data_item.set_dimensional_calibration(0, spatial_calibration_0)
+        data_item.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         data_item2 = DataItem.DataItem()
@@ -446,34 +443,34 @@ class TestOperationClass(unittest.TestCase):
         data_item2.add_operation(operation)
         data_item2.connect_data_sources(direct_data_sources=[data_item])
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item2.calculated_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
-        self.assertAlmostEqual(data_item2.calculated_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
-        self.assertAlmostEqual(data_item2.calculated_calibrations[0].scale, 5.0)
-        self.assertAlmostEqual(data_item2.calculated_calibrations[1].scale, 5.5)
-        self.assertEqual(data_item2.calculated_calibrations[0].units, "dogs")
-        self.assertEqual(data_item2.calculated_calibrations[1].units, "cats")
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[0].scale, 5.0)
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[1].scale, 5.5)
+        self.assertEqual(data_item2.dimensional_calibrations[0].units, "dogs")
+        self.assertEqual(data_item2.dimensional_calibrations[1].units, "cats")
 
     def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0 = data_item.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
-        spatial_calibration_1 = data_item.intrinsic_calibrations[1]
+        spatial_calibration_1 = data_item.dimensional_calibrations[1]
         spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
-        data_item.set_spatial_calibration(0, spatial_calibration_0)
-        data_item.set_spatial_calibration(1, spatial_calibration_1)
+        data_item.set_dimensional_calibration(0, spatial_calibration_0)
+        data_item.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("projection-operation")
         data_item2 = DataItem.DataItem()
         data_item2.add_data_source(data_item)
         data_item2.add_operation(operation)
         data_item2.connect_data_sources(direct_data_sources=[data_item])
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item2.calculated_calibrations[0].offset, 55.0)
-        self.assertAlmostEqual(data_item2.calculated_calibrations[0].scale, 5.5)
-        self.assertEqual(data_item2.calculated_calibrations[0].units, "cats")
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 55.0)
+        self.assertAlmostEqual(data_item2.dimensional_calibrations[0].scale, 5.5)
+        self.assertEqual(data_item2.dimensional_calibrations[0].units, "cats")
 
     def test_crop_2d_region_connects_if_operation_added_after_data_item_is_in_document(self):
         document_model = DocumentModel.DocumentModel()

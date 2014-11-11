@@ -79,7 +79,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_item1a1.add_data_source(data_item1a)
         document_model.append_data_item(data_item1a1)
         data_group.append_data_item(data_item1a1)
-        data_item1a1.calculated_calibrations
+        data_item1a1.dimensional_calibrations
         self.assertEqual(len(document_model.data_items), 3)
         self.assertEqual(len(data_group.counted_data_items), 3)
         self.assertIn(data_item1, data_group.counted_data_items.keys())

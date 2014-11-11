@@ -32,27 +32,27 @@ class TestCalibrationClass(unittest.TestCase):
 
     def test_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.set_spatial_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
-        data_item.set_spatial_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
-        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
+        data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
         data_item_copy = DataItem.DataItem()
         data_item_copy.add_operation(Operation.OperationItem("invert-operation"))
         data_item_copy.add_data_source(data_item)
         data_item_copy.connect_data_sources(direct_data_sources=[data_item])
-        calculated_calibrations = data_item_copy.calculated_calibrations
-        self.assertEqual(len(calculated_calibrations), 2)
-        self.assertEqual(int(calculated_calibrations[0].offset), 3)
-        self.assertEqual(int(calculated_calibrations[0].scale), 2)
-        self.assertEqual(calculated_calibrations[0].units, "x")
-        self.assertEqual(int(calculated_calibrations[1].offset), 3)
-        self.assertEqual(int(calculated_calibrations[1].scale), 2)
-        self.assertEqual(calculated_calibrations[1].units, "x")
+        dimensional_calibrations = data_item_copy.dimensional_calibrations
+        self.assertEqual(len(dimensional_calibrations), 2)
+        self.assertEqual(int(dimensional_calibrations[0].offset), 3)
+        self.assertEqual(int(dimensional_calibrations[0].scale), 2)
+        self.assertEqual(dimensional_calibrations[0].units, "x")
+        self.assertEqual(int(dimensional_calibrations[1].offset), 3)
+        self.assertEqual(int(dimensional_calibrations[1].scale), 2)
+        self.assertEqual(dimensional_calibrations[1].units, "x")
         data_item_copy.add_operation(Operation.OperationItem("fft-operation"))
-        calculated_calibrations = data_item_copy.calculated_calibrations
-        self.assertEqual(int(calculated_calibrations[0].offset), 0)
-        self.assertEqual(calculated_calibrations[0].units, "1/x")
-        self.assertEqual(int(calculated_calibrations[1].offset), 0)
-        self.assertEqual(calculated_calibrations[1].units, "1/x")
+        dimensional_calibrations = data_item_copy.dimensional_calibrations
+        self.assertEqual(int(dimensional_calibrations[0].offset), 0)
+        self.assertEqual(dimensional_calibrations[0].units, "1/x")
+        self.assertEqual(int(dimensional_calibrations[1].offset), 0)
+        self.assertEqual(dimensional_calibrations[1].units, "1/x")
 
     def test_double_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -66,13 +66,13 @@ class TestCalibrationClass(unittest.TestCase):
         data_item3.add_operation(operation3)
         data_item3.add_data_source(data_item2)
         data_item3.connect_data_sources(direct_data_sources=[data_item2])
-        data_item3.calculated_calibrations
+        data_item3.dimensional_calibrations
 
     def test_spatial_calibration_on_rgb(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256, 4), numpy.uint8))
         self.assertTrue(Image.is_shape_and_dtype_2d(*data_item.data_shape_and_dtype))
         self.assertTrue(Image.is_shape_and_dtype_rgba(*data_item.data_shape_and_dtype))
-        self.assertEqual(len(data_item.intrinsic_calibrations), 2)
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
 
     def test_calibration_should_work_for_complex_data(self):
         calibration = Calibration.Calibration(1.0, 2.0, "c")
@@ -151,7 +151,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNot(data_item.datetime_modified, data_item_copy.datetime_modified)
         self.assertIsNot(data_item.datetime_original, data_item_copy.datetime_original)
         # make sure calibrations, operations, nor graphics are not shared
-        self.assertNotEqual(data_item.intrinsic_calibrations[0], data_item_copy.intrinsic_calibrations[0])
+        self.assertNotEqual(data_item.dimensional_calibrations[0], data_item_copy.dimensional_calibrations[0])
         self.assertNotEqual(data_item.operations[0], data_item_copy.operations[0])
         self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
 
@@ -315,9 +315,9 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
-        spatial_calibration_0 = data_item.intrinsic_calibrations[0]
+        spatial_calibration_0 = data_item.dimensional_calibrations[0]
         spatial_calibration_0.offset = 1.0
-        data_item.set_spatial_calibration(0, spatial_calibration_0)
+        data_item.set_dimensional_calibration(0, spatial_calibration_0)
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)

@@ -239,9 +239,8 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
-            calibrations = display.data_item.calculated_calibrations
+            calibrations = display.data_item.dimensional_calibrations
             if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
-                calibrations = display.data_item.calculated_calibrations
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
@@ -412,7 +411,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         display = self.display
         data_item = display.data_item
         data_length = data_item.spatial_shape[0]
-        spatial_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
+        spatial_calibration = data_item.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = spatial_calibration.convert_to_calibrated_value(0)
         calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
@@ -468,8 +467,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_channel = left_channel if left_channel is not None else 0
                 right_channel = right_channel if right_channel is not None else data.shape[0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_item.calculated_calibrations[0] if display.display_calibrated_values else None
-                intensity_calibration = data_item.calculated_intensity_calibration if display.display_calibrated_values else None
+                dimensional_calibration = data_item.dimensional_calibrations[0] if display.display_calibrated_values else None
+                intensity_calibration = data_item.intensity_calibration if display.display_calibrated_values else None
                 data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
                                                                   dimensional_calibration, intensity_calibration)
             else:
@@ -1782,29 +1781,29 @@ class InfoPanel(Panel.Panel):
         position_text = ""
         value_text = ""
         if display and data_size:
-            calibrations = display.data_item.calculated_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
-            intensity_calibration = display.data_item.calculated_intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
+            dimensional_calibrations = display.data_item.dimensional_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
+            intensity_calibration = display.data_item.intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
                 # 3d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1] and pos[2] >= 0 and pos[2] < data_size[2]:
-                    position_text = u"{0}, {1}, {2}".format(calibrations[2].convert_to_calibrated_value_str(pos[2]),
-                                                            calibrations[1].convert_to_calibrated_value_str(pos[1]),
-                                                            calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                    position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2]),
+                                                            dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                                                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 2:
                 # 2d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
-                    position_text = u"{0}, {1}".format(calibrations[1].convert_to_calibrated_value_str(pos[1]),
-                                                       calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                    position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                                                       dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 1:
                 # 1d plot
                 # make sure the position is within the bounds of the line plot
                 if pos[0] >= 0 and pos[0] < data_size[0]:
-                    position_text = u"{0}".format(calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                    position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
             self.__last_source = source
         if self.__last_source == source:
