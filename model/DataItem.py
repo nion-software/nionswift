@@ -986,8 +986,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if self.managed_object_context:
                 #logging.debug("loading %s", self)
                 self.__master_data = self.managed_object_context.load_data(self)
-                with self.__is_master_data_stale_lock:
-                    self.__is_master_data_stale = False
 
     def __unload_master_data(self):
         # unload data if possible.

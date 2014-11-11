@@ -993,6 +993,29 @@ class TestDataItemClass(unittest.TestCase):
         blur_operation.set_property("sigma", 0.1)
         self.assertTrue(data_item_copy.is_data_stale)
 
+    def test_reloading_stale_data_should_still_be_stale(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        self.assertFalse(data_item_inverted.is_data_stale)
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # now the source data changes and the inverted data needs computing.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 2.0
+        self.assertTrue(data_item_inverted.is_data_stale)
+        # data is now unloaded and stale.
+        self.assertFalse(data_item_inverted.is_data_loaded)
+        self.assertTrue(data_item_inverted.is_data_stale)
+        # force the data to reload, but don't recompute, by using cached_data
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # data should still be stale
+        self.assertTrue(data_item_inverted.is_data_stale)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
