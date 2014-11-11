@@ -421,10 +421,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # access properties
 
     def read_from_dict(self, properties):
-        super(DataItem, self).read_from_dict(properties)
-        for key in properties.keys():
-            if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
-                self.__metadata.setdefault(key, dict()).update(properties[key])
+        # when reading, handle changes specially. first, put everything into a change
+        # block; then make sure that no change notifications actually occur. this makes
+        # sure things like cached values are preserved after reading.
+        with self.data_item_changes():
+            super(DataItem, self).read_from_dict(properties)
+            for key in properties.keys():
+                if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
+                    self.__metadata.setdefault(key, dict()).update(properties[key])
+            self.__data_item_changes = set()
+
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties

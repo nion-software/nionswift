@@ -1428,6 +1428,9 @@ class DictStorageCache(object):
         self.__cache = dict()
         self.__cache_dirty = dict()
 
+    def close(self):
+        pass
+
     def set_cached_value(self, object, key, value, dirty=False):
         cache = self.__cache.setdefault(object.uuid, dict())
         cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
@@ -1475,7 +1478,7 @@ class DbStorageCache(object):
     def __run(self, cache_filename):
         self.conn = sqlite3.connect(cache_filename)
         self.conn.execute("PRAGMA synchronous = OFF")
-        self.create()
+        self.__create()
         self.__started_event.set()
         while True:
             action = self.__queue.get()
@@ -1506,27 +1509,29 @@ class DbStorageCache(object):
         self.conn.close()
         self.conn = None
 
-    def create(self):
+    def __create(self):
         with self.conn:
             self.execute("CREATE TABLE IF NOT EXISTS cache(uuid STRING, key STRING, value BLOB, dirty INTEGER, PRIMARY KEY(uuid, key))")
 
     def execute(self, stmt, args=None, log=False):
         if args:
-            self.last_result = self.conn.execute(stmt, args)
+            result = self.conn.execute(stmt, args)
             if log:
                 logging.debug("%s [%s]", stmt, args)
+            return result
         else:
             self.conn.execute(stmt)
             if log:
                 logging.debug("%s", stmt)
+            return None
 
     def __set_cached_value(self, object, key, value, dirty=False):
         with self.conn:
             self.execute("INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), 1 if dirty else 0))
 
     def __get_cached_value(self, object, key, default_value=None):
-        self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
-        value_row = self.last_result.fetchone()
+        last_result = self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = last_result.fetchone()
         if value_row is not None:
             result = pickle.loads(str(value_row[0]))
             return result
@@ -1538,8 +1543,8 @@ class DbStorageCache(object):
             self.execute("DELETE FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
 
     def __is_cached_value_dirty(self, object, key):
-        self.execute("SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
-        value_row = self.last_result.fetchone()
+        last_result = self.execute("SELECT dirty FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
+        value_row = last_result.fetchone()
         if value_row is not None:
             return value_row[0] != 0
         else:

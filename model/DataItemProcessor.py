@@ -62,6 +62,8 @@ class DataItemProcessor(object):
         if self.__cached_value_dirty is None:
             self.__cached_value_dirty = self.item.is_cached_value_dirty(self.__cache_property_name)
             self.__cached_value = self.item.get_cached_value(self.__cache_property_name)
+            # import logging
+            # logging.debug("loading %s %s %s", self.__cached_value_dirty, self.__cache_property_name, self.item.uuid)
 
     def _set_cached_value_dirty(self):
         """Subclasses can use this to mark cache value dirty within item_property_changed."""
@@ -111,6 +113,8 @@ class DataItemProcessor(object):
                 self.item.set_cached_value(self.__cache_property_name, calculated_data)
                 self.__cached_value = calculated_data
                 self.__cached_value_dirty = False
+                # import logging
+                # logging.debug("updated %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
             else:
                 calculated_data = None
             if calculated_data is None:
@@ -120,11 +124,15 @@ class DataItemProcessor(object):
                     self.item.set_cached_value(self.__cache_property_name, calculated_data)
                     self.__cached_value = calculated_data
                     self.__cached_value_dirty = False
+                    # import logging
+                    # logging.debug("default %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
                 else:
                     # otherwise remove everything from the cache
                     self.item.remove_cached_value(self.__cache_property_name)
                     self.__cached_value = None
                     self.__cached_value_dirty = None
+                    # import logging
+                    # logging.debug("removed %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
         self.item.notify_processor_data_updated(self)
 
     def get_data(self, ui):

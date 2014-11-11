@@ -77,7 +77,7 @@ class TestInspectorClass(unittest.TestCase):
         display = data_item.displays[0]
         Inspector.CalibrationsInspectorSection(self.app.ui, display)
 
-    def test_calibration_inspector_section_follows_spatial_calibraton_change(self):
+    def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display)

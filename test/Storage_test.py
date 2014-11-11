@@ -126,6 +126,62 @@ class TestStorageClass(unittest.TestCase):
             storage_cache.close()
             storage_cache.close()
 
+    def test_storage_cache_stores_and_reloads_cached_statistics_values(self):
+        # tests caching on data item
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        cache_name = os.path.join(workspace_dir, "Data.cache")
+        try:
+            storage_cache = Storage.DbStorageCache(cache_name)
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            stats1 = copy.deepcopy(data_item.get_processed_data("statistics"))
+            data_item.get_processor("statistics").recompute_data(None)
+            stats2 = copy.deepcopy(data_item.get_processed_data("statistics"))
+            document_model.close()
+            self.assertNotEqual(stats1, stats2)
+            # read it back
+            storage_cache = Storage.DbStorageCache(cache_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            stats3 = copy.deepcopy(document_model.data_items[0].get_processed_data("statistics"))
+            self.assertEqual(stats2, stats3)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
+    def test_storage_cache_stores_and_reloads_cached_histogram_values(self):
+        # tests caching on display
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        cache_name = os.path.join(workspace_dir, "Data.cache")
+        try:
+            storage_cache = Storage.DbStorageCache(cache_name)
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            histogram1 = numpy.copy(data_item.displays[0].get_processed_data("histogram"))
+            data_item.displays[0].get_processor("histogram").recompute_data(None)
+            histogram2 = numpy.copy(data_item.displays[0].get_processed_data("histogram"))
+            document_model.close()
+            self.assertFalse(numpy.array_equal(histogram1, histogram2))
+            # read it back
+            storage_cache = Storage.DbStorageCache(cache_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            histogram3 = numpy.copy(document_model.data_items[0].displays[0].get_processed_data("histogram"))
+            self.assertTrue(numpy.array_equal(histogram2, histogram3))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
@@ -145,7 +201,6 @@ class TestStorageClass(unittest.TestCase):
             document_controller.close()
             document_controller = None
             document_model = None
-            storage_cache.close()
             storage_cache = None
             # read it back
             storage_cache = Storage.DbStorageCache(cache_name)
@@ -155,7 +210,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -399,7 +453,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -425,7 +478,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -458,7 +510,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -493,7 +544,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
@@ -723,7 +773,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.isfile(data2_file_path))
             # clean up
             document_model = None
-            storage_cache.close()
             storage_cache = None
             # delete the original file
             os.remove(data_file_path)
@@ -739,7 +788,6 @@ class TestStorageClass(unittest.TestCase):
             # clean up
             document_model.close()
             document_model = None
-            storage_cache.close()
             storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)

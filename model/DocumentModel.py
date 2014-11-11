@@ -416,6 +416,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__thread_pool.close()
         for data_item in self.data_items:
             data_item.close()
+        self.storage_cache.close()
 
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
