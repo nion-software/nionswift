@@ -947,7 +947,7 @@ class DataPanel(Panel.Panel):
                     data_item = None
                 self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
                 if self.focused:
-                    self.document_controller.set_selected_data_item(data_item)
+                    self.document_controller.notify_selected_data_item_changed(data_item)
                     self.__selected_data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
                     self.document_controller.set_selected_data_items(self.__selected_data_items)
                 self.save_state()
@@ -1166,10 +1166,10 @@ class DataPanel(Panel.Panel):
         self.__focused = focused
         if not self.__closing:
             if focused:
-                self.document_controller.set_selected_data_item(self.__selection.data_item)
+                self.document_controller.notify_selected_data_item_changed(self.__selection.data_item)
                 self.document_controller.set_selected_data_items(self.__selected_data_items)
             else:
-                self.document_controller.set_selected_data_item(None)
+                self.document_controller.notify_selected_data_item_changed(None)
                 self.document_controller.set_selected_data_items([])
     focused = property(__get_focused, __set_focused)
 

@@ -442,19 +442,19 @@ class DocumentController(Observable.Broadcaster):
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             selected_data_item = selected_image_panel.get_displayed_data_item() if selected_image_panel else None
-            self.set_selected_data_item(selected_data_item)
+            self.notify_selected_data_item_changed(selected_data_item)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def set_selected_data_item(self, selected_data_item):
+    def notify_selected_data_item_changed(self, selected_data_item):
         self.notify_listeners("selected_data_item_changed", selected_data_item)
 
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
 
-    def sync_data_item(self, data_item):
+    def select_data_item_in_data_panel(self, data_item):
         """
             Select the data item in the data panel. Use the existing group and existing
             filter if data item appears. Otherwise, remove filter and see if it appears.
@@ -669,8 +669,8 @@ class DocumentController(Observable.Broadcaster):
         self.document_model.append_data_item(data_item)
         if select:
             self.set_data_item_selection(data_item, source_data_item=source_data_item)
-            self.sync_data_item(data_item)
-            self.set_selected_data_item(data_item)
+            self.select_data_item_in_data_panel(data_item)
+            self.notify_selected_data_item_changed(data_item)
             inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -760,8 +760,8 @@ class DocumentController(Observable.Broadcaster):
             new_data_item.add_data_source(data_item)
             self.document_model.append_data_item(new_data_item)
             if select:
-                self.sync_data_item(new_data_item)
-                self.set_selected_data_item(new_data_item)
+                self.select_data_item_in_data_panel(new_data_item)
+                self.notify_selected_data_item_changed(new_data_item)
                 inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
@@ -780,8 +780,8 @@ class DocumentController(Observable.Broadcaster):
             # TODO: put this into existing group if copied from group
             self.document_model.append_data_item(data_item_copy)
             if select:
-                self.sync_data_item(data_item_copy)
-                self.set_selected_data_item(data_item_copy)
+                self.select_data_item_in_data_panel(data_item_copy)
+                self.notify_selected_data_item_changed(data_item_copy)
                 inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
@@ -942,7 +942,7 @@ class DocumentController(Observable.Broadcaster):
                 if container and data_item in container.data_items:
                     container.remove_data_item(data_item)
             def show_source():
-                self.sync_data_item(data_item.data_source)
+                self.select_data_item_in_data_panel(data_item.data_source)
             def show_in_new_window():
                 self.new_window("data", DataPanel.DataPanelSelection(container, data_item))
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
@@ -954,7 +954,7 @@ class DocumentController(Observable.Broadcaster):
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:
                     def show_dependent_data_item(data_item):
-                        self.sync_data_item(data_item)
+                        self.select_data_item_in_data_panel(data_item)
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), functools.partial(show_dependent_data_item, dependent_data_item))
             menu.popup(gx, gy)
 

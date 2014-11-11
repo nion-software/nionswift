@@ -444,12 +444,13 @@ class TestDataItemClass(unittest.TestCase):
         data_item_dummy.add_operation(dummy_operation_item)
         data_item_dummy.add_data_source(data_item)
         document_model.append_data_item(data_item_dummy)
+        document_model.sync_data_item(data_item_dummy)
         with data_item_dummy.data_ref() as d:
             start_count = dummy_operation.count
             d.data
-            self.assertEqual(dummy_operation.count, start_count + 1)
+            self.assertEqual(dummy_operation.count, start_count)
             d.data
-            self.assertEqual(dummy_operation.count, start_count + 1)
+            self.assertEqual(dummy_operation.count, start_count)
 
     class SumOperation(Operation.Operation):
         def __init__(self):

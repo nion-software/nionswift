@@ -520,6 +520,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__property_changed(name, value)
 
     def data_item_changes(self):
+        # return a context manager to batch up a set of changes so that listeners
+        # are only notified after the last change is complete.
         class DataItemChangeContextManager(object):
             def __init__(self, data_item):
                 self.__data_item = data_item
@@ -541,11 +543,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if data_item_change_count == 0:
                 changes = self.__data_item_changes
                 self.__data_item_changes = set()
+        # if the data item change count is now zero, it means that we're ready
+        # to notify listeners.
         if data_item_change_count == 0:
-            # clear the processor caches
             for processor in self.__processors.values():
                 processor.data_item_changed()
-            # clear the data cache and preview if the data changed
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -1017,7 +1019,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def data_ref(self):
         get_master_data = DataItem.__get_master_data
         set_master_data = DataItem.__set_master_data
-        get_data = DataItem.__get_data
         class DataAccessor(object):
             def __init__(self, data_item):
                 self.__data_item = data_item
@@ -1034,7 +1035,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             def master_data_updated(self):
                 set_master_data(self.__data_item, get_master_data(self.__data_item))
             def __get_data(self):
-                return get_data(self.__data_item)
+                self.__data_item.recompute_data()
+                return self.__get_master_data()
             data = property(__get_data)
         return DataAccessor(self)
 
@@ -1051,7 +1053,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     data = property(__get_data_immediate)
 
     def __get_data_output(self):
-        """ Calculate the operations applied to the data sources. """
+        """Calculate the operations applied to the data sources. Returns an intermediate data item."""
         data_sources = copy.copy(self.__data_sources)
         # apply operations
         for operation in self.operations:
@@ -1063,28 +1065,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             return data_sources[0]
         return None
 
-    def __update_master_data(self):
-        with self.__data_item_change_mutex:
-            self.__data_item_change_count += 1
-        try:
-            with self.__master_data_lock:
-                if self.__is_master_data_stale:
-                    data_output = self.__get_data_output()
-                    if data_output:
-                        self.__set_master_data(data_output.data)
-                        self.set_intensity_calibration(data_output.intensity_calibration)
-                        spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
-                        for index in xrange(len(spatial_shape)):
-                            self.set_dimensional_calibration(index, data_output.dimensional_calibrations[index])
-                self.__is_master_data_stale = False
-        finally:
-            with self.__data_item_change_mutex:
-                self.__data_item_change_count -= 1
-
-    def __get_data(self):
-        # private method to calculate the master data if necessary and return it
-        self.__update_master_data()
-        return self.__master_data
+    def recompute_data(self):
+        """Ensures that the master data is synchronized with the sources/operations by recomputing if necessary."""
+        with self.__master_data_lock:
+            if self.__is_master_data_stale:
+                data_output = self.__get_data_output()
+                if data_output:
+                    self.__set_master_data(data_output.data)
+                    self.set_intensity_calibration(data_output.intensity_calibration)
+                    spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
+                    for index in xrange(len(spatial_shape)):
+                        self.set_dimensional_calibration(index, data_output.dimensional_calibrations[index])
+            self.__is_master_data_stale = False
 
     def __get_data_shape_and_dtype(self):
         if self.__is_master_data_stale:

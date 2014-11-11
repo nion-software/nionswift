@@ -349,7 +349,6 @@ class TestOperationClass(unittest.TestCase):
         # read it back then make sure parameter was actually updated
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[1].operations[0].get_property("param"), 5.2)
         with document_model.data_items[1].data_ref() as d:
             self.assertEqual(d.data[0, 0], 5.2)
@@ -404,7 +403,6 @@ class TestOperationClass(unittest.TestCase):
         data_item2.add_operation(Operation.OperationItem("invert-operation"))
         data_item2.add_data_source(self.data_item)
         self.document_model.append_data_item(data_item2)
-        data_item2.data  # trigger data calculation
         # make sure our assumptions are correct
         self.assertEqual(len(self.data_item.dimensional_calibrations), 2)
         self.assertEqual(len(data_item2.dimensional_calibrations), 2)

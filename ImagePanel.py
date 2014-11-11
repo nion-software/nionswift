@@ -1536,7 +1536,7 @@ class ImagePanel(object):
         self.__overlay_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_image_panel = self
-            self.document_controller.set_selected_data_item(self.get_displayed_data_item())
+            self.document_controller.notify_selected_data_item_changed(self.get_displayed_data_item())
 
     def _is_focused(self):
         """ Used for testing. """
@@ -1596,7 +1596,7 @@ class ImagePanel(object):
     def __sync_data_item(self):
         data_item = self.get_displayed_data_item()
         if data_item is not None:
-            self.document_controller.sync_data_item(data_item)
+            self.document_controller.select_data_item_in_data_panel(data_item)
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_display via data_item.add_listener.

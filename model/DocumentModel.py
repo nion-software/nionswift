@@ -725,3 +725,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_group.title = group_name
             self.insert_data_group(0, data_group)
         return data_group
+
+    def sync_data_item(self, data_item):
+        """Synchronizes the data item by applying any pending operations and processing."""
+        data_item.recompute_data()
