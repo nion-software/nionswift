@@ -24,7 +24,8 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        display.get_processed_data("histogram", None)
+        display.get_processor("histogram").recompute_data(None)
+        display.get_processed_data("histogram")
         self.assertFalse(display.is_cached_value_dirty("histogram_data"))
         display.display_limits = (0.25, 0.75)
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
@@ -33,7 +34,8 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        display.get_processed_data("histogram", None)
+        display.get_processor("histogram").recompute_data(None)
+        display.get_processed_data("histogram")
         self.assertFalse(display.is_cached_value_dirty("histogram_data"))
         class Listener(object):
             def __init__(self):

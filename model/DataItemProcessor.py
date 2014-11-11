@@ -6,66 +6,94 @@ import weakref
 
 
 class DataItemProcessor(object):
+    """An abstract base class to facilitate data item processing.
+
+    A data item processor watches for changes to an item such as a data item or a display
+     and recomputes a result based on the item's data. For instance, a processor might compute
+     the statistics of data, the histogram of a display, or a thumbnail.
+
+    Items should support caching values and some notifications.
+
+    Items should call data_item_changed when they change so that the result data can be marked
+     as stale.
+
+    TODO: review whether item_property_changed is necessary
+    In addition, items should call item_property_changed when a property changes so that subclasses
+     can watch for specific property changes and be marked as stale.
+
+    Clients of processors must be able to receive important notifications such as when a processor
+    needs to be recomputed and when its data changes after a recompute. This ability is facilitated
+    by the following notifications to the container item.
+
+    processor_needs_recompute(processor)
+    notify_processor_data_updated(processor)
+    """
 
     def __init__(self, item, cache_property_name):
         self.__weak_item = weakref.ref(item)
         self.__cache_property_name = cache_property_name
         # the next two fields represent a memory cache -- a cache of the cache values.
         # if self.__cached_value_dirty is None then this first level cache has not yet
-        # been initialized.
+        # been initialized. these fields are used for optimization.
         self.__cached_value = None
         self.__cached_value_dirty = None
 
     def close(self):
         pass
 
-    def __get_item(self):
+    @property
+    def item(self):
+        """Return the containing item."""
         return self.__weak_item() if self.__weak_item else None
-    item = property(__get_item)
 
     def data_item_changed(self):
-        """ Called directly from data item. """
-        self.set_cached_value_dirty()
+        """ Called from item to indicate its data or metadata has changed."""
+        self._set_cached_value_dirty()
 
     def item_property_changed(self, key, value):
-        """
-            Called directly from data item.
-            Subclasses should override and call set_cached_value_dirty to add
-            property dependencies.
+        """Called from item to indicate a property has changed.
+
+        Subclasses can override and call set_cached_value_dirty to add property dependencies.
         """
         pass
 
-    def set_cached_value_dirty(self):
+    def __initialize_cache(self):
+        """Initialize the cache values (cache values are used for optimization)."""
+        if self.__cached_value_dirty is None:
+            self.__cached_value_dirty = self.item.is_cached_value_dirty(self.__cache_property_name)
+            self.__cached_value = self.item.get_cached_value(self.__cache_property_name)
+
+    def _set_cached_value_dirty(self):
+        """Subclasses can use this to mark cache value dirty within item_property_changed."""
         self.item.set_cached_value_dirty(self.__cache_property_name)
-        # is the memory cache initialized? only set it dirty if so.
-        if self.__cached_value_dirty is not None:
-            self.__cached_value_dirty = True
+        self.__initialize_cache()
+        self.__cached_value_dirty = True
+        self.item.notify_processor_needs_recompute(self)
 
     def get_calculated_data(self, ui, data):
-        """ Subclasses must implement. """
+        """Subclasses must implement to compute and return results from data."""
         raise NotImplementedError()
 
     def get_default_data(self):
+        """Subclasses can override to return default data."""
         return None
 
     def get_data_item(self):
-        """ Subclasses must implement. """
+        """Subclasses must implement to return the data item associated with the item."""
         raise NotImplementedError()
 
-    def get_data(self, ui):
-        """Return the data associated with this processor.
+    def recompute_data(self, ui):
+        """Compute the data associated with this processor.
 
-        This method is thread safe, however, caller threads may be blocked while processor
-        occurs.
+        This method is thread safe and may take a long time to return. It should not be called from
+         the UI thread. Upon return, the results will be calculated with the latest data available
+         and the cache will not be marked dirty.
         """
-        if self.__cached_value_dirty is None:
-            # initialize the memory cache.
-            self.__cached_value_dirty = self.item.is_cached_value_dirty(self.__cache_property_name)
-            self.__cached_value = self.item.get_cached_value(self.__cache_property_name)
+        self.__initialize_cache()
         if self.__cached_value_dirty:
-            item = self.item  # hold a reference
+            item = self.item  # hold a reference in case it gets closed during execution of this method
             data_item = self.get_data_item()
-            data = data_item.cached_data  # processors work on the data item's cached data
+            data = data_item.data  # grab the most up to date data
             if data is not None:  # for data to load and make sure it has data
                 try:
                     calculated_data = self.get_calculated_data(ui, data)
@@ -91,6 +119,23 @@ class DataItemProcessor(object):
                     self.item.remove_cached_value(self.__cache_property_name)
                     self.__cached_value = None
                     self.__cached_value_dirty = None
+        self.item.notify_processor_data_updated(self)
+
+    def get_data(self, ui):
+        """Return the computed data for this processor.
+
+        This method is thread safe but may take a long time to return since it may have to compute
+         the results. It should not be called from the UI thread.
+        """
+        self.recompute_data(ui)
+        return self.get_cached_data()
+
+    def get_cached_data(self):
+        """Return the cached data for this processor.
+
+        This method is thread safe and always returns quickly, using the cached data.
+        """
+        self.__initialize_cache()
         calculated_data = self.__cached_value
         if calculated_data is not None:
             return calculated_data

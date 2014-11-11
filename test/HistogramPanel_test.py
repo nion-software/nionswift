@@ -22,15 +22,13 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         cache_name = ":memory:"
         storage_cache = Storage.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
-        self.document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         data = numpy.zeros((1000, 1000), dtype=numpy.uint32)
         data[:] = 200
         data[500,500] = 650
-        self.data_item = self.document_controller.document_model.set_data_by_key("test", data)
-        with self.data_item.data_ref() as data_ref:
-            data_ref.data  # trigger data loading
+        self.data_item = self.document_model.set_data_by_key("test", data)
         # create the histogram canvas object
         class CanvasItemContainer(object):
             def __init__(self):
@@ -40,9 +38,10 @@ class TestHistogramPanelClass(unittest.TestCase):
                 pass
             def _child_updated(self, child):
                 pass
-        self.histogram_canvas_item = HistogramPanel.HistogramCanvasItem()
+        self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None)
+        self.histogram_canvas_item = self.histogram_panel._histogram_canvas_item
         self.display = self.data_item.displays[0]
-        self.histogram_canvas_item.update_display(self.display)
+        self.histogram_panel.data_item_binding_display_changed(self.display)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
@@ -68,6 +67,35 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
         self.assertIsNone(self.data_item.displays[0].display_limits)
+
+    def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
+        # verify assumptions
+        self.assertIsNone(self.histogram_canvas_item.histogram_data)
+        self.display.get_processor("histogram").recompute_data(None)
+        histogram_data1 = self.histogram_canvas_item.histogram_data
+        self.assertIsNotNone(histogram_data1)
+        # now change the data and verify that histogram gets recomputed via document model
+        with self.data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
+        self.document_model.recompute_all()
+        histogram_data2 = self.histogram_canvas_item.histogram_data
+        self.assertFalse(numpy.array_equal(histogram_data1, histogram_data2))
+
+    def test_changing_source_data_marks_statistics_as_dirty_then_recomputes_via_model(self):
+        # verify assumptions
+        self.assertIsNone(self.histogram_panel.stats1_property.value)
+        self.assertIsNone(self.histogram_panel.stats2_property.value)
+        self.data_item.get_processor("statistics").recompute_data(None)
+        stats1_text = self.histogram_panel.stats1_property.value
+        stats2_text = self.histogram_panel.stats2_property.value
+        self.assertIsNotNone(stats1_text)
+        self.assertIsNotNone(stats2_text)
+        # now change the data and verify that statistics gets recomputed via document model
+        with self.data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
+        self.document_model.recompute_all()
+        self.assertNotEqual(stats1_text, self.histogram_panel.stats1_property.value)
+        self.assertNotEqual(stats2_text, self.histogram_panel.stats2_property.value)
 
 if __name__ == '__main__':
     unittest.main()

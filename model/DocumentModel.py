@@ -733,22 +733,16 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.insert_data_group(0, data_group)
         return data_group
 
-    class RecomputeDataItemTask(object):
-        def __init__(self, data_item):
-            self.__data_item = data_item
-
-        def execute(self):
-            self.__data_item.recompute_data()
-
+    def dispatch_task(self, task):
+        self.__dispatcher.put(task)
 
     def data_item_needs_recompute(self, data_item):
-        self.__dispatcher.put(DocumentModel.RecomputeDataItemTask(data_item))
-        # TODO: decide whether to automatically add tasks for processors when a data item changes?
+        self.dispatch_task(lambda: data_item.recompute_data())
 
     def recompute_all(self):
         while not self.__dispatcher.empty():
             task = self.__dispatcher.get()
-            task.execute()
+            task()
             self.__dispatcher.task_done()
 
     def sync_data_item(self, data_item):

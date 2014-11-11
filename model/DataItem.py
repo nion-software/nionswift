@@ -1,5 +1,4 @@
 # standard libraries
-import collections
 import copy
 import datetime
 import gettext
@@ -23,7 +22,6 @@ from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.ui import Observable
-from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -444,6 +442,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
+
+    def get_processed_data(self, processor_id):
+        return self.get_processor(processor_id).get_cached_data()
+
+    # called from processors
+    def notify_processor_needs_recompute(self, processor):
+        self.notify_listeners("processor_needs_recompute", processor)
+
+    # called from processors
+    def notify_processor_data_updated(self, processor):
+        self.notify_listeners("processor_data_updated", processor)
 
     def __get_is_live(self):
         """ Return whether this data item represents a live acquisition data item. """

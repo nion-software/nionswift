@@ -22,7 +22,6 @@ from nion.swift.model import Operation
 from nion.swift.model import Storage
 from nion.ui import Model
 from nion.ui import Observable
-from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -195,8 +194,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             return None
     preview_2d_shape = property(__get_preview_2d_shape)
 
-    def get_processed_data(self, processor_id, ui):
-        return self.get_processor(processor_id).get_data(ui)
+    def get_processed_data(self, processor_id):
+        return self.get_processor(processor_id).get_cached_data()
 
     def __get_drawn_graphics(self):
         return copy.copy(self.__drawn_graphics)
@@ -363,6 +362,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         for processor in self.__processors.values():
             processor.item_property_changed(key, value)
 
+    # called from processors
+    def notify_processor_needs_recompute(self, processor):
+        self.notify_listeners("processor_needs_recompute", processor)
+
+    # called from processors
+    def notify_processor_data_updated(self, processor):
+        self.notify_listeners("processor_data_updated", processor)
+
 
 class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
@@ -374,7 +381,7 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
         """ Called directly from data item. """
         super(HistogramDataItemProcessor, self).item_property_changed(key, value)
         if key == "display_limits" or key == "slice_interval":
-            self.set_cached_value_dirty()
+            self._set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
         if Image.is_data_3d(data):
@@ -385,9 +392,6 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
         if histogram_max > 0:
             histogram_data = histogram_data / float(histogram_max)
         return histogram_data
-
-    def get_default_data(self):
-        return numpy.zeros((self.bins, ), dtype=numpy.uint32)
 
     def get_data_item(self):
         return self.item.data_item

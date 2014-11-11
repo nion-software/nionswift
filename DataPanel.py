@@ -479,7 +479,7 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
+            thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
             display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
@@ -565,7 +565,7 @@ class DataPanel(Panel.Panel):
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
                             draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
-                                thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.__delegate.ui)
+                                thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
                                 if is_selected:
                                     drawing_context.save()
                                     drawing_context.begin_path()
@@ -829,7 +829,7 @@ class DataPanel(Panel.Panel):
         def drag_started(self, data_item, x, y, modifiers):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
+            thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
             self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
 
         def remove_data_item(self, data_item):

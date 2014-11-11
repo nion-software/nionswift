@@ -8,19 +8,29 @@ import logging
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Image
+from nion.ui import Binding
 from nion.ui import CanvasItem
-from nion.ui import ThreadPool
+from nion.ui import Model
 
 _ = gettext.gettext
 
 
 class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
+    """A canvas item to draw the adornments on top of the histogram.
+
+    The adornments are the black and white lines shown during mouse
+     adjustment of the display limits.
+
+    Callers are expected to set the display_limits property and
+     then call update.
+    """
 
     def __init__(self):
         super(AdornmentsCanvasItem, self).__init__()
         self.display_limits = (0,1)
 
     def _repaint(self, drawing_context):
+        """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size
         canvas_width = self.canvas_size[1]
@@ -63,27 +73,48 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
+    """A canvas item to draw a simple line graph.
+
+    The caller can specify a background color by setting the background_color
+     property in the format of a CSS color.
+
+    The caller must update the data by setting the data property. The data must
+     be a numpy array with a range from 0,1. The data will be re-binned to the
+     width of the canvas item and plotted.
+    """
 
     def __init__(self):
         super(SimpleLineGraphCanvasItem, self).__init__()
         self.__data = None
         self.__background_color = None
 
-    def __get_data(self):
+    @property
+    def data(self):
+        """Return the data."""
         return self.__data
-    def __set_data(self, data):
+
+    @data.setter
+    def data(self, data):
+        """Set the data and mark the canvas item for updating.
+
+        Data should be a numpy array with a range from 0,1.
+        """
         self.__data = data
         self.update()
-    data = property(__get_data, __set_data)
 
-    def __get_background_color(self):
+    @property
+    def background_color(self):
+        """Return the background color."""
         return self.__background_color
-    def __set_background_color(self, background_color):
+
+    @background_color.setter
+    def background_color(self, background_color):
+        """Set the background color. Use CSS color format."""
         self.__background_color = background_color
         self.update()
-    background_color = property(__get_background_color, __set_background_color)
 
     def _repaint(self, drawing_context):
+        """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size
         canvas_width = self.canvas_size[1]
@@ -119,58 +150,74 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
+    """A canvas item to draw and control a histogram."""
 
     def __init__(self):
         super(HistogramCanvasItem, self).__init__()
+
+        # tell the canvas item that we want mouse events.
         self.wants_mouse_events = True
+
+        # create the component canvas items: adornments and the graph.
         self.__adornments_canvas_item = AdornmentsCanvasItem()
         self.__simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
+
         # canvas items get added back to front
         self.add_canvas_item(self.__simple_line_graph_canvas_item)
         self.add_canvas_item(self.__adornments_canvas_item)
+
+        # the display holds the current display to which this histogram is listening.
         self.__display = None
+
+        # used for mouse tracking.
         self.__pressed = False
 
-        self.__shared_thread_queue = ThreadPool.create_thread_queue()
-
-        self.preferred_aspect_ratio = 1.618  # golden ratio
-
     def close(self):
-        self.__shared_thread_queue.close()
-        self.__shared_thread_queue = None
-        self.update_display(None)
+        self._set_display(None)
         super(HistogramCanvasItem, self).close()
 
-    # pass this along to the simple line graph canvas item
-    def __get_background_color(self):
+    @property
+    def background_color(self):
+        """Return the background color."""
         return self.__simple_line_graph_canvas_item.background_color
-    def __set_background_color(self, background_color):
-        self.__simple_line_graph_canvas_item.background_color = background_color
-    background_color = property(__get_background_color, __set_background_color)
 
-    # _get_display is only used for testing
+    @background_color.setter
+    def background_color(self, background_color):
+        """Set the background color, in the CSS color format."""
+        self.__simple_line_graph_canvas_item.background_color = background_color
+
     def _get_display(self):
+        """Return the display. Used for testing."""
         return self.__display
+
     def _set_display(self, display):
-        # this will get invoked whenever the data item changes. it gets invoked
-        # from the histogram thread which gets triggered via the display_updated method.
+        """Set the display that this histogram is displaying.
+
+        The display parameter can be None.
+        """
+
+        # un-listen to the existing display. then listen to the new display.
         self.__display = display
+
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
             self.__adornments_canvas_item.display_limits = (0, 1)
-        # this will get called twice: once with the initial return values
-        # and once with the updated return values once the thread completes.
-        histogram_data = self.__display.get_processed_data("histogram", None) if self.__display else None
-        self.__simple_line_graph_canvas_item.data = histogram_data
+
+        # grab the cached data and display it
+        histogram_data = self.__display.get_processed_data("histogram") if self.__display else None
+        self.histogram_data = histogram_data
+
+        # make sure the adornments get updated
         self.__adornments_canvas_item.update()
 
-    # TODO: histogram gets updated unnecessarily when dragging graphic items
-    def update_display(self, display):
-        if self.__shared_thread_queue and display:
-            def update_histogram_data_on_thread():
-                self._set_display(display)
-            self.__shared_thread_queue.add_task(lambda: update_histogram_data_on_thread())
+    @property
+    def histogram_data(self):
+        return self.__simple_line_graph_canvas_item.data
+
+    @histogram_data.setter
+    def histogram_data(self, histogram_data):
+        self.__simple_line_graph_canvas_item.data = histogram_data
 
     def __set_display_limits(self, display_limits):
         self.__adornments_canvas_item.display_limits = display_limits
@@ -215,68 +262,124 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class HistogramPanel(Panel.Panel):
+    """ A panel to present a histogram of the selected data item. """
 
     def __init__(self, document_controller, panel_id, properties):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
-        self.data_item_binding = document_controller.create_selected_data_item_binding()
+        # create a binding that updates whenever the selected data item changes
+        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
-        self.histogram_canvas_item = HistogramCanvasItem()
-        self.root_canvas_item.add_canvas_item(self.histogram_canvas_item)
+        # create a root canvas item for this panel and put a histogram canvas item in it.
+        self.__root_histogram_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
+        self.__histogram_canvas_item = HistogramCanvasItem()
+        self.__root_histogram_canvas_item.add_canvas_item(self.__histogram_canvas_item)
 
-        self.stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
-        self.stats_column2 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
-        self.stats_column1_label = self.ui.create_label_widget()
-        self.stats_column2_label = self.ui.create_label_widget()
-        self.stats_column1.add(self.stats_column1_label)
-        self.stats_column2.add(self.stats_column2_label)
-
+        # create a statistics section
+        stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        stats_column2 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        stats_column1_label = self.ui.create_label_widget()
+        stats_column2_label = self.ui.create_label_widget()
+        stats_column1.add(stats_column1_label)
+        stats_column2.add(stats_column2_label)
         stats_section = self.ui.create_row_widget()
         stats_section.add_spacing(13)
-        stats_section.add(self.stats_column1)
+        stats_section.add(stats_column1)
         stats_section.add_stretch()
-        stats_section.add(self.stats_column2)
+        stats_section.add(stats_column2)
         stats_section.add_spacing(13)
 
+        # create the main column with the histogram and the statistics section
         column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3})
-        column.add(self.root_canvas_item.canvas_widget)
+        column.add(self.__root_histogram_canvas_item.canvas_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)
         column.add_stretch()
 
+        # create property models for the
+        self.stats1_property = Model.PropertyModel()
+        self.stats2_property = Model.PropertyModel()
+
+        stats_column1_label.bind_text(Binding.PropertyBinding(self.stats1_property, "value"))
+        stats_column2_label.bind_text(Binding.PropertyBinding(self.stats2_property, "value"))
+
+        # this is necessary to make the panel happy
         self.widget = column
 
+        # the display holds the current display to which this histogram is listening.
+        self.__display = None
+
         # connect self as listener. this will result in calls to data_item_binding_display_changed
-        self.data_item_binding.add_listener(self)
-        # initial data item changed message
-        self.data_item_binding_display_changed(self.data_item_binding.display)
+        # then manually send the first initial data item changed message to set things up.
+        self.__selected_data_item_binding.add_listener(self)
+        self.data_item_binding_display_changed(self.__selected_data_item_binding.display)
 
     def close(self):
-        self.root_canvas_item.close()
-        self.root_canvas_item = None
+        self.__root_histogram_canvas_item.close()
+        self.__root_histogram_canvas_item = None
         # disconnect data item binding
         self.data_item_binding_display_changed(None)
-        self.data_item_binding.remove_listener(self)
-        self.data_item_binding.close()
-        self.data_item_binding = None
+        self.__selected_data_item_binding.remove_listener(self)
+        self.__selected_data_item_binding.close()
+        self.__selected_data_item_binding = None
+        self.__set_display(None)
         self.clear_task("statistics")
         super(HistogramPanel, self).close()
 
+    @property
+    def _histogram_canvas_item(self):
+        return self.__histogram_canvas_item
+
+    def __update_statistics(self, statistics_data):
+        """Update the widgets with new statistics data. Must be called on UI thread."""
+        statistic_strings = list()
+        for key in sorted(statistics_data.keys()):
+            value = statistics_data[key]
+            if value is not None:
+                statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+            else:
+                statistic_str = "{0} {1}".format(key, _("N/A"))
+            statistic_strings.append(statistic_str)
+        self.stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)/2])
+        self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)/2:])
+
+    def __set_display(self, display):
+        if self.__display:
+            self.__display.remove_listener(self)
+            self.__display.data_item.remove_listener(self)
+        self.__display = display
+        if self.__display:
+            self.__display.add_listener(self)
+            self.__display.data_item.add_listener(self)
+
     # this message is received from the data item binding.
+    # when a new display is set, this panel becomes a listener
+    # of the display. it will receive messages from the processors
+    # when data needs to be recomputed and when data gets updated.
+    # in response to a needs recompute message, this object will
+    # queue the processor to compute its data on the document model.
+    # in response to a data changed message, this object will update
+    # the data and trigger a repaint.
     def data_item_binding_display_changed(self, display):
-        def update_statistics(statistics_data):
-            statistic_strs = list()
-            for key in sorted(statistics_data.keys()):
-                value = statistics_data[key]
-                if value is not None:
-                    statistic_str = "{0} {1:n}".format(key, statistics_data[key])
-                else:
-                    statistic_str = "{0} {1}".format(key, _("N/A"))
-                statistic_strs.append(statistic_str)
-            self.stats_column1_label.text = "\n".join(statistic_strs[:(len(statistic_strs)+1)/2])
-            self.stats_column2_label.text = "\n".join(statistic_strs[(len(statistic_strs)+1)/2:])
-        self.histogram_canvas_item.update_display(display)
-        statistics_data = display.data_item.get_processor("statistics").get_data(None) if display else dict()
-        self.add_task("statistics", lambda: update_statistics(statistics_data))
+        self.__set_display(display)
+        self.__histogram_canvas_item._set_display(display)
+        statistics_data = display.data_item.get_processed_data("statistics") if display else dict()
+        self.add_task("statistics", lambda: self.__update_statistics(statistics_data))
+
+    # notification from display
+    def processor_needs_recompute(self, processor):
+        document_model = self.document_controller.document_model
+        if processor == self.__display.data_item.get_processor("statistics"):
+            document_model.dispatch_task(lambda: processor.recompute_data(None))
+        elif processor == self.__display.get_processor("histogram"):
+            document_model.dispatch_task(lambda: processor.recompute_data(None))
+
+    # notification from display
+    def processor_data_updated(self, processor):
+        if processor == self.__display.data_item.get_processor("statistics"):
+            statistics_data = self.__display.data_item.get_processed_data("statistics")
+            self.__update_statistics(statistics_data)
+        elif processor == self.__display.get_processor("histogram"):
+            histogram_data = self.__display.get_processed_data("histogram")
+            self.__histogram_canvas_item.histogram_data = histogram_data
