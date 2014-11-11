@@ -536,8 +536,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 changes = self.__data_item_changes
                 self.__data_item_changes = set()
         # if the data item change count is now zero, it means that we're ready
-        # to notify listeners.
-        if data_item_change_count == 0:
+        # to notify listeners. but only notify listeners if there are actual
+        # changes to report.
+        if data_item_change_count == 0 and len(changes) > 0:
             for processor in self.__processors.values():
                 processor.data_item_changed()
             self.notify_listeners("data_item_content_changed", self, changes)
@@ -1096,9 +1097,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def recompute_data(self):
         """Ensures that the master data is synchronized with the sources/operations by recomputing if necessary."""
-        with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
-            if self.is_data_stale:
-                with self.data_item_changes():  # prevent multiple data changed notifications from the code below
+
+        # prevent multiple data changed notifications by surrounding everything in data_item_changes.
+        # if there are no changes, then this will not trigger any notifications. it is important that the
+        # notifications, if any, take place outside of the lock to prevent deadlocks.
+        with self.data_item_changes():
+            with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
+                if self.is_data_stale:
                     data_output = self.__get_data_output()
                     if data_output:
                         self.increment_data_ref_count()  # make sure master data is loaded

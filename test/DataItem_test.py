@@ -1053,6 +1053,17 @@ class TestDataItemClass(unittest.TestCase):
         data_item_inverted.recompute_data()
         self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -3.0)
 
+    def test_recomputing_data_does_not_notify_listeners_of_stale_data_unless_it_is_really_stale(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
+        document_model.recompute_all()
+        data_item.get_processor("statistics").recompute_data(None)
+        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+        data_item.recompute_data()
+        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+
     def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
         # verify that this works, the more fundamental test is in test_reloading_stale_data_should_still_be_stale
         document_model = DocumentModel.DocumentModel()
