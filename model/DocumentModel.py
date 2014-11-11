@@ -334,6 +334,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             # NOTE: Search for to-do items having keyword 'file format' to gather together 'would be nice' changes
             # NOTE: change writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
+            data_item.begin_reading()
             if version <= data_item.writer_version:
                 persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
                 data_item.read_from_dict(persistent_storage.properties)
@@ -341,6 +342,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 self.set_persistent_storage_for_object(data_item, persistent_storage)
                 data_item.managed_object_context = self
                 data_items.append(data_item)
+        # all sorts of interconnections may occur between data items and other objects.
+        # give the data item a chance to mark itself clean after reading all of them in.
+        for data_item in data_items:
+            data_item.finish_reading()
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         data_items.sort(key=sort_by_date_key)

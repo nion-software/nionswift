@@ -430,9 +430,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                     self.__metadata.setdefault(key, dict()).update(properties[key])
             self.__data_item_changes = set()
-            if self.has_master_data:
-                with self.__is_master_data_stale_lock:
-                    self.__is_master_data_stale = False
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties
@@ -440,6 +437,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for key in self.__metadata:
             properties[key] = self.__metadata[key]
         return properties
+
+    def finish_reading(self):
+        # called when reading is finished. gives the data item a chance to
+        # mark its data as valid.
+        if self.has_master_data:
+            with self.__is_master_data_stale_lock:
+                self.__is_master_data_stale = False
+        super(DataItem, self).finish_reading()
 
     def __get_properties(self):
         """ Used for debugging. """

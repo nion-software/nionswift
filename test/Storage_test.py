@@ -839,6 +839,25 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         self.assertFalse(document_model.data_items[1].is_data_stale)
 
+    def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+        document_model.append_data_item(data_item)
+        data_item_cropped = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        data_item_cropped.add_operation(crop_operation)
+        crop_region = Region.RectRegion()
+        crop_operation.establish_associated_region("crop", data_item, crop_region)
+        data_item_cropped.add_data_source(data_item)
+        document_model.append_data_item(data_item_cropped)
+        data_item_cropped.recompute_data()
+        self.assertFalse(document_model.data_items[1].is_data_stale)
+        document_model.close()
+        # reload and check inverted data item does not need recompute
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        self.assertFalse(document_model.data_items[1].is_data_stale)
+
     def test_data_items_v1_migration(self):
         # construct v1 data item
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
