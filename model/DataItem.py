@@ -1040,8 +1040,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data = property(__get_data)
         return DataAccessor(self)
 
-    def __get_data_immediate(self):
-        """ add_ref, get data, remove_ref """
+    @property
+    def data(self):
+        """Return the up-to-date data for this data item.
+
+        The data returned from this method will be the latest data and if a computation
+        is in progress it will wait for the computation to complete.
+
+        This method may block for a significant amount of time and should be avoided
+        on the main thread.
+
+        Multiple calls to access data should be bracketed in a data_ref context to
+        avoid loading and unloading from disk."""
         try:
             with self.data_ref() as data_ref:
                 return data_ref.data
@@ -1050,7 +1060,26 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             traceback.print_exc()
             traceback.print_stack()
             raise
-    data = property(__get_data_immediate)
+
+    @property
+    def cached_data(self):
+        """Return the cached data for this data item.
+
+        The data returned from this method may not be the latest data if a computation
+        is in progress.
+
+        This method will never block and can be called from the main thread.
+
+        Multiple calls to access data should be bracketed in a data_ref context to
+        avoid loading and unloading from disk."""
+        try:
+            with self.data_ref() as data_ref:
+                return data_ref.master_data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     def __get_data_output(self):
         """Calculate the operations applied to the data sources. Returns an intermediate data item."""
@@ -1174,8 +1203,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
-        with self.data_ref() as data_ref:
-            data = data_ref.data
+        data = self.cached_data
         if self.is_data_1d:
             if data is not None:
                 return data[pos[0]]
