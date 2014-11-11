@@ -88,40 +88,7 @@ class DataSourceUuidList(object):
         return copy.copy(self.list)
 
 
-# data items will represents a numpy array. the numpy array
-# may be stored directly in this item (master data), or come
-# from another data item (data source).
-
-# displays: list of displays for this data item
-
-# data: data with all operations applied
-
-# master data: a numpy array associated with this data item
-# data source: another data item from which data is taken
-
-# data range: cached value for data min/max. calculated when data is requested, or on demand.
-
-# operations: a list of operations applied to make data
-
-# data items: child data items (aka derived data)
-
-# cached data: holds last result of data calculation
-
-# last cached data: holds last valid cached data
-
-# best data: returns the best data available without doing a calculation
-
-# live data: a bool indicating whether the data is live
-
-# data is calculated when requested. this makes it imperative that callers
-# do not ask for data to be calculated on the main thread.
-
-# values that are cached will be marked as dirty when they don't match
-# the underlying data. however, the values will still return values for
-# the out of date data.
-
-
-# enumerations for types of changes
+# enumerations for types of data item content changes
 DATA = 1
 METADATA = 2
 DISPLAYS = 3
@@ -139,10 +106,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     Data items represent data + metadata, a description of how that data is derived, and machinery to calculate it.
 
     Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
-    calibrations, creation and modification dates, titles, captions, etc.
+     calibrations, creation and modification dates, titles, captions, etc.
 
     The derivation description includes a list of source data items, operations, regions, and relationships
-    between data/metadata (connections).
+     between data/metadata (connections).
 
     The following direct properties are available:
 
@@ -167,24 +134,24 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *operations* a list of operations
 
     In addition to the properties above, data items may contain a list of displays. By convention, displays
-    are only associated with "top level" data items.
+     are only associated with "top level" data items.
 
     * *displays* a list of displays associated with the data item.
 
     Accessing data can be done directly via the data property. However, this may cause data to be loaded
-    into memory from disk and unloaded every time the data property is used.
+     into memory from disk and unloaded every time the data property is used.
 
     A better way to access data if it will be used more than once is to ask for a data reference via the
-    data_ref() method which returns a context manager object. When the context manager object is released,
-    the data will be unloaded from memory if it is not used somewhere else. The context manager has a
-    master_data property to access the data.
+     data_ref() method which returns a context manager object. When the context manager object is released,
+     the data will be unloaded from memory if it is not used somewhere else. The context manager has a
+     master_data property to access the data.
 
     Furthermore, data accessed via the data property will always return the fully computed data. If data
-    sources are out of date, they will be updated and accessing the data property will not return until
-    all data sources have valid data. This can cause lengthy blocks on the calling thread.
+     sources are out of date, they will be updated and accessing the data property will not return until
+     all data sources have valid data. This can cause lengthy blocks on the calling thread.
 
     An alternative accessor is cached_data which will return the most recently computed data, which may be
-    None. However, it is guaranteed to not block the calling thread.
+     None. However, it is guaranteed to not block the calling thread.
 
     *Notifications*
 
@@ -200,17 +167,20 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     *Stale Data*
 
     Cached data can be stale. When a data source or becomes stale or has its data changed, this data item
-     will be marked as having stale data. When data becomes stale, the data_needs_recompute notification will
-     be sent to listeners.
+     will be marked as having stale data. When this items data becomes stale, the
+     data_needs_recompute notification will be sent to listeners. In addition, processors will be marked
+     as having stale data.
 
     Data stale-ness propagates to all listeners. This ensures that if a data changed notification is
      not sent out for some reason then the dependent still knows to update.
 
     *Processors*
 
-    Processors listen for data item content changes and update their calculations on a thread.
+    Data stale-ness propagates to processors.
 
     *Miscellaneous*
+
+    Operations. A list of operations applied to data sources to compute data for this data item.
 
     Transactions.
 
@@ -222,17 +192,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     Metadata.
 
-    Data range.
+    Data range. Cached value for data min/max. Calculated when data is requested, or on demand.
 
     Data values.
 
     Calibrations.
 
     Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
-    For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
-    coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
-    For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
-    The next two coordinates are y, x with 0, 0 at the top left of each layer.
+     For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
+     coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
+     For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
+     The next two coordinates are y, x with 0, 0 at the top left of each layer.
     """
 
     def __init__(self, data=None, item_uuid=None, create_display=True):
@@ -1020,6 +990,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """Mark the master data as stale."""
         with self.__is_master_data_stale_lock:
             self.__is_master_data_stale = True
+        for processor in self.__processors.values():
+            processor.data_item_changed()
         self.notify_listeners("data_item_needs_recompute", self)
 
     # used for testing

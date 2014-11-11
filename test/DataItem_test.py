@@ -211,6 +211,25 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         self.assertIsNotNone(data_item.displays[0].get_processor("thumbnail").get_data(self.app.ui))
 
+    def test_thumbnail_marked_dirty_when_source_data_changed(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        data_item_inverted_display = data_item_inverted.displays[0]
+        data_item_inverted_display.get_processor("thumbnail").get_data(self.app.ui)
+        # here the data should be computed and the thumbnail should not be dirty
+        self.assertFalse(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
+        # now the source data changes and the inverted data needs computing.
+        # the thumbnail should also be dirty.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 1.0
+        self.assertTrue(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
+
     def test_delete_nested_data_item(self):
         document_model = DocumentModel.DocumentModel()
         # setup by adding data item and a dependent data item
@@ -1015,6 +1034,100 @@ class TestDataItemClass(unittest.TestCase):
         self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
         # data should still be stale
         self.assertTrue(data_item_inverted.is_data_stale)
+
+    def test_recomputing_data_gives_correct_result(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # now the source data changes and the inverted data needs computing.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 2.0
+        data_item_inverted.recompute_data()
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -3.0)
+
+    def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
+        # verify that this works, the more fundamental test is in test_reloading_stale_data_should_still_be_stale
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        self.assertFalse(data_item_inverted.is_data_stale)
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # now the source data changes and the inverted data needs computing.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 2.0
+        # verify the actual data values are still stale
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # recompute and verify the data values are valid
+        data_item_inverted.recompute_data()
+        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -3.0)
+
+    def test_statistics_marked_dirty_when_data_changed(self):
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
+        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
+        self.assertIsNotNone(data_item.get_processor("statistics").get_data(self.app.ui))
+        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 1.0
+        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
+
+    def test_statistics_marked_dirty_when_source_data_changed(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        data_item_inverted.get_processor("statistics").get_data(self.app.ui)
+        # here the data should be computed and the statistics should not be dirty
+        self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        # now the source data changes and the inverted data needs computing.
+        # the statistics should also be dirty.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 1.0
+        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+
+    def test_statistics_marked_dirty_when_source_data_recomputed(self):
+        # attempt to get the statistics out of date by grabbing them when the data is stale,
+        # then recomputing the data, then grabbing them again with the recomputed data.
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        data_item_inverted.get_processor("statistics").get_data(self.app.ui)
+        # here the data should be computed and the statistics should not be dirty
+        self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        # now the source data changes and the inverted data needs computing.
+        # the statistics should also be dirty.
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = data_ref.master_data + 2.0
+        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        # data has not been recomputed, grab the statistics and verify they are stale values
+        stale_statistics = data_item_inverted.get_processor("statistics").get_data(self.app.ui)
+        self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertAlmostEqual(stale_statistics["mean"], -1.0)
+        # next recompute data, the statistics should be dirty now.
+        data_item_inverted.recompute_data()
+        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        # get the new statistics and verify they are correct.
+        good_statistics = data_item_inverted.get_processor("statistics").get_data(self.app.ui)
+        self.assertTrue(good_statistics["mean"] == -3.0)
 
 
 if __name__ == '__main__':

@@ -283,6 +283,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             for processor in self.__processors.values():
                 processor.data_item_changed()
 
+    # this message received from data item. the connection is established using
+    # add_listener and remove_listener.
+    def data_item_needs_recompute(self, data_item):
+        for processor in self.__processors.values():
+            processor.data_item_changed()
+
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)
         before_index = len(self.__drawn_graphics)

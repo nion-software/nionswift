@@ -2,6 +2,8 @@ import threading
 import time
 import weakref
 
+# TODO: file format storage processor output in data item itself
+
 
 class DataItemProcessor(object):
 
