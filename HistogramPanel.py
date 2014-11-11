@@ -161,11 +161,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.__adornments_canvas_item.display_limits = (0, 1)
         # this will get called twice: once with the initial return values
         # and once with the updated return values once the thread completes.
-        def update_histogram_data(histogram_data):
-            self.__simple_line_graph_canvas_item.data = histogram_data
-            self.__adornments_canvas_item.update()
-        histogram_data = self.__display.get_processed_data("histogram", None, completion_fn=update_histogram_data) if self.__display else None
-        update_histogram_data(histogram_data)
+        histogram_data = self.__display.get_processed_data("histogram", None) if self.__display else None
+        self.__simple_line_graph_canvas_item.data = histogram_data
+        self.__adornments_canvas_item.update()
 
     # TODO: histogram gets updated unnecessarily when dragging graphic items
     def update_display(self, display):
@@ -279,8 +277,6 @@ class HistogramPanel(Panel.Panel):
                 statistic_strs.append(statistic_str)
             self.stats_column1_label.text = "\n".join(statistic_strs[:(len(statistic_strs)+1)/2])
             self.stats_column2_label.text = "\n".join(statistic_strs[(len(statistic_strs)+1)/2:])
-        def update_statistics_data(statistics_data):
-            self.add_task("statistics", lambda: update_statistics(statistics_data))
         self.histogram_canvas_item.update_display(display)
-        statistics_data = display.data_item.get_processor("statistics").get_data(None, completion_fn=update_statistics_data) if display else dict()
-        update_statistics_data(statistics_data)
+        statistics_data = display.data_item.get_processor("statistics").get_data(None) if display else dict()
+        self.add_task("statistics", lambda: update_statistics(statistics_data))

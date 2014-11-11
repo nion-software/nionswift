@@ -479,12 +479,7 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            local_self = self
-            def update_thumbail_data(thumbail_data):
-                with local_self.__changed_data_items_mutex:
-                    local_self.__changed_data_items.add(data_item)
-            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui, completion_fn=update_thumbail_data)
-            data = self._get_model_data(index)
+            thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.ui)
             display = data_item.title
             display2 = data_item.size_and_data_format_as_string
             display3 = data_item.datetime_original_as_string
@@ -567,12 +562,10 @@ class DataPanel(Panel.Panel):
                         if index < max_index:
                             data_item = self.__delegate.data_items[index]
                             is_selected = self.__delegate.selection.contains(index)
-                            def update_thumbail_data(thumbail_data):
-                                self.update()
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
                             draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
-                                thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.__delegate.ui, completion_fn=update_thumbail_data)
+                                thumbnail_data = data_item.displays[0].get_processor("thumbnail").get_data(self.__delegate.ui)
                                 if is_selected:
                                     drawing_context.save()
                                     drawing_context.begin_path()

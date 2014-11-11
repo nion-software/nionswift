@@ -197,18 +197,11 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data[:] = 2
                 self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
-    def disabled_test_clear_thumbnail_when_data_item_changed(self):
+    def test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
-        # configure a listener to know when the thumbnail is finished
-        event = threading.Event()
-        def thumbnail_loaded(thumbnail_data):
-            event.set()
-        # the next line also triggers the thumbnail calculation
-        self.assertIsNotNone(display.get_processor("thumbnail").get_data(self.app.ui, completion_fn=thumbnail_loaded))
-        # wait for the thumbnail
-        event.wait()
+        self.assertIsNotNone(display.get_processor("thumbnail").get_data(self.app.ui))
         self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)

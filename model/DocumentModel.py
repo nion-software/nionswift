@@ -376,6 +376,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
 class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ManagedObject):
 
+    """The document model manages storage and dependencies between data items and other objects.
+
+    The document model provides a dispatcher object which will run tasks in a thread pool.
+    """
+
     def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
         super(DocumentModel, self).__init__()
         self.__dispatcher = queue.Queue()
@@ -728,13 +733,22 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.insert_data_group(0, data_group)
         return data_group
 
+    class RecomputeDataItemTask(object):
+        def __init__(self, data_item):
+            self.__data_item = data_item
+
+        def execute(self):
+            self.__data_item.recompute_data()
+
+
     def data_item_needs_recompute(self, data_item):
-        self.__dispatcher.put(data_item)
+        self.__dispatcher.put(DocumentModel.RecomputeDataItemTask(data_item))
+        # TODO: decide whether to automatically add tasks for processors when a data item changes?
 
     def recompute_all(self):
         while not self.__dispatcher.empty():
-            data_item = self.__dispatcher.get()
-            data_item.recompute_data()
+            task = self.__dispatcher.get()
+            task.execute()
             self.__dispatcher.task_done()
 
     def sync_data_item(self, data_item):

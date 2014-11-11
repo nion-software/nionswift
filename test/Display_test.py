@@ -20,28 +20,20 @@ class TestDisplayClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def disabled_test_changing_display_limits_clears_histogram_data_cache(self):
+    def test_changing_display_limits_clears_histogram_data_cache(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        event = threading.Event()
-        def update_histogram_data(histogram_data):
-            event.set()
-        display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
-        event.wait()
+        display.get_processed_data("histogram", None)
         self.assertFalse(display.is_cached_value_dirty("histogram_data"))
         display.display_limits = (0.25, 0.75)
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
 
-    def disabled_test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
+    def test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        event = threading.Event()
-        def update_histogram_data(histogram_data):
-            event.set()
-        display.get_processed_data("histogram", None, completion_fn=update_histogram_data)
-        event.wait()
+        display.get_processed_data("histogram", None)
         self.assertFalse(display.is_cached_value_dirty("histogram_data"))
         class Listener(object):
             def __init__(self):

@@ -186,22 +186,35 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     An alternative accessor is cached_data which will return the most recently computed data, which may be
     None. However, it is guaranteed to not block the calling thread.
 
+    *Notifications*
+
+    Data items will emit the following notifications to listeners. Listeners should take care to not call
+     functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
+     should not read the data property (although cached_data is ok).
+
+    * data_item_content_changed(data_item, changes)
+    * data_item_needs_recompute(data_item)
+    * data_item_calibration_changed()
+    * request_remove_data_item(data_item)
+
     *Stale Data*
 
     Cached data can be stale. When a data source or becomes stale or has its data changed, this data item
-    will be marked as having stale data. When data becomes stale, the data_needs_recompute notification will
-    be sent to listeners.
+     will be marked as having stale data. When data becomes stale, the data_needs_recompute notification will
+     be sent to listeners.
 
     Data stale-ness propagates to all listeners. This ensures that if a data changed notification is
-    not sent out for some reason then the dependent still knows to update.
+     not sent out for some reason then the dependent still knows to update.
+
+    *Processors*
+
+    Processors listen for data item content changes and update their calculations on a thread.
 
     *Miscellaneous*
 
     Transactions.
 
     Live-ness.
-
-    Processors.
 
     Snapshots and deep copies.
 
@@ -257,7 +270,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
-        self.closed = False
         self.__live_count = 0  # specially handled property
         self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
@@ -277,7 +289,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__dependent_data_item_refs = list()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
-        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         if data is not None:
             self.__set_master_data(data)
         # create a display if requested
@@ -321,8 +332,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for processor in self.__processors.values():
             processor.close()
         self.__processors = None
-        self.__shared_thread_queue.close()
-        self.__shared_thread_queue = None
 
     def copy_metadata_from(self, data_item):
         self.datetime_original = data_item.datetime_original
@@ -463,9 +472,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return dict()
     properties = property(__get_properties)
 
-    def add_shared_task(self, fn):
-        self.__shared_thread_queue.add_task(fn)
-
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
 
@@ -553,8 +559,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # if the data item change count is now zero, it means that we're ready
         # to notify listeners.
         if data_item_change_count == 0:
-            # for processor in self.__processors.values():
-            #     processor.data_item_changed()
+            for processor in self.__processors.values():
+                processor.data_item_changed()
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -676,7 +682,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # of dimensional_calibrations exist in this object.
     def __sync_dimensional_calibrations(self, ndim):
         dimensional_calibrations = self.dimensional_calibrations
-        if len(dimensional_calibrations) != ndim and not self.closed:
+        if len(dimensional_calibrations) != ndim:
             while len(dimensional_calibrations) < ndim:
                 dimensional_calibrations.append(Calibration.Calibration())
             while len(dimensional_calibrations) > ndim:
@@ -957,7 +963,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             return self.__master_data
     def __set_master_data(self, data):
         with self.data_item_changes():
-            assert not self.closed or data is None
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
             with self.__master_data_lock:
                 self.__master_data = data

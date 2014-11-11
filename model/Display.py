@@ -121,7 +121,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__preview_data = None
         self.__preview = None
-        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
@@ -129,14 +128,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.graphic_selection.add_listener(self)
 
     def close(self):
-        self.__shared_thread_queue.close()
-        self.__shared_thread_queue = None
         for processor in self.__processors.values():
             processor.close()
         self.__processors = None
-
-    def add_shared_task(self, fn):
-        self.__shared_thread_queue.add_task(fn)
 
     def about_to_be_removed(self):
         self.graphic_selection.remove_listener(self)
@@ -201,8 +195,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             return None
     preview_2d_shape = property(__get_preview_2d_shape)
 
-    def get_processed_data(self, processor_id, ui, completion_fn):
-        return self.get_processor(processor_id).get_data(ui, completion_fn)
+    def get_processed_data(self, processor_id, ui):
+        return self.get_processor(processor_id).get_data(ui)
 
     def __get_drawn_graphics(self):
         return copy.copy(self.__drawn_graphics)
@@ -381,8 +375,9 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             data = self.item.preview_2d_data
         display_range = self.item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
-        histogram_max = float(numpy.max(histogram_data))
-        histogram_data = histogram_data / histogram_max
+        histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
+        if histogram_max > 0:
+            histogram_data = histogram_data / float(histogram_max)
         return histogram_data
 
     def get_default_data(self):
