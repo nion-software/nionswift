@@ -20,10 +20,10 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
-from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.ui import Observable
+from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -383,7 +383,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
         super(DocumentModel, self).__init__()
-        self.__dispatcher = queue.Queue()
+        self.__thread_pool = ThreadPool.ThreadPool()
         data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
         self.managed_object_context = ManagedDataItemContext(data_reference_handler, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
@@ -413,6 +413,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_group.connect_data_items(self.get_data_item_by_uuid)
 
     def close(self):
+        self.__thread_pool.close()
         for data_item in self.data_items:
             data_item.close()
 
@@ -733,28 +734,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.insert_data_group(0, data_group)
         return data_group
 
-    def dispatch_task(self, task):
-        self.__dispatcher.put(task)
+    def dispatch_task(self, task, description=None):
+        self.__thread_pool.queue_fn(task, description)
 
     def data_item_needs_recompute(self, data_item):
-        self.dispatch_task(lambda: data_item.recompute_data())
+        self.dispatch_task(lambda: data_item.recompute_data(), "data")
 
     def recompute_all(self):
-        while not self.__dispatcher.empty():
-            task = self.__dispatcher.get()
-            task()
-            self.__dispatcher.task_done()
-
-    def recompute_always(self):
-        while True:
-            task = self.__dispatcher.get()
-            task()
-            self.__dispatcher.task_done()
+        self.__thread_pool.run_all()
 
     def start_dispatcher(self):
-        self.__thread = threading.Thread(target=self.recompute_always)
-        self.__thread.daemon = True
-        self.__thread.start()
+        self.__thread_pool.start(1)
 
     def sync_data_item(self, data_item):
         """Synchronizes the data item by applying any pending operations and processing."""
