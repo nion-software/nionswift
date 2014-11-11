@@ -265,8 +265,6 @@ class Operation(object):
 
             """
                 Constructs an object that is able to perform operation and return results.
-
-                Delays the calculation (using closures) until it is requested.
             """
 
             def __init__(self, operation, data_inputs):
@@ -337,23 +335,6 @@ class Operation(object):
     # values when the data shape or dtype changes.
     def property_defaults_for_data_shape_and_dtype(self, data_shape, data_dtype):
         return dict()
-
-
-class SelectorOperation(Operation):
-
-    def __init__(self):
-        description = [
-            { "name": _("Index"), "property": "index", "type": "integer-field", "default": 0 }
-        ]
-        super(SelectorOperation, self).__init__(_("Selector"), "selector-operation", description)
-        self.index = 0
-
-    # return the processed data inputs
-    def get_processed_intermediate_data_items(self, data_inputs):
-        index = self.get_property("index")
-        if len(data_inputs) > index:
-            return [data_inputs[index]]
-        return []
 
 
 class FFTOperation(Operation):
@@ -813,7 +794,6 @@ class OperationPropertyToRegionBinding(OperationPropertyBinding):
                 self.update_source(property_value)
 
 
-OperationManager().register_operation("selector-operation", lambda: SelectorOperation())
 OperationManager().register_operation("fft-operation", lambda: FFTOperation())
 OperationManager().register_operation("inverse-fft-operation", lambda: IFFTOperation())
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())

@@ -266,10 +266,13 @@ class TestOperationClass(unittest.TestCase):
                 self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_crop_2d_operation_returns_correct_spatial_shape_and_data_shape(self):
-        data_item_real = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        data_item_real = DataItem.DataItem()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
+        data_item_real.add_data_source(data_item)
         data_item_real.add_operation(operation)
+        data_item_real.connect_data_sources(direct_data_sources=[data_item])
         # make sure we get the right shape
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
         with data_item_real.data_ref() as data_real_accessor:
@@ -337,23 +340,30 @@ class TestOperationClass(unittest.TestCase):
         data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((4, 4)))
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
-        data_item.add_operation(dummy_operation)
+        data_item2 = DataItem.DataItem()
+        data_item2.add_data_source(data_item)
+        data_item2.add_operation(dummy_operation)
+        document_model.append_data_item(data_item2)
         dummy_operation.set_property("param", 5.2)
         document_controller.close()
         # read it back then make sure parameter was actually updated
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.assertEqual(document_model.data_items[0].operations[0].get_property("param"), 5.2)
-        with document_model.data_items[0].data_ref() as d:
+        self.assertEqual(document_model.data_items[1].operations[0].get_property("param"), 5.2)
+        with document_model.data_items[1].data_ref() as d:
             self.assertEqual(d.data[0, 0], 5.2)
 
     def test_rgba_invert_operation_should_retain_alpha(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
         with data_item_rgba.data_ref() as data_ref:
             data_ref.master_data[:] = (20,40,60,100)
-        data_item_rgba.add_operation(Operation.OperationItem("invert-operation"))
-        with data_item_rgba.data_ref() as data_ref:
+            data_ref.master_data_updated()
+        data_item_rgba2 = DataItem.DataItem()
+        data_item_rgba2.add_data_source(data_item_rgba)
+        data_item_rgba2.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_rgba2.connect_data_sources(direct_data_sources=[data_item_rgba])
+        with data_item_rgba2.data_ref() as data_ref:
             pixel = data_ref.data[0,0,...]
             self.assertEqual(pixel[0], 255 - 20)
             self.assertEqual(pixel[1], 255 - 40)
@@ -394,6 +404,7 @@ class TestOperationClass(unittest.TestCase):
         data_item2.add_operation(Operation.OperationItem("invert-operation"))
         data_item2.add_data_source(self.data_item)
         self.document_model.append_data_item(data_item2)
+        data_item2.data  # trigger data calculation
         # make sure our assumptions are correct
         self.assertEqual(len(self.data_item.calculated_calibrations), 2)
         self.assertEqual(len(self.data_item.intrinsic_calibrations), 2)
@@ -430,14 +441,17 @@ class TestOperationClass(unittest.TestCase):
         data_item.set_spatial_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
-        data_item.add_operation(operation)
+        data_item2 = DataItem.DataItem()
+        data_item2.add_data_source(data_item)
+        data_item2.add_operation(operation)
+        data_item2.connect_data_sources(direct_data_sources=[data_item])
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
-        self.assertAlmostEqual(data_item.calculated_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.0)
-        self.assertAlmostEqual(data_item.calculated_calibrations[1].scale, 5.5)
-        self.assertEqual(data_item.calculated_calibrations[0].units, "dogs")
-        self.assertEqual(data_item.calculated_calibrations[1].units, "cats")
+        self.assertAlmostEqual(data_item2.calculated_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
+        self.assertAlmostEqual(data_item2.calculated_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(data_item2.calculated_calibrations[0].scale, 5.0)
+        self.assertAlmostEqual(data_item2.calculated_calibrations[1].scale, 5.5)
+        self.assertEqual(data_item2.calculated_calibrations[0].units, "dogs")
+        self.assertEqual(data_item2.calculated_calibrations[1].units, "cats")
 
     def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
@@ -452,11 +466,14 @@ class TestOperationClass(unittest.TestCase):
         data_item.set_spatial_calibration(0, spatial_calibration_0)
         data_item.set_spatial_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("projection-operation")
-        data_item.add_operation(operation)
+        data_item2 = DataItem.DataItem()
+        data_item2.add_data_source(data_item)
+        data_item2.add_operation(operation)
+        data_item2.connect_data_sources(direct_data_sources=[data_item])
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].offset, 55.0)
-        self.assertAlmostEqual(data_item.calculated_calibrations[0].scale, 5.5)
-        self.assertEqual(data_item.calculated_calibrations[0].units, "cats")
+        self.assertAlmostEqual(data_item2.calculated_calibrations[0].offset, 55.0)
+        self.assertAlmostEqual(data_item2.calculated_calibrations[0].scale, 5.5)
+        self.assertEqual(data_item2.calculated_calibrations[0].units, "cats")
 
     def test_crop_2d_region_connects_if_operation_added_after_data_item_is_in_document(self):
         document_model = DocumentModel.DocumentModel()

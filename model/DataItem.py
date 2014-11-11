@@ -88,30 +88,6 @@ class DataSourceUuidList(object):
         return copy.copy(self.list)
 
 
-class IntermediateDataItem(object):
-
-    class IntermediateDataAccessor(object):
-        def __init__(self, data_item):
-            self.__data_item = data_item
-        def __get_data(self):
-            with self.__data_item.data_ref() as data_ref:
-                return data_ref.master_data
-        data = property(__get_data)
-
-    def __init__(self, data_item, data_shape_and_dtype, intensity_calibration, spatial_calibrations):
-        super(IntermediateDataItem, self).__init__()
-
-        self.__data_item = data_item
-        self.__data_accessor = IntermediateDataItem.IntermediateDataAccessor(data_item)
-        self.data_shape_and_dtype = data_shape_and_dtype
-        self.calculated_intensity_calibration = intensity_calibration
-        self.calculated_calibrations = spatial_calibrations
-
-    def __get_data(self):
-        return self.__data_accessor.data
-    data = property(__get_data)
-
-
 # data items will represents a numpy array. the numpy array
 # may be stored directly in this item (master data), or come
 # from another data item (data source).
@@ -162,85 +138,84 @@ SOURCE = 4
 class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
 
     """
-        Data items represent a list of data/metadata, a description of how that data is derived, and machinery to calculate it.
+    Data items represent data + metadata, a description of how that data is derived, and machinery to calculate it.
 
-        Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
-        calibrations, creation and modification dates, titles, captions, etc.
+    Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
+    calibrations, creation and modification dates, titles, captions, etc.
 
-        The derivation description includes a list of source data items, operations, regions, and relationships
-        between data/metadata (connections).
+    The derivation description includes a list of source data items, operations, regions, and relationships
+    between data/metadata (connections).
 
-        If a data item represents a single data/metadata, the following direct properties are available:
+    If a data item represents a single data/metadata, the following direct properties are available:
 
-        * *data* an ndarray. see note about accessing data below.
-        * *data_shape* an ndarray shape
-        * *data_dtype* an ndarray shape
+    * *data* an ndarray. see note about accessing data below.
+    * *data_shape* an ndarray shape
+    * *data_dtype* an ndarray shape
 
-        and
+    and
 
-        * *dimension_calibratons* a list of calibrations
-        * *intensity_calibration* a calibration
-        * *datetime_created* a datetime item
-        * *datetime_modified* a datetime item
-        * *title* a string (single line)
-        * *caption* a string (multiple lines)
-        * *rating* an integer star rating (0 to 5)
-        * *flag* a flag (-1, 0, 1)
-        * *session_id* a string representing the session
-        * *regions* a list of regions
-        * *connections* a list of connections between objects
-        * *operations* a list of operations
+    * *dimension_calibrations* a list of calibrations
+    * *intensity_calibration* a calibration
+    * *datetime_created* a datetime item
+    * *datetime_modified* a datetime item
+    * *title* a string (single line)
+    * *caption* a string (multiple lines)
+    * *rating* an integer star rating (0 to 5)
+    * *flag* a flag (-1, 0, 1)
+    * *session_id* a string representing the session
+    * *regions* a list of regions
+    * *connections* a list of connections between objects
+    * *operations* a list of operations
 
-        For more complex data items, the following properties are also available:
+    For more complex data items, the following properties are also available:
 
-        * *outputs* a list of data items
-        * *inputs* a list of data items
+    * *outputs* a list of data items
+    * *inputs* a list of data items
 
-        In addition to the properties above, data items may contain a list of displays. By convention, displays
-        are only associated with "top level" data items.
+    In addition to the properties above, data items may contain a list of displays. By convention, displays
+    are only associated with "top level" data items.
 
-        * *displays* a list of displays associated with the data item.
+    * *displays* a list of displays associated with the data item.
 
-        Accessing data can be done directly via the data property. However, this may cause data to be loaded
-        into memory from disk and unloaded every time the data property is used.
+    Accessing data can be done directly via the data property. However, this may cause data to be loaded
+    into memory from disk and unloaded every time the data property is used.
 
-        A better way to access data if it will be used more than once is to ask for a data reference via the
-        data_ref() method which returns a context manager object. When the context manager object is released,
-        the data will be unloaded from memory if it is not used somewhere else. The context manager has a
-        master_data property to access the data.
+    A better way to access data if it will be used more than once is to ask for a data reference via the
+    data_ref() method which returns a context manager object. When the context manager object is released,
+    the data will be unloaded from memory if it is not used somewhere else. The context manager has a
+    master_data property to access the data.
 
-        Transactions.
+    Transactions.
 
-        Liveness.
+    Liveness.
 
-        Processors.
+    Processors.
 
-        Snapshots and deep copies.
+    Snapshots and deep copies.
 
-        Properties.
+    Properties.
 
-        Data item changes.
+    Data item changes.
 
-        Metadata.
+    Metadata.
 
-        Data range.
+    Data range.
 
-        Data values.
+    Data values.
 
-        Calibrations.
+    Calibrations.
 
-        Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
-        For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
-        coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
-        For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
-        The next two coordinates are y, x with 0, 0 at the top left of each layer.
+    Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
+    For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
+    coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
+    For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
+    The next two coordinates are y, x with 0, 0 at the top left of each layer.
 
-        Cached data.
+    Cached data.
     """
 
     def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
-        self.__cached_data_shape_and_dtype = None
         self.uuid = item_uuid if item_uuid else self.uuid
         self.writer_version = 5  # writes this version
         self.__transaction_count = 0
@@ -280,11 +255,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.closed = False
         # data is immutable but metadata isn't, keep track of original and modified dates
         self.__data_mutex = threading.RLock()
-        self.__get_data_mutex = threading.RLock()
-        self.__cached_data = None
-        self.__cached_data_dirty = True
         # master data shape and dtype are cached to avoid loading data.
         self.__master_data = None
+        self.__master_data_lock = threading.RLock()
+        self.__is_master_data_stale = True
         self.__data_sources = []
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
@@ -299,7 +273,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_master_data(data)
-            self.sync_intrinsic_spatial_calibrations()
         # create a display if requested
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
@@ -574,9 +547,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             for processor in self.__processors.values():
                 processor.data_item_changed()
             # clear the data cache and preview if the data changed
-            if DATA in changes or SOURCE in changes:
-                self.__clear_cached_data()
-                self.__cached_data_shape_and_dtype = None
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -618,13 +588,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
     def notify_data_item_content_changed(self, changes):
+        if len(self.__data_sources) > 0:
+            with self.__master_data_lock:
+                self.__is_master_data_stale = True
         with self.data_item_changes():
             with self.__data_item_change_mutex:
                 self.__data_item_changes.update(changes)
 
-    def __get_data_range_for_data(self, data):
+    def __calculate_data_range_for_data(self, data):
         if data is not None and data.size:
-            if self.is_data_rgb_type:
+            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
                 data_range = (0, 255)
             elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
                 scalar_data = Image.scalar_from_array(data)
@@ -640,18 +613,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return data_range
 
     def __get_data_range(self):
-        with self.__data_mutex:
-            data_range = self.get_cached_value("data_range")
-        # this property may be access on the main thread (inspector)
-        # so it really needs to return quickly in most cases. don't
-        # recalculate in the main thread unless the value doesn't exist
-        # at all.
-        # TODO: use promises here?
-        if self.is_cached_value_dirty("data_range"):
-            pass  # TODO: calculate data range in thread
-        if not data_range:
-            data_range = self.__get_data_range_for_data(self.data)
-        return data_range
+        return self.get_cached_value("data_range")
     data_range = property(__get_data_range)
 
     # calibration stuff
@@ -675,15 +637,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     intrinsic_calibrations = property(__get_intrinsic_calibrations)
 
     def __get_calculated_intensity_calibration(self):
-        data_outputs = self.data_outputs
-        return data_outputs[0].calculated_intensity_calibration if len(data_outputs) == 1 else None
+        if self.__is_master_data_stale:
+            data_output = self.__get_data_output()
+            if data_output:
+                return data_output.calculated_intensity_calibration
+        return self.intrinsic_intensity_calibration
     calculated_intensity_calibration = property(__get_calculated_intensity_calibration)
 
     # call this when data changes. this makes sure that the right number
     # of intrinsic_calibrations exist in this object.
-    def sync_intrinsic_spatial_calibrations(self):
-        spatial_shape = self.spatial_shape
-        ndim = len(spatial_shape) if spatial_shape is not None else 0
+    def __sync_intrinsic_spatial_calibrations(self, ndim):
         spatial_calibrations = self.intrinsic_spatial_calibrations
         if len(spatial_calibrations.list) != ndim and not self.closed:
             while len(spatial_calibrations.list) < ndim:
@@ -696,8 +659,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # and then applying calibration transformations for each enabled
     # operation.
     def __get_calculated_calibrations(self):
-        data_outputs = self.data_outputs
-        return data_outputs[0].calculated_calibrations if len(data_outputs) == 1 else None
+        if self.__is_master_data_stale:
+            data_output = self.__get_data_output()
+            if data_output:
+                return data_output.calculated_calibrations
+        return self.intrinsic_spatial_calibrations.list
     calculated_calibrations = property(__get_calculated_calibrations)
 
     # date times
@@ -814,25 +780,25 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_connection(self, connection):
         self.remove_item("connections", connection)
 
-    # call this when operations change or data souce changes
+    # call this when operations change or data source changes
     # this allows operations to update their default values
-    def sync_operations(self):
-        data_inputs = self.data_inputs
+    def __sync_operations(self):
+        data_sources = copy.copy(self.__data_sources)
         # apply operations
         for operation in self.operations:
-            data_shapes_and_dtypes = [data_input.data_shape_and_dtype for data_input in data_inputs]
+            data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
             operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
-            data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
+            data_sources = operation.get_processed_intermediate_data_items(data_sources)
 
     def __insert_operation(self, name, before_index, operation):
         operation.add_listener(self)
         operation.add_observer(self)
         operation._set_data_item(self)
-        self.sync_operations()
+        self.__sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
 
     def __remove_operation(self, name, index, operation):
-        self.sync_operations()
+        self.__sync_operations()
         self.notify_data_item_content_changed(set([DATA]))
         operation.remove_listener(self)
         operation.remove_observer(self)
@@ -881,8 +847,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     data_source.add_listener(self)
                     data_source.add_dependent_data_item(self)
                     self.__data_sources.append(data_source)
-                    self.__cached_data_shape_and_dtype = None
-            self.sync_operations()
+            self.__sync_operations()
         self.data_item_content_changed(None, set([SOURCE]))
 
     # disconnect this item from its data source. also removes the graphics for this
@@ -893,7 +858,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 data_source.remove_dependent_data_item(self)
                 data_source.remove_listener(self)
                 self.__data_sources.remove(data_source)
-                self.__cached_data_shape_and_dtype = None
         self.__lookup_data_item = None
         self.__direct_data_sources = None
 
@@ -931,11 +895,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
     def data_item_content_changed(self, data_source, changes):
-        self.sync_intrinsic_spatial_calibrations()
-        # we don't care about display changes to the data source; only data changes.
+        with self.__master_data_lock:
+            self.__is_master_data_stale = True
+        # only care about DATA or METADATA changes since other data items should not
+        # be dependent on displays or data sources of the data source. however, regions
+        # may affect this data item (via operations) but that is handled via a different
+        # channel (connections on the regions).
+        # TODO: Metadata changes should also propagate, but need ot be more fine grained first
+        # if DATA or METADATA in changes:
         if DATA in changes:
-            # propogate to listeners
-            self.__cached_data_shape_and_dtype = None
+            # propagate to listeners
             self.notify_data_item_content_changed(changes)
 
     def __get_data_source(self):
@@ -966,22 +935,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __get_master_data(self):
         return self.__master_data
     def __set_master_data(self, data):
-        self.__cached_data_shape_and_dtype = None
         with self.data_item_changes():
             assert not self.closed or data is None
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            assert data is None or len(self.__data_sources) == 0  # can't have master data and data source
             with self.__data_mutex:
-                if data is not None:
-                    self.set_cached_value("master_data_shape", data.shape)
-                    self.set_cached_value("master_data_dtype", data.dtype)
-                else:
-                    self.remove_cached_value("master_data_shape")
-                    self.remove_cached_value("master_data_dtype")
                 self.__master_data = data
+                with self.__master_data_lock:
+                    self.__is_master_data_stale = False
                 self.master_data_shape = data.shape if data is not None else None
                 self.master_data_dtype = data.dtype if data is not None else None
-                self.sync_intrinsic_spatial_calibrations()
+                spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
+                self.__sync_intrinsic_spatial_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
+                self.__calculate_data_range_for_data(data)
             # tell the managed object context about it
             if self.__master_data is not None:
                 if self.managed_object_context:
@@ -995,6 +960,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if self.managed_object_context:
                 #logging.debug("loading %s", self)
                 self.__master_data = self.managed_object_context.load_data(self)
+                with self.__master_data_lock:
+                    self.__is_master_data_stale = False
 
     def __unload_master_data(self):
         # unload data if possible.
@@ -1002,7 +969,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.__transaction_count == 0 and self.has_master_data:
             if self.managed_object_context:
                 self.__master_data = None
-                self.__cached_data = None
                 #logging.debug("unloading %s", self)
 
     def increment_data_ref_count(self):
@@ -1055,7 +1021,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 set_master_data(self.__data_item, data)
             master_data = property(__get_master_data, __set_master_data)
             def master_data_updated(self):
-                pass
+                set_master_data(self.__data_item, get_master_data(self.__data_item))
             def __get_data(self):
                 return get_data(self.__data_item)
             data = property(__get_data)
@@ -1067,60 +1033,48 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             return data_ref.data
     data = property(__get_data_immediate)
 
-    def __clear_cached_data(self):
-        with self.__data_mutex:
-            self.__cached_data_dirty = True
-            self.set_cached_value_dirty("data_range")
+    def __get_data_output(self):
+        """ Calculate the operations applied to the data sources. """
+        data_sources = copy.copy(self.__data_sources)
+        # apply operations
+        for operation in self.operations:
+            data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
+            operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
+            data_sources = operation.get_processed_intermediate_data_items(data_sources)
+        if len(data_sources) > 0:
+            assert len(data_sources) == 1
+            return data_sources[0]
+        return None
 
-    # data property. read only. this method should almost *never* be called on the main thread since
-    # it takes an unpredictable amount of time.
+    def __update_master_data(self):
+        with self.__data_item_change_mutex:
+            self.__data_item_change_count += 1
+        try:
+            with self.__master_data_lock:
+                if self.__is_master_data_stale:
+                    data_output = self.__get_data_output()
+                    if data_output:
+                        self.__set_master_data(data_output.data)
+                        self.set_intensity_calibration(data_output.calculated_intensity_calibration)
+                        spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
+                        for index in xrange(len(spatial_shape)):
+                            self.set_spatial_calibration(index, data_output.calculated_calibrations[index])
+                self.__is_master_data_stale = False
+        finally:
+            with self.__data_item_change_mutex:
+                self.__data_item_change_count -= 1
+
     def __get_data(self):
-        if threading.current_thread().getName() == "MainThread":
-            #logging.debug("*** WARNING: data called on main thread ***")
-            #import traceback
-            #traceback.print_stack()
-            pass
-        with self.__data_mutex:
-            is_dirty = self.__cached_data_dirty or self.__cached_data is None
-        if is_dirty:
-            # this SHOULD NOT happen under the 'data mutex'. it can take a long time.
-            # however, it SHOULD happen under the 'get data mutex' to prevent it from
-            # being calculated simulataneously more than once.
-            with self.__get_data_mutex:
-                data_outputs = self.data_outputs
-                data = data_outputs[0].data if len(data_outputs) == 1 else None
-                self.__get_data_range_for_data(data)
-            with self.__data_mutex:
-                self.__cached_data = data
-                self.__cached_data_dirty = False
-        return self.__cached_data
-
-    def __get_data_inputs(self):
-        """ Returns a copy of the data inputs """
-        data_inputs = []
-        if self.has_master_data:
-            data_inputs.append(IntermediateDataItem(self,
-                                                    (self.master_data_shape, self.master_data_dtype),
-                                                    copy.deepcopy(self.intrinsic_intensity_calibration),
-                                                    copy.deepcopy(self.intrinsic_calibrations)))
-        data_inputs.extend(copy.copy(self.__data_sources))
-        return data_inputs
-    data_inputs = property(__get_data_inputs)
-
-    def __get_data_outputs(self):
-        with self.__data_mutex:
-            data_inputs = self.data_inputs
-             # apply operations
-            for operation in self.operations:
-                data_inputs = operation.get_processed_intermediate_data_items(data_inputs)
-            return data_inputs
-    data_outputs = property(__get_data_outputs)
+        # private method to calculate the master data if necessary and return it
+        self.__update_master_data()
+        return self.__master_data
 
     def __get_data_shape_and_dtype(self):
-        if self.__cached_data_shape_and_dtype is None:
-            data_outputs = self.data_outputs
-            self.__cached_data_shape_and_dtype = data_outputs[0].data_shape_and_dtype if len(data_outputs) == 1 else (None, None)
-        return self.__cached_data_shape_and_dtype
+        if self.__is_master_data_stale:
+            data_output = self.__get_data_output()
+            if data_output:
+                return data_output.data_shape_and_dtype
+        return self.master_data_shape, self.master_data_dtype
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):
@@ -1211,20 +1165,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
-        # do not force data calculation here, but trigger data loading
-        if self.__cached_data is None:
-            self.__get_data()  # make sure data is loaded and cached
-        with self.__data_mutex:
-            if self.is_data_1d:
-                if self.__cached_data is not None:
-                    return self.__cached_data[pos[0]]
-            elif self.is_data_2d:
-                if self.__cached_data is not None:
-                    return self.__cached_data[pos[0], pos[1]]
-            # TODO: fix me 3d
-            elif self.is_data_3d:
-                if self.__cached_data is not None:
-                    return self.__cached_data[pos[0], pos[1]]
+        with self.data_ref() as data_ref:
+            data = data_ref.data
+        if self.is_data_1d:
+            if data is not None:
+                return data[pos[0]]
+        elif self.is_data_2d:
+            if data is not None:
+                return data[pos[0], pos[1]]
+        # TODO: fix me 3d
+        elif self.is_data_3d:
+            if data is not None:
+                return data[pos[0], pos[1]]
         return None
 
 

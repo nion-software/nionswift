@@ -280,7 +280,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def data_item_content_changed(self, data_item, changes):
         DATA = 1
         METADATA = 2
-        SOURCE = 5
+        SOURCE = 4
         if DATA in changes or METADATA in changes or SOURCE in changes:
             self.__preview_data = None
             self.__preview = None

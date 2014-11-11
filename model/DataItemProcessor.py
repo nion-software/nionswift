@@ -63,47 +63,45 @@ class DataItemProcessor(object):
             item = self.item  # hold it
             data_item = self.get_data_item()
             if not data_item.closed:
-                data_outputs = data_item.data_outputs
-                if len(data_outputs) == 1:
-                    def load_data_on_thread(item_hold):
-                        time.sleep(0.5)
-                        data = data_outputs[0].data
-                        if data is not None:  # for data to load and make sure it has data
-                            try:
-                                calculated_data = self.get_calculated_data(ui, data)
-                            except Exception as e:
-                                import traceback
-                                traceback.print_exc()
-                                traceback.print_stack()
-                                self.__finish_event.set()
-                                raise
+                def load_data_on_thread(item_hold):
+                    time.sleep(0.5)
+                    data = data_item.data
+                    if data is not None:  # for data to load and make sure it has data
+                        try:
+                            calculated_data = self.get_calculated_data(ui, data)
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                            traceback.print_stack()
+                            self.__finish_event.set()
+                            raise
+                        self.item.set_cached_value(self.__cache_property_name, calculated_data)
+                        self.__cached_value = calculated_data
+                        self.__cached_value_dirty = False
+                    else:
+                        calculated_data = None
+                    if calculated_data is None:
+                        calculated_data = self.get_default_data()
+                        if calculated_data is not None:
+                            # if the default is not None, treat is as valid cached data
                             self.item.set_cached_value(self.__cache_property_name, calculated_data)
                             self.__cached_value = calculated_data
                             self.__cached_value_dirty = False
                         else:
-                            calculated_data = None
-                        if calculated_data is None:
-                            calculated_data = self.get_default_data()
-                            if calculated_data is not None:
-                                # if the default is not None, treat is as valid cached data
-                                self.item.set_cached_value(self.__cache_property_name, calculated_data)
-                                self.__cached_value = calculated_data
-                                self.__cached_value_dirty = False
-                            else:
-                                # otherwise remove everything from the cache
-                                self.item.remove_cached_value(self.__cache_property_name)
-                                self.__cached_value = None
-                                self.__cached_value_dirty = None
-                        if completion_fn:
-                            completion_fn(calculated_data)
-                        with self.__mutex:
-                            self.__in_progress = False
-                        self.__finish_event.set()
+                            # otherwise remove everything from the cache
+                            self.item.remove_cached_value(self.__cache_property_name)
+                            self.__cached_value = None
+                            self.__cached_value_dirty = None
+                    if completion_fn:
+                        completion_fn(calculated_data)
                     with self.__mutex:
-                        if not self.__in_progress:
-                            self.__in_progress = True
-                            self.__finish_event.clear()
-                            self.item.add_shared_task(lambda: load_data_on_thread(item))
+                        self.__in_progress = False
+                    self.__finish_event.set()
+                with self.__mutex:
+                    if not self.__in_progress:
+                        self.__in_progress = True
+                        self.__finish_event.clear()
+                        self.item.add_shared_task(lambda: load_data_on_thread(item))
         calculated_data = self.__cached_value
         if calculated_data is not None:
             return calculated_data

@@ -372,14 +372,12 @@ class TestDataItemClass(unittest.TestCase):
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
         with data_item.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
-            data_ref.data  # TODO: this should not be required
             data_range = data_item.data_range
             self.assertEqual(data_range, (25, 125))
             # now test complex
             data_ref.master_data = numpy.zeros((256, 256), numpy.complex64)
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-            data_ref.data  # TODO: this should not be required
         data_range = data_item.data_range
         data_min = math.log(math.sqrt(2*2 + 3*3) + 1)
         data_max = math.log(math.sqrt(12*12 + 13*13) + 1)
@@ -450,25 +448,6 @@ class TestDataItemClass(unittest.TestCase):
             start_count = dummy_operation.count
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
-            d.data
-            self.assertEqual(dummy_operation.count, start_count + 1)
-
-    def test_updating_thumbnail_does_not_cause_cached_data_to_be_cleared(self):
-        document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        data_item_dummy = DataItem.DataItem()
-        dummy_operation = TestDataItemClass.DummyOperation()
-        Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
-        dummy_operation_item = Operation.OperationItem("dummy-operation")
-        data_item_dummy.add_operation(dummy_operation_item)
-        data_item_dummy.add_data_source(data_item)
-        document_model.append_data_item(data_item_dummy)
-        with data_item_dummy.data_ref() as d:
-            start_count = dummy_operation.count
-            d.data
-            self.assertEqual(dummy_operation.count, start_count + 1)
-            data_item_dummy.notify_data_item_content_changed([])  # NOTE: this test may no longer be valid
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
 

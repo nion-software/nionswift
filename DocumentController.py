@@ -946,8 +946,7 @@ class DocumentController(Observable.Broadcaster):
             def show_in_new_window():
                 self.new_window("data", DataPanel.DataPanelSelection(container, data_item))
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
-            data_inputs = data_item.data_inputs
-            if len(data_inputs) == 1 and isinstance(data_inputs[0], DataItem.DataItem):
+            if isinstance(data_item.data_source, DataItem.DataItem):
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
