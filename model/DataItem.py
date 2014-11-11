@@ -430,7 +430,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
                     self.__metadata.setdefault(key, dict()).update(properties[key])
             self.__data_item_changes = set()
-
+            if self.has_master_data:
+                with self.__is_master_data_stale_lock:
+                    self.__is_master_data_stale = False
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties
@@ -844,7 +846,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
     # display graphics for this items operations. direct_data_sources is used for testing.
-    def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None):
+    # is_reading can be passed to indicate that the content changed notification should not
+    # be emitted.
+    def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None, is_reading=False):
         self.__lookup_data_item = lookup_data_item
         self.__direct_data_sources = direct_data_sources
         if direct_data_sources is not None:
@@ -862,7 +866,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     self.__data_sources.append(data_source)
                     data_source_connected = True
             self.__sync_operations()
-        if data_source_connected:  # notify of changes if a data source was connected
+        if data_source_connected and not is_reading:  # notify of changes if a data source was connected
             self.data_item_content_changed(None, set([SOURCE]))
 
     # disconnect this item from its data source. also removes the graphics for this

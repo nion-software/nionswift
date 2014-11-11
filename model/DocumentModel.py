@@ -408,7 +408,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_item.add_listener(self)
         # all data items will already have a managed_object_context
         for data_item in self.__data_items:
-            data_item.connect_data_sources(self.get_data_item_by_uuid)
+            data_item.connect_data_sources(self.get_data_item_by_uuid, is_reading=True)
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
 

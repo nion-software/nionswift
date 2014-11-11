@@ -824,6 +824,21 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 0)
 
+    def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        document_model.close()
+        # reload and check inverted data item does not need recompute
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        self.assertFalse(document_model.data_items[1].is_data_stale)
+
     def test_data_items_v1_migration(self):
         # construct v1 data item
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
