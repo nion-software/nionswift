@@ -451,6 +451,68 @@ class TestDataItemClass(unittest.TestCase):
             d.data
             self.assertEqual(dummy_operation.count, start_count + 1)
 
+    class SumOperation(Operation.Operation):
+        def __init__(self):
+            super(TestDataItemClass.SumOperation, self).__init__("Add2", "add2-operation")
+        def get_processed_intermediate_data_items(self, data_item_inputs):
+
+            class ProcessedDataItem(object):
+                def __init__(self, data_item_inputs):
+                    super(ProcessedDataItem, self).__init__()
+                    self.__data_item_inputs = data_item_inputs
+
+                @property
+                def data_shape_and_dtype(self):
+                    return self.__data_item_inputs[0].data_shape_and_dtype
+
+                @property
+                def calculated_intensity_calibration(self):
+                    return copy.deepcopy(self.__data_item_inputs[0].calculated_intensity_calibration)
+
+                @property
+                def calculated_calibrations(self):
+                    return copy.deepcopy(self.__data_item_inputs[0].calculated_calibrations)
+
+                @property
+                def intensity_calibration(self):
+                    return copy.deepcopy(self.__data_item_inputs[0].intensity_calibration)
+
+                @property
+                def dimensional_calibrations(self):
+                    return copy.deepcopy(self.__data_item_inputs[0].dimensional_calibrations)
+
+                @property
+                def data(self):
+                    result = None
+                    for data_item in self.__data_item_inputs:
+                        if result is None:
+                            result = data_item.data
+                        else:
+                            result += data_item.data
+                    return result
+
+            return [ProcessedDataItem(data_item_inputs)]
+
+    def test_operation_with_multiple_data_sources_is_allowed(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item1 = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
+        data_item3 = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item3)
+        data_item_sum = DataItem.DataItem()
+        sum_operation = TestDataItemClass.SumOperation()
+        Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
+        sum_operation_item = Operation.OperationItem("sum-operation")
+        data_item_sum.add_operation(sum_operation_item)
+        data_item_sum.add_data_source(data_item1)
+        data_item_sum.add_data_source(data_item2)
+        data_item_sum.add_data_source(data_item3)
+        document_model.append_data_item(data_item_sum)
+        summed_data = data_item_sum.data
+        self.assertEqual(summed_data[0, 0], 3)
+
     def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

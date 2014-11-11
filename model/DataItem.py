@@ -615,20 +615,32 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def intensity_calibration(self):
         """ Return the intensity calibration. """
-        if self.__is_master_data_stale:
-            data_output = self.__get_data_output()
-            if data_output:
-                return data_output.intensity_calibration
-        return self._get_managed_property("intensity_calibration")
+        try:
+            if self.__is_master_data_stale:
+                data_output = self.__get_data_output()
+                if data_output:
+                    return data_output.intensity_calibration
+            return self._get_managed_property("intensity_calibration")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     @property
     def dimensional_calibrations(self):
         """ Return the dimensional calibrations as a list. """
-        if self.__is_master_data_stale:
-            data_output = self.__get_data_output()
-            if data_output:
-                return data_output.dimensional_calibrations
-        return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
+        try:
+            if self.__is_master_data_stale:
+                data_output = self.__get_data_output()
+                if data_output:
+                    return data_output.dimensional_calibrations
+            return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     def set_intensity_calibration(self, calibration):
         """ Set the intenisty calibration. """
@@ -1028,8 +1040,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __get_data_immediate(self):
         """ add_ref, get data, remove_ref """
-        with self.data_ref() as data_ref:
-            return data_ref.data
+        try:
+            with self.data_ref() as data_ref:
+                return data_ref.data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
     data = property(__get_data_immediate)
 
     def __get_data_output(self):
