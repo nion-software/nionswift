@@ -144,11 +144,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     The derivation description includes a list of source data items, operations, regions, and relationships
     between data/metadata (connections).
 
-    If a data item represents a single data/metadata, the following direct properties are available:
+    The following direct properties are available:
 
     * *data* an ndarray. see note about accessing data below.
     * *data_shape* an ndarray shape
     * *data_dtype* an ndarray shape
+    * *cached_data* an ndarray. see note about accessing data below.
 
     and
 
@@ -165,11 +166,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *connections* a list of connections between objects
     * *operations* a list of operations
 
-    For more complex data items, the following properties are also available:
-
-    * *outputs* a list of data items
-    * *inputs* a list of data items
-
     In addition to the properties above, data items may contain a list of displays. By convention, displays
     are only associated with "top level" data items.
 
@@ -183,17 +179,33 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     the data will be unloaded from memory if it is not used somewhere else. The context manager has a
     master_data property to access the data.
 
+    Furthermore, data accessed via the data property will always return the fully computed data. If data
+    sources are out of date, they will be updated and accessing the data property will not return until
+    all data sources have valid data. This can cause lengthy blocks on the calling thread.
+
+    An alternative accessor is cached_data which will return the most recently computed data, which may be
+    None. However, it is guaranteed to not block the calling thread.
+
+    *Stale Data*
+
+    Cached data can be stale. When a data source or becomes stale or has its data changed, this data item
+    will be marked as having stale data. When data becomes stale, the data_needs_recompute notification will
+    be sent to listeners.
+
+    Data stale-ness propagates to all listeners. This ensures that if a data changed notification is
+    not sent out for some reason then the dependent still knows to update.
+
+    *Miscellaneous*
+
     Transactions.
 
-    Liveness.
+    Live-ness.
 
     Processors.
 
     Snapshots and deep copies.
 
     Properties.
-
-    Data item changes.
 
     Metadata.
 
@@ -208,8 +220,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
     For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
     The next two coordinates are y, x with 0, 0 at the top left of each layer.
-
-    Cached data.
     """
 
     def __init__(self, data=None, item_uuid=None, create_display=True):
@@ -247,29 +257,27 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
+        self.closed = False
         self.__live_count = 0  # specially handled property
-        self.__live_count_mutex = threading.RLock()
+        self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
-        self.closed = False
-        # data is immutable but metadata isn't, keep track of original and modified dates
-        self.__data_mutex = threading.RLock()
-        # master data shape and dtype are cached to avoid loading data.
         self.__master_data = None
         self.__master_data_lock = threading.RLock()
         self.__is_master_data_stale = True
+        self.__is_master_data_stale_lock = threading.RLock()
         self.__data_sources = []
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
-        self.__data_item_change_mutex = threading.RLock()
         self.__data_item_change_count = 0
+        self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
         self.__lookup_data_item = None
         self.__direct_data_sources = None
         self.__dependent_data_item_refs = list()
-        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
+        self.__shared_thread_queue = ThreadPool.create_thread_queue()
         if data is not None:
             self.__set_master_data(data)
         # create a display if requested
@@ -489,7 +497,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         dependent data items, similar to the transactions.
         """
         assert count > 0
-        with self.__live_count_mutex:
+        with self.__live_count_lock:
             old_live_count = self.__live_count
             self.__live_count += count
         if old_live_count == 0:
@@ -505,7 +513,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         assert count > 0
         for data_item in self.dependent_data_items:
             data_item.end_live(count)
-        with self.__live_count_mutex:
+        with self.__live_count_lock:
             self.__live_count -= count
             assert self.__live_count >= 0
             live_count = self.__live_count
@@ -522,22 +530,21 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def data_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
+        data_item = self
         class DataItemChangeContextManager(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
             def __enter__(self):
-                self.__data_item.begin_data_item_changes()
+                data_item.begin_data_item_changes()
                 return self
             def __exit__(self, type, value, traceback):
-                self.__data_item.end_data_item_changes()
-        return DataItemChangeContextManager(self)
+                data_item.end_data_item_changes()
+        return DataItemChangeContextManager()
 
     def begin_data_item_changes(self):
-        with self.__data_item_change_mutex:
+        with self.__data_item_change_count_lock:
             self.__data_item_change_count += 1
 
     def end_data_item_changes(self):
-        with self.__data_item_change_mutex:
+        with self.__data_item_change_count_lock:
             self.__data_item_change_count -= 1
             data_item_change_count = self.__data_item_change_count
             if data_item_change_count == 0:
@@ -546,8 +553,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # if the data item change count is now zero, it means that we're ready
         # to notify listeners.
         if data_item_change_count == 0:
-            for processor in self.__processors.values():
-                processor.data_item_changed()
+            # for processor in self.__processors.values():
+            #     processor.data_item_changed()
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -585,7 +592,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # Calling this method will send the data_item_content_changed method to each listener.
     def notify_data_item_content_changed(self, changes):
         with self.data_item_changes():
-            with self.__data_item_change_mutex:
+            with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
 
     def __calculate_data_range_for_data(self, data):
@@ -615,7 +622,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def intensity_calibration(self):
         """ Return the intensity calibration. """
         try:
-            if self.__is_master_data_stale:
+            if self.is_data_stale:
                 data_output = self.__get_data_output()
                 if data_output:
                     return data_output.intensity_calibration
@@ -630,7 +637,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def dimensional_calibrations(self):
         """ Return the dimensional calibrations as a list. """
         try:
-            if self.__is_master_data_stale:
+            if self.is_data_stale:
                 data_output = self.__get_data_output()
                 if data_output:
                     return data_output.dimensional_calibrations
@@ -816,21 +823,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def add_operation(self, operation):
         self.append_item("operations", operation)
-        with self.__master_data_lock:
-            self.__is_master_data_stale = True
+        self.mark_data_stale()
 
     def remove_operation(self, operation):
         operation.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
         self.remove_item("operations", operation)
-        with self.__master_data_lock:
-            self.__is_master_data_stale = True
+        self.mark_data_stale()
 
     # this message comes from the operation.
     # by watching for changes to the operations relationship. when an operation
     # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
-        with self.__master_data_lock:
-            self.__is_master_data_stale = True
+        self.mark_data_stale()
         self.notify_data_item_content_changed(set([DATA]))
 
     # this message comes from the operation.
@@ -856,7 +860,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         else:
             data_items = [lookup_data_item(uuid.UUID(data_source_uuid_str)) for data_source_uuid_str in self.data_source_uuid_list.list]
         data_source_connected = False  # keep track of whether a data source was connected during this call
-        with self.__data_mutex:
+        with self.__master_data_lock:
             for data_source in data_items:
                 if data_source is not None:
                     assert isinstance(data_source, DataItem)
@@ -872,7 +876,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # disconnect this item from its data source. also removes the graphics for this
     # items operations.
     def disconnect_data_sources(self):
-        with self.__data_mutex:
+        with self.__master_data_lock:
             for data_source in copy.copy(self.__data_sources):
                 data_source.remove_dependent_data_item(self)
                 data_source.remove_listener(self)
@@ -916,17 +920,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
     def data_item_content_changed(self, data_source, changes):
-        with self.__master_data_lock:
-            self.__is_master_data_stale = True
-        # only care about DATA or METADATA changes since other data items should not
-        # be dependent on displays or data sources of the data source. however, regions
-        # may affect this data item (via operations) but that is handled via a different
-        # channel (connections on the regions).
-        # TODO: Metadata changes should also propagate, but need ot be more fine grained first
-        # if DATA or METADATA in changes:
-        if DATA in changes:
-            # propagate to listeners
-            self.notify_data_item_content_changed(changes)
+        self.mark_data_stale()
+
+    # data_item_needs_recompute comes from data sources to indicate that data has
+    # become stale. the connection is established via add_listener.
+    def data_item_needs_recompute(self, data_item):
+        self.mark_data_stale()
 
     def __get_data_source(self):
         return self.__data_sources[0] if len(self.__data_sources) == 1 else None
@@ -954,14 +953,15 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.disconnect_data_sources()
 
     def __get_master_data(self):
-        return self.__master_data
+        with self.__master_data_lock:
+            return self.__master_data
     def __set_master_data(self, data):
         with self.data_item_changes():
             assert not self.closed or data is None
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            with self.__data_mutex:
+            with self.__master_data_lock:
                 self.__master_data = data
-                with self.__master_data_lock:
+                with self.__is_master_data_stale_lock:
                     self.__is_master_data_stale = False
                 self.master_data_shape = data.shape if data is not None else None
                 self.master_data_dtype = data.dtype if data is not None else None
@@ -981,7 +981,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if self.managed_object_context:
                 #logging.debug("loading %s", self)
                 self.__master_data = self.managed_object_context.load_data(self)
-                with self.__master_data_lock:
+                with self.__is_master_data_stale_lock:
                     self.__is_master_data_stale = False
 
     def __unload_master_data(self):
@@ -997,17 +997,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
             if initial_count == 0:
-                for data_source in self.__data_sources:
-                    data_source.increment_data_ref_count()
                 self.__load_master_data()
         return initial_count+1
+
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
             if final_count == 0:
-                for data_source in self.__data_sources:
-                    data_source.decrement_data_ref_count()
                 self.__unload_master_data()
         return final_count
 
@@ -1015,6 +1012,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def is_data_stale(self):
         """Return whether the data is currently stale."""
         return self.__is_master_data_stale
+
+    def mark_data_stale(self):
+        """Mark the master data as stale."""
+        with self.__is_master_data_stale_lock:
+            self.__is_master_data_stale = True
+        self.notify_listeners("data_item_needs_recompute", self)
 
     # used for testing
     def __is_data_loaded(self):
@@ -1109,19 +1112,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def recompute_data(self):
         """Ensures that the master data is synchronized with the sources/operations by recomputing if necessary."""
-        with self.__master_data_lock:
-            if self.__is_master_data_stale:
-                data_output = self.__get_data_output()
-                if data_output:
-                    self.__set_master_data(data_output.data)
-                    self.set_intensity_calibration(data_output.intensity_calibration)
-                    spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
-                    for index in xrange(len(spatial_shape)):
-                        self.set_dimensional_calibration(index, data_output.dimensional_calibrations[index])
-            self.__is_master_data_stale = False
+        with self.data_item_changes():  # prevent multiple data changed notifications from the code below
+            with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
+                if self.is_data_stale:
+                    data_output = self.__get_data_output()
+                    if data_output:
+                        self.increment_data_ref_count()  # make sure master data is loaded
+                        try:
+                            self.__set_master_data(data_output.data)
+                        finally:
+                            self.decrement_data_ref_count()  # unload master data
+                        self.set_intensity_calibration(data_output.intensity_calibration)
+                        for index, dimensional_calibration in enumerate(data_output.dimensional_calibrations):
+                            self.set_dimensional_calibration(index, dimensional_calibration)
+                self.__is_master_data_stale = False
 
     def __get_data_shape_and_dtype(self):
-        if self.__is_master_data_stale:
+        if self.is_data_stale:
             data_output = self.__get_data_output()
             if data_output:
                 return data_output.data_shape_and_dtype

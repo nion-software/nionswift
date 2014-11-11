@@ -197,7 +197,7 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data[:] = 2
                 self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
-    def test_clear_thumbnail_when_data_item_changed(self):
+    def disabled_test_clear_thumbnail_when_data_item_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
@@ -288,6 +288,7 @@ class TestDataItemClass(unittest.TestCase):
         map(Listener.reset, listeners)
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
+        document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
@@ -325,11 +326,13 @@ class TestDataItemClass(unittest.TestCase):
         map(Listener.reset, listeners)
         invert_operation = Operation.OperationItem("invert-operation")
         data_item.add_operation(invert_operation)
+        document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
         map(Listener.reset, listeners)
         data_item.remove_operation(invert_operation)
+        document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
@@ -351,6 +354,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.add_operation(blur_operation)
         map(Listener.reset, listeners)
         blur_operation.set_property("sigma", 0.1)
+        document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
@@ -361,6 +365,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.add_operation(crop_operation)
         map(Listener.reset, listeners)
         crop_operation.set_property("bounds", ((0,0), (0.5, 0.5)))
+        document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
@@ -408,7 +413,18 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(crop_data_item)
         self.assertEqual(crop_data_item.session_id, data_item.session_id)
 
-    def test_adding_ref_to_dependent_data_causes_source_data_to_load(self):
+    def test_recomputing_data_should_not_leave_it_loaded(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        self.assertFalse(data_item_inverted.is_data_loaded)
+
+    def test_loading_dependent_data_should_not_cause_source_data_to_load(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -417,12 +433,110 @@ class TestDataItemClass(unittest.TestCase):
         data_item_inverted.add_data_source(data_item)
         document_model.append_data_item(data_item_inverted)
         # begin checks
-        with data_item.data_ref():
-            pass
+        data_item_inverted.recompute_data()
         self.assertFalse(data_item.is_data_loaded)
         with data_item_inverted.data_ref() as d:
-            self.assertTrue(data_item.is_data_loaded)
+            self.assertFalse(data_item.is_data_loaded)
         self.assertFalse(data_item.is_data_loaded)
+
+    def test_modifying_source_data_should_not_trigger_data_changed_notification_from_dependent_data(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        class Listener(object):
+            def __init__(self):
+                self.data_changed = False
+            def data_item_content_changed(self, data_item, changes):
+                self.data_changed = self.data_changed or DataItem.DATA in changes
+        listener = Listener()
+        data_item_inverted.add_listener(listener)
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
+        self.assertFalse(listener.data_changed)
+
+    def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        class Listener(object):
+            def __init__(self):
+                self.needs_recompute = False
+            def data_item_needs_recompute(self, data_item):
+                self.needs_recompute = True
+        listener = Listener()
+        data_item_inverted.add_listener(listener)
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
+        self.assertTrue(listener.needs_recompute)
+
+    def test_modifying_source_data_should_queue_recompute_in_document_model(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
+        self.assertTrue(data_item_inverted.is_data_stale)
+        document_model.recompute_all()
+        self.assertFalse(data_item_inverted.is_data_stale)
+
+    def test_is_data_stale_should_propagate_to_data_items_dependent_on_source(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        data_item_inverted2 = DataItem.DataItem()
+        data_item_inverted2.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted2.add_data_source(data_item_inverted)
+        document_model.append_data_item(data_item_inverted2)
+        data_item_inverted2.recompute_data()
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
+        self.assertTrue(data_item_inverted.is_data_stale)
+        self.assertTrue(data_item_inverted2.is_data_stale)
+
+    def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
+        # this test ensures that doing a recompute_data is efficient and doesn't produce
+        # extra data_item_content_changed messages.
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item_inverted = DataItem.DataItem()
+        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.add_data_source(data_item)
+        document_model.append_data_item(data_item_inverted)
+        class Listener(object):
+            def __init__(self):
+                self.data_changed = 0
+            def data_item_content_changed(self, data_item, changes):
+                if DataItem.DATA in changes:
+                    self.data_changed += 1
+        listener = Listener()
+        data_item_inverted.add_listener(listener)
+        with data_item.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
+        self.assertTrue(data_item_inverted.is_data_stale)
+        self.assertEqual(listener.data_changed, 0)
+        data_item_inverted.recompute_data()
+        self.assertFalse(data_item_inverted.is_data_stale)
+        self.assertEqual(listener.data_changed, 1)
 
     class DummyOperation(Operation.Operation):
         def __init__(self):
@@ -709,7 +823,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNotNone(data_item2.data)
         self.assertIsNotNone(data_item2.data_source)
 
-    def test_connecting_data_source_updates_dependency_list(self):
+    def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
         document_model = DocumentModel.DocumentModel()
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))

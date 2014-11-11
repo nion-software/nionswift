@@ -20,7 +20,7 @@ class TestDisplayClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_changing_display_limits_clears_histogram_data_cache(self):
+    def disabled_test_changing_display_limits_clears_histogram_data_cache(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
@@ -33,7 +33,7 @@ class TestDisplayClass(unittest.TestCase):
         display.display_limits = (0.25, 0.75)
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
 
-    def test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
+    def disabled_test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display = data_item.displays[0]
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))

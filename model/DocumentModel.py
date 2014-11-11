@@ -7,6 +7,7 @@ import json
 import logging
 import numbers
 import os.path
+import Queue as queue
 import threading
 import uuid
 import weakref
@@ -377,6 +378,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
         super(DocumentModel, self).__init__()
+        self.__dispatcher = queue.Queue()
         data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
         self.managed_object_context = ManagedDataItemContext(data_reference_handler, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
@@ -725,6 +727,15 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_group.title = group_name
             self.insert_data_group(0, data_group)
         return data_group
+
+    def data_item_needs_recompute(self, data_item):
+        self.__dispatcher.put(data_item)
+
+    def recompute_all(self):
+        while not self.__dispatcher.empty():
+            data_item = self.__dispatcher.get()
+            data_item.recompute_data()
+            self.__dispatcher.task_done()
 
     def sync_data_item(self, data_item):
         """Synchronizes the data item by applying any pending operations and processing."""
