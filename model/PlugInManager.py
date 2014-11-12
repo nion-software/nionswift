@@ -12,6 +12,12 @@ __modules = []
 __test_suites = []
 
 
+class RequirementsException(Exception):
+    """An exception for when a plug-in can't load because it can't meet the necessary requirements."""
+    def __init__(self, reason):
+        self.reason = reason
+
+
 def load_plug_ins(app, root_dir):
     ui = app.ui
 
@@ -71,6 +77,8 @@ def load_plug_ins(app, root_dir):
                     __modules.append(module)
                     list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
                     logging.info(plugin_loaded_str + list_of_tests_str)
+                except RequirementsException as e:
+                    logging.info("Plug-in '" + plugin_dir + "' NOT loaded. %s", e.reason)
                 except Exception:
                     logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
                     logging.info(traceback.format_exc())
