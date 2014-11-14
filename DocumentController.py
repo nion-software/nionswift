@@ -239,6 +239,7 @@ class DocumentController(Observable.Broadcaster):
                 def switch_to_workspace(workspace):
                     self.workspace_controller.change_workspace(workspace)
                 action = self.view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
+                action.checked = self.document_model.workspace_uuid == workspace.uuid
                 self.__dynamic_view_actions.append(action)
 
         self.view_menu.on_about_to_show = adjust_view_menu
