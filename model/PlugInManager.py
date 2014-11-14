@@ -79,7 +79,7 @@ def load_plug_ins(app, root_dir):
                     logging.info(plugin_loaded_str + list_of_tests_str)
                 except RequirementsException as e:
                     logging.info("Plug-in '" + plugin_dir + "' NOT loaded. %s", e.reason)
-                except Exception:
+                except Exception as e:
                     logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
                     logging.info(traceback.format_exc())
                     logging.info("--------")
@@ -93,7 +93,7 @@ def notify_modules(method_name, *args, **kwargs):
             if inspect.isfunction(member[1]) and member[0] == method_name:
                 try:
                     member[1](*args, **kwargs)
-                except Exception:
+                except Exception as e:
                     logging.info("Plug-in '" + str(module) + "' exception during '" + method_name + "'.")
                     logging.info(traceback.format_exc())
                     logging.info("--------")

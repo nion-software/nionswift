@@ -362,7 +362,7 @@ class StandardImportExportHandler(ImportExportHandler):
         data = None
         try:
             data = Image.read_image_from_file(ui, path)
-        except Exception:
+        except Exception as e:
             pass
         if data is not None:
             data_element = dict()
