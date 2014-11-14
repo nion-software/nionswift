@@ -1136,9 +1136,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def wheel_changed(self, dx, dy, is_horizontal):
-        dx = dx if is_horizontal else 0.0
-        dy = dy if not is_horizontal else 0.0
-        self.update_image_canvas_position((-dy, -dx))
+        if self.__mouse_in:
+            dx = dx if is_horizontal else 0.0
+            dy = dy if not is_horizontal else 0.0
+            self.update_image_canvas_position((-dy, -dx))
+            return True
+        return False
 
     def pan_gesture(self, dx, dy):
         self.update_image_canvas_position((dy, dx))
