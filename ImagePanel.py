@@ -1335,12 +1335,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
 
 class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+    """
+        An overlay for image panels to draw and handle focus, selection, and drop targets.
+    """
 
     def __init__(self, image_panel):
         super(ImagePanelOverlayCanvasItem, self).__init__()
         self.wants_drag_events = True
         self.image_panel = image_panel
-        self.__dimmed = False
+        self.__dropping = False
+        self.__drop_region = "none"
         self.__focused = False
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
@@ -1349,14 +1353,6 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def close(self):
         self.image_panel = None
         super(ImagePanelOverlayCanvasItem, self).close()
-
-    def __get_dimmed(self):
-        return self.__dimmed
-    def __set_dimmed(self, dimmed):
-        if self.__dimmed != dimmed:
-            self.__dimmed = dimmed
-            self.update()
-    dimmed = property(__get_dimmed, __set_dimmed)
 
     def __get_focused(self):
         return self.__focused
@@ -1374,6 +1370,11 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
     selected = property(__get_selected, __set_selected)
 
+    def __set_drop_region(self, drop_region):
+        if self.__drop_region != drop_region:
+            self.__drop_region = drop_region
+            self.update()
+
     def _repaint(self, drawing_context):
 
         super(ImagePanelOverlayCanvasItem, self)._repaint(drawing_context)
@@ -1382,12 +1383,21 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
 
-        if self.__dimmed:
+        if self.__drop_region != "none":
 
             drawing_context.save()
 
             drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            if self.__drop_region == "left":
+                drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
+            elif self.__drop_region == "right":
+                drawing_context.rect(int(canvas_width * 0.90), 0, int(canvas_width - canvas_width * 0.90), canvas_height)
+            elif self.__drop_region == "top":
+                drawing_context.rect(0, 0, canvas_width, int(canvas_height * 0.10))
+            elif self.__drop_region == "bottom":
+                drawing_context.rect(0, int(canvas_height * 0.90), canvas_width, int(canvas_height - canvas_height * 0.90))
+            else:
+                drawing_context.rect(0, 0, canvas_width, canvas_height)
             drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
             drawing_context.fill()
 
@@ -1409,26 +1419,44 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
     def drag_enter(self, mime_data):
-        self.dimmed = True
+        self.__dropping = True
+        self.__set_drop_region("none")
         if self.image_panel:
             return self.image_panel.handle_drag_enter(mime_data)
         return "ignore"
 
     def drag_leave(self):
-        self.dimmed = False
+        self.__dropping = False
+        self.__set_drop_region("none")
         if self.image_panel:
             self.image_panel.handle_drag_leave()
         return False
 
     def drag_move(self, mime_data, x, y):
         if self.image_panel:
-            return self.image_panel.handle_drag_move(mime_data, x, y)
+            result = self.image_panel.handle_drag_move(mime_data, x, y)
+            if result != "ignore":
+                canvas_size = Geometry.IntSize.make(self.canvas_size)
+                if x < int(canvas_size.width * 0.10):
+                    self.__set_drop_region("left")
+                elif x > int(canvas_size.width * 0.90):
+                    self.__set_drop_region("right")
+                elif y < int(canvas_size.height * 0.10):
+                    self.__set_drop_region("top")
+                elif y > int(canvas_size.height * 0.90):
+                    self.__set_drop_region("bottom")
+                else:
+                    self.__set_drop_region("middle")
+                return result
+        self.__set_drop_region("none")
         return "ignore"
 
     def drop(self, mime_data, x, y):
-        self.dimmed = False
+        drop_region = self.__drop_region
+        self.__dropping = False
+        self.__set_drop_region("none")
         if self.image_panel:
-            return self.image_panel.handle_drop(mime_data, x, y)
+            return self.image_panel.handle_drop(mime_data, drop_region, x, y)
         return "ignore"
 
 
@@ -1661,6 +1689,10 @@ class ImagePanel(object):
     def image_panel_remove_graphic(self):
         self.document_controller.remove_graphic()
 
+    def __replace_displayed_data_item(self, data_item):
+        self.document_controller.replaced_data_item = self.get_displayed_data_item()
+        self.set_displayed_data_item(data_item)
+
     def handle_drag_enter(self, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
@@ -1678,19 +1710,17 @@ class ImagePanel(object):
             return "copy"
         return "ignore"
 
-    def handle_drop(self, mime_data, x, y):
+    def handle_drop(self, mime_data, region, x, y):
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
-                self.document_controller.replaced_data_item = self.get_displayed_data_item()
-                self.__set_display(data_item.displays[0])
+                self.__replace_displayed_data_item(data_item)
                 return "copy"
         if mime_data.has_format("text/uri-list"):
             def receive_files_complete(received_data_items):
                 def update_displayed_data_item():
-                    self.document_controller.replaced_data_item = self.get_displayed_data_item()
-                    self.__set_display(received_data_items[0].displays[0])
+                    self.__replace_displayed_data_item(received_data_items[0])
                 if len(received_data_items) > 0:
                     self.queue_task(update_displayed_data_item)
             index = len(self.document_controller.document_model.data_items)

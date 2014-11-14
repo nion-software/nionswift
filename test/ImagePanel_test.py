@@ -43,6 +43,18 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
     return data
 
 
+class TestImagePanel(object):
+    def __init__(self):
+        self.drop_region = None
+    def handle_drag_enter(self, mime_data):
+        return "copy"
+    def handle_drag_move(self, mime_data, x, y):
+        return "copy"
+    def handle_drop(self, mime_data, region, x, y):
+        self.drop_region = region
+        return "copy"
+
+
 class TestImagePanelClass(unittest.TestCase):
 
     def setUp(self):
@@ -833,6 +845,28 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "up", modifiers))
         # self.image_panel.display_canvas_item.key_pressed(Test.Key(None, "up", modifiers))  # direct dispatch, should work
         self.assertEqual(self.image_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
+
+    def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
+        width, height = 640, 480
+        image_panel = TestImagePanel()
+        overlay = ImagePanel.ImagePanelOverlayCanvasItem(image_panel)
+        overlay.update_layout((0, 0), (height, width))
+        mime_data = None
+        overlay.drag_enter(mime_data)
+        overlay.drag_move(mime_data, int(width*0.5), int(height*0.5))
+        overlay.drop(mime_data, int(width*0.5), int(height*0.5))
+        self.assertEqual(image_panel.drop_region, "middle")
+
+    def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
+        width, height = 640, 480
+        image_panel = TestImagePanel()
+        overlay = ImagePanel.ImagePanelOverlayCanvasItem(image_panel)
+        overlay.update_layout((0, 0), (height, width))
+        mime_data = None
+        overlay.drag_enter(mime_data)
+        overlay.drag_move(mime_data, int(width*0.05), int(height*0.5))
+        overlay.drop(mime_data, int(width*0.05), int(height*0.5))
+        self.assertEqual(image_panel.drop_region, "left")
 
 
 if __name__ == '__main__':
