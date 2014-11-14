@@ -64,6 +64,7 @@ class DocumentController(Observable.Broadcaster):
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         self.__selected_data_items = list()  # this will be updated by the data panel when one or more data items are selected
+        self.__browser_data_item = None
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -85,13 +86,6 @@ class DocumentController(Observable.Broadcaster):
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
-        # get rid of the bindings first to improve performance
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
-        self.filter_controller.close()
-        self.filter_controller = None
-        self.__data_items_binding.close()
-        self.__data_items_binding = None
         # menus
         self.view_menu.on_about_to_show = None
         self.window_menu.on_about_to_show = None
@@ -103,11 +97,17 @@ class DocumentController(Observable.Broadcaster):
         self.window_menu = None
         self.help_menu = None
         self.library_menu = None
-        # close the workspace before closing the image panels, to save their position
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
         self.document_window = None
+        # get rid of the bindings
+        self.__filtered_data_items_binding.close()
+        self.__filtered_data_items_binding = None
+        self.filter_controller.close()
+        self.filter_controller = None
+        self.__data_items_binding.close()
+        self.__data_items_binding = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -446,6 +446,15 @@ class DocumentController(Observable.Broadcaster):
 
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
+
+    def __get_browser_data_item(self):
+        return self.__browser_data_item
+    browser_data_item = property(__get_browser_data_item)
+
+    def set_browser_data_item(self, browser_data_item):
+        assert browser_data_item is None or isinstance(browser_data_item, DataItem.DataItem)
+        self.__browser_data_item = browser_data_item
+        self.notify_listeners("browser_data_item_changed", browser_data_item)
 
     def select_data_item_in_data_panel(self, data_item):
         """

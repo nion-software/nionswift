@@ -975,6 +975,7 @@ class DataPanel(Panel.Panel):
                     self.document_controller.notify_selected_data_item_changed(data_item)
                     self.__selected_data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
                     self.document_controller.set_selected_data_items(self.__selected_data_items)
+                self.document_controller.set_browser_data_item(data_item)
                 self.save_state()
 
         def data_item_widget_key_pressed(indexes, key):
@@ -1196,6 +1197,7 @@ class DataPanel(Panel.Panel):
             else:
                 self.document_controller.notify_selected_data_item_changed(None)
                 self.document_controller.set_selected_data_items([])
+            self.document_controller.set_browser_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)
 
     def __get_data_item(self):
