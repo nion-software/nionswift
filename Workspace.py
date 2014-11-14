@@ -206,11 +206,7 @@ class WorkspaceController(object):
             image_panels.append(image_panel)
             if desc.get("selected", False):
                 selected_image_panel = image_panel
-            data_item_uuid_str = desc.get("data_item_uuid")
-            if data_item_uuid_str:
-                data_item = lookup_data_item(uuid.UUID(data_item_uuid_str))
-                if data_item:
-                    image_panel.set_displayed_data_item(data_item)
+            image_panel.restore_contents(desc)
             item = image_panel.canvas_item
         if container:
             children = desc.get("children", list())
@@ -237,9 +233,7 @@ class WorkspaceController(object):
             desc = { "type": "image" }
             if image_panel._is_selected():
                 desc["selected"] = True
-            data_item = image_panel.get_displayed_data_item()
-            if data_item:
-                desc["data_item_uuid"] = str(data_item.uuid)
+            image_panel.save_contents(desc)
             return desc
         return None
 

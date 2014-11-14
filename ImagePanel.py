@@ -4,6 +4,7 @@ import copy
 import gettext
 import logging
 import math
+import uuid
 import weakref
 
 # third party libraries
@@ -1553,6 +1554,25 @@ class ImagePanel(object):
 
     def queue_task(self, task):
         self.document_controller.queue_task(task)
+
+    # save and restore the contents of the image panel
+
+    def save_contents(self, d):
+        data_item = self.get_displayed_data_item()
+        if data_item:
+            d["data_item_uuid"] = str(data_item.uuid)
+
+    def restore_contents(self, d):
+        data_item_uuid_str = d.get("data_item_uuid")
+        if data_item_uuid_str:
+            data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
+            if data_item:
+                self.set_displayed_data_item(data_item)
+
+    # handle selection. selection means that the image panel is the most recent
+    # item to have focus within the workspace, although it can be selected without
+    # having focus. this can happen, for instance, when the user switches focus
+    # to the data panel.
 
     def set_selected(self, selected):
         if self.__overlay_canvas_item:  # may be closed
