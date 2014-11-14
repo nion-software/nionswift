@@ -17,6 +17,7 @@ from nion.swift import ImagePanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
+from nion.ui import Geometry
 
 
 _ = gettext.gettext
@@ -181,86 +182,60 @@ class Workspace(object):
         self.image_panels.append(image_panel)
         return image_panel
 
-    def __create_canvas_widget_from_image_panel(self, image_panel):
-        image_panel.root_canvas_item = CanvasItem.RootCanvasItem(self.ui)
-        image_panel.root_canvas_item.add_canvas_item(image_panel.canvas_item)
-        return image_panel.root_canvas_item.canvas_widget
+    def __get_image_panel_by_id(self, element_id):
+        for image_panel in self.image_panels:
+            if image_panel.element_id == element_id:
+                return image_panel
+        return None
 
     def __get_primary_image_panel(self):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
+    def __construct(self, desc):
+        type = desc["type"]
+        container = None
+        item = None
+        if type == "container":
+            container = CanvasItem.CanvasItemComposition()
+        elif type == "splitter":
+            container = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
+        elif type == "image":
+            item = self.create_image_panel(desc["id"]).canvas_item
+        if container:
+            children = desc.get("children", list())
+            for child_desc in children:
+                container.add_canvas_item(self.__construct(child_desc))
+            return container
+        return item
+
     def __default_layout_fn(self, workspace, layout_id):
         self.canvas_item = CanvasItem.RootCanvasItem(self.ui)
         self.canvas_item.focusable = True
         if layout_id == "2x1":
-            image_panel1 = self.create_image_panel("primary-image")
-            image_panel2 = self.create_image_panel("secondary-image")
-            layout_item = CanvasItem.SplitterCanvasItem(orientation="vertical")
-            layout_item.add_canvas_item(image_panel1.canvas_item)
-            layout_item.add_canvas_item(image_panel2.canvas_item)
-            self.canvas_item.add_canvas_item(layout_item)
-            return self.canvas_item.canvas_widget, image_panel1, layout_id
+            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" } ] }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
         elif layout_id == "1x2":
-            image_panel = self.create_image_panel("primary-image")
-            image_panel2 = self.create_image_panel("secondary-image")
-            layout_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
-            layout_item.add_canvas_item(image_panel.canvas_item)
-            layout_item.add_canvas_item(image_panel2.canvas_item)
-            self.canvas_item.add_canvas_item(layout_item)
-            return self.canvas_item.canvas_widget, image_panel, layout_id
+            d = { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" } ] }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
         elif layout_id == "3x1":
-            image_panel1 = self.create_image_panel("primary-image")
-            image_panel2 = self.create_image_panel("secondary-image")
-            image_panel3 = self.create_image_panel("3rd-image")
-            layout_item = CanvasItem.SplitterCanvasItem()
-            layout_item.add_canvas_item(image_panel1.canvas_item)
-            layout_item.add_canvas_item(image_panel2.canvas_item)
-            layout_item.add_canvas_item(image_panel3.canvas_item)
-            self.canvas_item.add_canvas_item(layout_item)
-            return self.canvas_item.canvas_widget, image_panel1, layout_id
+            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "3rd-image" } ] }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
         elif layout_id == "2x2":
-            image_panel1 = self.create_image_panel("primary-image")
-            image_panel2 = self.create_image_panel("secondary-image")
-            image_panel3 = self.create_image_panel("3rd-image")
-            image_panel4 = self.create_image_panel("4th-image")
-            layout_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
-            column1 = CanvasItem.SplitterCanvasItem()
-            column2 = CanvasItem.SplitterCanvasItem()
-            column1.add_canvas_item(image_panel1.canvas_item)
-            column1.add_canvas_item(image_panel3.canvas_item)
-            column2.add_canvas_item(image_panel2.canvas_item)
-            column2.add_canvas_item(image_panel4.canvas_item)
-            layout_item.add_canvas_item(column1)
-            layout_item.add_canvas_item(column2)
-            self.canvas_item.add_canvas_item(layout_item)
-            return self.canvas_item.canvas_widget, image_panel1, layout_id
+            d = { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "3rd-image" } ] }, { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "4th-image" } ] } ] }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
         elif layout_id == "3x2":
-            image_panel1 = self.create_image_panel("primary-image")
-            image_panel2 = self.create_image_panel("secondary-image")
-            image_panel3 = self.create_image_panel("3rd-image")
-            image_panel4 = self.create_image_panel("4th-image")
-            image_panel5 = self.create_image_panel("5th-image")
-            image_panel6 = self.create_image_panel("6th-image")
-            layout_item = CanvasItem.SplitterCanvasItem(orientation="horizontal")
-            column1 = CanvasItem.SplitterCanvasItem()
-            column2 = CanvasItem.SplitterCanvasItem()
-            column3 = CanvasItem.SplitterCanvasItem()
-            column1.add_canvas_item(image_panel1.canvas_item)
-            column1.add_canvas_item(image_panel4.canvas_item)
-            column2.add_canvas_item(image_panel2.canvas_item)
-            column2.add_canvas_item(image_panel5.canvas_item)
-            column3.add_canvas_item(image_panel3.canvas_item)
-            column3.add_canvas_item(image_panel6.canvas_item)
-            layout_item.add_canvas_item(column1)
-            layout_item.add_canvas_item(column2)
-            layout_item.add_canvas_item(column3)
-            self.canvas_item.add_canvas_item(layout_item)
-            return self.canvas_item.canvas_widget, image_panel1, layout_id
+            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "4th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "5th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "3rd-image" }, { "type": "image", "id": "6th-image" } ] } ] }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
         else:  # default 1x1
-            image_panel = self.create_image_panel("primary-image")
-            self.canvas_item.add_canvas_item(image_panel.canvas_item)
-            return self.canvas_item.canvas_widget, image_panel, "1x1"
+            d = { "type": "image", "id": "primary-image" }
+            self.canvas_item.add_canvas_item(self.__construct(d))
+            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), "1x1"
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
         if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case
