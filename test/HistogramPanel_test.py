@@ -46,7 +46,6 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
     def tearDown(self):
-        self.image_panel.close()
         self.histogram_canvas_item.close()
         self.document_controller.close()
 

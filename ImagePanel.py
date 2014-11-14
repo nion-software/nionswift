@@ -1346,6 +1346,10 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#3876D6"  # TODO: platform dependent
 
+    def close(self):
+        self.image_panel = None
+        super(ImagePanelOverlayCanvasItem, self).close()
+
     def __get_dimmed(self):
         return self.__dimmed
     def __set_dimmed(self, dimmed):

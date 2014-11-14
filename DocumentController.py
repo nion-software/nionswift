@@ -59,7 +59,6 @@ class DocumentController(Observable.Broadcaster):
         self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
-        self.__weak_image_panels = []
         self.__weak_selected_image_panel = None
         self.weak_data_panel = None
         self.__tool_mode = "pointer"
@@ -81,6 +80,7 @@ class DocumentController(Observable.Broadcaster):
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
             self.workspace = Workspace.Workspace(self, workspace_id)
+            self.workspace.restore_layout()
 
     def close(self):
         # recognize when we're running as test and finish out periodic operations
@@ -109,9 +109,6 @@ class DocumentController(Observable.Broadcaster):
             self.workspace.close()
         if self.__workspace_controller:
             self.__workspace_controller.close()
-        for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
-            image_panel.close()
-        self.__weak_image_panels = None
         self.document_window = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
@@ -417,14 +414,11 @@ class DocumentController(Observable.Broadcaster):
     display_filter = property(__get_display_filter, __set_display_filter)
 
     def register_image_panel(self, image_panel):
-        weak_image_panel = weakref.ref(image_panel)
-        self.__weak_image_panels.append(weak_image_panel)
+        pass
 
     def unregister_image_panel(self, image_panel):
         if self.selected_image_panel == image_panel:
             self.selected_image_panel = None
-        weak_image_panel = weakref.ref(image_panel)
-        self.__weak_image_panels.remove(weak_image_panel)
 
     def __get_selected_image_panel(self):
         return self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
@@ -437,7 +431,7 @@ class DocumentController(Observable.Broadcaster):
             # save the selected panel
             self.__weak_selected_image_panel = weak_selected_image_panel
             # iterate through the image panels and update their 'focused' property
-            for image_panel in [weak_image_panel() for weak_image_panel in self.__weak_image_panels]:
+            for image_panel in self.workspace.image_panels:
                 image_panel.set_selected(image_panel == self.selected_image_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.

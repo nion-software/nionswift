@@ -16,6 +16,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Region
 from nion.swift.model import Storage
+from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Test
 
@@ -55,7 +56,6 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
     def tearDown(self):
-        self.image_panel.close()
         self.document_controller.close()
 
     def simulate_click(self, p, modifiers=None):
@@ -76,6 +76,13 @@ class TestImagePanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = ImagePanel.ImagePanel(document_controller)
+        # add some extra refs for fun
+        canvas_item = image_panel.canvas_item
+        container = CanvasItem.SplitterCanvasItem()
+        container.add_canvas_item(canvas_item)
+        root_canvas_item = CanvasItem.RootCanvasItem(self.app.ui)
+        root_canvas_item.add_canvas_item(container)
+        # now take the weakref
         image_panel_weak_ref = weakref.ref(image_panel)
         image_panel.canvas_item.close()
         image_panel.close()

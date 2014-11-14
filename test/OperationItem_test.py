@@ -32,7 +32,6 @@ class TestOperationClass(unittest.TestCase):
         self.image_panel.set_displayed_data_item(self.data_item)
 
     def tearDown(self):
-        self.image_panel.close()
         self.document_controller.close()
 
     # make sure we can remove a single operation

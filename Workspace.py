@@ -48,6 +48,8 @@ class Workspace(object):
         self.dock_widgets = []
         self.image_panels = []
 
+        self.__canvas_item = None
+
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
         self.content_row = self.ui.create_column_widget()
@@ -73,18 +75,18 @@ class Workspace(object):
         self.__layout_stack = list()
         self.__layout_stack_current = None
 
-        layout_id = self.ui.get_persistent_string("Workspace/%s/Layout" % self.workspace_id)
-
-        self.change_layout(layout_id)
-
-        self.restore_content()
-
     def close(self):
         content_map = {}
         for image_panel in self.image_panels:
             content_map[image_panel.element_id] = image_panel.save_content()
         self.ui.set_persistent_string("Workspace/%s/Content" % self.workspace_id, pickle.dumps(content_map))
         self.ui.set_persistent_string("Workspace/%s/Layout" % self.workspace_id, self.__layout_id)
+        for image_panel in self.image_panels:
+            image_panel.close()
+        self.image_panels = []
+        if self.__canvas_item:
+            self.__canvas_item.close()
+            self.__canvas_item = None
         for dock_widget in copy.copy(self.dock_widgets):
             dock_widget.panel.close()
             dock_widget.close()
@@ -179,7 +181,6 @@ class Workspace(object):
         image_panel = ImagePanel.ImagePanel(self.document_controller)
         image_panel.title = _("Image")
         image_panel.element_id = element_id
-        self.image_panels.append(image_panel)
         return image_panel
 
     def __get_image_panel_by_id(self, element_id):
@@ -192,7 +193,7 @@ class Workspace(object):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def _construct(self, desc):
+    def _construct(self, desc, image_panels):
         selected_image_panel = None
         type = desc["type"]
         container = None
@@ -209,13 +210,14 @@ class Workspace(object):
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
             image_panel = self.create_image_panel(desc["id"])
+            image_panels.append(image_panel)
             if desc.get("selected", False):
                 selected_image_panel = image_panel
             item = image_panel.canvas_item
         if container:
             children = desc.get("children", list())
             for child_desc in children:
-                child_canvas_item, child_selected_image_panel = self._construct(child_desc)
+                child_canvas_item, child_selected_image_panel = self._construct(child_desc, image_panels)
                 container.add_canvas_item(child_canvas_item)
                 selected_image_panel = child_selected_image_panel if child_selected_image_panel else selected_image_panel
             post_children_adjust()
@@ -257,12 +259,14 @@ class Workspace(object):
         return layout_id, d
 
     def __default_layout_fn(self, workspace, layout_id):
-        self.canvas_item = CanvasItem.RootCanvasItem(self.ui)
-        self.canvas_item.focusable = True
+        self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        self.__canvas_item.focusable = True
         layout_id, d = self._get_default_layout(layout_id)
-        canvas_item, selected_image_panel = self._construct(d)
-        self.canvas_item.add_canvas_item(canvas_item)
-        return self.canvas_item.canvas_widget, selected_image_panel, layout_id
+        image_panels = list()
+        canvas_item, selected_image_panel = self._construct(d, image_panels)
+        self.image_panels.extend(image_panels)
+        self.__canvas_item.add_canvas_item(canvas_item)
+        return self.__canvas_item.canvas_widget, selected_image_panel, layout_id
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
         if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case
@@ -287,12 +291,15 @@ class Workspace(object):
             del self.__layout_stack[0:self.__layout_stack_current]
             self.__layout_stack.insert(0, None)
             self.__layout_stack_current = 0
-        # remove existing layout
-        for image_panel in copy.copy(self.image_panels):
+        # remove existing layout and canvas item
+        for image_panel in self.image_panels:
             image_panel.close()
         self.image_panels = []
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
+        if self.__canvas_item:
+            self.__canvas_item.close()
+            self.__canvas_item = None
         # create the new layout
         if layout_fn is None:
             layout_fn = self.__default_layout_fn
@@ -335,9 +342,10 @@ class Workspace(object):
         # save the layout id
         self.__layout_id = layout_id
 
-    def debugit(self):
-        logging.debug("self.__layout_stack_current %s", self.__layout_stack_current)
-        logging.debug("self.__layout_stack %s", self.__layout_stack)
+    def restore_layout(self):
+        layout_id = self.ui.get_persistent_string("Workspace/%s/Layout" % self.workspace_id)
+        self.change_layout(layout_id)
+        self.restore_content()
 
     def change_to_previous_layout(self):
         if self.__layout_stack_current is not None and self.__layout_stack_current + 1 < len(self.__layout_stack):

@@ -1,6 +1,7 @@
 # standard libraries
 import logging
 import unittest
+import weakref
 
 # third party libraries
 import numpy
@@ -8,6 +9,7 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import ImagePanel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.test import DocumentController_test
@@ -41,6 +43,14 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(len(document_controller.workspace.image_panels), 2)
         document_controller.workspace.change_layout("1x1")
         self.assertEqual(len(document_controller.workspace.image_panels), 1)
+
+    def test_basic_change_layout_results_in_image_panel_being_destructed(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        document_controller.workspace.change_layout("1x1")
+        image_panel_weak_ref = weakref.ref(document_controller.workspace.image_panels[0])
+        document_controller.workspace.change_layout("2x1")
+        self.assertIsNone(image_panel_weak_ref())
 
     def test_change_layout_1x1_to_3x1_should_choose_different_data_items(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
