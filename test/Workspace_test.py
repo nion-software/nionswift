@@ -167,27 +167,25 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item1)
         document_model.append_data_item(data_item2)
         document_controller.workspace.change_layout("2x1")
-        # assumes that each image panel has its own root canvas item.
-        root_canvas_item1 = document_controller.workspace.image_row.children[0].children[0]._root_canvas_item()
-        root_canvas_item1.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=480))
-        root_canvas_item2 = document_controller.workspace.image_row.children[0].children[1]._root_canvas_item()
-        root_canvas_item2.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=480))
+        root_canvas_item = document_controller.workspace.image_row.children[0]._root_canvas_item()
+        root_canvas_item.wants_mouse_events = True
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in first panel
         modifiers = Test.KeyboardModifiers()
-        root_canvas_item1.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(document_controller.workspace.image_panels[0]._is_focused())
         self.assertTrue(document_controller.workspace.image_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace.image_panels[1]._is_focused())
         self.assertFalse(document_controller.workspace.image_panels[1]._is_selected())
         # now click the second panel
-        root_canvas_item2.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        root_canvas_item.canvas_widget.on_mouse_clicked(480, 240, modifiers)
         self.assertFalse(document_controller.workspace.image_panels[0]._is_focused())
         self.assertFalse(document_controller.workspace.image_panels[0]._is_selected())
         self.assertTrue(document_controller.workspace.image_panels[1]._is_focused())
         self.assertTrue(document_controller.workspace.image_panels[1]._is_selected())
         # and back to the first panel
         modifiers = Test.KeyboardModifiers()
-        root_canvas_item1.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(document_controller.workspace.image_panels[0]._is_focused())
         self.assertTrue(document_controller.workspace.image_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace.image_panels[1]._is_focused())
