@@ -223,7 +223,9 @@ class DocumentController(Observable.Broadcaster):
         self.view_menu.add_menu_item(_("Previous Workspace"), lambda: self.workspace_controller.change_to_previous_workspace(), key_sequence="Ctrl+[")
         self.view_menu.add_menu_item(_("Next Workspace"), lambda: self.workspace_controller.change_to_next_workspace(), key_sequence="Ctrl+]")
         self.view_menu.add_separator()
-        self.view_menu.add_menu_item(_("New Workspace"), lambda: self.workspace_controller.new_workspace(), key_sequence="Ctrl+Alt+L")
+        self.view_menu.add_menu_item(_("New Workspace"), lambda: self.workspace_controller.create_workspace(), key_sequence="Ctrl+Alt+L")
+        self.view_menu.add_menu_item(_("Rename Workspace"), lambda: self.workspace_controller.rename_workspace())
+        self.view_menu.add_menu_item(_("Remove Workspace"), lambda: self.workspace_controller.remove_workspace())
 
         self.view_menu.add_separator()
 

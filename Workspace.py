@@ -56,14 +56,18 @@ class WorkspaceController(object):
 
         # create the root element
         root_widget = self.ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
-        self.content_row = self.ui.create_column_widget()
+        self.__content_column = self.ui.create_column_widget()
+        self.message_column = self.ui.create_column_widget()
         self.filter_panel = self.workspace_manager.create_filter_panel(document_controller)
         self.filter_row = self.filter_panel.widget
         self.image_row = self.ui.create_column_widget()
-        self.content_row.add(self.filter_row)
-        self.content_row.add(self.image_row, fill=True)
+        self.__content_column.add(self.message_column)
+        self.__content_column.add(self.filter_row)
+        self.__content_column.add(self.image_row, fill=True)
         self.filter_row.visible = False
-        root_widget.add(self.content_row)
+        root_widget.add(self.__content_column)
+
+        self.__message_boxes = dict()
 
         # configure the document window (central widget)
         document_controller.document_window.attach(root_widget)
@@ -82,6 +86,9 @@ class WorkspaceController(object):
         self.__mutex = threading.RLock()
 
     def close(self):
+        for message_box_widget in copy.copy(self.__message_boxes.values()):
+            self.message_column.remove(message_box_widget)
+        self.__message_boxes.clear()
         if self.__workspace:
             # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
@@ -96,7 +103,7 @@ class WorkspaceController(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = None
-        self.content_row = None
+        self.__content_column = None
         self.filter_panel = None
         self.filter_row = None
         self.image_row = None
@@ -301,6 +308,126 @@ class WorkspaceController(object):
         workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
         workspace.name = name if name is not None else _("Workspace")
         return workspace
+
+    def create_workspace(self):
+        """ Pose a dialog to name and create a workspace. """
+
+        def create_clicked(text):
+            if len(text) > 0:
+                self.change_workspace(self.new_workspace(name=text))
+
+        self.pose_get_string_message_box("create_workspace", caption=_("Enter a name for the workspace"),
+                                         text=_("Workspace"), accepted_fn=create_clicked,
+                                         accepted_text=_("Create"))
+
+    def rename_workspace(self):
+        """ Pose a dialog to rename the workspace. """
+
+        def rename_clicked(text):
+            if len(text) > 0:
+                self.__workspace.name = text
+
+        self.pose_get_string_message_box("rename_workspace", caption=_("Enter new name for workspace"),
+                                         text=self.__workspace.name, accepted_fn=rename_clicked,
+                                         accepted_text=_("Rename"))
+
+    def remove_workspace(self):
+        """ Pose a dialog to confirm removal then remove workspace. """
+
+        def confirm_clicked():
+            if len(self.document_controller.document_model.workspaces) > 1:
+                workspace = self.__workspace
+                self.change_to_previous_workspace()
+                self.document_controller.document_model.remove_workspace(workspace)
+
+        caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
+        self.pose_confirmation_message_box("remove_workspace", caption, confirm_clicked,
+                                           accepted_text=_("Remove Workspace"))
+
+    def pose_get_string_message_box(self, message_box_id, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+        if message_box_id in self.__message_boxes:
+            return None
+        if accepted_text is None: accepted_text = _("OK")
+        if rejected_text is None: rejected_text = _("Cancel")
+        message_box_widget = self.ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
+        caption_row = self.ui.create_row_widget()
+        caption_row.add_spacing(12)
+        caption_row.add(self.ui.create_label_widget(caption))
+        caption_row.add_stretch()
+        inside_row = self.ui.create_row_widget()
+
+        def reject_button_clicked():
+            if rejected_fn: rejected_fn()
+            self.message_column.remove(message_box_widget)
+            del self.__message_boxes[message_box_id]
+
+        def accept_button_clicked():
+            accepted_fn(string_edit_widget.text)
+            self.message_column.remove(message_box_widget)
+            del self.__message_boxes[message_box_id]
+
+        string_edit_widget = self.ui.create_line_edit_widget()
+        string_edit_widget.text = text
+        string_edit_widget.on_return_pressed = accept_button_clicked
+        string_edit_widget.on_escape_pressed = reject_button_clicked
+        reject_button = self.ui.create_push_button_widget(rejected_text)
+        reject_button.on_clicked = reject_button_clicked
+        accepted_button = self.ui.create_push_button_widget(accepted_text)
+        accepted_button.on_clicked = accept_button_clicked
+        inside_row.add_spacing(12)
+        inside_row.add(string_edit_widget)
+        inside_row.add_spacing(12)
+        inside_row.add(reject_button)
+        inside_row.add_spacing(12)
+        inside_row.add(accepted_button)
+        inside_row.add_stretch()
+        message_box_widget.add_spacing(6)
+        message_box_widget.add(caption_row)
+        message_box_widget.add_spacing(4)
+        message_box_widget.add(inside_row)
+        message_box_widget.add_spacing(4)
+        self.message_column.add(message_box_widget)
+        string_edit_widget.select_all()
+        string_edit_widget.focused = True
+        self.__message_boxes[message_box_id] = message_box_widget
+        return message_box_widget
+
+    def pose_confirmation_message_box(self, message_box_id, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True):
+        if message_box_id in self.__message_boxes:
+            return None
+        if accepted_text is None: accepted_text = _("OK")
+        if rejected_text is None: rejected_text = _("Cancel")
+        message_box_widget = self.ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
+
+        def reject_button_clicked():
+            if rejected_fn: rejected_fn()
+            self.message_column.remove(message_box_widget)
+            del self.__message_boxes[message_box_id]
+
+        def accept_button_clicked():
+            accepted_fn()
+            self.message_column.remove(message_box_widget)
+            del self.__message_boxes[message_box_id]
+
+        reject_button = self.ui.create_push_button_widget(rejected_text)
+        reject_button.on_clicked = reject_button_clicked
+        accepted_button = self.ui.create_push_button_widget(accepted_text)
+        accepted_button.on_clicked = accept_button_clicked
+        caption_row = self.ui.create_row_widget()
+        caption_row.add_spacing(12)
+        caption_row.add(self.ui.create_label_widget(caption))
+        if display_rejected:
+            caption_row.add_spacing(12)
+            caption_row.add(reject_button)
+        caption_row.add_spacing(12)
+        caption_row.add(accepted_button)
+        caption_row.add_stretch()
+        message_box_widget.add_spacing(6)
+        message_box_widget.add(caption_row)
+        message_box_widget.add_spacing(4)
+        self.message_column.add(message_box_widget)
+        self.__message_boxes[message_box_id] = message_box_widget
+        return message_box_widget
 
     def __replace_displayed_data_item(self, image_panel, data_item):
         """ Used in drag/drop support. """
