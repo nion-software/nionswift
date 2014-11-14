@@ -333,8 +333,9 @@ class HistogramPanel(Panel.Panel):
     def _histogram_canvas_item(self):
         return self.__histogram_canvas_item
 
+    # thread safe
     def __update_statistics(self, statistics_data):
-        """Update the widgets with new statistics data. Must be called on UI thread."""
+        """Update the widgets with new statistics data."""
         statistic_strings = list()
         for key in sorted(statistics_data.keys()):
             value = statistics_data[key]
@@ -346,8 +347,8 @@ class HistogramPanel(Panel.Panel):
         self.stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)/2])
         self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)/2:])
 
+    # thread safe
     def __set_display(self, display):
-        # this will be called from a thread. must be threadsafe.
         # typically could be updated from an acquisition thread and a
         # focus changed thread (why?).
         with self.__display_lock:
@@ -367,6 +368,7 @@ class HistogramPanel(Panel.Panel):
     # queue the processor to compute its data on the document model.
     # in response to a data changed message, this object will update
     # the data and trigger a repaint.
+    # thread safe
     def data_item_binding_display_changed(self, display):
         self.__set_display(display)
         self.__histogram_canvas_item._set_display(display)

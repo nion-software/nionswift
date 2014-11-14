@@ -356,6 +356,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             data_item.remove_listener(self)
             self._removed_master_data_item(index, data_item)
 
+    # thread safe
     def data_item_content_changed(self, data_item, changes):
         with self._update_mutex:
             if not data_item in self.__master_data_items:
@@ -420,6 +421,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
             data_item.remove_listener(self)
             self._removed_master_data_item(index, data_item)
 
+    # thread safe
     def data_item_content_changed(self, data_item, changes):
         with self._update_mutex:
             if not data_item in self.__master_data_items:

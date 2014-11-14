@@ -1,10 +1,10 @@
 # standard libraries
 import collections
 import copy
-import functools
 import gettext
 import logging
 import math
+import threading
 import uuid
 import weakref
 
@@ -1752,6 +1752,9 @@ class ImagePanel(object):
 
         self.__display = None
 
+        self.__pending_display_update_lock = threading.RLock()
+        self.__pending_display_update = None
+
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
 
             def __init__(self, image_panel):
@@ -1897,6 +1900,7 @@ class ImagePanel(object):
         return self.__display.data_item if self.__display else None
 
     # sets the data item that this panel displays
+    # not thread safe
     def set_displayed_data_item(self, data_item):
         assert data_item is None or isinstance(data_item, DataItem.DataItem), data_item
         self.__set_display(data_item.displays[0] if data_item else None)
@@ -1920,6 +1924,7 @@ class ImagePanel(object):
     def __get_display(self):
         return self.__display
 
+    # not thread safe
     def __set_display(self, display):
         if display:
             assert isinstance(display, Display.Display)
@@ -1935,7 +1940,7 @@ class ImagePanel(object):
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
             self.__display.add_listener(self)  # for display_changed
-        self.display_changed(self.__display)
+        self.update_display_canvas(self.__display)
 
     display = property(__get_display)  # read only, for tests only
 
@@ -1969,11 +1974,27 @@ class ImagePanel(object):
         if len(self.workspace_controller.image_panels) > 1:
             self.workspace_controller.remove_image_panel(self)
 
-    # this message comes from the data item associated with this panel.
-    # the connection is established in __set_display via data_item.add_listener.
+    # this message comes from the display associated with this panel.
+    # the connection is established in __set_display via display.add_listener.
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
+    # thread safe (may be called from data_item_content_changed).
     def display_changed(self, display):
+        with self.__pending_display_update_lock:
+            self.__pending_display_update = display
+        def update_display_canvas_task():
+            # if there is a pending display update, do it.
+            # update_display_canvas will clear pending updates.
+            # this ensures only the latest one is done.
+            with self.__pending_display_update_lock:
+                if self.__pending_display_update:
+                    self.update_display_canvas(self.__pending_display_update)
+        self.queue_task(update_display_canvas_task)
+
+    # update the display canvas, etc.
+    # clear any pending display update at the end
+    # not thread safe
+    def update_display_canvas(self, display):
         data_item = display.data_item if display else None
         if self.__header_canvas_item:  # may be closed
             self.__header_canvas_item.title = data_item.title if data_item else unicode()
@@ -2005,6 +2026,8 @@ class ImagePanel(object):
         selected = self.document_controller.selected_image_panel == self
         if self.__overlay_canvas_item:  # may be closed
             self.__overlay_canvas_item.selected = display is not None and selected
+        with self.__pending_display_update_lock:
+            self.__pending_display_update = None
 
     # ths message comes from the canvas item via the delegate.
     def image_panel_key_pressed(self, key):

@@ -164,15 +164,15 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * request_remove_data_item(data_item)
 
     data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set
-    of changes from DATA, METADATA, DISPLAYS, SOURCE.
+    of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
 
     data_item_needs_recompute is invoked when a recompute of the data is necessary. This can happen when an operation
-    changes or when source data changes.
+    changes or when source data changes. This may be called on a thread.
 
     TODO: merge usage of data_item_calibration_changed with data_item_content_changed.
 
     request_remove_data_item is invoked when a region associated with an operation is removed by the user. This
-    message can be used to remove the associated dependent data item.
+    message can be used to remove the associated dependent data item. This will not be called from a thread.
 
     *Stale Data*
 
@@ -927,6 +927,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             processor.item_property_changed(key, value)
 
     # this message comes from the displays.
+    # thread safe
     def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
 

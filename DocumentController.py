@@ -1014,6 +1014,7 @@ class SelectedDataItemBinding(Observable.Broadcaster):
 
     # this message is received from the display, if there is one.
     # it is established using add_listener
+    # thread safe
     def display_changed(self, display):
         self.notify_listeners("data_item_binding_display_changed", self.display)
 

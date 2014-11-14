@@ -48,6 +48,7 @@ class DataItemProcessor(object):
         """Return the containing item."""
         return self.__weak_item() if self.__weak_item else None
 
+    # thread safe
     def data_item_changed(self):
         """ Called from item to indicate its data or metadata has changed."""
         self._set_cached_value_dirty()
@@ -67,6 +68,7 @@ class DataItemProcessor(object):
             # import logging
             # logging.debug("loading %s %s %s", self.__cached_value_dirty, self.__cache_property_name, self.item.uuid)
 
+    # thread safe
     def _set_cached_value_dirty(self):
         """Subclasses can use this to mark cache value dirty within item_property_changed."""
         self.item.set_cached_value_dirty(self.__cache_property_name)
