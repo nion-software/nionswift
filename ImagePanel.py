@@ -22,6 +22,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
@@ -1473,6 +1474,98 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         return "ignore"
 
 
+class HardwareSourceStateController(object):
+
+    """
+    Track the state of a hardware source, as it relates to the UI.
+
+    hardware_source may be None
+
+    Clients should call:
+        handle_play_clicked(workspace_controller)
+        handle_abort_clicked()
+
+    Clients can respond to:
+        on_display_name_changed(display_name)
+        on_play_button_state_changed(enabled, play_button_state)  play, scan, pause, stop
+        on_abort_button_state_changed(visible, enabled)
+    """
+
+    def __init__(self, hardware_source):
+        self.__hardware_source = hardware_source
+        if self.__hardware_source:
+            self.__hardware_source.add_listener(self)
+            self.__hardware_source.data_buffer.add_listener(self)
+        self.on_display_name_changed = None
+        self.on_play_button_state_changed = None
+        self.on_abort_button_state_changed = None
+
+    def close(self):
+        if self.__hardware_source:
+            self.__hardware_source.data_buffer.remove_listener(self)
+            self.__hardware_source.remove_listener(self)
+        self.__hardware_source = None
+
+    def __update_play_button_state(self):
+        if self.on_play_button_state_changed:
+            enabled = self.__hardware_source is not None
+            if self.__hardware_source and self.__hardware_source.features.get("is_scanning", False):
+                self.on_play_button_state_changed(enabled, "stop" if self.is_playing else "scan")
+            else:
+                self.on_play_button_state_changed(enabled, "pause" if self.is_playing else "play")
+
+    def __update_abort_button_state(self):
+        if self.on_abort_button_state_changed:
+            if self.__hardware_source and self.__hardware_source.features.get("is_scanning", False):
+                self.on_abort_button_state_changed(True, self.is_playing)
+            else:
+                self.on_abort_button_state_changed(False, False)
+
+    def initialize_state(self):
+        """ Call this to initialize the state of the UI after everything has been connected. """
+        if self.on_display_name_changed:
+            self.on_display_name_changed(self.display_name)
+        self.__update_play_button_state()
+        self.__update_abort_button_state()
+
+    def handle_play_clicked(self, workspace_controller):
+        """ Call this when the user clicks the play/pause button. """
+        if self.__hardware_source:
+            if self.is_playing:
+                self.__hardware_source.stop_playing()
+            else:
+                self.__hardware_source.start_playing(workspace_controller)
+
+    def handle_abort_clicked(self):
+        """ Call this when the user clicks the abort button. """
+        if self.__hardware_source:
+            self.__hardware_source.abort_playing()
+
+    @property
+    def is_playing(self):
+        """ Returns whether the hardware source is playing or not. """
+        return self.__hardware_source.data_buffer.is_playing if self.__hardware_source else False
+
+    @property
+    def display_name(self):
+        """ Returns the display name for the hardware source. """
+        return self.__hardware_source.display_name if self.__hardware_source else _("N/A")
+
+    # this message comes from the data buffer. it will always be invoked on the UI thread.
+    def playing_state_changed(self, hardware_source, is_playing):
+        if hardware_source == self.__hardware_source:
+            self.__update_play_button_state()
+            self.__update_abort_button_state()
+
+    # this message comes from the hardware source. may be called from thread.
+    def hardware_source_started(self, hardware_source):
+        pass
+
+    # this message comes from the hardware source. may be called from thread.
+    def hardware_source_stopped(self, hardware_source):
+        pass
+
+
 class LiveImagePanelController(object):
     """
         Represents a controller for the content of an image panel.
@@ -1480,60 +1573,88 @@ class LiveImagePanelController(object):
 
     def __init__(self, image_panel, hardware_source_id, hardware_source_channel_id):
         assert hardware_source_id is not None
-        self.__hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
-        if self.__hardware_source:
-            self.__hardware_source.add_listener(self)
-            self.__hardware_source.data_buffer.add_listener(self)
+        hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+        workspace_controller = image_panel.document_controller.workspace_controller
         self.type = "live"
+
+        # configure the user interface
         self.__image_panel = image_panel
         self.__image_panel.header_canvas_item.end_header_color = "#FF9999"
         self.__playback_controls_composition = CanvasItem.CanvasItemComposition()
         self.__playback_controls_composition.layout = CanvasItem.CanvasItemLayout()
         self.__playback_controls_composition.sizing.set_fixed_height(30)
-        self.__playback_controls_row = CanvasItem.CanvasItemComposition()
-        self.__playback_controls_row.layout = CanvasItem.CanvasItemRowLayout()
-        self.__play_button_canvas_item = CanvasItem.TextButtonCanvasItem(_("Play"))
-
-        def play_clicked():
-            if self.__hardware_source:
-                if self.__is_playing:
-                    self.__hardware_source.stop_playing()
-                else:
-                    self.__hardware_source.start_playing(image_panel.document_controller.workspace_controller)
-
-        self.__play_button_canvas_item.on_button_clicked = play_clicked
-        self.__play_button_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
-        hardware_source_display_name_canvas_item = CanvasItem.StaticTextCanvasItem(self.__hardware_source.display_name)
-        hardware_source_display_name_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
-        self.__playback_controls_row.add_canvas_item(self.__play_button_canvas_item)
-        self.__playback_controls_row.add_canvas_item(CanvasItem.EmptyCanvasItem())
-        self.__playback_controls_row.add_canvas_item(hardware_source_display_name_canvas_item)
+        playback_controls_row = CanvasItem.CanvasItemComposition()
+        playback_controls_row.layout = CanvasItem.CanvasItemRowLayout()
+        play_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        abort_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        hardware_source_display_name_canvas_item = CanvasItem.StaticTextCanvasItem(str())
+        playback_controls_row.add_canvas_item(play_button_canvas_item)
+        playback_controls_row.add_canvas_item(abort_button_canvas_item)
+        playback_controls_row.add_canvas_item(CanvasItem.EmptyCanvasItem())
+        playback_controls_row.add_canvas_item(hardware_source_display_name_canvas_item)
         self.__playback_controls_composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FF9999"))
-        self.__playback_controls_composition.add_canvas_item(self.__playback_controls_row)
+        self.__playback_controls_composition.add_canvas_item(playback_controls_row)
         self.__image_panel.footer_canvas_item.insert_canvas_item(0, self.__playback_controls_composition)
+
+        # configure the hardware source state controller
+        self.__hardware_source_state_controller = HardwareSourceStateController(hardware_source)
+
+        def display_name_changed(display_name):
+            hardware_source_display_name_canvas_item.text = display_name
+            hardware_source_display_name_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+            self.__playback_controls_composition.refresh_layout()
+
+        def play_button_state_changed(enabled, play_button_state):
+            play_button_canvas_item.enabled = enabled
+            map_play_button_state_to_text = {"play": _("Play"), "pause": _("Pause"), "scan": _("Scan"), "stop": _("Stop")}
+            play_button_canvas_item.text = map_play_button_state_to_text[play_button_state]
+            play_button_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+            self.__playback_controls_composition.refresh_layout()
+
+        def abort_button_state_changed(visible, enabled):
+            abort_button_canvas_item.text = _("Abort") if visible else str()
+            abort_button_canvas_item.enabled = enabled
+            abort_button_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+            self.__playback_controls_composition.refresh_layout()
+
+        self.__hardware_source_state_controller.on_display_name_changed = display_name_changed
+        self.__hardware_source_state_controller.on_play_button_state_changed = play_button_state_changed
+        self.__hardware_source_state_controller.on_abort_button_state_changed = abort_button_state_changed
+
+        play_button_canvas_item.on_button_clicked = lambda: self.__hardware_source_state_controller.handle_play_clicked(workspace_controller)
+        abort_button_canvas_item.on_button_clicked = self.__hardware_source_state_controller.handle_abort_clicked
+
+        self.__hardware_source_state_controller.initialize_state()
+
+        # configure the display item update
         self.__hardware_source_id = hardware_source_id
         self.__hardware_source_channel_id = hardware_source_channel_id
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__image_panel.document_controller.data_items_binding)
 
-        def is_live_filter(data_item):
-            return data_item.is_live
-
-        self.__filtered_data_items_binding.filter = is_live_filter
-
-        def data_item_inserted(data_item):
+        def matches_hardware_source(data_item):
             hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
-            if hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id:
-                self.__image_panel.set_displayed_data_item(data_item)
+            return hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id
 
-        def data_item_removed(data_item):
-            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
-            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
-            if hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id:
+        def sort_by_date_key(data_item):
+            """ A sort key to for the datetime_original field of a data item. """
+            return data_item.title + str(data_item.uuid) if data_item.is_live else str(), Utility.get_datetime_from_datetime_item(data_item.datetime_original)
+
+        self.__filtered_data_items_binding.sort_key = sort_by_date_key
+        self.__filtered_data_items_binding.sort_reverse = True
+        self.__filtered_data_items_binding.filter = matches_hardware_source
+
+        def update_display_data_item():
+            data_items = self.__filtered_data_items_binding.data_items
+            if len(data_items) > 0:
+                self.__image_panel.set_displayed_data_item(data_items[0])
+            else:
                 self.__image_panel.set_displayed_data_item(None)
 
-        self.__filtered_data_items_binding.inserters[id(self)] = lambda data_item, before_index: self.__image_panel.queue_task(functools.partial(data_item_inserted, data_item))
-        self.__filtered_data_items_binding.removers[id(self)] = lambda data_item, index: self.__image_panel.queue_task(functools.partial(data_item_removed, data_item))
+        self.__filtered_data_items_binding.inserters[id(self)] = lambda data_item, before_index: self.__image_panel.queue_task(update_display_data_item)
+        self.__filtered_data_items_binding.removers[id(self)] = lambda data_item, index: self.__image_panel.queue_task(update_display_data_item)
+
+        update_display_data_item()
 
     def close(self):
         del self.__filtered_data_items_binding.inserters[id(self)]
@@ -1541,9 +1662,8 @@ class LiveImagePanelController(object):
         self.__image_panel.header_canvas_item.reset_header_colors()
         self.__image_panel.footer_canvas_item.remove_canvas_item(self.__playback_controls_composition)
         self.__image_panel = None
-        self.__hardware_source.data_buffer.remove_listener(self)
-        self.__hardware_source.remove_listener(self)
-        self.__hardware_source = None
+        self.__hardware_source_state_controller.close()
+        self.__hardware_source_state_controller = None
 
     @classmethod
     def make(cls, image_panel, d):
@@ -1557,17 +1677,6 @@ class LiveImagePanelController(object):
         d["hardware_source_id"] = self.__hardware_source_id
         if self.__hardware_source_channel_id is not None:
             d["hardware_source_channel_id"] = self.__hardware_source_channel_id
-
-    @property
-    def __is_playing(self):
-        return self.__hardware_source.data_buffer.is_playing if self.__hardware_source else False
-
-    # this message comes from the data buffer. it will always be invoked on the UI thread.
-    def playing_state_changed(self, hardware_source, is_playing):
-        if hardware_source == self.__hardware_source:
-            self.__play_button_canvas_item.text = _("Pause") if self.__is_playing else _("Play")
-            self.__play_button_canvas_item.size_to_content(self.__image_panel.image_panel_get_font_metrics)
-            self.__playback_controls_composition.refresh_layout()
 
 
 class BrowserImagePanelController(object):
@@ -1767,14 +1876,14 @@ class ImagePanel(object):
         in that it will recognize when it is receiving a live acquisition and automatically
         set up the live image panel controller.
         """
+        if self.__image_panel_controller:
+            self.__image_panel_controller.close()
+            self.__image_panel_controller = None
         if data_item.is_live:
             hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
             if hardware_source_id:
                 self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
-        elif self.__image_panel_controller:
-            self.__image_panel_controller.close()
-            self.__image_panel_controller = None
         self.set_displayed_data_item(data_item)
 
     def __get_display(self):

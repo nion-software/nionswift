@@ -258,6 +258,7 @@ class HardwareSource(Observable.Broadcaster):
         self.__portlock = threading.Lock()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
+        self.features = dict()
         self.__data_buffer = None
         self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
         self.__channel_states = {}
