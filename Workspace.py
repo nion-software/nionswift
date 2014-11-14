@@ -40,6 +40,8 @@ class Workspace(object):
 
     def __init__(self, document_controller, workspace_id):
         self.__document_controller_weakref = weakref.ref(document_controller)
+        # this results in data_item_deleted messages
+        self.document_controller.document_model.add_listener(self)
 
         self.ui = self.document_controller.ui
 
@@ -77,6 +79,11 @@ class Workspace(object):
         self.__layout_stack = list()
         self.__layout_stack_current = None
 
+        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
+        self.__channel_activations = set()  # maps hardware_source_id to a set of activated channels
+        self.__channel_data_items = dict()  # maps channel to data item
+        self.__mutex = threading.RLock()
+
     def close(self):
         content_map = {}
         for image_panel in self.image_panels:
@@ -93,6 +100,7 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = None
+        self.document_controller.document_model.remove_listener(self)
 
     def periodic(self):
         # for each of the panels too
@@ -397,103 +405,6 @@ class Workspace(object):
             return "copy"
         return "ignore"
 
-
-class AbstractWorkspaceController(object):
-
-    """
-        The workspace controller manages the workspace during acquisition.
-
-        It creates data items for each of the channels, re-using them and displaying
-        them according to policy.
-
-        :param nion.swift.DocumentController.DocumentController document_controller: The document controller.
-        :param string session_id: The session id.
-
-        The workspace controller is typically created via the document controller at the time acquisition
-        starts.
-    """
-
-    def __init__(self, document_controller, session_id):
-        self.__weak_document_controller = weakref.ref(document_controller)
-        self.session_id = session_id
-        # this results in data_item_deleted messages
-        self.document_controller.document_model.add_listener(self)
-
-    def close(self):
-        """
-            Subclasses can override this method to perform close actions and must call super.
-
-            Clients should call this to close down the workspace controller.
-        """
-        self.document_controller.document_model.remove_listener(self)
-
-    def __get_document_controller(self):
-        """ The document controller. """
-        return self.__weak_document_controller() if self.__weak_document_controller else None
-    document_controller = property(__get_document_controller)
-
-    def will_start_playing(self, hardware_source):
-        """
-            Signal that the hardware source has started playing.
-
-            Subclasses should override this to perform any action when the hardware source
-            starts playing.
-
-            This method will only be called from the UI thread.
-
-            :param nion.swift.HardwareSource.HardwareSource: The hardware source.
-        """
-        pass
-
-    def did_stop_playing(self, hardware_source):
-        """
-            Signal that the hardware source has stopped playing.
-
-            Subclasses should override this to perform any action before the hardware source
-            stops playing.
-
-            This method will only be called from the UI thread.
-
-            :param nion.swift.HardwareSource.HardwareSource: The hardware source.
-        """
-        pass
-
-    def sync_channels_to_data_items(self, channels, hardware_source):
-
-        """
-            Returns a mapping of channels to data items.
-
-            Subclasses must override this method.
-
-            :param list channels: A list of channels (strings).
-            :param nion.swift.HardwareSource.HardwareSource: The hardware source.
-
-            :return: A dict mapping channels to data items.
-
-            This call is thread safe.
-        """
-        raise NotImplementedError()
-
-
-class WorkspaceController(AbstractWorkspaceController):
-
-    """
-        The workspace controller manages the workspace during acquisition.
-
-        It creates data items for each of the channels, re-using them and displaying
-        them according to policy.
-
-        :param nion.swift.DocumentController.DocumentController document_controller: The document controller.
-        :param string session_id: The session id.
-    """
-
-    def __init__(self, document_controller, session_id):
-        super(WorkspaceController, self).__init__(document_controller, session_id)
-        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_activations = set()  # maps hardware_source_id to a set of activated channels
-        self.__channel_data_items = dict()  # maps channel to data item
-        self.__mutex = threading.RLock()
-
     def data_item_deleted(self, data_item):
         with self.__mutex:
             for channel_key in self.__channel_data_items.keys():
@@ -507,9 +418,37 @@ class WorkspaceController(AbstractWorkspaceController):
             self.__channel_data_items[channel_key] = data_item
             self.__channel_activations.add(channel_key)
 
+    def will_start_playing(self, hardware_source):
+        """
+                Signal that the hardware source has started playing.
+
+                Subclasses should override this to perform any action when the hardware source
+                starts playing.
+
+                This method will only be called from the UI thread.
+
+                :param nion.swift.HardwareSource.HardwareSource: The hardware source.
+            """
+        pass
+
+    def did_stop_playing(self, hardware_source):
+        """
+                Signal that the hardware source has stopped playing.
+
+                Subclasses should override this to perform any action before the hardware source
+                stops playing.
+
+                This method will only be called from the UI thread.
+
+                :param nion.swift.HardwareSource.HardwareSource: The hardware source.
+            """
+        pass
+
     def sync_channels_to_data_items(self, channels, hardware_source):
 
         document_model = self.document_controller.document_model
+        assert document_model
+        session_id = document_model.session_id
 
         # these functions will be run on the main thread.
         # be careful about binding the parameter. cannot use 'data_item' directly.
@@ -540,7 +479,7 @@ class WorkspaceController(AbstractWorkspaceController):
                     data_item = None
             # if everything but session or live-ness matches, copy it and re-use.
             # this keeps the users display preferences intact.
-            if data_item and data_item.has_master_data and data_item.session_id != self.session_id:
+            if data_item and data_item.has_master_data and data_item.session_id != session_id:
                 do_copy = True
             # finally, verify that this data item is live. if it isn't live, copy it and add the
             # copy to the group, but re-use the original. this helps preserve the users display
@@ -549,7 +488,7 @@ class WorkspaceController(AbstractWorkspaceController):
                 do_copy = True
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
-                data_item.session_id = self.session_id  # immediately update the session id
+                data_item.session_id = session_id  # immediately update the session id
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
             if not data_item:
@@ -562,8 +501,8 @@ class WorkspaceController(AbstractWorkspaceController):
                 with self.__mutex:
                     self.__channel_activations.discard(channel_key)
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            if data_item.session_id != self.session_id:
-                data_item.session_id = self.session_id
+            if data_item.session_id != session_id:
+                data_item.session_id = session_id
             with self.__mutex:
                 self.__channel_data_items[channel_key] = data_item
                 data_items[channel] = data_item

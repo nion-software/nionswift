@@ -346,9 +346,7 @@ class DocumentController(Observable.Broadcaster):
         #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
 
     def __get_workspace_controller(self):
-        if not self.__workspace_controller:
-            self.__workspace_controller = Workspace.WorkspaceController(self, self.document_model.session_id)
-        return self.__workspace_controller
+        return self.workspace
     workspace_controller = property(__get_workspace_controller)
 
     def __get_data_items_binding(self):
