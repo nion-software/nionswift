@@ -1473,24 +1473,33 @@ class LiveImagePanelController(object):
     """
         Represents a controller for the content of an image panel.
     """
-    def __init__(self, image_panel):
+
+    def __init__(self, image_panel, hardware_source_id, hardware_source_channel_id):
+        assert hardware_source_id is not None
         self.type = "live"
         self.__image_panel = image_panel
         self.__image_panel.header_canvas_item.end_header_color = "#339966"
+        self.__hardware_source_id = hardware_source_id
+        self.__hardware_source_channel_id = hardware_source_channel_id
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__image_panel.document_controller.data_items_binding)
+
         def is_live_filter(data_item):
             return data_item.is_live
+
         self.__filtered_data_items_binding.filter = is_live_filter
+
         def data_item_inserted(data_item):
             hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
-            if hardware_source_id == "simulator_2d":
+            if hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id:
                 self.__image_panel.set_displayed_data_item(data_item)
+
         def data_item_removed(data_item):
             hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
-            if hardware_source_id == "simulator_2d":
+            if hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id:
                 self.__image_panel.set_displayed_data_item(None)
+
         self.__filtered_data_items_binding.inserters[id(self)] = lambda data_item, before_index: self.__image_panel.queue_task(functools.partial(data_item_inserted, data_item))
         self.__filtered_data_items_binding.removers[id(self)] = lambda data_item, index: self.__image_panel.queue_task(functools.partial(data_item_removed, data_item))
 
@@ -1499,6 +1508,19 @@ class LiveImagePanelController(object):
         del self.__filtered_data_items_binding.removers[id(self)]
         self.__image_panel.header_canvas_item.reset_header_colors()
         self.__image_panel = None
+
+    @classmethod
+    def make(self, image_panel, d):
+        hardware_source_id = d.get("hardware_source_id")
+        hardware_source_channel_id = d.get("hardware_source_channel_id")
+        if hardware_source_id:
+            return LiveImagePanelController(image_panel, hardware_source_id, hardware_source_channel_id)
+        return None
+
+    def save(self, d):
+        d["hardware_source_id"] = self.__hardware_source_id
+        if self.__hardware_source_channel_id is not None:
+            d["hardware_source_channel_id"] = self.__hardware_source_channel_id
 
 
 class BrowserImagePanelController(object):
@@ -1520,6 +1542,13 @@ class BrowserImagePanelController(object):
         self.__image_panel.header_canvas_item.reset_header_colors()
         self.__image_panel.document_controller.remove_listener(self)
         self.__image_panel = None
+
+    @classmethod
+    def make(self, image_panel, d):
+        return BrowserImagePanelController(image_panel)
+
+    def save(self, d):
+        pass
 
     def browser_data_item_changed(self, data_item):
         self.__image_panel.set_displayed_data_item(data_item)
@@ -1627,6 +1656,7 @@ class ImagePanel(object):
     def save_contents(self, d):
         if self.__image_panel_controller:
             d["controller_type"] = self.__image_panel_controller.type
+            self.__image_panel_controller.save(d)
         else:
             data_item = self.get_displayed_data_item()
             if data_item:
@@ -1674,6 +1704,19 @@ class ImagePanel(object):
     def set_displayed_data_item(self, data_item):
         assert data_item is None or isinstance(data_item, DataItem.DataItem), data_item
         self.__set_display(data_item.displays[0] if data_item else None)
+
+    def replace_displayed_data_item(self, data_item):
+        """
+        Replace the displayed data item. This method differs from set_display_data_item
+        in that it will recognize when it is receiving a live acquisition and automatically
+        set up the live image panel controller.
+        """
+        if data_item.is_live:
+            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
+            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
+            if hardware_source_id:
+                self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
+        self.set_displayed_data_item(data_item)
 
     def __get_display(self):
         return self.__display
@@ -1855,12 +1898,12 @@ class ImagePanelManager(Observable.Broadcaster):
 
     def make_image_panel_controller(self, controller_type, image_panel, d):
         if controller_type in self.__image_panel_controllers:
-            return self.__image_panel_controllers[controller_type](image_panel, d)
+            return self.__image_panel_controllers[controller_type].make(image_panel, d)
         return None
 
 
-ImagePanelManager().register_image_panel_controller("browser", lambda image_panel, d: BrowserImagePanelController(image_panel))
-ImagePanelManager().register_image_panel_controller("live", lambda image_panel, d: LiveImagePanelController(image_panel))
+ImagePanelManager().register_image_panel_controller("browser", BrowserImagePanelController)
+ImagePanelManager().register_image_panel_controller("live", LiveImagePanelController)
 
 
 class InfoPanel(Panel.Panel):
