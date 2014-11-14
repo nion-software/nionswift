@@ -192,50 +192,77 @@ class Workspace(object):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def __construct(self, desc):
+    def _construct(self, desc):
+        selected_image_panel = None
         type = desc["type"]
         container = None
         item = None
+        post_children_adjust = lambda: None
         if type == "container":
             container = CanvasItem.CanvasItemComposition()
         elif type == "splitter":
             container = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
+            def splitter_post_children_adjust():
+                splits = desc.get("splits")
+                if splits is not None:
+                    container.splits = splits
+            post_children_adjust = splitter_post_children_adjust
         elif type == "image":
-            item = self.create_image_panel(desc["id"]).canvas_item
+            image_panel = self.create_image_panel(desc["id"])
+            if desc.get("selected", False):
+                selected_image_panel = image_panel
+            item = image_panel.canvas_item
         if container:
             children = desc.get("children", list())
             for child_desc in children:
-                container.add_canvas_item(self.__construct(child_desc))
-            return container
-        return item
+                child_canvas_item, child_selected_image_panel = self._construct(child_desc)
+                container.add_canvas_item(child_canvas_item)
+                selected_image_panel = child_selected_image_panel if child_selected_image_panel else selected_image_panel
+            post_children_adjust()
+            return container, selected_image_panel
+        return item, selected_image_panel
+
+    def _deconstruct(self, canvas_item):
+        # _document_controller.workspace._deconstruct(_document_controller.workspace.canvas_item.canvas_items[0])
+        if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
+            children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
+            return { "type": "splitter", "orientation": canvas_item.orientation, "splits": copy.copy(canvas_item.splits), "children": children }
+        def get_image_panel_by_canvas_item(canvas_item):
+            for image_panel in self.image_panels:
+                if image_panel.canvas_item == canvas_item:
+                    return image_panel
+            return None
+        image_panel = get_image_panel_by_canvas_item(canvas_item)
+        if image_panel:
+            desc = { "type": "image", "id": image_panel.element_id }
+            if image_panel._is_selected():
+                desc["selected"] = True
+            return desc
+        return None
+
+    def _get_default_layout(self, layout_id):
+        if layout_id == "2x1":
+            d = { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" } ] }
+        elif layout_id == "1x2":
+            d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" } ] }
+        elif layout_id == "3x1":
+            d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "3rd-image" } ] }
+        elif layout_id == "2x2":
+            d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "3rd-image" } ] }, { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "4th-image" } ] } ] }
+        elif layout_id == "3x2":
+            d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "4th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "5th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "3rd-image" }, { "type": "image", "id": "6th-image" } ] } ] }
+        else:  # default 1x1
+            layout_id = "1x1"
+            d = { "type": "image", "id": "primary-image", "selected": True }
+        return layout_id, d
 
     def __default_layout_fn(self, workspace, layout_id):
         self.canvas_item = CanvasItem.RootCanvasItem(self.ui)
         self.canvas_item.focusable = True
-        if layout_id == "2x1":
-            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" } ] }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
-        elif layout_id == "1x2":
-            d = { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" } ] }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
-        elif layout_id == "3x1":
-            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "3rd-image" } ] }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
-        elif layout_id == "2x2":
-            d = { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "3rd-image" } ] }, { "type": "splitter", "orientation": "vertical", "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "4th-image" } ] } ] }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
-        elif layout_id == "3x2":
-            d = { "type": "splitter", "orientation": "vertical", "children": [ { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "primary-image" }, { "type": "image", "id": "4th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "5th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "children": [ { "type": "image", "id": "3rd-image" }, { "type": "image", "id": "6th-image" } ] } ] }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), layout_id
-        else:  # default 1x1
-            d = { "type": "image", "id": "primary-image" }
-            self.canvas_item.add_canvas_item(self.__construct(d))
-            return self.canvas_item.canvas_widget, self.__get_image_panel_by_id("primary-image"), "1x1"
+        layout_id, d = self._get_default_layout(layout_id)
+        canvas_item, selected_image_panel = self._construct(d)
+        self.canvas_item.add_canvas_item(canvas_item)
+        return self.canvas_item.canvas_widget, selected_image_panel, layout_id
 
     def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
         if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case

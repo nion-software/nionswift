@@ -168,7 +168,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         document_controller.workspace.change_layout("2x1")
         root_canvas_item = document_controller.workspace.image_row.children[0]._root_canvas_item()
-        root_canvas_item.wants_mouse_events = True
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in first panel
         modifiers = Test.KeyboardModifiers()
@@ -190,6 +189,22 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(document_controller.workspace.image_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace.image_panels[1]._is_focused())
         self.assertFalse(document_controller.workspace.image_panels[1]._is_selected())
+
+    def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace.change_layout("2x1")
+        root_canvas_item = document_controller.workspace.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        # deconstruct
+        desc1 = document_controller.workspace._get_default_layout("2x1")[1]
+        desc2 = document_controller.workspace._deconstruct(root_canvas_item.canvas_items[0])
+        self.assertEqual(desc1, desc2)
 
 
 if __name__ == '__main__':
