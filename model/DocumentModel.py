@@ -18,6 +18,7 @@ import scipy
 # local libraries
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Storage
@@ -418,6 +419,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_group.connect_data_items(self.get_data_item_by_uuid)
 
     def close(self):
+        HardwareSource.HardwareSourceManager().abort_all_and_close()
         self.__thread_pool.close()
         for data_item in self.data_items:
             data_item.close()
