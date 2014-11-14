@@ -173,6 +173,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile()
         image_panel.set_displayed_data_item(data_item)
         image_panel.display.graphic_selection.clear()
@@ -193,9 +194,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile()
         line_profile_operation = line_profile_data_item.operations[0]
-        image_panel.set_displayed_data_item(data_item)
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct

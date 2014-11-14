@@ -1488,6 +1488,7 @@ class ImagePanel(object):
 
 
         self.__content_canvas_item = ContentCanvasItem(self)
+        self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__overlay_canvas_item = ImagePanelOverlayCanvasItem(self)
@@ -1545,22 +1546,6 @@ class ImagePanel(object):
 
     def queue_task(self, task):
         self.document_controller.queue_task(task)
-
-    # return a dictionary that can be used to restore the content of this image panel
-    def save_content(self):
-        content = {}
-        data_item = self.get_displayed_data_item()
-        if data_item:
-            content["data-item"] = data_item.uuid
-        return content
-
-    # restore content from dictionary and document controller
-    def restore_content(self, content, document_controller):
-        if "data-item" in content:
-            data_item_uuid = content["data-item"]
-            data_item = document_controller.document_model.get_data_item_by_key(data_item_uuid)
-            if data_item:
-                self.__set_display(data_item.displays[0])
 
     def set_selected(self, selected):
         if self.__overlay_canvas_item:  # may be closed
@@ -1668,6 +1653,8 @@ class ImagePanel(object):
                 self.__content_canvas_item.update()
         if self.display_canvas_item:  # may be closed
             self.display_canvas_item.update_display(display)
+        if self.__content_canvas_item:  # may be closed
+            self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_image_panel == self
         if self.__overlay_canvas_item:  # may be closed
             self.__overlay_canvas_item.selected = display is not None and selected

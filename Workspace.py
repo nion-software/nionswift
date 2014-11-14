@@ -25,7 +25,7 @@ from nion.ui import Geometry
 _ = gettext.gettext
 
 
-class Workspace(object):
+class WorkspaceController(object):
     """
         The Workspace object keeps the overall layout of the window. It contains
         root item which contains tab groups arranged into boxes (rows and columns).
@@ -74,10 +74,7 @@ class Workspace(object):
 
         self.create_panels(visible_panels)
 
-        self.__layout_id = None
-
-        self.__layout_stack = list()
-        self.__layout_stack_current = None
+        self.__workspace = None
 
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
         self.__channel_activations = set()  # maps hardware_source_id to a set of activated channels
@@ -85,17 +82,16 @@ class Workspace(object):
         self.__mutex = threading.RLock()
 
     def close(self):
-        content_map = {}
-        for image_panel in self.image_panels:
-            content_map[image_panel.element_id] = image_panel.save_content()
-        self.ui.set_persistent_string("Workspace/%s/Content" % self.workspace_id, pickle.dumps(content_map))
-        self.ui.set_persistent_string("Workspace/%s/Layout" % self.workspace_id, self.__layout_id)
+        if self.__workspace:
+            # TODO: remove this; it should be updated whenever the workspace changes anyway.
+            self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
         for image_panel in self.image_panels:
             image_panel.close()
         self.image_panels = []
         if self.__canvas_item:
             self.__canvas_item.close()
             self.__canvas_item = None
+        self.__workspace = None
         for dock_widget in copy.copy(self.dock_widgets):
             dock_widget.panel.close()
             dock_widget.close()
@@ -104,7 +100,6 @@ class Workspace(object):
         self.filter_panel = None
         self.filter_row = None
         self.image_row = None
-        self.__layout_stack = None
         self.__channel_activations = None
         self.__channel_data_items = None
         self.document_controller.document_model.remove_listener(self)
@@ -135,21 +130,9 @@ class Workspace(object):
         self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
         self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
 
-    def restore_content(self):
-        content_string = self.ui.get_persistent_string("Workspace/%s/Content" % self.workspace_id)
-        if content_string:
-            content_map = pickle.loads(content_string)
-            for image_panel in self.image_panels:
-                if image_panel.element_id in content_map:
-                    image_panel.restore_content(content_map[image_panel.element_id], self.document_controller)
-
     def __get_document_controller(self):
         return self.__document_controller_weakref()
     document_controller = property(__get_document_controller)
-
-    def __get_layout_id(self):
-        return self.__layout_id
-    layout_id = property(__get_layout_id)
 
     def _find_dock_widget(self, dock_widget_id):
         for dock_widget in self.dock_widgets:
@@ -194,17 +177,16 @@ class Workspace(object):
             traceback.print_stack()
             return None
 
-    def create_image_panel(self, element_id):
+    def create_image_panel(self):
         image_panel = ImagePanel.ImagePanel(self.document_controller)
         image_panel.title = _("Image")
-        image_panel.element_id = element_id
         return image_panel
 
     def __get_primary_image_panel(self):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
     primary_image_panel = property(__get_primary_image_panel)
 
-    def _construct(self, desc, image_panels):
+    def _construct(self, desc, image_panels, lookup_data_item):
         selected_image_panel = None
         type = desc["type"]
         container = None
@@ -220,15 +202,20 @@ class Workspace(object):
                     container.splits = splits
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
-            image_panel = self.create_image_panel(desc["id"])
+            image_panel = self.create_image_panel()
             image_panels.append(image_panel)
             if desc.get("selected", False):
                 selected_image_panel = image_panel
+            data_item_uuid_str = desc.get("data_item_uuid")
+            if data_item_uuid_str:
+                data_item = lookup_data_item(uuid.UUID(data_item_uuid_str))
+                if data_item:
+                    image_panel.set_displayed_data_item(data_item)
             item = image_panel.canvas_item
         if container:
             children = desc.get("children", list())
             for child_desc in children:
-                child_canvas_item, child_selected_image_panel = self._construct(child_desc, image_panels)
+                child_canvas_item, child_selected_image_panel = self._construct(child_desc, image_panels, lookup_data_item)
                 container.add_canvas_item(child_canvas_item)
                 selected_image_panel = child_selected_image_panel if child_selected_image_panel else selected_image_panel
             post_children_adjust()
@@ -236,7 +223,6 @@ class Workspace(object):
         return item, selected_image_panel
 
     def _deconstruct(self, canvas_item):
-        # _document_controller.workspace._deconstruct(_document_controller.workspace.canvas_item.canvas_items[0])
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
             return { "type": "splitter", "orientation": canvas_item.orientation, "splits": copy.copy(canvas_item.splits), "children": children }
@@ -247,63 +233,21 @@ class Workspace(object):
             return None
         image_panel = get_image_panel_by_canvas_item(canvas_item)
         if image_panel:
-            desc = { "type": "image", "id": image_panel.element_id }
+            desc = { "type": "image" }
             if image_panel._is_selected():
                 desc["selected"] = True
+            data_item = image_panel.get_displayed_data_item()
+            if data_item:
+                desc["data_item_uuid"] = str(data_item.uuid)
             return desc
         return None
 
-    def _get_default_layout(self, layout_id):
-        if layout_id == "2x1":
-            d = { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" } ] }
-        elif layout_id == "1x2":
-            d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" } ] }
-        elif layout_id == "3x1":
-            d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "3rd-image" } ] }
-        elif layout_id == "2x2":
-            d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "3rd-image" } ] }, { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "4th-image" } ] } ] }
-        elif layout_id == "3x2":
-            d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "primary-image", "selected": True }, { "type": "image", "id": "4th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "secondary-image" }, { "type": "image", "id": "5th-image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "id": "3rd-image" }, { "type": "image", "id": "6th-image" } ] } ] }
-        else:  # default 1x1
-            layout_id = "1x1"
-            d = { "type": "image", "id": "primary-image", "selected": True }
-        return layout_id, d
-
-    def __default_layout_fn(self, workspace, layout_id):
-        self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
-        self.__canvas_item.focusable = True
-        layout_id, d = self._get_default_layout(layout_id)
-        image_panels = list()
-        canvas_item, selected_image_panel = self._construct(d, image_panels)
-        self.image_panels.extend(image_panels)
-        for image_panel in self.image_panels:
-            image_panel.workspace_controller = self
-        self.__canvas_item.add_canvas_item(canvas_item)
-        return self.__canvas_item.canvas_widget, selected_image_panel, layout_id
-
-    def change_layout(self, layout_id, preferred_data_items=None, adjust=None, layout_fn=None):
-        if layout_id is not None and layout_id == self.__layout_id:  # check for None as special test case
-            # TODO: don't change layout if new layout not requested
-            pass  # return  ## tests don't pass with the check.
-        # remember what's current being displayed
-        old_selected_data_item = self.document_controller.selected_data_item
-        old_displayed_data_items = []
-        for image_panel in self.image_panels:
-            if image_panel.get_displayed_data_item() is not None:
-                old_displayed_data_items.append(image_panel.get_displayed_data_item())
-        # remember the current layout.
-        # 1321
-        # first store the existing layout in the current slot
-        if self.__layout_stack_current is not None:  # handle startup case
-            self.__layout_stack[self.__layout_stack_current] = (self.__layout_id, [weakref.ref(data_item) for data_item in old_displayed_data_items])
-        # now insert new layout placeholder
-        if adjust is not None:
-            self.__layout_stack_current += adjust
-            self.__layout_stack[self.__layout_stack_current] = None
-        else:
-            del self.__layout_stack[0:self.__layout_stack_current]
-            self.__layout_stack.insert(0, None)
-            self.__layout_stack_current = 0
+    def change_workspace(self, workspace):
+        assert workspace is not None
+        # save the current workspace
+        if self.__workspace:
+            # TODO: remove this; it should be updated whenever the workspace changes anyway.
+            self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
         # remove existing layout and canvas item
         for image_panel in self.image_panels:
             image_panel.close()
@@ -313,64 +257,47 @@ class Workspace(object):
         if self.__canvas_item:
             self.__canvas_item.close()
             self.__canvas_item = None
-        # create the new layout
-        if layout_fn is None:
-            layout_fn = self.__default_layout_fn
-        content, image_panel, layout_id = layout_fn(self, layout_id)
-        self.image_row.add(content)
-        self.document_controller.selected_image_panel = image_panel
-        if layout_id == "1x1" and adjust is None and self.document_controller.selected_image_panel is not None:
-            preferred_data_items = [old_selected_data_item]
-        # restore what was displayed
-        displayed_data_items = []
-        # use the preferred data items first
-        preferred_data_items = copy.copy(list(preferred_data_items)) if preferred_data_items is not None else list()
-        # then for each data item that was already displayed, use it if it's not already in the list
-        for old_displayed_data_item in old_displayed_data_items:
-            if old_displayed_data_item not in preferred_data_items:
-                preferred_data_items.append(old_displayed_data_item)
-        # last displayed data item is used to display derived data, if present
-        last_displayed_data_item = None
-        for index, image_panel in enumerate(self.image_panels):
-            data_item_to_display = None
-            if len(preferred_data_items) > index and preferred_data_items[index] is not None:
-                data_item_to_display = preferred_data_items[index]
-                last_displayed_data_item = data_item_to_display
-            elif last_displayed_data_item:
-                # search for derived data items
-                for data_item in self.document_controller.document_model.data_items:
-                    if data_item.data_source == last_displayed_data_item and data_item not in displayed_data_items:
-                        data_item_to_display = data_item
-                        break
-            if not data_item_to_display:
-                # TODO: make this search through the current criteria, such as group or session
-                for data_item in self.document_controller.document_model.get_flat_data_item_generator():
-                    if data_item not in displayed_data_items:
-                        data_item_to_display = data_item
-                        break
-            # update the data item in the image panel to display it
-            image_panel.set_displayed_data_item(data_item_to_display)
-            displayed_data_items.append(data_item_to_display)
-        # fill in the missing items if possible
-        # save the layout id
-        self.__layout_id = layout_id
+        # store the new workspace
+        self.__workspace = workspace
+        # create new layout and canvas item
+        self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        self.__canvas_item.focusable = True
+        image_panels = list()  # to be populated by _construct
+        document_model = self.document_controller.document_model
+        canvas_item, selected_image_panel = self._construct(self.__workspace.layout, image_panels, document_model.get_data_item_by_uuid)
+        self.image_panels.extend(image_panels)
+        for image_panel in self.image_panels:
+            image_panel.workspace_controller = self
+        self.__canvas_item.add_canvas_item(canvas_item)
+        self.image_row.add(self.__canvas_item.canvas_widget)
+        self.document_controller.selected_image_panel = selected_image_panel
+        document_model.workspace_uuid = workspace.uuid
 
-    def restore_layout(self):
-        layout_id = self.ui.get_persistent_string("Workspace/%s/Layout" % self.workspace_id)
-        self.change_layout(layout_id)
-        self.restore_content()
+    def restore(self, workspace_uuid):
+        """
+            Restore the workspace to the given workspace_uuid.
+
+            If workspace_uuid is None then create a new workspace and use it.
+        """
+        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        if workspace is None:
+            workspace = self.new_workspace()
+        self.change_workspace(workspace)
+        #self.restore_content()
 
     def change_to_previous_workspace(self):
-        if self.__layout_stack_current is not None and self.__layout_stack_current + 1 < len(self.__layout_stack):
-            layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current + 1]
-            preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
-            self.change_layout(layout_id, preferred_data_items, adjust=1)
+        pass
 
     def change_to_next_workspace(self):
-        if self.__layout_stack_current is not None and self.__layout_stack_current > 0:
-            layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current - 1]
-            preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
-            self.change_layout(layout_id, preferred_data_items, adjust=-1)
+        pass
+
+    def new_workspace(self, name=None, layout=None):
+        """ Create a new workspace, insert into document_model, and return it. """
+        workspace = WorkspaceLayout.Workspace()
+        self.document_controller.document_model.append_workspace(workspace)
+        workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
+        workspace.name = name if name is not None else _("Workspace")
+        return workspace
 
     def __replace_displayed_data_item(self, image_panel, data_item):
         """ Used in drag/drop support. """

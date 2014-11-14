@@ -442,17 +442,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def append_workspace_layout(self, workspace_layout):
-        self.insert_workspace_layout(len(self.workspace_layouts), workspace_layout)
+    def append_workspace(self, workspace):
+        self.insert_workspace(len(self.workspaces), workspace)
 
-    def insert_workspace_layout(self, before_index, workspace_layout):
-        self.insert_item("workspace_layouts", before_index, workspace_layout)
-        self.notify_insert_item("workspace_layouts", workspace_layout, before_index)
+    def insert_workspace(self, before_index, workspace):
+        self.insert_item("workspaces", before_index, workspace)
+        self.notify_insert_item("workspaces", workspace, before_index)
 
-    def remove_workspace_layout(self, workspace_layout):
-        index = self.workspace_layouts.index(workspace_layout)
-        self.remove_item("workspace_layouts", workspace_layout)
-        self.notify_remove_item("workspace_layouts", workspace_layout, index)
+    def remove_workspace(self, workspace):
+        index = self.workspaces.index(workspace)
+        self.remove_item("workspaces", workspace)
+        self.notify_remove_item("workspaces", workspace, index)
 
     def append_data_item(self, data_item):
         self.insert_data_item(len(self.data_items), data_item)

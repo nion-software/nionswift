@@ -78,8 +78,8 @@ class DocumentController(Observable.Broadcaster):
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
-            self.__workspace_controller = Workspace.Workspace(self, workspace_id)
-            self.workspace.restore_layout()
+            self.__workspace_controller = Workspace.WorkspaceController(self, workspace_id)
+            self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
     def close(self):
         # recognize when we're running as test and finish out periodic operations
@@ -116,11 +116,11 @@ class DocumentController(Observable.Broadcaster):
         self.ui.destroy_document_window(self)
 
     def about_to_show(self):
-        geometry, state = self.workspace.restore_geometry_state()
+        geometry, state = self.workspace_controller.restore_geometry_state()
         self.document_window.restore(geometry, state)
 
     def about_to_close(self, geometry, state):
-        self.workspace.save_geometry_state(geometry, state)
+        self.workspace_controller.save_geometry_state(geometry, state)
         self.close()
 
     def register_console(self, console):
@@ -235,9 +235,8 @@ class DocumentController(Observable.Broadcaster):
             self.__dynamic_view_actions = []
             for workspace in self.document_model.workspaces:
                 def switch_to_workspace():
-                    logging.debug("switch %s", workspace.name)
-                    self.workspace_controller.change_to_workspace(workspace)
-                action = workspace.add_menu_item(workspace.name, switch_to_workspace)
+                    self.workspace_controller.change_workspace(workspace)
+                action = self.view_menu.add_menu_item(workspace.name, switch_to_workspace)
                 self.__dynamic_view_actions.append(action)
 
         self.view_menu.on_about_to_show = adjust_view_menu
