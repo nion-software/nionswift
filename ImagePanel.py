@@ -18,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import Display
 from nion.swift.model import Graphics
+from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
@@ -1479,9 +1480,37 @@ class LiveImagePanelController(object):
 
     def __init__(self, image_panel, hardware_source_id, hardware_source_channel_id):
         assert hardware_source_id is not None
+        self.__hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+        if self.__hardware_source:
+            self.__hardware_source.add_listener(self)
+            self.__hardware_source.data_buffer.add_listener(self)
         self.type = "live"
         self.__image_panel = image_panel
-        self.__image_panel.header_canvas_item.end_header_color = "#339966"
+        self.__image_panel.header_canvas_item.end_header_color = "#FF9999"
+        self.__playback_controls_composition = CanvasItem.CanvasItemComposition()
+        self.__playback_controls_composition.layout = CanvasItem.CanvasItemLayout()
+        self.__playback_controls_composition.sizing.set_fixed_height(30)
+        self.__playback_controls_row = CanvasItem.CanvasItemComposition()
+        self.__playback_controls_row.layout = CanvasItem.CanvasItemRowLayout()
+        self.__play_button_canvas_item = CanvasItem.TextButtonCanvasItem(_("Play"))
+
+        def play_clicked():
+            if self.__hardware_source:
+                if self.__is_playing:
+                    self.__hardware_source.stop_playing()
+                else:
+                    self.__hardware_source.start_playing(image_panel.document_controller.workspace_controller)
+
+        self.__play_button_canvas_item.on_button_clicked = play_clicked
+        self.__play_button_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+        hardware_source_display_name_canvas_item = CanvasItem.StaticTextCanvasItem(self.__hardware_source.display_name)
+        hardware_source_display_name_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+        self.__playback_controls_row.add_canvas_item(self.__play_button_canvas_item)
+        self.__playback_controls_row.add_canvas_item(CanvasItem.EmptyCanvasItem())
+        self.__playback_controls_row.add_canvas_item(hardware_source_display_name_canvas_item)
+        self.__playback_controls_composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FF9999"))
+        self.__playback_controls_composition.add_canvas_item(self.__playback_controls_row)
+        self.__image_panel.footer_canvas_item.insert_canvas_item(0, self.__playback_controls_composition)
         self.__hardware_source_id = hardware_source_id
         self.__hardware_source_channel_id = hardware_source_channel_id
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__image_panel.document_controller.data_items_binding)
@@ -1510,7 +1539,11 @@ class LiveImagePanelController(object):
         del self.__filtered_data_items_binding.inserters[id(self)]
         del self.__filtered_data_items_binding.removers[id(self)]
         self.__image_panel.header_canvas_item.reset_header_colors()
+        self.__image_panel.footer_canvas_item.remove_canvas_item(self.__playback_controls_composition)
         self.__image_panel = None
+        self.__hardware_source.data_buffer.remove_listener(self)
+        self.__hardware_source.remove_listener(self)
+        self.__hardware_source = None
 
     @classmethod
     def make(cls, image_panel, d):
@@ -1524,6 +1557,17 @@ class LiveImagePanelController(object):
         d["hardware_source_id"] = self.__hardware_source_id
         if self.__hardware_source_channel_id is not None:
             d["hardware_source_channel_id"] = self.__hardware_source_channel_id
+
+    @property
+    def __is_playing(self):
+        return self.__hardware_source.data_buffer.is_playing if self.__hardware_source else False
+
+    # this message comes from the data buffer. it will always be invoked on the UI thread.
+    def playing_state_changed(self, hardware_source, is_playing):
+        if hardware_source == self.__hardware_source:
+            self.__play_button_canvas_item.text = _("Pause") if self.__is_playing else _("Play")
+            self.__play_button_canvas_item.size_to_content(self.__image_panel.image_panel_get_font_metrics)
+            self.__playback_controls_composition.refresh_layout()
 
 
 class BrowserImagePanelController(object):
@@ -1593,12 +1637,16 @@ class ImagePanel(object):
         self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
         self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
         self.__header_canvas_item.on_close_clicked = lambda: self.__close_image_panel()
+        self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__footer_canvas_item.sizing.collapsible = True
 
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
         self.canvas_item.add_canvas_item(self.__header_canvas_item)
         self.canvas_item.add_canvas_item(self.__content_canvas_item)
+        self.canvas_item.add_canvas_item(self.__footer_canvas_item)
 
         self.document_controller.register_image_panel(self)
 
@@ -1640,6 +1688,10 @@ class ImagePanel(object):
     @property
     def header_canvas_item(self):
         return self.__header_canvas_item
+
+    @property
+    def footer_canvas_item(self):
+        return self.__footer_canvas_item
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -1720,6 +1772,9 @@ class ImagePanel(object):
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
             if hardware_source_id:
                 self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
+        elif self.__image_panel_controller:
+            self.__image_panel_controller.close()
+            self.__image_panel_controller = None
         self.set_displayed_data_item(data_item)
 
     def __get_display(self):
