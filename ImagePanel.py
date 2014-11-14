@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import functools
 import gettext
 import logging
 import math
@@ -14,6 +15,7 @@ from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
+from nion.swift.model import DataItemsBinding
 from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import Image
@@ -1467,6 +1469,62 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         return "ignore"
 
 
+class LiveImagePanelController(object):
+    """
+        Represents a controller for the content of an image panel.
+    """
+    def __init__(self, image_panel):
+        self.type = "live"
+        self.__image_panel = image_panel
+        self.__image_panel.header_canvas_item.end_header_color = "#339966"
+        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__image_panel.document_controller.data_items_binding)
+        def is_live_filter(data_item):
+            return data_item.is_live
+        self.__filtered_data_items_binding.filter = is_live_filter
+        def data_item_inserted(data_item):
+            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
+            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
+            if hardware_source_id == "simulator_2d":
+                self.__image_panel.set_displayed_data_item(data_item)
+        def data_item_removed(data_item):
+            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
+            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
+            if hardware_source_id == "simulator_2d":
+                self.__image_panel.set_displayed_data_item(None)
+        self.__filtered_data_items_binding.inserters[id(self)] = lambda data_item, before_index: self.__image_panel.queue_task(functools.partial(data_item_inserted, data_item))
+        self.__filtered_data_items_binding.removers[id(self)] = lambda data_item, index: self.__image_panel.queue_task(functools.partial(data_item_removed, data_item))
+
+    def close(self):
+        del self.__filtered_data_items_binding.inserters[id(self)]
+        del self.__filtered_data_items_binding.removers[id(self)]
+        self.__image_panel.header_canvas_item.reset_header_colors()
+        self.__image_panel = None
+
+
+class BrowserImagePanelController(object):
+    """
+        Represents a controller for the content of an image panel.
+
+        Image panels have the ability to update their content spontaneously in response to
+        external events such as a selection in another panel changing, acquisition starting,
+        and more.
+    """
+    def __init__(self, image_panel):
+        self.type = "browser"
+        self.__image_panel = image_panel
+        self.__image_panel.document_controller.add_listener(self)
+        self.__image_panel.header_canvas_item.end_header_color = "#996633"
+        self.browser_data_item_changed(self.__image_panel.document_controller.browser_data_item)
+
+    def close(self):
+        self.__image_panel.header_canvas_item.reset_header_colors()
+        self.__image_panel.document_controller.remove_listener(self)
+        self.__image_panel = None
+
+    def browser_data_item_changed(self, data_item):
+        self.__image_panel.set_displayed_data_item(data_item)
+
+
 class ImagePanel(object):
 
     def __init__(self, document_controller):
@@ -1516,6 +1574,8 @@ class ImagePanel(object):
         # this results in data_item_deleted messages
         self.document_controller.document_model.add_listener(self)
 
+        self.__image_panel_controller = None
+
         self.display_canvas_item = None
         self.__display_type = None
 
@@ -1526,6 +1586,9 @@ class ImagePanel(object):
             self.display_canvas_item.about_to_close()
             self.display_canvas_item = None
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
+        if self.__image_panel_controller:
+            self.__image_panel_controller.close()
+            self.__image_panel_controller = None
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
@@ -1540,6 +1603,10 @@ class ImagePanel(object):
     def __set_workspace(self, workspace):
         self.__weak_workspace = weakref.ref(workspace) if workspace else None
     workspace = property(__get_workspace, __set_workspace)
+
+    @property
+    def header_canvas_item(self):
+        return self.__header_canvas_item
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -1558,16 +1625,22 @@ class ImagePanel(object):
     # save and restore the contents of the image panel
 
     def save_contents(self, d):
-        data_item = self.get_displayed_data_item()
-        if data_item:
-            d["data_item_uuid"] = str(data_item.uuid)
+        if self.__image_panel_controller:
+            d["controller_type"] = self.__image_panel_controller.type
+        else:
+            data_item = self.get_displayed_data_item()
+            if data_item:
+                d["data_item_uuid"] = str(data_item.uuid)
 
     def restore_contents(self, d):
-        data_item_uuid_str = d.get("data_item_uuid")
-        if data_item_uuid_str:
-            data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
-            if data_item:
-                self.set_displayed_data_item(data_item)
+        controller_type = d.get("controller_type")
+        self.__image_panel_controller = ImagePanelManager().make_image_panel_controller(controller_type, self, d)
+        if not self.__image_panel_controller:
+            data_item_uuid_str = d.get("data_item_uuid")
+            if data_item_uuid_str:
+                data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
+                if data_item:
+                    self.set_displayed_data_item(data_item)
 
     # handle selection. selection means that the image panel is the most recent
     # item to have focus within the workspace, although it can be selected without
@@ -1693,6 +1766,15 @@ class ImagePanel(object):
     # ths message comes from the canvas item via the delegate.
     def image_panel_key_pressed(self, key):
         #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
+        # if key.text == "b" or key.text == "a":
+        #     if self.__image_panel_controller:
+        #         self.__image_panel_controller.close()
+        #         self.__image_panel_controller = None
+        #     elif key.text == "a":
+        #         self.__image_panel_controller = LiveImagePanelController(self)
+        #     elif key.text == "b":
+        #         self.__image_panel_controller = BrowserImagePanelController(self)
+        #     return True
         return ImagePanelManager().key_pressed(self, key)
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
@@ -1751,16 +1833,34 @@ class ImagePanel(object):
 # panel, listeners can be advised of this event.
 class ImagePanelManager(Observable.Broadcaster):
     __metaclass__ = Decorators.Singleton
+
     def __init__(self):
         super(ImagePanelManager, self).__init__()
-        pass
+        self.__image_panel_controllers = dict()  # maps controller_type to make_fn
+
     # events from the image panels
     def key_pressed(self, image_panel, key):
         self.notify_listeners("image_panel_key_pressed", image_panel, key)
         return False
+
     def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
         self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
         return False
+
+    def register_image_panel_controller(self, controller_type, make_fn):
+        self.__image_panel_controllers[controller_type] = make_fn
+
+    def unregister_image_panel_controller(self, controller_type):
+        del self.__image_panel_controllers[controller_type]
+
+    def make_image_panel_controller(self, controller_type, image_panel, d):
+        if controller_type in self.__image_panel_controllers:
+            return self.__image_panel_controllers[controller_type](image_panel, d)
+        return None
+
+
+ImagePanelManager().register_image_panel_controller("browser", lambda image_panel, d: BrowserImagePanelController(image_panel))
+ImagePanelManager().register_image_panel_controller("live", lambda image_panel, d: LiveImagePanelController(image_panel))
 
 
 class InfoPanel(Panel.Panel):
