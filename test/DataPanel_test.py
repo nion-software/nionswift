@@ -63,7 +63,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item3)
         image_panel = ImagePanel.ImagePanel(document_controller)
         image_panel.set_displayed_data_item(data_item1)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         data_panel.periodic()
         document_controller.selected_image_panel = image_panel
@@ -102,7 +102,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
@@ -146,7 +146,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         data_group2.append_data_item(data_item2)
         document_controller.document_model.append_data_group(parent_data_group)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
@@ -230,7 +230,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         # finished setting up
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.focused = True
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         # make sure our preconditions are right
@@ -267,7 +267,7 @@ class TestDataPanelClass(unittest.TestCase):
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group, data_item1))
         binding.close()
         binding = None
@@ -331,7 +331,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group, data_item2))
         document_controller.periodic()
         data_panel.periodic()
@@ -364,7 +364,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.document_model.append_data_group(data_group)
         document_model.append_data_item(data_item)
         data_group.append_data_item(data_item)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertIsNone(data_panel.data_item)
         data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
         self.assertEqual(data_panel.data_item, data_group.data_items[0])
@@ -384,7 +384,7 @@ class TestDataPanelClass(unittest.TestCase):
         green_group.append_data_item(data_item1)
         document_controller.document_model.insert_data_group(0, green_group)
         self.assertEqual(len(green_group.data_items), 1)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         document_controller.remove_data_group_from_container(document_controller.document_model.data_groups[0], document_controller.document_model)
         document_controller.close()
 
@@ -402,7 +402,7 @@ class TestDataPanelClass(unittest.TestCase):
         green_group.append_data_item(data_item1)
         document_controller.document_model.insert_data_group(0, green_group)
         document_controller.document_model.append_data_group(data_group1)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_group1, data_item1))
         self.assertTrue(data_item1 in data_group1.data_items)
         data_panel.data_item_widget.on_key_pressed([0], self.app.ui.create_key_by_id("delete"))
@@ -419,7 +419,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1a.title = "data_item1a"
         data_item1a.add_data_source(data_item1)
         document_model.append_data_item(data_item1a)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.data_item_widget.on_key_pressed([0, 1], self.app.ui.create_key_by_id("delete"))
 
     def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
@@ -432,7 +432,7 @@ class TestDataPanelClass(unittest.TestCase):
         for i in xrange(3):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.library_widget.on_selection_changed([(1, -1, 0)])
         data_panel.library_widget.on_selection_changed([(0, -1, 0)])
 
@@ -443,7 +443,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item.title = "X" if i != 1 else "Y"
             document_model.append_data_item(data_item)
-        data_panel = document_controller.workspace.find_dock_widget("data-panel").panel
+        data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 3)
         document_controller.display_filter = lambda data_item: data_item.title == "Y"
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 1)

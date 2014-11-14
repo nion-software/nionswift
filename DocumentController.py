@@ -54,7 +54,6 @@ class DocumentController(Observable.Broadcaster):
         self.document_window.on_about_to_close = self.about_to_close
         if app:
             self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), os.path.splitext(os.path.split(app.workspace_dir)[1])[0])
-        self.workspace = None
         self.__workspace_controller = None
         self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
@@ -79,7 +78,7 @@ class DocumentController(Observable.Broadcaster):
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
-            self.workspace = Workspace.Workspace(self, workspace_id)
+            self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.workspace.restore_layout()
 
     def close(self):
@@ -105,10 +104,9 @@ class DocumentController(Observable.Broadcaster):
         self.help_menu = None
         self.library_menu = None
         # close the workspace before closing the image panels, to save their position
-        if self.workspace:
-            self.workspace.close()
         if self.__workspace_controller:
             self.__workspace_controller.close()
+            self.__workspace_controller = None
         self.document_window = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
@@ -220,22 +218,29 @@ class DocumentController(Observable.Broadcaster):
                 self.selected_image_panel.display_canvas_item.set_one_to_one_mode()
         self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), lambda: one_to_one_view(), key_sequence="1")
         self.view_menu.add_separator()
-        self.view_menu.add_menu_item(_("Previous Layout"), lambda: self.workspace.change_to_previous_layout(), key_sequence="Ctrl+[")
-        self.view_menu.add_menu_item(_("Next Layout"), lambda: self.workspace.change_to_next_layout(), key_sequence="Ctrl+]")
-
-        self.view_menu.add_separator()
-        self.view_menu.add_menu_item(_("Layout 1x1"), lambda: self.workspace.change_layout("1x1"), key_sequence="Ctrl+1")
-        self.view_menu.add_menu_item(_("Layout 2x1"), lambda: self.workspace.change_layout("2x1"), key_sequence="Ctrl+2")
-        self.view_menu.add_menu_item(_("Layout 3x1"), lambda: self.workspace.change_layout("3x1"), key_sequence="Ctrl+3")
-        self.view_menu.add_menu_item(_("Layout 2x2"), lambda: self.workspace.change_layout("2x2"), key_sequence="Ctrl+4")
-        self.view_menu.add_menu_item(_("Layout 1x2"), lambda: self.workspace.change_layout("1x2"), key_sequence="Ctrl+5")
-        self.view_menu.add_menu_item(_("Layout 3x2"), lambda: self.workspace.change_layout("3x2"), key_sequence="Ctrl+6")
-        #self.view_menu.add_menu_item(_("Layout 2x3"), lambda: self.workspace.change_layout("2x3"), key_sequence="Ctrl+7")
-        #self.view_menu.add_menu_item(_("Layout 4x2"), lambda: self.workspace.change_layout("4x2"), key_sequence="Ctrl+8")
-        #self.view_menu.add_menu_item(_("Layout 2x4"), lambda: self.workspace.change_layout("2x4"), key_sequence="Ctrl+9")
-
-        self.view_menu.add_separator()
         self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
+        self.view_menu.add_separator()
+        self.view_menu.add_menu_item(_("Previous Workspace"), lambda: self.workspace_controller.change_to_previous_workspace(), key_sequence="Ctrl+[")
+        self.view_menu.add_menu_item(_("Next Workspace"), lambda: self.workspace_controller.change_to_next_workspace(), key_sequence="Ctrl+]")
+        self.view_menu.add_separator()
+        self.view_menu.add_menu_item(_("New Workspace"), lambda: self.workspace_controller.new_workspace(), key_sequence="Ctrl+Alt+L")
+
+        self.view_menu.add_separator()
+
+        self.__dynamic_view_actions = []
+
+        def adjust_view_menu():
+            for dynamic_view_action in self.__dynamic_view_actions:
+                self.view_menu.remove_action(dynamic_view_action)
+            self.__dynamic_view_actions = []
+            for workspace in self.document_model.workspaces:
+                def switch_to_workspace():
+                    logging.debug("switch %s", workspace.name)
+                    self.workspace_controller.change_to_workspace(workspace)
+                action = workspace.add_menu_item(workspace.name, switch_to_workspace)
+                self.__dynamic_view_actions.append(action)
+
+        self.view_menu.on_about_to_show = adjust_view_menu
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
@@ -256,7 +261,7 @@ class DocumentController(Observable.Broadcaster):
             for dynamic_window_action in self.__dynamic_window_actions:
                 self.window_menu.remove_action(dynamic_window_action)
             self.__dynamic_window_actions = []
-            for dock_widget in self.workspace.dock_widgets:
+            for dock_widget in self.workspace_controller.dock_widgets:
                 toggle_action = dock_widget.toggle_action
                 self.window_menu.add_action(toggle_action)
                 self.__dynamic_window_actions.append(toggle_action)
@@ -306,12 +311,9 @@ class DocumentController(Observable.Broadcaster):
                 self.content.add(row)
         AboutDialog(self.ui).show()
 
-    def __get_panels(self):
-        if self.workspace:
-            # TODO: accessing the panel via the dock widget is deprecated
-            return [dock_widget.panel for dock_widget in self.workspace.dock_widgets]
-        return []
-    panels = property(__get_panels)
+    def find_dock_widget(self, dock_widget_id):
+        """ Return the dock widget by id. """
+        return self.workspace_controller._find_dock_widget(dock_widget_id)
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -338,16 +340,20 @@ class DocumentController(Observable.Broadcaster):
         self.__periodic_set.perform_tasks()
         #t1 = time.time()
         # workspace
-        if self.workspace:
-            self.workspace.periodic()
+        if self.workspace_controller:
+            self.workspace_controller.periodic()
         #t2 = time.time()
         self.filter_controller.periodic()
         #t3 = time.time()
         #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
 
     def __get_workspace_controller(self):
-        return self.workspace
+        return self.__workspace_controller
     workspace_controller = property(__get_workspace_controller)
+
+    def __get_workspace(self):
+        return self.__workspace_controller
+    workspace = property(__get_workspace)
 
     def __get_data_items_binding(self):
         return self.__data_items_binding
@@ -421,16 +427,12 @@ class DocumentController(Observable.Broadcaster):
     def __get_selected_image_panel(self):
         return self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
     def __set_selected_image_panel(self, selected_image_panel):
-        assert type(selected_image_panel).__name__ == "ImagePanel" if selected_image_panel else True  # avoid circular import
-        if not selected_image_panel:
-            selected_image_panel = self.workspace.primary_image_panel
         weak_selected_image_panel = weakref.ref(selected_image_panel) if selected_image_panel else None
         if weak_selected_image_panel != self.__weak_selected_image_panel:
             # save the selected panel
             self.__weak_selected_image_panel = weak_selected_image_panel
-            # iterate through the image panels and update their 'focused' property
-            for image_panel in self.workspace.image_panels:
-                image_panel.set_selected(image_panel == self.selected_image_panel)
+            # tell the workspace the selected image panel changed so that it can update the focus/selected rings
+            self.workspace_controller.selected_image_panel_changed(self.selected_image_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             selected_data_item = selected_image_panel.get_displayed_data_item() if selected_image_panel else None
@@ -452,7 +454,7 @@ class DocumentController(Observable.Broadcaster):
             filter if data item appears. Otherwise, remove filter and see if it appears.
             Otherwise switch to Library group.
         """
-        data_panel = self.workspace.find_dock_widget("data-panel").panel
+        data_panel = self.find_dock_widget("data-panel").panel
         if data_panel is not None:
             data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
 
@@ -658,7 +660,7 @@ class DocumentController(Observable.Broadcaster):
             self.set_data_item_selection(data_item, source_data_item=source_data_item)
             self.select_data_item_in_data_panel(data_item)
             self.notify_selected_data_item_changed(data_item)
-            inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+            inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
 
@@ -749,7 +751,7 @@ class DocumentController(Observable.Broadcaster):
             if select:
                 self.select_data_item_in_data_panel(new_data_item)
                 self.notify_selected_data_item_changed(new_data_item)
-                inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+                inspector_panel = self.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             return new_data_item
@@ -769,7 +771,7 @@ class DocumentController(Observable.Broadcaster):
             if select:
                 self.select_data_item_in_data_panel(data_item_copy)
                 self.notify_selected_data_item_changed(data_item_copy)
-                inspector_panel = self.workspace.find_dock_widget("inspector-panel").panel
+                inspector_panel = self.find_dock_widget("inspector-panel").panel
                 if inspector_panel is not None:
                     inspector_panel.request_focus = True
             return data_item_copy
@@ -779,12 +781,12 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("convert-to-scalar-operation", suffix=_(" Gray"), select=select)
 
     def toggle_filter(self):
-        if self.workspace.filter_row.visible:
+        if self.workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
             self.display_filter = None
         else:
             self.display_filter = self.__last_display_filter
-        self.workspace.filter_row.visible = not self.workspace.filter_row.visible
+        self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
 
     def prepare_data_item_script(self):
         def find_var():

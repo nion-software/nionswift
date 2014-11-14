@@ -100,6 +100,13 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.dock_widgets = None
+        self.content_row = None
+        self.filter_panel = None
+        self.filter_row = None
+        self.image_row = None
+        self.__layout_stack = None
+        self.__channel_activations = None
+        self.__channel_data_items = None
         self.document_controller.document_model.remove_listener(self)
 
     def periodic(self):
@@ -144,9 +151,9 @@ class Workspace(object):
         return self.__layout_id
     layout_id = property(__get_layout_id)
 
-    def find_dock_widget(self, panel_id):
+    def _find_dock_widget(self, dock_widget_id):
         for dock_widget in self.dock_widgets:
-            if dock_widget.panel.panel_id == panel_id:
+            if dock_widget.panel.panel_id == dock_widget_id:
                 return dock_widget
         return None
 
@@ -166,8 +173,8 @@ class Workspace(object):
                         dock_widget.hide()
 
         # clean up panels (tabify console/output)
-        console_dock_widget = self.find_dock_widget("console-panel")
-        output_dock_widget = self.find_dock_widget("output-panel")
+        console_dock_widget = self._find_dock_widget("console-panel")
+        output_dock_widget = self._find_dock_widget("output-panel")
         if console_dock_widget is not None and output_dock_widget is not None:
             document_controller.document_window.tabify_dock_widgets(console_dock_widget, output_dock_widget)
 
@@ -270,7 +277,7 @@ class Workspace(object):
         canvas_item, selected_image_panel = self._construct(d, image_panels)
         self.image_panels.extend(image_panels)
         for image_panel in self.image_panels:
-            image_panel.workspace = self
+            image_panel.workspace_controller = self
         self.__canvas_item.add_canvas_item(canvas_item)
         return self.__canvas_item.canvas_widget, selected_image_panel, layout_id
 
@@ -353,13 +360,13 @@ class Workspace(object):
         self.change_layout(layout_id)
         self.restore_content()
 
-    def change_to_previous_layout(self):
+    def change_to_previous_workspace(self):
         if self.__layout_stack_current is not None and self.__layout_stack_current + 1 < len(self.__layout_stack):
             layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current + 1]
             preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
             self.change_layout(layout_id, preferred_data_items, adjust=1)
 
-    def change_to_next_layout(self):
+    def change_to_next_workspace(self):
         if self.__layout_stack_current is not None and self.__layout_stack_current > 0:
             layout_id, preferred_weak_data_items = self.__layout_stack[self.__layout_stack_current - 1]
             preferred_data_items = [preferred_weak_data_item() for preferred_weak_data_item in preferred_weak_data_items]
@@ -404,6 +411,10 @@ class Workspace(object):
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         return "ignore"
+
+    def selected_image_panel_changed(self, selected_image_panel):
+        for image_panel in self.image_panels:
+            image_panel.set_selected(image_panel == selected_image_panel)
 
     def data_item_deleted(self, data_item):
         with self.__mutex:

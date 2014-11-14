@@ -1521,7 +1521,7 @@ class ImagePanel(object):
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
         # release references
-        self.workspace = None
+        self.workspace_controller = None
         self.__content_canvas_item = None
         self.__overlay_canvas_item = None
         self.__header_canvas_item = None
@@ -1703,23 +1703,23 @@ class ImagePanel(object):
         self.set_displayed_data_item(data_item)
 
     def handle_drag_enter(self, mime_data):
-        if self.workspace:
-            return self.workspace.handle_drag_enter(self, mime_data)
+        if self.workspace_controller:
+            return self.workspace_controller.handle_drag_enter(self, mime_data)
         return "ignore"
 
     def handle_drag_leave(self):
-        if self.workspace:
-            return self.workspace.handle_drag_leave(self)
+        if self.workspace_controller:
+            return self.workspace_controller.handle_drag_leave(self)
         return False
 
     def handle_drag_move(self, mime_data, x, y):
-        if self.workspace:
-            return self.workspace.handle_drag_move(self, mime_data, x, y)
+        if self.workspace_controller:
+            return self.workspace_controller.handle_drag_move(self, mime_data, x, y)
         return "ignore"
 
     def handle_drop(self, mime_data, region, x, y):
-        if self.workspace:
-            return self.workspace.handle_drop(self, mime_data, region, x, y)
+        if self.workspace_controller:
+            return self.workspace_controller.handle_drop(self, mime_data, region, x, y)
         return "ignore"
 
 
