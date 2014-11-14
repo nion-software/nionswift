@@ -602,16 +602,16 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # only handle keys if we're directly embedded in an image panel
         if not self.delegate:
             return False
+        if key.is_delete:
+            self.delegate.image_panel_delete_key_pressed()
+            return True
         display = self.display
         if display:
             #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
             all_graphics = display.drawn_graphics
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             if len(graphics):
-                if key.is_delete:
-                    self.delegate.image_panel_remove_graphic()
-                    return True
-                elif key.is_arrow:
+                if key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
                     amount = 10.0 if key.modifiers.shift else 1.0
                     if key.is_left_arrow:
@@ -1155,16 +1155,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # only handle keys if we're directly embedded in an image panel
         if not self.delegate:
             return False
+        if key.is_delete:
+            self.delegate.image_panel_delete_key_pressed()
+            return True
         display = self.display
         if display:
             #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
             all_graphics = display.drawn_graphics
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             if len(graphics):
-                if key.is_delete:
-                    self.delegate.image_panel_remove_graphic()
-                    return True
-                elif key.is_arrow:
+                if key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
                     amount = 10.0 if key.modifiers.shift else 1.0
                     if key.is_left_arrow:
@@ -1337,6 +1337,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     """
         An overlay for image panels to draw and handle focus, selection, and drop targets.
+
+        The overlay has a focused property, but this is not the same as the canvas focused_item.
+        The focused property here is just a flag to indicate whether to draw the focus ring.
     """
 
     def __init__(self, image_panel):
@@ -1687,8 +1690,11 @@ class ImagePanel(object):
     def image_panel_cursor_changed(self, source, display, pos, image_size):
         self.document_controller.cursor_changed(source, display, pos, image_size)
 
-    def image_panel_remove_graphic(self):
-        self.document_controller.remove_graphic()
+    def image_panel_delete_key_pressed(self):
+        if self.document_controller.remove_graphic():
+            return True
+        self.set_displayed_data_item(None)
+        return False
 
     def __replace_displayed_data_item(self, data_item):
         self.document_controller.replaced_data_item = self.get_displayed_data_item()

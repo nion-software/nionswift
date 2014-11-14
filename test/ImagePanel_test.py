@@ -455,6 +455,28 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.image_panel.display.graphic_selection.indexes)
 
+    def test_delete_key_when_graphic_selected_removes_the_graphic(self):
+        self.document_controller.add_rectangle_graphic()
+        modifiers = Test.KeyboardModifiers()
+        # check assumptions
+        self.assertEqual(len(self.data_item.displays[0].graphics), 1)
+        self.assertEqual(len(self.image_panel.display.graphic_selection.indexes), 1)
+        # do focusing click, then delete
+        self.image_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.image_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
+        # check results
+        self.assertEqual(len(self.data_item.displays[0].graphics), 0)
+
+    def test_delete_key_when_nothing_selected_removes_the_image_panel_content(self):
+        modifiers = Test.KeyboardModifiers()
+        # check assumptions
+        self.assertIsNotNone(self.image_panel.get_displayed_data_item())
+        # do focusing click, then delete
+        self.image_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.image_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
+        # check results
+        self.assertIsNone(self.image_panel.get_displayed_data_item())
+
     def setup_line_plot(self, canvas_shape=None):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = self.document_model.set_data_by_key("test_1d", create_1d_data())

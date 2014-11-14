@@ -621,6 +621,8 @@ class DocumentController(Observable.Broadcaster):
             graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
             for graphic in graphics:
                 display.remove_drawn_graphic(graphic)
+            return True
+        return False
 
     def remove_operation(self, operation):
         data_item = self.selected_data_item
