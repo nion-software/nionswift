@@ -13,10 +13,11 @@ import weakref
 # None
 
 # local libraries
-from nion.swift import Decorators
 from nion.swift import ImagePanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Utility
+from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 
@@ -183,12 +184,6 @@ class Workspace(object):
         image_panel.title = _("Image")
         image_panel.element_id = element_id
         return image_panel
-
-    def __get_image_panel_by_id(self, element_id):
-        for image_panel in self.image_panels:
-            if image_panel.element_id == element_id:
-                return image_panel
-        return None
 
     def __get_primary_image_panel(self):
         return self.image_panels[0] if len(self.image_panels) > 0 else None
@@ -581,7 +576,7 @@ class WorkspaceController(AbstractWorkspaceController):
 
 
 class WorkspaceManager(object):
-    __metaclass__ = Decorators.Singleton
+    __metaclass__ = Utility.Singleton
 
     """
         The WorkspaceManager object keeps a list of workspaces and a list of panel

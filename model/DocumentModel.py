@@ -23,6 +23,7 @@ from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
+from nion.swift.model import WorkspaceLayout
 from nion.ui import Observable
 from nion.ui import ThreadPool
 
@@ -380,6 +381,13 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         return persistent_storage.reference_type, persistent_storage.reference
 
 
+class UuidToStringConverter(object):
+    def convert(self, value):
+        return str(value)
+    def convert_back(self, value):
+        return uuid.UUID(value)
+
+
 class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ManagedObject):
 
     """The document model manages storage and dependencies between data items and other objects.
@@ -398,6 +406,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_items = list()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
+        self.define_relationship("workspaces", WorkspaceLayout.factory)
+        self.define_property("workspace_uuid", converter=UuidToStringConverter())
         self.session_id = None
         self.start_new_session()
         self.__read()
@@ -431,6 +441,18 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    def append_workspace_layout(self, workspace_layout):
+        self.insert_workspace_layout(len(self.workspace_layouts), workspace_layout)
+
+    def insert_workspace_layout(self, before_index, workspace_layout):
+        self.insert_item("workspace_layouts", before_index, workspace_layout)
+        self.notify_insert_item("workspace_layouts", workspace_layout, before_index)
+
+    def remove_workspace_layout(self, workspace_layout):
+        index = self.workspace_layouts.index(workspace_layout)
+        self.remove_item("workspace_layouts", workspace_layout)
+        self.notify_remove_item("workspace_layouts", workspace_layout, index)
 
     def append_data_item(self, data_item):
         self.insert_data_item(len(self.data_items), data_item)
