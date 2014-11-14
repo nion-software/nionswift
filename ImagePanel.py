@@ -1499,6 +1499,7 @@ class HardwareSourceStateController(object):
         self.on_display_name_changed = None
         self.on_play_button_state_changed = None
         self.on_abort_button_state_changed = None
+        self.on_data_item_states_changed = None
 
     def close(self):
         if self.__hardware_source:
@@ -1527,6 +1528,8 @@ class HardwareSourceStateController(object):
             self.on_display_name_changed(self.display_name)
         self.__update_play_button_state()
         self.__update_abort_button_state()
+        if self.on_data_item_states_changed:
+            self.on_data_item_states_changed(list())
 
     def handle_play_clicked(self, workspace_controller):
         """ Call this when the user clicks the play/pause button. """
@@ -1563,7 +1566,13 @@ class HardwareSourceStateController(object):
 
     # this message comes from the hardware source. may be called from thread.
     def hardware_source_stopped(self, hardware_source):
-        pass
+        if self.on_data_item_states_changed:
+            self.on_data_item_states_changed(list())
+
+    # this message comes from the hardware source. may be called from thread.
+    def hardware_source_updated_data_item_states(self, hardware_source, data_item_states):
+        if self.on_data_item_states_changed:
+            self.on_data_item_states_changed(data_item_states)
 
 
 class LiveImagePanelController(object):
@@ -1587,9 +1596,11 @@ class LiveImagePanelController(object):
         playback_controls_row.layout = CanvasItem.CanvasItemRowLayout()
         play_button_canvas_item = CanvasItem.TextButtonCanvasItem()
         abort_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        state_text_canvas_item = CanvasItem.StaticTextCanvasItem(str())
         hardware_source_display_name_canvas_item = CanvasItem.StaticTextCanvasItem(str())
         playback_controls_row.add_canvas_item(play_button_canvas_item)
         playback_controls_row.add_canvas_item(abort_button_canvas_item)
+        playback_controls_row.add_canvas_item(state_text_canvas_item)
         playback_controls_row.add_canvas_item(CanvasItem.EmptyCanvasItem())
         playback_controls_row.add_canvas_item(hardware_source_display_name_canvas_item)
         self.__playback_controls_composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FF9999"))
@@ -1617,9 +1628,29 @@ class LiveImagePanelController(object):
             abort_button_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
             self.__playback_controls_composition.refresh_layout()
 
+        def data_item_states_changed(data_item_states):
+            map_channel_state_to_text = {"stopped": _("Stopped"), "complete": _("Acquiring"),
+                "partial": _("Acquiring"), "marked": _("Stopping")}
+            for data_item_state in data_item_states:
+                if data_item_state["data_item"] == image_panel.get_displayed_data_item():
+                    channel_state = data_item_state["channel_state"]
+                    partial_str = str()
+                    data_item = data_item_state.get("data_item")
+                    scan_position = data_item.get_metadata("hardware_source").get("scan_position")
+                    if scan_position is not None:
+                        partial_str = " " + str(int(100 * scan_position["y"] / data_item.spatial_shape[0])) + "%"
+                    state_text_canvas_item.text = map_channel_state_to_text[channel_state] + partial_str
+                    state_text_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+                    self.__playback_controls_composition.refresh_layout()
+                    return
+            state_text_canvas_item.text = map_channel_state_to_text["stopped"]
+            state_text_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
+            self.__playback_controls_composition.refresh_layout()
+
         self.__hardware_source_state_controller.on_display_name_changed = display_name_changed
         self.__hardware_source_state_controller.on_play_button_state_changed = play_button_state_changed
         self.__hardware_source_state_controller.on_abort_button_state_changed = abort_button_state_changed
+        self.__hardware_source_state_controller.on_data_item_states_changed = data_item_states_changed
 
         play_button_canvas_item.on_button_clicked = lambda: self.__hardware_source_state_controller.handle_play_clicked(workspace_controller)
         abort_button_canvas_item.on_button_clicked = self.__hardware_source_state_controller.handle_abort_clicked

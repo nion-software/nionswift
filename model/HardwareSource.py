@@ -505,14 +505,24 @@ class HardwareSource(Observable.Broadcaster):
             data_item.begin_live()
 
         # update the data items with the new data.
-        completed_data_items = []
+        completed_data_items = []  # TODO: remove hardware_source_updated_data_items notification
+        data_item_states = []
         for channel in channels:
             data_element = channel_to_data_element_map[channel]
             data_item = new_channel_to_data_item_dict[channel]
-            if self.__update_channel(channel, data_item, data_element) == "complete":
+            self.__update_channel(channel, data_item, data_element)
+            if self.__channel_states[channel] == "complete":
                 completed_data_items.append(data_item)
+            data_item_state = dict()
+            data_item_state["channel"] = channel
+            data_item_state["data_item"] = data_item
+            data_item_state["channel_state"] = self.__channel_states[channel]
+            if "sub_area" in data_element:
+                data_item_state["sub_area"] = data_element["sub_area"]
+            data_item_states.append(data_item_state)
         if completed_data_items:
             self.notify_listeners("hardware_source_updated_data_items", self, completed_data_items)
+        self.notify_listeners("hardware_source_updated_data_item_states", self, data_item_states)
 
         # these items are no longer live. mark live_data as False.
         for channel, data_item in self.last_channel_to_data_item_dict.iteritems():
