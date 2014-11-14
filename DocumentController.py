@@ -634,11 +634,6 @@ class DocumentController(Observable.Broadcaster):
     # not thread safe
     def set_data_item_selection(self, data_item, source_data_item=None):
         self.notify_listeners("update_data_item_selection", data_item, source_data_item)
-        # now attempt to display the data item in an image panel
-        if not source_data_item:
-            self.workspace.display_data_item(data_item)
-        else:
-            self.workspace.display_data_item(data_item, source_data_item)
 
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
         operation = Operation.OperationItem(operation_id)

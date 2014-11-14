@@ -152,22 +152,6 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace.layout_id, "1x1")
         self.assertEqual(document_controller.workspace.image_panels[0].get_displayed_data_item(), document_controller.document_model.data_items[2])
 
-    def test_add_processing_in_4x4_bottom_left_puts_processed_image_in_empty_bottom_right(self):
-        document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
-        derived_data_item = DataItem.DataItem()
-        derived_data_item.add_data_source(document_controller.document_model.data_items[0])
-        document_controller.document_model.append_data_item(derived_data_item)
-        document_controller.workspace.change_layout("2x2")
-        document_controller.workspace.image_panels[3].set_displayed_data_item(None)
-        document_controller.selected_image_panel = document_controller.workspace.image_panels[2]
-        source_data_item = document_controller.workspace.image_panels[2].get_displayed_data_item()
-        derived_data_item2 = DataItem.DataItem()
-        derived_data_item2.add_data_source(source_data_item)
-        document_controller.document_model.append_data_item(derived_data_item2)
-        document_controller.workspace.display_data_item(derived_data_item2, source_data_item)
-        self.assertEqual(document_controller.workspace.image_panels[2].get_displayed_data_item(), source_data_item)
-        self.assertEqual(document_controller.workspace.image_panels[3].get_displayed_data_item(), derived_data_item2)
-
     def test_image_panel_focused_when_clicked(self):
         # setup
         document_model = DocumentModel.DocumentModel()
