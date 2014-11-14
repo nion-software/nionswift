@@ -6,6 +6,7 @@ import logging
 import sys
 import threading
 import time
+import uuid
 import weakref
 
 # third party libraries
@@ -265,6 +266,8 @@ class Workspace(object):
         image_panels = list()
         canvas_item, selected_image_panel = self._construct(d, image_panels)
         self.image_panels.extend(image_panels)
+        for image_panel in self.image_panels:
+            image_panel.workspace = self
         self.__canvas_item.add_canvas_item(canvas_item)
         return self.__canvas_item.canvas_widget, selected_image_panel, layout_id
 
@@ -429,6 +432,46 @@ class Workspace(object):
                 image_panel.set_displayed_data_item(primary_data_item)
                 return image_panel
         return None
+
+    def __replace_displayed_data_item(self, image_panel, data_item):
+        """ Used in drag/drop support. """
+        self.document_controller.replaced_data_item = image_panel.get_displayed_data_item()
+        image_panel.set_displayed_data_item(data_item)
+
+    def handle_drag_enter(self, image_panel, mime_data):
+        if mime_data.has_format("text/data_item_uuid"):
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
+            return "copy"
+        return "ignore"
+
+    def handle_drag_leave(self, image_panel):
+        return False
+
+    def handle_drag_move(self, image_panel, mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid"):
+            return "copy"
+        if mime_data.has_format("text/uri-list"):
+            return "copy"
+        return "ignore"
+
+    def handle_drop(self, image_panel, mime_data, region, x, y):
+        if mime_data.has_format("text/data_item_uuid"):
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            if data_item:
+                self.__replace_displayed_data_item(image_panel, data_item)
+                return "copy"
+        if mime_data.has_format("text/uri-list"):
+            def receive_files_complete(received_data_items):
+                def update_displayed_data_item():
+                    self.__replace_displayed_data_item(image_panel, received_data_items[0])
+                if len(received_data_items) > 0:
+                    self.queue_task(update_displayed_data_item)
+            index = len(self.document_controller.document_model.data_items)
+            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
+            return "copy"
+        return "ignore"
 
 
 class AbstractWorkspaceController(object):

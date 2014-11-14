@@ -4,7 +4,7 @@ import copy
 import gettext
 import logging
 import math
-import uuid
+import weakref
 
 # third party libraries
 
@@ -1467,6 +1467,8 @@ class ImagePanel(object):
         self.document_controller = document_controller
         self.ui = document_controller.ui
 
+        self.__weak_workspace = None
+
         self.__display = None
 
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
@@ -1519,9 +1521,16 @@ class ImagePanel(object):
         self.document_controller.unregister_image_panel(self)
         self.__set_display(None)  # required before destructing display thread
         # release references
+        self.workspace = None
         self.__content_canvas_item = None
         self.__overlay_canvas_item = None
         self.__header_canvas_item = None
+
+    def __get_workspace(self):
+        return self.__weak_workspace() if self.__weak_workspace else None
+    def __set_workspace(self, workspace):
+        self.__weak_workspace = weakref.ref(workspace) if workspace else None
+    workspace = property(__get_workspace, __set_workspace)
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -1694,38 +1703,23 @@ class ImagePanel(object):
         self.set_displayed_data_item(data_item)
 
     def handle_drag_enter(self, mime_data):
-        if mime_data.has_format("text/data_item_uuid"):
-            return "copy"
-        if mime_data.has_format("text/uri-list"):
-            return "copy"
+        if self.workspace:
+            return self.workspace.handle_drag_enter(self, mime_data)
         return "ignore"
 
     def handle_drag_leave(self):
+        if self.workspace:
+            return self.workspace.handle_drag_leave(self)
         return False
 
     def handle_drag_move(self, mime_data, x, y):
-        if mime_data.has_format("text/data_item_uuid"):
-            return "copy"
-        if mime_data.has_format("text/uri-list"):
-            return "copy"
+        if self.workspace:
+            return self.workspace.handle_drag_move(self, mime_data, x, y)
         return "ignore"
 
     def handle_drop(self, mime_data, region, x, y):
-        if mime_data.has_format("text/data_item_uuid"):
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-            if data_item:
-                self.__replace_displayed_data_item(data_item)
-                return "copy"
-        if mime_data.has_format("text/uri-list"):
-            def receive_files_complete(received_data_items):
-                def update_displayed_data_item():
-                    self.__replace_displayed_data_item(received_data_items[0])
-                if len(received_data_items) > 0:
-                    self.queue_task(update_displayed_data_item)
-            index = len(self.document_controller.document_model.data_items)
-            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
-            return "copy"
+        if self.workspace:
+            return self.workspace.handle_drop(self, mime_data, region, x, y)
         return "ignore"
 
 
