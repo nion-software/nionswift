@@ -177,7 +177,7 @@ class WorkspaceController(object):
             traceback.print_stack()
             return None
 
-    def create_image_panel(self):
+    def __create_image_panel(self):
         image_panel = ImagePanel.ImagePanel(self.document_controller)
         image_panel.title = _("Image")
         return image_panel
@@ -202,7 +202,7 @@ class WorkspaceController(object):
                     container.splits = splits
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
-            image_panel = self.create_image_panel()
+            image_panel = self.__create_image_panel()
             image_panels.append(image_panel)
             if desc.get("selected", False):
                 selected_image_panel = image_panel
@@ -222,16 +222,17 @@ class WorkspaceController(object):
             return container, selected_image_panel
         return item, selected_image_panel
 
+    def __get_image_panel_by_canvas_item(self, canvas_item):
+        for image_panel in self.image_panels:
+            if image_panel.canvas_item == canvas_item:
+                return image_panel
+        return None
+
     def _deconstruct(self, canvas_item):
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
             return { "type": "splitter", "orientation": canvas_item.orientation, "splits": copy.copy(canvas_item.splits), "children": children }
-        def get_image_panel_by_canvas_item(canvas_item):
-            for image_panel in self.image_panels:
-                if image_panel.canvas_item == canvas_item:
-                    return image_panel
-            return None
-        image_panel = get_image_panel_by_canvas_item(canvas_item)
+        image_panel = self.__get_image_panel_by_canvas_item(canvas_item)
         if image_panel:
             desc = { "type": "image" }
             if image_panel._is_selected():
@@ -286,10 +287,18 @@ class WorkspaceController(object):
         #self.restore_content()
 
     def change_to_previous_workspace(self):
-        pass
+        workspace_uuid = self.document_controller.document_model.workspace_uuid
+        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self.document_controller.document_model.workspaces.index(workspace)
+        workspace_index = (workspace_index - 1) % len(self.document_controller.document_model.workspaces)
+        self.change_workspace(self.document_controller.document_model.workspaces[workspace_index])
 
     def change_to_next_workspace(self):
-        pass
+        workspace_uuid = self.document_controller.document_model.workspace_uuid
+        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self.document_controller.document_model.workspaces.index(workspace)
+        workspace_index = (workspace_index + 1) % len(self.document_controller.document_model.workspaces)
+        self.change_workspace(self.document_controller.document_model.workspaces[workspace_index])
 
     def new_workspace(self, name=None, layout=None):
         """ Create a new workspace, insert into document_model, and return it. """
@@ -326,7 +335,10 @@ class WorkspaceController(object):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
-                self.__replace_displayed_data_item(image_panel, data_item)
+                if region == "right" or region == "left" or region == "top" or region == "bottom":
+                    self.insert_image_panel(image_panel, region, data_item)
+                else:
+                    self.__replace_displayed_data_item(image_panel, data_item)
                 return "copy"
         if mime_data.has_format("text/uri-list"):
             def receive_files_complete(received_data_items):
@@ -338,6 +350,47 @@ class WorkspaceController(object):
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         return "ignore"
+
+    def insert_image_panel(self, image_panel, region, data_item=None):
+        orientation = "vertical" if region == "right" or region == "left" else "horizontal"
+        container = image_panel.canvas_item.container
+        if isinstance(container, CanvasItem.SplitterCanvasItem):
+            # check if trying to drag on non-axis edge of splitter
+            if container.orientation != orientation:
+                splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+                container.wrap_canvas_item(image_panel.canvas_item, splitter_canvas_item)
+                container = splitter_canvas_item
+        if not isinstance(container, CanvasItem.SplitterCanvasItem):  # special case where top level item is the image panel
+            splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+            container.wrap_canvas_item(image_panel.canvas_item, splitter_canvas_item)
+            container = splitter_canvas_item
+        index = container.canvas_items.index(image_panel.canvas_item)
+        if isinstance(container, CanvasItem.SplitterCanvasItem):
+            # modify the existing splitter
+            old_split = container.splits[index]
+            new_index_adj = 1 if region == "right" or region == "bottom" else 0
+            new_image_panel = self.__create_image_panel()
+            self.image_panels.insert(self.image_panels.index(image_panel) + new_index_adj, new_image_panel)
+            new_image_panel.workspace_controller = self
+            if data_item:
+                new_image_panel.set_displayed_data_item(data_item)
+            container.insert_canvas_item(index + new_index_adj, new_image_panel.canvas_item)
+            self.document_controller.selected_image_panel = new_image_panel
+            # adjust the splits
+            splits = list(container.splits)
+            splits[index] = old_split * 0.5
+            splits[index + 1] = old_split * 0.5
+            container.splits = splits
+
+    def remove_image_panel(self, image_panel):
+        container = image_panel.canvas_item.container
+        if isinstance(container, CanvasItem.SplitterCanvasItem):
+            if len(container.canvas_items) > 0:
+                index = container.canvas_items.index(image_panel.canvas_item)
+                container.remove_canvas_item(image_panel.canvas_item)
+                self.image_panels.remove(image_panel)
+                if len(container.canvas_items) == 1:
+                    container.unwrap_canvas_item(container.canvas_items[0])
 
     def selected_image_panel_changed(self, selected_image_panel):
         for image_panel in self.image_panels:

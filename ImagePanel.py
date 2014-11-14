@@ -1493,9 +1493,10 @@ class ImagePanel(object):
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__overlay_canvas_item = ImagePanelOverlayCanvasItem(self)
         self.__content_canvas_item.add_canvas_item(self.__overlay_canvas_item)
-        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True)
+        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
         self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
         self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
+        self.__header_canvas_item.on_close_clicked = lambda: self.__close_image_panel()
 
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -1621,6 +1622,10 @@ class ImagePanel(object):
         data_item = self.get_displayed_data_item()
         if data_item is not None:
             self.document_controller.select_data_item_in_data_panel(data_item)
+
+    def __close_image_panel(self):
+        if len(self.workspace_controller.image_panels) > 1:
+            self.workspace_controller.remove_image_panel(self)
 
     # this message comes from the data item associated with this panel.
     # the connection is established in __set_display via data_item.add_listener.

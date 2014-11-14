@@ -15,6 +15,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Storage
 from nion.swift.test import DocumentController_test
+from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Test
 
@@ -35,6 +36,15 @@ def get_layout(layout_id):
         layout_id = "1x1"
         d = { "type": "image", "selected": True }
     return layout_id, d
+
+
+class MimeData(object):
+    def __init__(self, data_item):
+        self.data_item = data_item
+    def has_format(self, format_str):
+        return format_str == "text/data_item_uuid"
+    def data_as_string(self, format_str):
+        return str(self.data_item.uuid)
 
 
 class TestWorkspaceClass(unittest.TestCase):
@@ -142,10 +152,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
-        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
-        document_model.append_data_item(data_item1)
-        document_model.append_data_item(data_item2)
         document_controller.workspace_controller.change_workspace(workspace_2x1)
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
@@ -213,6 +219,137 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
         self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), document_model.data_items[0])
+
+    def __test_drop_on_1x1(self, region):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        workspace_1x1 = document_controller.document_model.workspaces[0]
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        image_panel = document_controller.workspace_controller.image_panels[0]
+        image_panel.set_displayed_data_item(data_item1)
+        mime_data = MimeData(data_item2)
+        document_controller.workspace_controller.handle_drop(image_panel, mime_data, region, 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.image_panels), 2)
+        # check that the workspace_controller was updated
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].workspace_controller, document_controller.workspace_controller)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].workspace_controller, document_controller.workspace_controller)
+        # check that the sizes were updated
+        if region == "left" or region == "right":
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].canvas_item.canvas_rect.width, 320)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].canvas_item.canvas_rect.width, 320)
+        else:
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].canvas_item.canvas_rect.height, 240)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].canvas_item.canvas_rect.height, 240)
+        # check that the data items are in the right spot
+        if region == "left" or region == "top":
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item2)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item1)
+        else:
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item1)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item2)
+        # check that it closes properly too
+        document_controller.close()
+
+    def test_workspace_mutates_when_new_item_dropped_on_edge_of_1x1_item(self):
+        self.__test_drop_on_1x1("right")
+        self.__test_drop_on_1x1("left")
+        self.__test_drop_on_1x1("top")
+        self.__test_drop_on_1x1("bottom")
+
+    def test_workspace_splits_when_new_item_dropped_on_non_axis_edge_of_2x1_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item3)
+        document_controller.workspace_controller.image_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.image_panels[1].set_displayed_data_item(data_item2)
+        mime_data = MimeData(data_item3)
+        image_panel = document_controller.workspace_controller.image_panels[0]
+        document_controller.workspace_controller.handle_drop(image_panel, mime_data, "bottom", 160, 240)
+        # check that there are now three image panels
+        self.assertEqual(len(document_controller.workspace_controller.image_panels), 3)
+        # check that the workspace_controller was updated
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].workspace_controller, document_controller.workspace_controller)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].workspace_controller, document_controller.workspace_controller)
+        self.assertEqual(document_controller.workspace_controller.image_panels[2].workspace_controller, document_controller.workspace_controller)
+        # check that there are still two top level image panels
+        self.assertTrue(isinstance(root_canvas_item.canvas_items[0], CanvasItem.SplitterCanvasItem))
+        self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items), 2)
+        # check that the first top level item is a splitter and has two image panels
+        self.assertTrue(isinstance(root_canvas_item.canvas_items[0].canvas_items[0], CanvasItem.SplitterCanvasItem))
+        self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
+        # check that the sizes were updated
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].canvas_item.canvas_rect.width, 320)
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].canvas_item.canvas_rect.height, 240)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].canvas_item.canvas_rect.width, 320)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].canvas_item.canvas_rect.height, 240)
+        self.assertEqual(document_controller.workspace_controller.image_panels[2].canvas_item.canvas_rect.width, 320)
+        self.assertEqual(document_controller.workspace_controller.image_panels[2].canvas_item.canvas_rect.height, 480)
+        # check that it closes properly too
+        document_controller.close()
+
+    def test_removing_left_item_in_2x1_results_in_a_single_top_level_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace_controller.image_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.image_panels[1].set_displayed_data_item(data_item2)
+        image_panel = document_controller.workspace_controller.image_panels[0]
+        document_controller.workspace_controller.remove_image_panel(image_panel)
+        # check that there is now one image panel
+        self.assertEqual(len(document_controller.workspace_controller.image_panels), 1)
+        # check that there is just one top level panel now
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item2)
+
+    def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }, { "type": "image" } ] }
+        workspace_3x1 = document_controller.workspace_controller.new_workspace("layout", d)
+        document_controller.workspace_controller.change_workspace(workspace_3x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item3)
+        document_controller.workspace_controller.image_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.image_panels[1].set_displayed_data_item(data_item2)
+        document_controller.workspace_controller.image_panels[2].set_displayed_data_item(data_item3)
+        image_panel = document_controller.workspace_controller.image_panels[1]
+        splits = root_canvas_item.canvas_items[0].splits
+        #logging.debug(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]))
+        document_controller.workspace_controller.remove_image_panel(image_panel)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.image_panels), 2)
+        # check that there is just one top level panel now
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item1)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item3)
+        # check that the splits are the same at the top level
+        self.assertEqual(root_canvas_item.canvas_items[0].splits, splits)
 
 
 if __name__ == '__main__':

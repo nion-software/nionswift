@@ -234,9 +234,9 @@ class DocumentController(Observable.Broadcaster):
                 self.view_menu.remove_action(dynamic_view_action)
             self.__dynamic_view_actions = []
             for workspace in self.document_model.workspaces:
-                def switch_to_workspace():
+                def switch_to_workspace(workspace):
                     self.workspace_controller.change_workspace(workspace)
-                action = self.view_menu.add_menu_item(workspace.name, switch_to_workspace)
+                action = self.view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
                 self.__dynamic_view_actions.append(action)
 
         self.view_menu.on_about_to_show = adjust_view_menu

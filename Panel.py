@@ -164,22 +164,25 @@ class ConsolePanel(Panel):
 
 class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
 
-    def __init__(self, title=None, display_drag_control=False, display_sync_control=False):
+    def __init__(self, title=None, display_drag_control=False, display_sync_control=False, display_close_control=False):
         super(HeaderCanvasItem, self).__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__display_drag_control = display_drag_control
         self.__display_sync_control = display_sync_control
+        self.__display_close_control = display_close_control
         self.header_height = 20 if sys.platform == "win32" else 22
         self.sizing.set_fixed_height(self.header_height)
         self.on_drag_pressed = None
         self.on_sync_clicked = None
+        self.on_close_clicked = None
         self.__start_header_color = "#ededed"
         self.__end_header_color = "#cacaca"
 
     def close(self):
         self.on_drag_pressed = None
         self.on_sync_clicked = None
+        self.on_close_clicked = None
         super(HeaderCanvasItem, self).close()
 
     def __str__(self):
@@ -228,6 +231,10 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             if x > 22 and x < 36 and y > 2 and y < canvas_size.height - 2:
                 if self.on_sync_clicked:
                     self.on_sync_clicked()
+        if self.__display_close_control:
+            if x > canvas_size.width - 20 + 4 and x < canvas_size.width - 20 + 18 and y > 2 and y < canvas_size.height - 2:
+                if self.on_close_clicked:
+                    self.on_close_clicked()
         return True
 
     def _repaint(self, drawing_context):
@@ -291,6 +298,19 @@ class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.line_to(24, canvas_size.height/2 + 1)
             drawing_context.line_to(27, canvas_size.height/2 + 3)
             drawing_context.stroke_style = '#444'
+            drawing_context.stroke()
+            drawing_context.restore()
+
+        if self.__display_close_control:
+            drawing_context.save()
+            drawing_context.begin_path()
+            drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 - 3)
+            drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 + 3)
+            drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 + 3)
+            drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 - 3)
+            drawing_context.line_width = 2.0
+            drawing_context.line_cap = "round"
+            drawing_context.stroke_style = '#888'
             drawing_context.stroke()
             drawing_context.restore()
 
