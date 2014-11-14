@@ -508,11 +508,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.line_graph_horizontal_axis_scale_canvas_item.update()
         self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
         self.line_graph_horizontal_axis_ticks_canvas_item.update()
-        canvas_bounds = self.canvas_bounds
-        canvas_rect = self.canvas_rect
-        if canvas_bounds:
-            self.update_layout(canvas_rect.origin, canvas_rect.size)
-            self.update()
+        self.refresh_layout()
         self.__data_info = data_info
 
     def mouse_entered(self):

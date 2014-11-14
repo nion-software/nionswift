@@ -554,9 +554,9 @@ class DataPanel(Panel.Panel):
             return item_rows * item_width
 
         def update(self):
-            if self.canvas_origin and self.canvas_size:
-                if self.__calculate_layout_height(self.canvas_size[1]) != self.canvas_size[0]:
-                    self.update_layout(self.canvas_origin, self.canvas_size)
+            if self.canvas_origin is not None and self.canvas_size is not None:
+                if self.__calculate_layout_height(self.canvas_size.width) != self.canvas_size.height:
+                    self.refresh_layout()
             super(DataPanel.GridCanvasItem, self).update()
 
         def _repaint_visible(self, drawing_context, visible_rect):
