@@ -75,7 +75,7 @@ _ = gettext.gettext
 
 # KEYS FOR DRAWING GRAPHICS             ACTION/KEY
 # constrain shape                       shift-drag
-# move while draging                    spacebar-drag
+# move while dragging                   spacebar-drag
 # drag from center                      alt-drag (Windows), option-drag (Mac OS)
 
 # KEYS FOR SELECTING GRAPHICS           ACTION/KEY
@@ -136,17 +136,17 @@ class WidgetImageMapping(object):
 
     def map_size_image_norm_to_widget(self, s):
         ms = self.map_point_image_norm_to_widget(s)
-        ms0 = self.map_point_image_norm_to_widget((0,0))
+        ms0 = self.map_point_image_norm_to_widget((0, 0))
         return ms - ms0
 
     def map_size_image_to_image_norm(self, s):
         ms = self.map_point_image_to_image_norm(s)
-        ms0 = self.map_point_image_to_image_norm((0,0))
+        ms0 = self.map_point_image_to_image_norm((0, 0))
         return ms - ms0
 
     def map_size_widget_to_image_norm(self, s):
         ms = self.map_point_widget_to_image_norm(s)
-        ms0 = self.map_point_widget_to_image_norm((0,0))
+        ms0 = self.map_point_widget_to_image_norm((0, 0))
         return ms - ms0
 
     def map_point_widget_to_image_norm(self, p):
@@ -167,7 +167,7 @@ class WidgetImageMapping(object):
                 image_x = self.data_shape[1] * (p.x - self.canvas_rect.left) / self.canvas_rect.width
             else:
                 image_x = 0.0
-            return Geometry.FloatPoint(y=image_y, x=image_x) # c-indexing
+            return Geometry.FloatPoint(y=image_y, x=image_x)  # c-indexing
         return None
 
     def map_point_image_norm_to_image(self, p):
@@ -213,16 +213,20 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __get_image_canvas_size(self):
         return self.__image_canvas_size
+
     def __set_image_canvas_size(self, image_canvas_size):
         self.__image_canvas_size = image_canvas_size
         self.update()
+
     image_canvas_size = property(__get_image_canvas_size, __set_image_canvas_size)
 
     def __get_image_canvas_origin(self):
         return self.__image_canvas_origin
+
     def __set_image_canvas_origin(self, image_canvas_origin):
         self.__image_canvas_origin = image_canvas_origin
         self.update()
+
     image_canvas_origin = property(__get_image_canvas_origin, __set_image_canvas_origin)
 
     def _repaint(self, drawing_context):
@@ -232,7 +236,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         if display:
 
             # canvas size
-            canvas_width = self.canvas_size[1]
             canvas_height = self.canvas_size[0]
 
             drawing_context.save()
@@ -261,7 +264,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.close_path()
                     drawing_context.fill_style = "#448"
                     drawing_context.fill()
-                    drawing_context.stroke_style="#000"
+                    drawing_context.stroke_style = "#000"
                     drawing_context.stroke()
                     drawing_context.font = "normal 14px serif"
                     drawing_context.text_baseline = "bottom"
@@ -273,7 +276,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     if voltage:
                         units = "V"
                         if voltage % 1000 == 0:
-                            voltage = voltage / 1000
+                            voltage /= 1000
                             units = "kV"
                         info_items.append("{0} {1}".format(voltage, units))
                     source = data_item_properties.get("hardware_source")
@@ -417,8 +420,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
         graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
+
         def convert_to_calibrated_value_str(f):
             return (u"{0:0." + u"{0:d}".format(precision+2) + "f}").format(f)
+
         for graphic_index, graphic in enumerate(self.__display.drawn_graphics):
             graphic_start, graphic_end = graphic.start, graphic.end
             graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
@@ -640,7 +645,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         plot_rect = self.line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         left_channel = self.__data_info.drawn_left_channel
         right_channel = self.__data_info.drawn_right_channel
-        drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
         return WidgetChannelMapping(data_size, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
@@ -693,7 +697,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
     def begin_tracking_vertical(self, pos, rescale):
-        plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_height = self.line_graph_canvas_item.canvas_bounds.height - 1
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
@@ -752,7 +755,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 pixel_offset = origin_y - pos.y
                 pixel_offset = max(pixel_offset, 1) if origin_y > self.__tracking_start_pos.y else min(pixel_offset, -1)
                 new_drawn_data_per_pixel = data_offset / pixel_offset
-                data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * (self.__tracking_start_origin_y)
+                data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * self.__tracking_start_origin_y
                 data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
                 self.__display.y_min = data_min
                 self.__display.y_max = data_max
@@ -1252,14 +1255,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 image_x = image_size[1] * (p[1] - transformed_image_rect[0][1])/transformed_image_rect[1][1]
             else:
                 image_x = 0
-            return (image_y, image_x) # c-indexing
+            return image_y, image_x  # c-indexing
         return None
 
     # map from image normalized coordinates to image coordinates
     def map_image_norm_to_image(self, p):
         image_size = self.__get_image_size()
         if image_size:
-            return (p[0] * image_size[0], p[1] * image_size[1])
+            return p[0] * image_size[0], p[1] * image_size[1]
         return None
 
     def __update_cursor_info(self):
@@ -1365,18 +1368,22 @@ class ImagePanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __get_focused(self):
         return self.__focused
+
     def __set_focused(self, focused):
         if self.__focused != focused:
             self.__focused = focused
             self.update()
+
     focused = property(__get_focused, __set_focused)
 
     def __get_selected(self):
         return self.__selected
+
     def __set_selected(self, selected):
         if self.__selected != selected:
             self.__selected = selected
             self.update()
+
     selected = property(__get_selected, __set_selected)
 
     def __set_drop_region(self, drop_region):
@@ -1510,7 +1517,7 @@ class LiveImagePanelController(object):
         self.__image_panel = None
 
     @classmethod
-    def make(self, image_panel, d):
+    def make(cls, image_panel, d):
         hardware_source_id = d.get("hardware_source_id")
         hardware_source_channel_id = d.get("hardware_source_channel_id")
         if hardware_source_id:
@@ -1544,7 +1551,7 @@ class BrowserImagePanelController(object):
         self.__image_panel = None
 
     @classmethod
-    def make(self, image_panel, d):
+    def make(cls, image_panel, d):
         return BrowserImagePanelController(image_panel)
 
     def save(self, d):
@@ -1579,7 +1586,6 @@ class ImagePanel(object):
                 if self.image_panel.display_canvas_item:
                     return self.image_panel.display_canvas_item.key_pressed(key)
                 return super(ContentCanvasItem, self).key_pressed(key)
-
 
         self.__content_canvas_item = ContentCanvasItem(self)
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
@@ -1629,8 +1635,10 @@ class ImagePanel(object):
 
     def __get_workspace(self):
         return self.__weak_workspace() if self.__weak_workspace else None
+
     def __set_workspace(self, workspace):
         self.__weak_workspace = weakref.ref(workspace) if workspace else None
+
     workspace = property(__get_workspace, __set_workspace)
 
     @property
@@ -1720,6 +1728,7 @@ class ImagePanel(object):
 
     def __get_display(self):
         return self.__display
+
     def __set_display(self, display):
         if display:
             assert isinstance(display, Display.Display)
@@ -1730,13 +1739,13 @@ class ImagePanel(object):
         if self.__display:
             self.__display.data_item.decrement_data_ref_count()  # don't keep data in memory anymore
             self.__display.remove_listener(self)
-        data_item = display.data_item if display else None
         self.__display = display
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
             self.__display.add_listener(self)  # for display_changed
         self.display_changed(self.__display)
+
     display = property(__get_display)  # read only, for tests only
 
     # this message comes from the document model.
@@ -1912,7 +1921,7 @@ class InfoPanel(Panel.Panel):
     The info panel will display cursor information. user interface items that want to
     update the cursor info should called cursor_changed on the document controller.
     This info panel will listen to the document controller for cursor updates and update
-    itself in respsone. all cursor update calls are thread safe. this class uses periodic
+    itself in response. all cursor update calls are thread safe. this class uses periodic
     to do ui updates from the main thread.
     """
 
