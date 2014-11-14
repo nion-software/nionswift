@@ -1,6 +1,7 @@
 # standard libraries
 import gettext
 import logging
+import threading
 
 # third party libraries
 # None
@@ -309,6 +310,7 @@ class HistogramPanel(Panel.Panel):
 
         # the display holds the current display to which this histogram is listening.
         self.__display = None
+        self.__display_lock = threading.RLock()
 
         # connect self as listener. this will result in calls to data_item_binding_display_changed
         # then manually send the first initial data item changed message to set things up.
@@ -345,13 +347,17 @@ class HistogramPanel(Panel.Panel):
         self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)/2:])
 
     def __set_display(self, display):
-        if self.__display:
-            self.__display.remove_listener(self)
-            self.__display.data_item.remove_listener(self)
-        self.__display = display
-        if self.__display:
-            self.__display.add_listener(self)
-            self.__display.data_item.add_listener(self)
+        # this will be called from a thread. must be threadsafe.
+        # typically could be updated from an acquisition thread and a
+        # focus changed thread (why?).
+        with self.__display_lock:
+            if self.__display:
+                self.__display.remove_listener(self)
+                self.__display.data_item.remove_listener(self)
+            self.__display = display
+            if self.__display:
+                self.__display.add_listener(self)
+                self.__display.data_item.add_listener(self)
 
     # this message is received from the data item binding.
     # when a new display is set, this panel becomes a listener
@@ -374,23 +380,31 @@ class HistogramPanel(Panel.Panel):
     # notification from display
     def display_processor_needs_recompute(self, display, processor):
         document_model = self.document_controller.document_model
-        if processor == self.__display.get_processor("histogram"):
+        with self.__display_lock:
+            display = self.__display
+        if processor == display.get_processor("histogram"):
             document_model.dispatch_task(lambda: processor.recompute_data_limited(None), "histogram")
 
     # notification from display
     def display_processor_data_updated(self, display, processor):
-        if processor == self.__display.get_processor("histogram"):
-            histogram_data = self.__display.get_processed_data("histogram")
+        with self.__display_lock:
+            display = self.__display
+        if processor == display.get_processor("histogram"):
+            histogram_data = display.get_processed_data("histogram")
             self.__histogram_canvas_item.histogram_data = histogram_data
 
     # notification from display
     def data_item_processor_needs_recompute(self, data_item, processor):
         document_model = self.document_controller.document_model
-        if processor == self.__display.data_item.get_processor("statistics"):
+        with self.__display_lock:
+            display = self.__display
+        if processor == display.data_item.get_processor("statistics"):
             document_model.dispatch_task(lambda: processor.recompute_data_limited(None), "statistics")
 
     # notification from display
     def data_item_processor_data_updated(self, data_item, processor):
-        if processor == self.__display.data_item.get_processor("statistics"):
-            statistics_data = self.__display.data_item.get_processed_data("statistics")
+        with self.__display_lock:
+            display = self.__display
+        if processor == display.data_item.get_processor("statistics"):
+            statistics_data = display.data_item.get_processed_data("statistics")
             self.__update_statistics(statistics_data)
