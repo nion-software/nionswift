@@ -212,10 +212,6 @@ class HardwareSourcePort(object):
         self.__finished_event = threading.Event()
 
     def close(self):
-        self.last_data_elements = None
-        finished_event = self.__finished_event
-        self.__finished_event = None
-        finished_event.set()
         self.hardware_source.remove_port(self)
         self.on_new_data_elements = None
 
@@ -226,13 +222,11 @@ class HardwareSourcePort(object):
     def get_new_data_elements(self, sync):
         if sync:
             # wait for the last frame to finish
-            if self.__finished_event:
-                self.__finished_event.clear()
-                self.__finished_event.wait()
-        # wait for the new frame to arrive
-        if self.__finished_event:
             self.__finished_event.clear()
             self.__finished_event.wait()
+        # wait for the new frame to arrive
+        self.__finished_event.clear()
+        self.__finished_event.wait()
         return self.last_data_elements
 
     # thread safe.
