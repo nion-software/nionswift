@@ -388,6 +388,11 @@ class HardwareSource(Observable.Broadcaster):
     def start_acquisition(self, mode, mode_data):
         pass
 
+    # subclasses can implement this method which is called when acquisition aborts.
+    # must be thread safe
+    def abort_acquisition(self):
+        pass
+
     # subclasses can implement this method which is called when acquisition stops.
     # must be thread safe
     def stop_acquisition(self):
@@ -420,6 +425,7 @@ class HardwareSource(Observable.Broadcaster):
     # not thread safe
     def abort_playing(self):
         if self.data_buffer.is_playing:
+            self.abort_acquisition()
             self.data_buffer.stop()
             self.notify_listeners("hardware_source_stopped", self)
             self.__workspace_controller.did_stop_playing(self)
@@ -614,7 +620,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
     def stop(self):
         # logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
         if self.hardware_port is not None:
-            self.hardware_port.new_data_elements = None
+            self.hardware_port.on_new_data_elements = None
             self.hardware_port.close()
             self.hardware_port = None
             self.new_data_elements([])
