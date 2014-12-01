@@ -14,7 +14,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
-from nion.swift.model import Storage
+from nion.swift.model import Operation
 from nion.ui import Test
 
 
@@ -45,7 +45,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item1)
         data_item1a = DataItem.DataItem()
         data_item1a.title = "data_item1a"
-        data_item1a.add_data_source(data_item1)
+        operation1a = Operation.OperationItem("invert-operation")
+        operation1a.add_data_source(Operation.DataItemDataSource(data_item1))
+        data_item1a.set_operation(operation1a)
         document_model.append_data_item(data_item1a)
         data_group.append_data_item(data_item1a)
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -54,7 +56,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item2)
         data_item2a = DataItem.DataItem()
         data_item2a.title = "data_item2a"
-        data_item2a.add_data_source(data_item2)
+        operation2a = Operation.OperationItem("invert-operation")
+        operation2a.add_data_source(Operation.DataItemDataSource(data_item2))
+        data_item2a.set_operation(operation2a)
         document_model.append_data_item(data_item2a)
         data_group.append_data_item(data_item2a)
         data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -417,7 +421,6 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item1)
         data_item1a = DataItem.DataItem()
         data_item1a.title = "data_item1a"
-        data_item1a.add_data_source(data_item1)
         document_model.append_data_item(data_item1a)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.data_item_widget.on_key_pressed([0, 1], self.app.ui.create_key_by_id("delete"))

@@ -71,8 +71,6 @@ class TestStorageClass(unittest.TestCase):
         data_group.append_data_item(data_item3)
         data_item2a = DataItem.DataItem()
         data_item2b = DataItem.DataItem()
-        data_item2a.add_data_source(data_item2)
-        data_item2b.add_data_source(data_item2)
         data_group.append_data_item(data_item2a)
         data_group.append_data_item(data_item2b)
         document_controller.document_model.append_data_item(data_item2a)
@@ -655,8 +653,8 @@ class TestStorageClass(unittest.TestCase):
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_property("vector", ((0.1, 0.2), (0.3, 0.4)))
         line_profile_operation.establish_associated_region("line", data_item)
+        line_profile_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item2.set_operation(line_profile_operation)
-        data_item2.add_data_source(data_item)
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -759,8 +757,10 @@ class TestStorageClass(unittest.TestCase):
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             data_item2 = DataItem.DataItem()
+            invert_operation = Operation.OperationItem("invert-operation")
+            invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
+            data_item2.set_operation(invert_operation)
             document_model.append_data_item(data_item2)
-            data_item2.add_data_source(data_item)
             reference_type, reference = data_item.get_data_file_info()
             reference_type, reference2 = data_item2.get_data_file_info()
             data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
@@ -829,8 +829,9 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
         document_model.append_data_item(data_item)
         data_item_inverted = DataItem.DataItem()
-        data_item_inverted.set_operation(Operation.OperationItem("invert-operation"))
-        data_item_inverted.add_data_source(data_item)
+        invert_operation = Operation.OperationItem("invert-operation")
+        invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
         document_model.close()
@@ -845,9 +846,9 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_item_cropped = DataItem.DataItem()
         crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_cropped.set_operation(crop_operation)
         crop_operation.establish_associated_region("crop", data_item)
-        data_item_cropped.add_data_source(data_item)
         document_model.append_data_item(data_item_cropped)
         data_item_cropped.recompute_data()
         self.assertFalse(document_model.data_items[1].is_data_stale)
@@ -872,9 +873,9 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item_cropped = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
             data_item_cropped.set_operation(crop_operation)
             crop_operation.establish_associated_region("crop", data_item)
-            data_item_cropped.add_data_source(data_item)
             document_model.append_data_item(data_item_cropped)
             histogram1 = numpy.copy(data_item_cropped.displays[0].get_processed_data("histogram"))
             data_item_cropped.displays[0].get_processor("histogram").recompute_data(None)
@@ -979,6 +980,34 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(data_item.operation.region_connections), 1)
         self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
         self.assertFalse("region_uuid" in data_reference_handler.properties["A"]["operation"])
+
+    def test_data_items_v5_migration(self):
+        # construct v4 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["uuid"] = str(uuid.uuid4())
+        data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["version"] = 5
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_item2_dict = data_reference_handler.properties.setdefault("B", dict())
+        data_item2_dict["uuid"] = str(uuid.uuid4())
+        data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item2_dict["operations"] = [{"operation_id": "invert-operation"}]
+        data_item2_dict["data_sources"] = [data_item_dict["uuid"]]
+        data_item2_dict["version"] = 5
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check it
+        self.assertEqual(len(document_model.data_items), 2)
+        self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
+        self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
+        data_item = document_model.data_items[1]
+        self.assertEqual(data_reference_handler.properties["B"]["version"], data_item.writer_version)
+        self.assertIsNotNone(data_item.operation)
+        self.assertEqual(len(data_item.operation.data_sources), 1)
+        self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
 
 
 if __name__ == '__main__':

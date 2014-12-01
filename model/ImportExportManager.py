@@ -345,10 +345,7 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element["datetime_modified"] = copy.deepcopy(data_item.datetime_modified)
     data_element["datetime_original"] = copy.deepcopy(data_item.datetime_original)
     data_element["uuid"] = str(data_item.uuid)
-    data_source = data_item.data_source
-    if isinstance(data_source, DataItem.DataItem):
-        data_element["data_source_uuid"] = str(data_source.uuid)
-    # operations
+    # operation
     # graphics
     return data_element
 

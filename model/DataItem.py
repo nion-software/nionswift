@@ -73,41 +73,43 @@ class CalibrationList(object):
         return list
 
 
-class DataSourceUuidList(object):
+"""
+    Data sources are interfaces to get data and metadata.
 
-    def __init__(self):
-        self.list = list()
+    *Primary Properties*
 
-    def read_dict(self, storage_list):
-        # storage_list will be whatever is returned by write_dict.
-        self.list = copy.copy(storage_list)
-        return self  # for convenience
+    * data_shape_and_dtype
+    * intensity_calibration
+    * dimensional_calibrations
+    * data
 
-    def write_dict(self):
-        return copy.copy(self.list)
+    *Derived Properties*
+    * data_shape
+    * data_dtype
 
+    *Secondary Functionality*
 
-class _UuidToStringConverter(object):
-    def convert(self, value):
-        return str(value)
-    def convert_back(self, value):
-        return uuid.UUID(value)
+    Data sources can only be associated in their operation tree of a single data item. The data source
+    keeps track of that so as to maintain the dependent_data_item list on data items.
 
+    set_dependent_data_item(data_item)
 
-class DataItemReference(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+    *Notifications*
 
-    def __init__(self, data_item_uuid=None):
-        super(DataItemReference, self).__init__()
-        self.define_type("data-item-reference")
-        self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
+    Data items will emit the following notifications to listeners. Listeners should take care to not call
+     functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
+     should not read the data property (although cached_data is ok) since calling data may trigger the data
+     to be computed which will emit data_item_content_changed, resulting in a cycle.
 
+    * data_source_content_changed(data_source, changes)
+    * data_source_needs_recompute(data_source)
 
-def data_source_list_factory(lookup_id):
-    build_map = {
-        "data-item-reference": DataItemReference
-    }
-    type = lookup_id("type")
-    return build_map[type]() if type in build_map else None
+    data_source_content_changed is invoked when the content of the data source changes. The changes parameter is a set
+    of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
+
+    data_source_needs_recompute is invoked when a recompute of the data source is necessary. This can happen when an
+    operation changes or when source data changes. This may be called on a thread.
+"""
 
 
 # enumerations for types of data item content changes
@@ -270,7 +272,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_item("operation", Operation.operation_item_factory, item_changed=self.__operation_item_changed)
-        self.define_relationship("data_sources", data_source_list_factory)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
@@ -282,13 +283,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__master_data_lock = threading.RLock()
         self.__is_master_data_stale = True
         self.__is_master_data_stale_lock = threading.RLock()
-        self.__data_sources = []
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
-        self.__lookup_data_item = None
+        self.__data_item_manager = None
+        self.__data_item_manager_lock = threading.RLock()
         self.__dependent_data_item_refs = list()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
@@ -314,9 +315,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # operation
         if self.operation:
             data_item_copy.set_operation(copy.deepcopy(self.operation))
-        # data sources
-        for data_source in self.data_sources:
-            data_item_copy.append_item("data_sources", copy.deepcopy(data_source))
         # data.
         if self.has_master_data:
             with self.data_ref() as data_ref:
@@ -462,7 +460,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             super(DataItem, self).read_from_dict(properties)
             for key in properties.keys():
                 if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
-                    self.__metadata.setdefault(key, dict()).update(properties[key])
+                    metadata = properties[key]
+                    if isinstance(metadata, dict):
+                        self.__metadata.setdefault(key, dict()).update(metadata)
             self.__data_item_changes = set()
 
     def write_to_dict(self):
@@ -656,10 +656,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Return the intensity calibration. """
         try:
             if self.is_data_stale:
-                data_output = self.__get_data_output()
-                if data_output:
-                    return data_output.intensity_calibration
-            return self._get_managed_property("intensity_calibration")
+                if self.operation:
+                    return self.operation.intensity_calibration
+            return copy.deepcopy(self._get_managed_property("intensity_calibration"))
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -671,9 +670,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Return the dimensional calibrations as a list. """
         try:
             if self.is_data_stale:
-                data_output = self.__get_data_output()
-                if data_output:
-                    return data_output.dimensional_calibrations
+                if self.operation:
+                    return self.operation.dimensional_calibrations
             return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
         except Exception as e:
             import traceback
@@ -835,7 +833,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __sync_operation(self):
         # apply the operation
         if self.operation:
-            self.operation.update_data_shapes_and_dtypes(copy.copy(self.__data_sources))
+            self.operation.update_data_shapes_and_dtypes()
 
     def set_operation(self, operation):
         self.set_item("operation", operation)
@@ -844,6 +842,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def ordered_operations(self):
         if self.operation:
             return [self.operation]
+        else:
+            return []
+
+    @property
+    def ordered_data_item_data_sources(self):
+        if self.operation:
+            return self.operation.ordered_data_item_data_sources
         else:
             return []
 
@@ -857,14 +862,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             # handle listeners/observers
             old_value.remove_listener(self)
             old_value.remove_observer(self)
-            old_value._set_data_item(None)
+            old_value.set_dependent_data_item(None)
+            old_value.set_data_item_manager(None)
         if new_value:
             # generate changed messages (temporary)
             self.notify_listeners("item_inserted", self, "ordered_operations", new_value, 0)
             # handle listeners/observers
             new_value.add_listener(self)
             new_value.add_observer(self)
-            new_value._set_data_item(self)
+            new_value.set_dependent_data_item(self)
+            new_value.set_data_item_manager(self.__data_item_manager)
         self.__sync_operation()
         self.notify_data_item_content_changed(set([DATA]))
         if not self._is_reading:
@@ -887,41 +894,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_region_because_graphic_removed(self, region):
         self.remove_region(region)
 
-    # connect this item to its data source, if any. the lookup_data_item parameter
-    # is a function to look up data items by uuid. this method also establishes the
-    # display graphics for this item's operation. direct_data_sources is used for testing.
-    # is_reading can be passed to indicate that the content changed notification should not
-    # be emitted.
-    def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None, is_reading=False):
-        if direct_data_sources is not None:
-            lookup_data_item = lambda data_item_uuid: next(itertools.islice(itertools.ifilter(lambda x: x.uuid == data_item_uuid, direct_data_sources), 0, None), None)
-        self.__lookup_data_item = lookup_data_item
-        data_items = [lookup_data_item(data_source.data_item_uuid) for data_source in self.data_sources]
-        data_source_connected = False  # keep track of whether a data source was connected during this call
-        with self.__master_data_lock:
-            for data_source in data_items:
-                if data_source is not None:
-                    assert isinstance(data_source, DataItem)
-                    # we will receive data_item_content_changed and data_item_needs_recompute from data_source
-                    data_source.add_listener(self)
-                    data_source.add_dependent_data_item(self)
-                    self.__data_sources.append(data_source)
-                    data_source_connected = True
-            self.__sync_operation()
-        if data_source_connected and not is_reading:  # notify of changes if a data source was connected
-            self.data_item_content_changed(None, set([SOURCE]))
-
-    # disconnect this item from its data source. also removes the graphics for this
-    # item's operation.
-    def disconnect_data_sources(self):
-        with self.__master_data_lock:
-            for data_source in copy.copy(self.__data_sources):
-                data_source.remove_dependent_data_item(self)
-                data_source.remove_listener(self)
-                self.__data_sources.remove(data_source)
-        self.__lookup_data_item = None
-        # notify of changes
-        self.data_item_content_changed(None, set([SOURCE]))
+    def set_data_item_manager(self, data_item_manager):
+        """Set the data item manager. May be called from thread."""
+        with self.__data_item_manager_lock:
+            self.__data_item_manager = data_item_manager
+            if self.operation:
+                self.operation.set_data_item_manager(self.__data_item_manager)
 
     # track dependent data items. useful for propagating transaction support.
     def add_dependent_data_item(self, data_item):
@@ -957,38 +935,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # data_item_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
-    def data_item_content_changed(self, data_source, changes):
+    def data_source_content_changed(self, data_source, changes):
         if DATA in changes or SOURCE in changes:
             self.__mark_data_stale()
 
     # data_item_needs_recompute comes from data sources to indicate that data has
     # become stale. the connection is established via add_listener.
-    def data_item_needs_recompute(self, data_item):
+    def data_source_needs_recompute(self, data_source):
         self.__mark_data_stale()
-
-    def __get_data_source(self):
-        return self.__data_sources[0] if len(self.__data_sources) == 1 else None
-    data_source = property(__get_data_source)
-
-    # add a reference to the given data source
-    def add_data_source(self, data_source):
-        assert len(self.__data_sources) == 0  # for now we assume that this is only called before data sources are connected
-        self.session_id = data_source.session_id
-        self.append_item("data_sources", DataItemReference(data_source.uuid))
-        # connect to the data source if possible
-        if self.__lookup_data_item:
-            self.connect_data_sources(self.__lookup_data_item)
-
-    # remove a reference to the given data source
-    def remove_data_source(self, data_source):
-        assert len(self.__data_sources) == 1  # for now we assume that this is only called before data sources are connected
-        for data_item_reference in copy.copy(self.data_sources):
-            if data_item_reference.data_item_uuid == data_source.uuid:
-                self.remove_item("data_sources", data_item_reference)
-                self.session_id = None
-                self.disconnect_data_sources()
-                return
-        assert False
 
     def __get_master_data(self):
         with self.__master_data_lock:
@@ -1134,20 +1088,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             traceback.print_stack()
             raise
 
-    def __get_data_output(self):
-        """Calculate the operation applied to the data sources. Returns an intermediate data item.
-
-        An intermediate data item provides immediate access to data shape, type, and calibrations, but
-        does not compute data until requested.
-        """
-        data_sources = copy.copy(self.__data_sources)
-        if self.operation:
-            data_sources = self.operation.get_processed_intermediate_data_items(data_sources)
-        if len(data_sources) > 0:
-            assert len(data_sources) == 1
-            return data_sources[0]
-        return None
-
     def recompute_data(self):
         """Ensures that the master data is synchronized with the sources/operation by recomputing if necessary."""
 
@@ -1157,23 +1097,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         with self.data_item_changes():
             with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
                 if self.is_data_stale:
-                    data_output = self.__get_data_output()
-                    if data_output:
+                    operation = self.operation
+                    if operation:
                         self.increment_data_ref_count()  # make sure master data is loaded
                         try:
-                            self.__set_master_data(data_output.data)
+                            self.__set_master_data(operation.data)
                         finally:
                             self.decrement_data_ref_count()  # unload master data
-                        self.set_intensity_calibration(data_output.intensity_calibration)
-                        for index, dimensional_calibration in enumerate(data_output.dimensional_calibrations):
+                        self.set_intensity_calibration(operation.intensity_calibration)
+                        for index, dimensional_calibration in enumerate(operation.dimensional_calibrations):
                             self.set_dimensional_calibration(index, dimensional_calibration)
                 self.__is_master_data_stale = False
 
     def __get_data_shape_and_dtype(self):
         if self.is_data_stale:
-            data_output = self.__get_data_output()
-            if data_output:
-                return data_output.data_shape_and_dtype
+            if self.operation:
+                return self.operation.data_shape_and_dtype
         return self.master_data_shape, self.master_data_dtype
     data_shape_and_dtype = property(__get_data_shape_and_dtype)
 

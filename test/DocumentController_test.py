@@ -179,7 +179,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.data_source, data_item)
+        self.assertEqual(line_profile_data_item.operation.data_sources[0].data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
@@ -199,7 +199,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.data_source, data_item)
+        self.assertEqual(line_profile_data_item.operation.data_sources[0].data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()

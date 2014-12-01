@@ -5,6 +5,7 @@ import functools
 import gettext
 import logging
 import math
+import threading
 import uuid
 import weakref
 
@@ -31,9 +32,138 @@ _ = gettext.gettext
 RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
 
 
+class _UuidToStringConverter(object):
+    def convert(self, value):
+        return str(value)
+    def convert_back(self, value):
+        return uuid.UUID(value)
+
+
+class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+
+    def __init__(self, data_item=None):
+        super(DataItemDataSource, self).__init__()
+        self.define_type("data-item-data-source")
+        data_item_uuid = data_item.uuid if data_item else None
+        self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
+        self.__data_item_manager = None
+        self.__data_item_manager_lock = threading.RLock()
+        self.__data_item = None
+        self.__weak_dependent_data_item = None
+        self.set_data_item(data_item)
+
+    def remove_region(self, region):
+        if self.__data_item and region in self.__data_item.regions:
+            self.__data_item.remove_region(region)
+
+    @property
+    def data_shape_and_dtype(self):
+        if self.__data_item:
+            return self.__data_item.data_shape_and_dtype
+        return None
+
+    @property
+    def data_shape(self):
+        if self.__data_item:
+            return self.__data_item.data_shape
+        return None
+
+    @property
+    def data_dtype(self):
+        if self.__data_item:
+            return self.__data_item.data_dtype
+        return None
+
+    @property
+    def intensity_calibration(self):
+        if self.__data_item:
+            return self.__data_item.intensity_calibration
+        return None
+
+    @property
+    def dimensional_calibrations(self):
+        if self.__data_item:
+            return self.__data_item.dimensional_calibrations
+        return None
+
+    @property
+    def data(self):
+        if self.__data_item:
+            return self.__data_item.data
+        return None
+
+    @property
+    def ordered_data_item_data_sources(self):
+        return [self.data_item]
+
+    def set_dependent_data_item(self, data_item):
+        dependent_data_item = self.__get_dependent_data_item()
+        self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
+        if self.__data_item:
+            if data_item:
+                self.__data_item.add_dependent_data_item(data_item)
+            elif dependent_data_item:
+                self.__data_item.remove_dependent_data_item(dependent_data_item)
+
+    def __get_dependent_data_item(self):
+        return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
+
+    @property
+    def data_item(self):
+        return self.__data_item
+
+    def set_data_item(self, data_item, is_reading=False):
+        """Set the actual data item associated with this reference.
+
+        This object stores a data_item_uuid. When it is inserted into a container, it will get get a data_item_manager.
+        The data_item_manager is used to watch for the data item with the data_item_uuid being loaded or unloaded.
+        The data_item_manager will call set_data_item when that happens.
+        """
+        dependent_data_item = self.__get_dependent_data_item()
+        if self.__data_item:
+            self.__data_item.remove_listener(self)
+            if dependent_data_item:
+                self.__data_item.remove_dependent_data_item(dependent_data_item)
+        self.__data_item = data_item
+        if self.__data_item:
+            self.__data_item.add_listener(self)
+            if dependent_data_item:
+                self.__data_item.add_dependent_data_item(dependent_data_item)
+        if not is_reading:  # notify of changes if a data source was connected
+            SOURCE = 4
+            self.notify_listeners("data_source_content_changed", self, set([SOURCE]))
+
+    def set_data_item_manager(self, data_item_manager):
+        with self.__data_item_manager_lock:
+            # removing existing data item manager
+            if self.__data_item_manager:
+                self.__data_item_manager.remove_data_item_listener(self.data_item_uuid, self)
+            # update new data item manager
+            self.__data_item_manager = data_item_manager
+            # adding data item manager
+            if self.__data_item_manager:
+                self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
+
+    def data_item_content_changed(self, data_item, changes):
+        self.notify_listeners("data_source_content_changed", self, changes)
+
+    def data_item_needs_recompute(self, data_item):
+        self.notify_listeners("data_source_needs_recompute", self)
+
+
+def data_source_list_factory(lookup_id):
+    build_map = {
+        "data-item-data-source": DataItemDataSource
+    }
+    type = lookup_id("type")
+    return build_map[type]() if type in build_map else None
+
+
 class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
     """
         OperationItems compute new data from other data items, regions, and metadata.
+
+        Operations are only ever associated with one data item at once. They are not shared.
 
         Operations are split into data computation, which might be slow, and computations
         of metadata such as calibrations, data shapes, data sizes, and other metadata,
@@ -49,17 +179,19 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         The values property holds a dict of values that specify how the Operation object should operate.
 
-        The sources property holds a dict mapping input identifiers to data sources. Data sources can be data
-        items or other operations.
+        The data_sources property holds a list of data sources. Data sources can be data items or other operations.
 
         The region_connections property holds a dict mapping region identifiers to region UUID's.
         """
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
 
-        self.__weak_data_item = None
+        self.__weak_dependent_data_item = None
 
         self.__weak_regions = []
+
+        self.__data_item_manager = None
+        self.__data_item_manager_lock = threading.RLock()
 
         class UuidMapToStringConverter(object):
             def convert(self, value):
@@ -78,6 +210,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.define_property("operation_id", operation_id, read_only=True)
         self.define_property("values", dict(), changed=self.__property_changed)
         self.define_property("region_connections", dict(), converter=UuidMapToStringConverter())
+        self.define_relationship("data_sources", data_source_list_factory, insert=self.__data_source_inserted, remove=self.__data_source_removed)
 
         # an operation gets one chance to find its behavior. if the behavior doesn't exist
         # then it will simply provide null data according to the saved parameters. if there
@@ -100,17 +233,17 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def about_to_be_removed(self):
         """ When the operation is about to be removed, remove the region on data source, if any. """
-        data_item = self.data_item
-        data_source = data_item and data_item.data_source
-        if data_source:
-            for weak_region in self.__weak_regions:
-                region = weak_region()
-                # this is a hack because graphics can cause operations to be
-                # deleted in multiple ways. there are tests to account for the
-                # various ways, but there is probably a better way to handle this
-                # in the long run.
-                if region and (region in data_source.regions):
-                    data_source.remove_region(region)
+        for region in [weak_region() for weak_region in self.__weak_regions]:
+            # this is a hack because graphics can cause operations to be
+            # deleted in multiple ways. there are tests to account for the
+            # various ways, but there is probably a better way to handle this
+            # in the long run.
+            if region:
+                self.remove_region(region)
+
+    def remove_region(self, region):
+        for data_source in self.data_sources:
+            data_source.remove_region(region)
 
     def managed_object_context_changed(self):
         """ Override from ManagedObject. """
@@ -134,13 +267,41 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 setattr(self.operation, key, self.values[key])
         self.managed_object_context_changed()
 
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
-
     # called from data item when added/removed.
-    def _set_data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+    def set_dependent_data_item(self, data_item):
+        self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
+        for data_source in self.data_sources:
+            data_source.set_dependent_data_item(data_item)
+
+    # add a reference to the given data source
+    def add_data_source(self, data_source):
+        assert isinstance(data_source, DataItemDataSource) or isinstance(data_source, OperationItem)
+        self.append_item("data_sources", data_source)
+
+    # remove a reference to the given data source
+    def remove_data_source(self, data_source):
+        self.remove_item("data_sources", data_source)
+
+    def __data_source_inserted(self, name, before_index, data_source):
+        dependent_data_item = self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
+        data_source.add_listener(self)
+        data_source.set_dependent_data_item(dependent_data_item)
+        data_source.set_data_item_manager(self.__data_item_manager)
+
+    def __data_source_removed(self, name, index, data_source):
+        data_source.remove_listener(self)
+        data_source.set_dependent_data_item(None)
+        data_source.set_data_item_manager(None)
+
+    # data_source_content_changed comes from data sources to indicate that data
+    # has changed. the connection is established via add_listener.
+    def data_source_content_changed(self, data_source, changes):
+        self.notify_listeners("data_source_content_changed", self, changes)
+
+    # data_source_needs_recompute comes from data sources to indicate that data has
+    # become stale. the connection is established via add_listener.
+    def data_source_needs_recompute(self, data_source):
+        self.notify_listeners("data_source_needs_recompute", self)
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -229,42 +390,67 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 if property_id not in self.values or self.values[property_id] is None:
                     self.set_property(property_id, default_value)
 
-    # clients call this to perform processing
-    def process_data_list(self, data_list):
-        if len(data_list) == 1:
-            data = data_list[0]
-            if self.operation:
-                return [self.operation.get_processed_data(data)]
-            else:
-                return [data.copy()]
-        return []
-
-    # calibrations
-
-    def get_processed_intermediate_data_items(self, data_inputs):
+    @property
+    def data_shape_and_dtype(self):
         if self.operation:
-            return self.operation.get_processed_intermediate_data_items(data_inputs)
-        else:
-            class CopyOperation(Operation):
-                def __init__(self):
-                    super(CopyOperation, self).__init__("Intermediate Copy", "intermediate-copy")
-                def process(self, data):
-                    return data.copy()
-            return CopyOperation().get_processed_intermediate_data_items(data_inputs)
+            return self.operation.get_processed_data_shape_and_dtype(self.data_sources)
+        return None
+
+    @property
+    def data_shape(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        if data_shape_and_dtype is not None:
+            return data_shape_and_dtype[0]
+        return None
+
+    @property
+    def data_dtype(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        if data_shape_and_dtype is not None:
+            return data_shape_and_dtype[1]
+        return None
+
+    @property
+    def intensity_calibration(self):
+        if self.operation:
+            return self.operation.get_processed_intensity_calibration(self.data_sources)
+        return None
+
+    @property
+    def dimensional_calibrations(self):
+        if self.operation:
+            return self.operation.get_processed_dimensional_calibrations(self.data_sources)
+        return None
+
+    @property
+    def data(self):
+        if self.operation:
+            return self.operation.get_processed_data(self.data_sources)
+        return None
+
+    @property
+    def ordered_data_item_data_sources(self):
+        data_sources = list()
+        for data_source in self.data_sources:
+            data_sources.extend(data_source.ordered_data_item_data_sources)
+        return data_sources
+
+    def set_data_item_manager(self, data_item_manager):
+        with self.__data_item_manager_lock:
+            self.__data_item_manager = data_item_manager
+            for data_source in self.data_sources:
+                data_source.set_data_item_manager(self.__data_item_manager)
 
     # default value handling.
-    def update_data_shapes_and_dtypes(self, data_sources):
-        data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
-        if len(data_shapes_and_dtypes) == 1:
-            data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
-            if self.operation:
-                default_values = self.operation.property_defaults_for_data_shape_and_dtype(data_shape, data_dtype)
-                for property, default_value in default_values.iteritems():
-                    self.__set_property_default(property, default_value)
+    def update_data_shapes_and_dtypes(self):
+        if self.operation:
+            default_values = self.operation.property_defaults_for_data_shape_and_dtype(self.data_sources)
+            for property, default_value in default_values.iteritems():
+                self.__set_property_default(property, default_value)
 
     def deepcopy_from(self, operation_item, memo):
         super(OperationItem, self).deepcopy_from(operation_item, memo)
-        values = self.values
+        values = operation_item.values
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.set_property(key, values[key])
@@ -294,91 +480,30 @@ class Operation(object):
     def get_property(self, property_id, default_value=None):
         return getattr(self, property_id) if hasattr(self, property_id) else default_value
 
-    # subclasses must override this method to perform processing on the original data.
-    # this method should always return a new copy of data
-    def process(self, data):
+    # public method to do processing.
+    def get_processed_data(self, data_sources):
         raise NotImplementedError()
-
-    # return the processed data inputs
-    def get_processed_intermediate_data_items(self, data_inputs):
-
-        class ProcessedDataItem(object):
-
-            """
-                Constructs an object that is able to perform operation and return results.
-            """
-
-            def __init__(self, operation, data_inputs):
-                super(ProcessedDataItem, self).__init__()
-                self.__operation = operation
-                self.__data_inputs = data_inputs
-
-            def __get_data_shape_and_dtype(self):
-                assert len(self.__data_inputs) == 1
-                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
-                input_data_shape = input_data_shape_and_dtype[0]
-                input_data_dtype = input_data_shape_and_dtype[1]
-                if input_data_shape is not None and input_data_dtype is not None:
-                    return self.__operation.get_processed_data_shape_and_dtype(input_data_shape, input_data_dtype)
-                return None, None
-            data_shape_and_dtype = property(__get_data_shape_and_dtype)
-
-            def __get_intensity_calibration(self):
-                assert len(self.__data_inputs) == 1
-                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
-                input_data_shape = input_data_shape_and_dtype[0]
-                input_data_dtype = input_data_shape_and_dtype[1]
-                input_intensity_calibration = self.__data_inputs[0].intensity_calibration
-                return self.__operation.get_processed_intensity_calibration(input_data_shape, input_data_dtype, input_intensity_calibration)
-            intensity_calibration = property(__get_intensity_calibration)
-
-            def __get_dimensional_calibrations(self):
-                assert len(self.__data_inputs) == 1
-                input_data_shape_and_dtype = self.__data_inputs[0].data_shape_and_dtype
-                input_data_shape = input_data_shape_and_dtype[0]
-                input_data_dtype = input_data_shape_and_dtype[1]
-                input_dimensional_calibrations = self.__data_inputs[0].dimensional_calibrations
-                return self.__operation.get_processed_dimensional_calibrations(input_data_shape, input_data_dtype, input_dimensional_calibrations)
-            dimensional_calibrations = property(__get_dimensional_calibrations)
-
-            def __get_data(self):
-                assert len(self.__data_inputs) == 1
-                return self.__operation.get_processed_data_multi(self.__data_inputs)
-            data = property(__get_data)
-
-        if len(data_inputs) == 1:
-            return [ProcessedDataItem(self, data_inputs)]
-
-        return []
-
-    # public method to do processing. double check that data is a copy and not the original.
-    def get_processed_data_multi(self, data_inputs):
-        return self.get_processed_data(data_inputs[0].data)
-
-    # public method to do processing. double check that data is a copy and not the original.
-    def get_processed_data(self, data):
-        new_data = self.process(data) if data is not None else None
-        if data is not None:
-            assert(id(new_data) != id(data))
-        if new_data is not None and new_data.base is not None:
-            assert(id(new_data.base) != id(data))
-        return new_data
-
-    # spatial calibrations
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
-        return dimensional_calibrations
-
-    # intensity calibration
-    def get_processed_intensity_calibration(self, data_shape, data_dtype, intensity_calibration):
-        return intensity_calibration
+        # double check that data is a copy and not the original.
+        # if data is not None:
+        #     assert(id(new_data) != id(data))
+        # if new_data is not None and new_data.base is not None:
+        #     assert(id(new_data.base) != id(data))
 
     # subclasses that change the type or shape of the data must override
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        return data_shape, data_dtype
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        return data_sources[0].data_shape_and_dtype
+
+    # intensity calibration
+    def get_processed_intensity_calibration(self, data_sources):
+        return data_sources[0].intensity_calibration
+
+    # spatial calibrations
+    def get_processed_dimensional_calibrations(self, data_sources):
+        return data_sources[0].dimensional_calibrations
 
     # default value handling. this gives the operation a chance to update default
     # values when the data shape or dtype changes.
-    def property_defaults_for_data_shape_and_dtype(self, data_shape, data_dtype):
+    def property_defaults_for_data_shape_and_dtype(self, data_sources):
         return dict()
 
 
@@ -387,7 +512,9 @@ class FFTOperation(Operation):
     def __init__(self):
         super(FFTOperation, self).__init__(_("FFT"), "fft-operation")
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if Image.is_data_1d(data):
             return scipy.fftpack.fftshift(scipy.fftpack.fft(data))
         elif Image.is_data_2d(data):
@@ -396,14 +523,18 @@ class FFTOperation(Operation):
         else:
             raise NotImplementedError()
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
         return data_shape, numpy.dtype(numpy.complex128)
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
-        assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
+    def get_processed_dimensional_calibrations(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
+        assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
-                                     1.0 / (source_calibrations[i].scale * data_shape[i]),
-                                     "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
+                                     1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
+                                     "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
 
 
 class IFFTOperation(Operation):
@@ -411,7 +542,9 @@ class IFFTOperation(Operation):
     def __init__(self):
         super(IFFTOperation, self).__init__(_("Inverse FFT"), "inverse-fft-operation")
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if Image.is_data_1d(data):
             return scipy.fftpack.fftshift(scipy.fftpack.ifft(data))
         elif Image.is_data_2d(data):
@@ -419,11 +552,14 @@ class IFFTOperation(Operation):
         else:
             raise NotImplementedError()
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
-        assert len(source_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
+    def get_processed_dimensional_calibrations(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
+        assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
-                                     1.0 / (source_calibrations[i].scale * data_shape[i]),
-                                     "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
+                                     1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
+                                     "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
 
 
 class AutoCorrelateOperation(Operation):
@@ -431,7 +567,9 @@ class AutoCorrelateOperation(Operation):
     def __init__(self):
         super(AutoCorrelateOperation, self).__init__(_("Auto Correlate"), "auto-correlate-operation")
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if Image.is_data_2d(data):
             data_copy = data.copy()  # let other threads use data while we're processing
             return scipy.signal.fftconvolve(data_copy, data_copy, mode='same')
@@ -443,10 +581,10 @@ class CrossCorrelateOperation(Operation):
     def __init__(self):
         super(CrossCorrelateOperation, self).__init__(_("Cross Correlate"), "cross-correlate-operation")
 
-    def get_processed_data_multi(self, data_inputs):
-        if len(data_inputs) == 2:
-            data1 = data_inputs[0].data
-            data2 = data_inputs[1].data
+    def get_processed_data(self, data_sources):
+        if len(data_sources) == 2:
+            data1 = data_sources[0].data
+            data2 = data_sources[1].data
             if Image.is_data_2d(data1) and Image.is_data_2d(data2):
                 return scipy.signal.fftconvolve(data1.copy(), data2.copy(), mode='same')
         raise NotImplementedError()
@@ -457,7 +595,9 @@ class InvertOperation(Operation):
     def __init__(self):
         super(InvertOperation, self).__init__(_("Invert"), "invert-operation")
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if data is not None:
             if Image.is_data_rgba(data) or Image.is_data_rgb(data):
                 if Image.is_data_rgba(data):
@@ -480,7 +620,9 @@ class GaussianBlurOperation(Operation):
         super(GaussianBlurOperation, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
         self.sigma = 0.3
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         return scipy.ndimage.gaussian_filter(data, sigma=10*self.get_property("sigma"))
 
 
@@ -495,7 +637,9 @@ class Crop2dOperation(Operation):
         self.region_types = {"crop": "rectangle-region"}
         self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
+    def get_processed_dimensional_calibrations(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
         cropped_dimensional_calibrations = list()
         bounds = self.get_property("bounds")
         for index, dimensional_calibration in enumerate(dimensional_calibrations):
@@ -505,16 +649,19 @@ class Crop2dOperation(Operation):
             cropped_dimensional_calibrations.append(cropped_calibration)
         return cropped_dimensional_calibrations
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
-        shape = data_shape
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         bounds = self.get_property("bounds")
-        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
         else:
             return bounds_int[1], data_dtype
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         shape = data.shape
         bounds = self.get_property("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
@@ -532,10 +679,14 @@ class Slice3dOperation(Operation):
         self.slice_center = 0
         self.slice_width = 1
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         return data_shape[1:], data_dtype
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         shape = data.shape
         slice_center = self.get_property("slice_center")
         slice_width = self.get_property("slice_width")
@@ -557,10 +708,14 @@ class Pick3dOperation(Operation):
         self.region_types = {"pick": "point-region"}
         self.region_bindings = {"pick": [RegionBinding("position", "position")]}
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         return (data_shape[0], ), data_dtype
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         shape = data.shape
         position = self.get_property("position")
         position = Geometry.FloatPoint.make(position)
@@ -577,13 +732,18 @@ class Projection2dOperation(Operation):
         # hardcoded to axis 0 right now
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, dimensional_calibrations):
+    def get_processed_dimensional_calibrations(self, data_sources):
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
         return copy.deepcopy(dimensional_calibrations)[1:]
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         return data_shape[1:], data_dtype
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
             if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
                 rgb_image = numpy.empty(data.shape[1:], numpy.uint8)
@@ -613,23 +773,29 @@ class Resample2dOperation(Operation):
         self.width = 0
         self.height = 0
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         height = self.get_property("height", data.shape[0])
         width = self.get_property("width", data.shape[1])
         if data.shape[1] == width and data.shape[0] == height:
             return data.copy()
         return Image.scaled(data, (height, width))
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
-        assert len(source_calibrations) == 2
+    def get_processed_dimensional_calibrations(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
+        assert len(dimensional_calibrations) == 2
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
         dimensions = (height, width)
-        return [Calibration.Calibration(source_calibrations[i].offset,
-                                     source_calibrations[i].scale * data_shape[i] / dimensions[i],
-                                     source_calibrations[i].units) for i in range(len(source_calibrations))]
+        return [Calibration.Calibration(dimensional_calibrations[i].offset,
+                                     dimensional_calibrations[i].scale * data_shape[i] / dimensions[i],
+                                     dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -637,12 +803,15 @@ class Resample2dOperation(Operation):
         else:
             return (height, width), data_dtype
 
-    def property_defaults_for_data_shape_and_dtype(self, data_shape, data_dtype):
-        property_defaults = {
-            "height": data_shape[0],
-            "width": data_shape[1],
-        }
-        return property_defaults
+    def property_defaults_for_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        if data_shape is not None:
+            property_defaults = {
+                "height": data_shape[0],
+                "width": data_shape[1],
+            }
+            return property_defaults
+        return super(Resample2dOperation, self).property_defaults_for_data_shape_and_dtype(data_sources)
 
 
 class HistogramOperation(Operation):
@@ -651,10 +820,12 @@ class HistogramOperation(Operation):
         super(HistogramOperation, self).__init__(_("Histogram"), "histogram-operation")
         self.bins = 256
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
         return (self.bins, ), numpy.dtype(numpy.int)
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         histogram_data = numpy.histogram(data, bins=self.bins)
         return histogram_data[0].astype(numpy.int)
 
@@ -673,7 +844,9 @@ class LineProfileOperation(Operation):
         self.region_bindings = {"line": [RegionBinding("vector", "vector"),
                                          RegionBinding("integration_width", "width")]}
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         start, end = self.get_property("vector")
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
@@ -684,8 +857,9 @@ class LineProfileOperation(Operation):
         else:
             return (length, ), numpy.dtype(numpy.double)
 
-    def get_processed_dimensional_calibrations(self, data_shape, data_dtype, source_calibrations):
-        return [Calibration.Calibration(0.0, source_calibrations[1].scale, source_calibrations[1].units)]
+    def get_processed_dimensional_calibrations(self, data_sources):
+        dimensional_calibrations = data_sources[0].dimensional_calibrations
+        return [Calibration.Calibration(0.0, dimensional_calibrations[1].scale, dimensional_calibrations[1].units)]
 
     # calculate grid of coordinates. returns n coordinate arrays for each row.
     # start and end are in data coordinates.
@@ -709,7 +883,9 @@ class LineProfileOperation(Operation):
 
     # xx, yy = __coordinates(None, (4,4), (8,4), 3)
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         assert Image.is_data_2d(data)
         if Image.is_data_rgb_type(data):
             data = Image.convert_to_grayscale(data, numpy.double)
@@ -738,7 +914,9 @@ class ConvertToScalarOperation(Operation):
     def __init__(self):
         super(ConvertToScalarOperation, self).__init__(_("Convert to Scalar"), "convert-to-scalar-operation")
 
-    def process(self, data):
+    def get_processed_data(self, data_sources):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
             return Image.convert_to_grayscale(data, numpy.double)
         elif Image.is_data_complex_type(data):
@@ -746,7 +924,9 @@ class ConvertToScalarOperation(Operation):
         else:
             return data.copy()
 
-    def get_processed_data_shape_and_dtype(self, data_shape, data_dtype):
+    def get_processed_data_shape_and_dtype(self, data_sources):
+        data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)
         elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):

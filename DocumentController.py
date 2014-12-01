@@ -732,10 +732,10 @@ class DocumentController(Observable.Broadcaster):
                 data_item.set_operation(operation)
                 return data_item
             else:
+                operation.add_data_source(Operation.DataItemDataSource(data_item))
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
                 new_data_item.set_operation(operation)
-                new_data_item.add_data_source(data_item)
                 self.display_data_item(new_data_item, source_data_item=data_item, select=select)
                 return new_data_item
         return None
@@ -745,8 +745,8 @@ class DocumentController(Observable.Broadcaster):
             new_data_item = DataItem.DataItem()
             new_data_item.title = (prefix if prefix else "") + data_item1.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
-            new_data_item.add_data_source(data_item1)
-            new_data_item.add_data_source(data_item2)
+            # new_data_item.add_data_source(Operation.DataItemDataSource(data_item1))
+            # new_data_item.add_data_source(Operation.DataItemDataSource(data_item2))
             self.display_data_item(new_data_item, source_data_item=data_item, select=True)
             return new_data_item
         return None
@@ -844,7 +844,7 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             new_data_item = DataItem.DataItem()
             new_data_item.title = _("Clone of ") + data_item.title
-            new_data_item.add_data_source(data_item)
+            new_data_item.add_data_source(Operation.DataItemDataSource(data_item))
             self.document_model.append_data_item(new_data_item)
             if select:
                 self.select_data_item_in_data_panel(new_data_item)
@@ -1029,11 +1029,12 @@ class DocumentController(Observable.Broadcaster):
                 if container and data_item in container.data_items:
                     container.remove_data_item(data_item)
             def show_source():
-                self.select_data_item_in_data_panel(data_item.data_source)
+                self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
             def show_in_new_window():
                 self.new_window("data", DataPanel.DataPanelSelection(container, data_item))
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
-            if isinstance(data_item.data_source, DataItem.DataItem):
+            if len(data_item.ordered_data_item_data_sources) == 1:
+                # TODO: show_source should handle multiple data sources
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
