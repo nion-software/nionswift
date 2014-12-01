@@ -693,10 +693,10 @@ class DocumentController(Observable.Broadcaster):
     def set_data_item_selection(self, data_item, source_data_item=None):
         self.notify_listeners("update_data_item_selection", data_item, source_data_item)
 
-    def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True):
+    def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):
         operation = Operation.OperationItem(operation_id)
         assert operation is not None
-        return self.add_processing_operation(operation, prefix, suffix, in_place, select)
+        return self.add_processing_operation(operation, prefix, suffix, in_place, select, crop_region)
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
@@ -722,7 +722,7 @@ class DocumentController(Observable.Broadcaster):
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
 
-    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True):
+    def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):
         data_item = self.selected_data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
@@ -732,14 +732,31 @@ class DocumentController(Observable.Broadcaster):
             else:
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
+                if crop_region:
+                    crop_operation = Operation.OperationItem("crop-operation")
+                    crop_operation.set_property("bounds", crop_region.bounds)
+                    crop_operation.establish_associated_region("crop", data_item, crop_region)  # after setting operation properties
+                    new_data_item.add_operation(crop_operation)
                 new_data_item.add_operation(operation)
                 new_data_item.add_data_source(data_item)
                 self.display_data_item(new_data_item, source_data_item=data_item, select=select)
                 return new_data_item
         return None
 
+    def __get_crop_region(self, data_item):
+        crop_region = None
+        if data_item and len(data_item.spatial_shape) == 2:
+            display = data_item.displays[0]
+            current_index = display.graphic_selection.current_index
+            if current_index is not None:
+                region = display.drawn_graphics[current_index].region
+                if isinstance(region, Region.RectRegion):
+                    crop_region = region
+        return crop_region
+
     def processing_fft(self, select=True):
-        return self.add_processing_operation_by_id("fft-operation", prefix=_("FFT of "), select=select)
+        crop_region = self.__get_crop_region(self.selected_data_item)
+        return self.add_processing_operation_by_id("fft-operation", prefix=_("FFT of "), select=select, crop_region=crop_region)
 
     def processing_ifft(self, select=True):
         return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
@@ -751,14 +768,17 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("resample-operation", prefix=_("Resample of "), select=select)
 
     def processing_histogram(self, select=True):
-        return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select)
+        crop_region = self.__get_crop_region(self.selected_data_item)
+        return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select, crop_region=crop_region)
 
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
         if data_item and len(data_item.spatial_shape) == 2:
+            crop_region = self.__get_crop_region(data_item)
+            bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
             operation = Operation.OperationItem("crop-operation")
-            operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-            operation.establish_associated_region("crop", data_item, Region.RectRegion())  # after setting operation properties
+            operation.set_property("bounds", bounds)
+            operation.establish_associated_region("crop", data_item, crop_region)  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
@@ -772,8 +792,7 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item and len(data_item.spatial_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
-            pick_point_region = Region.PointRegion()
-            operation.establish_associated_region("pick", data_item, pick_point_region)  # after setting operation properties
+            operation.establish_associated_region("pick", data_item)  # after setting operation properties
             pick_data_item = self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
             pick_interval = Region.IntervalRegion()
             pick_data_item.add_region(pick_interval)
@@ -792,7 +811,7 @@ class DocumentController(Observable.Broadcaster):
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
-            operation.establish_associated_region("line", data_item, Region.LineRegion())  # after setting operation properties
+            operation.establish_associated_region("line", data_item)  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
         return None
 

@@ -18,7 +18,6 @@ import scipy.ndimage.fourier
 
 # local libraries
 from nion.swift.model import Calibration
-from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.ui import Binding
@@ -140,16 +139,39 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             # save this to remove region if this object gets removed.
             self.__weak_regions.append(weakref.ref(region))
 
-    def establish_associated_region(self, region_connection_id, source_data_item, region):
+    def establish_associated_region(self, region_connection_id, source_data_item, region=None):
         """
-            Add the region to the source data item, update its initial values, and connect it to this operation.
+            Associate the region with this operation, update its initial values, and connect it to this operation.
 
             This must be called before operation is added to data item.
+
+            The region can be None in which case a default version is created and added to the data item.
         """
         if self.operation:
+            if region is None:
+                region_type = self.operation.region_types[region_connection_id]
+                if region_type == "point-region":
+                    region = Region.PointRegion()
+                    region.position = (0.5, 0.5)
+                elif region_type == "line-region":
+                    region = Region.LineRegion()
+                    region.start = (0.2, 0.2)
+                    region.end = (0.8, 0.8)
+                elif region_type == "rectangle-region":
+                    region = Region.RectRegion()
+                    region.bounds = ((0.25, 0.25), (0.5, 0.5))
+                elif region_type == "ellipse-region":
+                    region = Region.EllipseRegion()
+                    region.bounds = ((0.25, 0.25), (0.5, 0.5))
+                elif region_type == "interval-region":
+                    region = Region.IntervalRegion()
+                    region.start = 0.25
+                    region.end = 0.75
+                assert region
+                assert region.type == self.operation.region_types[region_connection_id]
+                source_data_item.add_region(region)
             assert region
             assert region.type == self.operation.region_types[region_connection_id]
-            source_data_item.add_region(region)
             # copy the properties from the operation to the region
             for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 setattr(region, region_property, self.get_property(operation_property))
