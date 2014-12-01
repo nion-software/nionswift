@@ -106,7 +106,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
      calibrations, creation and modification dates, titles, captions, etc.
 
-    The derivation description includes a list of source data items, operations, regions, and relationships
+    The derivation description includes a list of source data items, operation, regions, and relationships
      between data/metadata (connections).
 
     The following direct properties are available:
@@ -129,7 +129,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *session_id* a string representing the session
     * *regions* a list of regions
     * *connections* a list of connections between objects
-    * *operations* a list of operations
+    * *operation* an operation describing how to compute this data item
 
     In addition to the properties above, data items may contain a list of displays. By convention, displays
      are only associated with "top level" data items.
@@ -190,7 +190,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     *Miscellaneous*
 
-    Operations. A list of operations applied to data sources to compute data for this data item.
+    Operation. An OperationItem describing how to compute data for this data item.
 
     Transactions.
 
@@ -218,7 +218,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.writer_version = 5  # writes this version
+        self.writer_version = 6  # writes this version
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None
@@ -246,7 +246,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources")
-        self.define_relationship("operations", Operation.operation_item_factory, insert=self.__insert_operation, remove=self.__remove_operation)
+        self.define_item("operation", Operation.operation_item_factory, item_changed=self.__operation_item_changed)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
@@ -288,9 +288,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
-        # operations
-        for operation in self.operations:
-            data_item_copy.add_operation(copy.deepcopy(operation))
+        # operation
+        if self.operation:
+            data_item_copy.set_operation(copy.deepcopy(self.operation))
         # data sources
         data_item_copy.data_source_uuid_list = self.data_source_uuid_list
         # data.
@@ -330,7 +330,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def snapshot(self):
         """
             Take a snapshot and return a new data item. A snapshot is a copy of everything
-            except the data and operations which are replaced by new data with the operations
+            except the data and operation which are replaced by new data with the operation
             applied or "burned in".
         """
         data_item_copy = DataItem(create_display=False)
@@ -345,7 +345,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_item_copy.add_display(copy.deepcopy(display))
         # data sources are NOT copied, since this is a snapshot of the data
         data_item_copy.data_source_uuid_list = DataSourceUuidList()
-        # master data. operations are NOT copied, since this is a snapshot of the data
+        # master data. operation is NOT copied, since this is a snapshot of the data
         data_item_copy.__set_master_data(numpy.copy(self.data))
         return data_item_copy
 
@@ -353,8 +353,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Tell contained objects that this data item is about to be removed from its container. """
         for connection in self.connections:
             connection.about_to_be_removed()
-        for operation in self.operations:
-            operation.about_to_be_removed()
+        if self.operation:
+            self.operation.about_to_be_removed()
         for region in self.regions:
             region.about_to_be_removed()
         for display in self.displays:
@@ -808,42 +808,47 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_connection(self, connection):
         self.remove_item("connections", connection)
 
-    # call this when operations change or data source changes
-    # this allows operations to update their default values
-    def __sync_operations(self):
-        data_sources = copy.copy(self.__data_sources)
-        # apply operations
-        for operation in self.operations:
-            data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
-            operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
-            data_sources = operation.get_processed_intermediate_data_items(data_sources)
+    # call this when the operation changes or data source changes
+    # this allows the operation tree to update default values
+    def __sync_operation(self):
+        # apply the operation
+        if self.operation:
+            self.operation.update_data_shapes_and_dtypes(copy.copy(self.__data_sources))
 
-    def __insert_operation(self, name, before_index, operation):
-        operation.add_listener(self)
-        operation.add_observer(self)
-        operation._set_data_item(self)
-        self.__sync_operations()
+    def set_operation(self, operation):
+        self.set_item("operation", operation)
+
+    @property
+    def ordered_operations(self):
+        if self.operation:
+            return [self.operation]
+        else:
+            return []
+
+    def __operation_item_changed(self, name, old_value, new_value):
+        # and about to be removed messages
+        if old_value and not new_value:
+            old_value.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
+        if old_value:
+            # generate changed messages (temporary)
+            self.notify_listeners("item_removed", self, "ordered_operations", old_value, 0)
+            # handle listeners/observers
+            old_value.remove_listener(self)
+            old_value.remove_observer(self)
+            old_value._set_data_item(None)
+        if new_value:
+            # generate changed messages (temporary)
+            self.notify_listeners("item_inserted", self, "ordered_operations", new_value, 0)
+            # handle listeners/observers
+            new_value.add_listener(self)
+            new_value.add_observer(self)
+            new_value._set_data_item(self)
+        self.__sync_operation()
         self.notify_data_item_content_changed(set([DATA]))
-
-    def __remove_operation(self, name, index, operation):
-        self.__sync_operations()
-        self.notify_data_item_content_changed(set([DATA]))
-        operation.remove_listener(self)
-        operation.remove_observer(self)
-        operation._set_data_item(None)
-
-    def add_operation(self, operation):
-        self.append_item("operations", operation)
-        self.__mark_data_stale()
-
-    def remove_operation(self, operation):
-        operation.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
-        self.remove_item("operations", operation)
-        self.__mark_data_stale()
+        if not self._is_reading:
+            self.__mark_data_stale()
 
     # this message comes from the operation.
-    # by watching for changes to the operations relationship. when an operation
-    # is added/removed, this object becomes a listener via add_listener/remove_listener.
     def operation_changed(self, operation):
         if not self._is_reading:
             self.__mark_data_stale()
@@ -862,7 +867,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # connect this item to its data source, if any. the lookup_data_item parameter
     # is a function to look up data items by uuid. this method also establishes the
-    # display graphics for this items operations. direct_data_sources is used for testing.
+    # display graphics for this item's operation. direct_data_sources is used for testing.
     # is_reading can be passed to indicate that the content changed notification should not
     # be emitted.
     def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None, is_reading=False):
@@ -882,12 +887,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     data_source.add_dependent_data_item(self)
                     self.__data_sources.append(data_source)
                     data_source_connected = True
-            self.__sync_operations()
+            self.__sync_operation()
         if data_source_connected and not is_reading:  # notify of changes if a data source was connected
             self.data_item_content_changed(None, set([SOURCE]))
 
     # disconnect this item from its data source. also removes the graphics for this
-    # items operations.
+    # item's operation.
     def disconnect_data_sources(self):
         with self.__master_data_lock:
             for data_source in copy.copy(self.__data_sources):
@@ -899,7 +904,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # notify of changes
         self.data_item_content_changed(None, set([SOURCE]))
 
-    # track dependent data items. useful for propogating transaction support.
+    # track dependent data items. useful for propagating transaction support.
     def add_dependent_data_item(self, data_item):
         self.__dependent_data_item_refs.append(weakref.ref(data_item))
         if self.__transaction_count > 0:
@@ -907,7 +912,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.__live_count > 0:
             data_item.begin_live(self.__live_count)
 
-    # track dependent data items. useful for propogating transaction support.
+    # track dependent data items. useful for propagating transaction support.
     def remove_dependent_data_item(self, data_item):
         self.__dependent_data_item_refs.remove(weakref.ref(data_item))
         if self.__transaction_count > 0:
@@ -1112,22 +1117,21 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             raise
 
     def __get_data_output(self):
-        """Calculate the operations applied to the data sources. Returns an intermediate data item.
+        """Calculate the operation applied to the data sources. Returns an intermediate data item.
 
         An intermediate data item provides immediate access to data shape, type, and calibrations, but
         does not compute data until requested.
         """
         data_sources = copy.copy(self.__data_sources)
-        # apply operations
-        for operation in self.operations:
-            data_sources = operation.get_processed_intermediate_data_items(data_sources)
+        if self.operation:
+            data_sources = self.operation.get_processed_intermediate_data_items(data_sources)
         if len(data_sources) > 0:
             assert len(data_sources) == 1
             return data_sources[0]
         return None
 
     def recompute_data(self):
-        """Ensures that the master data is synchronized with the sources/operations by recomputing if necessary."""
+        """Ensures that the master data is synchronized with the sources/operation by recomputing if necessary."""
 
         # prevent multiple data changed notifications by surrounding everything in data_item_changes.
         # if there are no changes, then this will not trigger any notifications. it is important that the

@@ -41,6 +41,18 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         Metadata is important to calculate quickly since it may be used from the UI, to
         enable/disable menu items, for instance.
+
+        Operations can utilize regions as part of their input. The regions have their values bound
+        to the values in the operation.
+
+        The operation_id property identifies the Operation object responsible for doing the computation.
+
+        The values property holds a dict of values that specify how the Operation object should operate.
+
+        The sources property holds a dict mapping input identifiers to data sources. Data sources can be data
+        items or other operations.
+
+        The region_connections property holds a dict mapping region identifiers to region UUID's.
         """
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
@@ -62,7 +74,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 return d
 
         self.define_property("operation_id", operation_id, read_only=True)
-        self.define_property("enabled", True, changed=self.__property_changed)
         self.define_property("values", dict(), changed=self.__property_changed)
         self.define_property("region_connections", dict(), converter=UuidMapToStringConverter())
 
@@ -240,7 +251,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             return CopyOperation().get_processed_intermediate_data_items(data_inputs)
 
     # default value handling.
-    def update_data_shapes_and_dtypes(self, data_shapes_and_dtypes):
+    def update_data_shapes_and_dtypes(self, data_sources):
+        data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
         if len(data_shapes_and_dtypes) == 1:
             data_shape, data_dtype = data_shapes_and_dtypes[0][0], data_shapes_and_dtypes[0][1]
             if self.operation:

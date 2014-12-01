@@ -616,7 +616,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         invert_operation = Operation.OperationItem("invert-operation")
-        data_item.add_operation(invert_operation)
+        data_item.set_operation(invert_operation)
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -627,20 +627,18 @@ class TestStorageClass(unittest.TestCase):
     def test_changes_to_operation_values_are_saved(self):
         cache_name = ":memory:"
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
-        storage_cache = Storage.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
-        data_item.add_operation(gaussian_operation)
+        data_item.set_operation(gaussian_operation)
         gaussian_operation.set_property("sigma", 1.7)
         # read it back
-        storage_cache = Storage.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertAlmostEqual(document_model.data_items[0].operations[0].get_property("sigma"), 1.7)
+        self.assertAlmostEqual(document_model.data_items[0].operation.get_property("sigma"), 1.7)
         # clean up
         document_controller.close()
 
@@ -657,7 +655,7 @@ class TestStorageClass(unittest.TestCase):
         line_profile_operation = Operation.OperationItem("line-profile-operation")
         line_profile_operation.set_property("vector", ((0.1, 0.2), (0.3, 0.4)))
         line_profile_operation.establish_associated_region("line", data_item)
-        data_item2.add_operation(line_profile_operation)
+        data_item2.set_operation(line_profile_operation)
         data_item2.add_data_source(data_item)
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -666,11 +664,11 @@ class TestStorageClass(unittest.TestCase):
         # verify that properties read it correctly
         self.assertEqual(document_model.data_items[0].regions[0].start, (0.1, 0.2))
         self.assertEqual(document_model.data_items[0].regions[0].end, (0.3, 0.4))
-        start,end = document_model.data_items[1].operations[0].values["vector"]
+        start,end = document_model.data_items[1].operation.values["vector"]
         self.assertEqual(start, (0.1, 0.2))
         self.assertEqual(end, (0.3, 0.4))
         document_model.data_items[0].regions[0].start = 0.11, 0.22
-        start,end = document_model.data_items[1].operations[0].values["vector"]
+        start,end = document_model.data_items[1].operation.values["vector"]
         self.assertEqual(start, (0.11, 0.22))
         self.assertEqual(end, (0.3, 0.4))
         # clean up
@@ -831,7 +829,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
         document_model.append_data_item(data_item)
         data_item_inverted = DataItem.DataItem()
-        data_item_inverted.add_operation(Operation.OperationItem("invert-operation"))
+        data_item_inverted.set_operation(Operation.OperationItem("invert-operation"))
         data_item_inverted.add_data_source(data_item)
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
@@ -847,7 +845,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_item_cropped = DataItem.DataItem()
         crop_operation = Operation.OperationItem("crop-operation")
-        data_item_cropped.add_operation(crop_operation)
+        data_item_cropped.set_operation(crop_operation)
         crop_operation.establish_associated_region("crop", data_item)
         data_item_cropped.add_data_source(data_item)
         document_model.append_data_item(data_item_cropped)
@@ -874,7 +872,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item_cropped = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
-            data_item_cropped.add_operation(crop_operation)
+            data_item_cropped.set_operation(crop_operation)
             crop_operation.establish_associated_region("crop", data_item)
             data_item_cropped.add_data_source(data_item)
             document_model.append_data_item(data_item_cropped)
@@ -936,7 +934,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
         self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0])
         self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0]["graphics"][0])
-        self.assertTrue("uuid" in data_reference_handler.properties["A"]["operations"][0])
+        self.assertTrue("uuid" in data_reference_handler.properties["A"]["operation"])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
@@ -978,9 +976,9 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
         self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
-        self.assertEqual(len(data_item.operations[0].region_connections), 1)
-        self.assertEqual(data_item.operations[0].region_connections["crop"], uuid.UUID(region_uuid_str))
-        self.assertFalse("region_uuid" in data_reference_handler.properties["A"]["operations"][0])
+        self.assertEqual(len(data_item.operation.region_connections), 1)
+        self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
+        self.assertFalse("region_uuid" in data_reference_handler.properties["A"]["operation"])
 
 
 if __name__ == '__main__':

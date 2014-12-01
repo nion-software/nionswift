@@ -355,6 +355,18 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 version = 5
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (region_uuid)", reference, version)
+            if version == 5:
+                # version 5 -> 6 changes operations to a single operation
+                operations_list = properties.get("operations", list())
+                if len(operations_list) == 1:
+                    properties["operation"] = operations_list[0]
+                if "operations" in properties:
+                    del properties["operations"]
+                properties["version"] = 6
+                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                version = 6
+                if self.__log_migrations:
+                    logging.info("Updated %s to %s (region_uuid)", reference, version)
             # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
             # NOTE: change writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)

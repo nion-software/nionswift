@@ -858,11 +858,10 @@ class OperationsInspectorSection(InspectorSection):
 
     def __init__(self, ui, data_item):
         super(OperationsInspectorSection, self).__init__(ui, _("Operations"))
-        self.__operations = data_item.operations
         # ui. create the spatial operations list.
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), None, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item, "operations"))
+        list_widget.bind_items(Binding.ListBinding(data_item, "ordered_operations"))
         self.add_widget_to_content(list_widget)
 
     # not thread safe
