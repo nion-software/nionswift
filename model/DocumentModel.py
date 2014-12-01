@@ -336,7 +336,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         calibration_dict["offset"] = calibration_dict["origin"]
                         del calibration_dict["origin"]
                 properties["version"] = 4
-                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 4
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (calibration offset)", reference, version)
@@ -351,7 +351,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
                         del operation_dict["region_uuid"]
                 properties["version"] = 5
-                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 5
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (region_uuid)", reference, version)
@@ -373,7 +373,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 if "data_sources" in properties:
                     del properties["data_sources"]
                 properties["version"] = 6
-                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                # no rewrite needed
+                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 6
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (operation hierarchy)", reference, version)
