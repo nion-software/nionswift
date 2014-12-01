@@ -156,8 +156,9 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             numpy.save(fp, data)
             numpy_end_pos = fp.tell()
             fp.seek(numpy_start_pos)
-            header_data = fp.read((numpy_end_pos - numpy_start_pos) - len(data.data))  # read the header
-            data_crc32 = binascii.crc32(data.data, binascii.crc32(header_data)) & 0xFFFFFFFF
+            data_c = numpy.require(data, dtype=data.dtype, requirements=["C_CONTIGUOUS"])
+            header_data = fp.read((numpy_end_pos - numpy_start_pos) - len(data_c.data))  # read the header
+            data_crc32 = binascii.crc32(data_c.data, binascii.crc32(header_data)) & 0xFFFFFFFF
             fp.seek(numpy_end_pos)
             return data_crc32
         data_len, crc32 = write_local_file(fp, "data.npy", write_data, dt)

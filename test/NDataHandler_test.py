@@ -11,6 +11,7 @@ import uuid
 
 # third party libraries
 import numpy
+import scipy.signal
 
 # local libraries
 from nion.swift import NDataHandler
@@ -112,6 +113,29 @@ class TestNDataHandlerClass(unittest.TestCase):
             self.assertEqual(dd.dtype, d.dtype)
             # now rewrite
             h.write_properties("file", p, now)
+        finally:
+            #logging.debug("rmtree %s", data_dir)
+            shutil.rmtree(data_dir)
+
+    def test_ndata_handles_discontiguous_data(self):
+        logging.getLogger().setLevel(logging.DEBUG)
+        now = datetime.datetime.now()
+        current_working_directory = os.getcwd()
+        data_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(data_dir)
+        try:
+            h = NDataHandler.NDataHandler(data_dir)
+            data1 = numpy.ones((16, 16), dtype=numpy.float64)
+            data = scipy.signal.fftconvolve(data1, data1, mode='same')
+            self.assertRaises(AttributeError, lambda: data.data)  # make sure we're getting discontiguous data
+            p = {u"uuid": unicode(uuid.uuid4())}
+            # write properties
+            h.write_properties("abc", p, now)
+            # write data
+            h.write_data("abc", data, now)
+            d = h.read_data("abc")
+            self.assertEqual(d.shape, data.shape)
+            self.assertEqual(d.dtype, data.dtype)
         finally:
             #logging.debug("rmtree %s", data_dir)
             shutil.rmtree(data_dir)
