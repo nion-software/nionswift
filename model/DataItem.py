@@ -86,6 +86,29 @@ class DataSourceUuidList(object):
         return copy.copy(self.list)
 
 
+class _UuidToStringConverter(object):
+    def convert(self, value):
+        return str(value)
+    def convert_back(self, value):
+        return uuid.UUID(value)
+
+
+class DataItemReference(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+
+    def __init__(self, data_item_uuid=None):
+        super(DataItemReference, self).__init__()
+        self.define_type("data-item-reference")
+        self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
+
+
+def data_source_list_factory(lookup_id):
+    build_map = {
+        "data-item-reference": DataItemReference
+    }
+    type = lookup_id("type")
+    return build_map[type]() if type in build_map else None
+
+
 # enumerations for types of data item content changes
 DATA = 1
 METADATA = 2
@@ -245,8 +268,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
-        self.define_property("data_source_uuid_list", DataSourceUuidList(), make=DataSourceUuidList, key="data_sources")
         self.define_item("operation", Operation.operation_item_factory, item_changed=self.__operation_item_changed)
+        self.define_relationship("data_sources", data_source_list_factory)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
@@ -292,7 +315,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.operation:
             data_item_copy.set_operation(copy.deepcopy(self.operation))
         # data sources
-        data_item_copy.data_source_uuid_list = self.data_source_uuid_list
+        for data_source in self.data_sources:
+            data_item_copy.append_item("data_sources", copy.deepcopy(data_source))
         # data.
         if self.has_master_data:
             with self.data_ref() as data_ref:
@@ -343,8 +367,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
-        # data sources are NOT copied, since this is a snapshot of the data
-        data_item_copy.data_source_uuid_list = DataSourceUuidList()
         # master data. operation is NOT copied, since this is a snapshot of the data
         data_item_copy.__set_master_data(numpy.copy(self.data))
         return data_item_copy
@@ -876,7 +898,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if direct_data_sources is not None:
             data_items = direct_data_sources
         else:
-            data_items = [lookup_data_item(uuid.UUID(data_source_uuid_str)) for data_source_uuid_str in self.data_source_uuid_list.list]
+            data_items = [lookup_data_item(data_source.data_item_uuid) for data_source in self.data_sources]
         data_source_connected = False  # keep track of whether a data source was connected during this call
         with self.__master_data_lock:
             for data_source in data_items:
@@ -955,9 +977,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def add_data_source(self, data_source):
         assert len(self.__data_sources) == 0  # for now we assume that this is only called before data sources are connected
         self.session_id = data_source.session_id
-        data_source_uuid_list = self.data_source_uuid_list
-        data_source_uuid_list.list.append(str(data_source.uuid))
-        self.data_source_uuid_list = data_source_uuid_list
+        self.append_item("data_sources", DataItemReference(data_source.uuid))
         # connect to the data source if possible
         if self.__lookup_data_item or self.__direct_data_sources:
             self.connect_data_sources(self.__lookup_data_item, self.__direct_data_sources)
@@ -965,12 +985,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
         assert len(self.__data_sources) == 1  # for now we assume that this is only called before data sources are connected
-        data_source_uuid_list = self.data_source_uuid_list
-        assert str(data_source.uuid) in data_source_uuid_list.list
-        data_source_uuid_list.list.remove(str(data_source.uuid))
-        self.data_source_uuid_list = data_source_uuid_list
-        self.session_id = None
-        self.disconnect_data_sources()
+        for data_item_reference in copy.copy(self.data_sources):
+            if data_item_reference.data_item_uuid == data_source.uuid:
+                self.remove_item("data_sources", data_item_reference)
+                self.session_id = None
+                self.disconnect_data_sources()
+                return
+        assert False
 
     def __get_master_data(self):
         with self.__master_data_lock:

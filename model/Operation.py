@@ -73,6 +73,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                     d[k] = uuid.UUID(value[k])
                 return d
 
+        self.define_type("operation")
+
         self.define_property("operation_id", operation_id, read_only=True)
         self.define_property("values", dict(), changed=self.__property_changed)
         self.define_property("region_connections", dict(), converter=UuidMapToStringConverter())

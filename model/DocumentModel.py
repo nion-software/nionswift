@@ -356,17 +356,25 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (region_uuid)", reference, version)
             if version == 5:
-                # version 5 -> 6 changes operations to a single operation
+                # version 5 -> 6 changes operations to a single operation, expands data sources list
                 operations_list = properties.get("operations", list())
                 if len(operations_list) == 1:
-                    properties["operation"] = operations_list[0]
+                    operation_dict = operations_list[0]
+                    operation_dict["type"] = "operation"
+                    properties["operation"] = operation_dict
                 if "operations" in properties:
                     del properties["operations"]
+                data_sources_list = properties.get("data_sources", list())
+                if len(data_sources_list) > 0:
+                    new_data_sources_list = list()
+                    for data_source_uuid in data_sources_list:
+                        new_data_sources_list.append({"type": "data-item-reference", "data_item_uuid": data_source_uuid})
+                    properties["data_sources"] = new_data_sources_list
                 properties["version"] = 6
                 self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                 version = 6
                 if self.__log_migrations:
-                    logging.info("Updated %s to %s (region_uuid)", reference, version)
+                    logging.info("Updated %s to %s (operation hierarchy)", reference, version)
             # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
             # NOTE: change writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
