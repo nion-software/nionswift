@@ -29,8 +29,7 @@ class InspectorPanel(Panel.Panel):
         self.request_focus = False
 
         # bind to the selected data item.
-        # connect self as listener. this will result in calls to data_item_binding_data_item_changed
-        # and data_item_binding_data_item_content_changed
+        # connect self as listener. this will result in calls to data_item_binding_display_changed.
         self.__display_binding = document_controller.create_selected_data_item_binding()
         self.__set_display(None)
         self.__display_binding.add_listener(self)
@@ -259,16 +258,18 @@ class BoundSpatialCalibration(Observable.Observable):
     def close(self):
         self.data_item.remove_listener(self)
 
-    def data_item_calibration_changed(self):
+    def data_source_content_changed(self, data_item, changes):
         """ Message comes from data item. """
-        new_value = self.data_item.dimensional_calibrations[self.spatial_index]
-        if new_value.offset != self.__cached_value.offset:
-            self.notify_set_property("offset", new_value.offset)
-        if new_value.scale != self.__cached_value.scale:
-            self.notify_set_property("scale", new_value.scale)
-        if new_value.units != self.__cached_value.units:
-            self.notify_set_property("units", new_value.units)
-        self.__cached_value = new_value
+        METADATA = 2
+        if METADATA in changes:
+            new_value = self.data_item.dimensional_calibrations[self.spatial_index]
+            if new_value.offset != self.__cached_value.offset:
+                self.notify_set_property("offset", new_value.offset)
+            if new_value.scale != self.__cached_value.scale:
+                self.notify_set_property("scale", new_value.scale)
+            if new_value.units != self.__cached_value.units:
+                self.notify_set_property("units", new_value.units)
+            self.__cached_value = new_value
 
     def __get_offset(self):
         return self.__cached_value.offset
@@ -309,16 +310,18 @@ class BoundIntensityCalibration(Observable.Observable):
     def close(self):
         self.data_item.remove_listener(self)
 
-    def data_item_calibration_changed(self):
+    def data_source_content_changed(self, data_item, changes):
         """ Message comes from data item. """
-        new_value = self.data_item.intensity_calibration
-        if new_value.offset != self.__cached_value.offset:
-            self.notify_set_property("offset", new_value.offset)
-        if new_value.scale != self.__cached_value.scale:
-            self.notify_set_property("scale", new_value.scale)
-        if new_value.units != self.__cached_value.units:
-            self.notify_set_property("units", new_value.units)
-        self.__cached_value = new_value
+        METADATA = 2
+        if METADATA in changes:
+            new_value = self.data_item.intensity_calibration
+            if new_value.offset != self.__cached_value.offset:
+                self.notify_set_property("offset", new_value.offset)
+            if new_value.scale != self.__cached_value.scale:
+                self.notify_set_property("scale", new_value.scale)
+            if new_value.units != self.__cached_value.units:
+                self.notify_set_property("units", new_value.units)
+            self.__cached_value = new_value
 
     def __get_offset(self):
         return self.__cached_value.offset

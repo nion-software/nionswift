@@ -1138,7 +1138,7 @@ class SelectedDataItemBinding(Observable.Broadcaster):
 
     # this message is received from the data item, if there is one.
     # it is established using add_listener
-    def data_item_content_changed(self, data_item, changes):
+    def data_source_content_changed(self, data_item, changes):
         if data_item == self.data_item:
             self.selected_data_item_content_changed(data_item, changes)
 

@@ -292,7 +292,7 @@ class TestDataItemClass(unittest.TestCase):
             def reset(self):
                 self._data_changed = False
                 self._display_changed = False
-            def data_item_content_changed(self, data_item, changes):
+            def data_source_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
             def display_changed(self, display):
                 self._display_changed = True
@@ -460,7 +460,7 @@ class TestDataItemClass(unittest.TestCase):
         class Listener(object):
             def __init__(self):
                 self.data_changed = False
-            def data_item_content_changed(self, data_item, changes):
+            def data_source_content_changed(self, data_item, changes):
                 self.data_changed = self.data_changed or DataItem.DATA in changes
         listener = Listener()
         data_item_inverted.add_listener(listener)
@@ -481,7 +481,7 @@ class TestDataItemClass(unittest.TestCase):
         class Listener(object):
             def __init__(self):
                 self.needs_recompute = False
-            def data_item_needs_recompute(self, data_item):
+            def data_source_needs_recompute(self, data_item):
                 self.needs_recompute = True
         listener = Listener()
         data_item_inverted.add_listener(listener)
@@ -527,7 +527,7 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
         # this test ensures that doing a recompute_data is efficient and doesn't produce
-        # extra data_item_content_changed messages.
+        # extra data_source_content_changed messages.
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -539,7 +539,7 @@ class TestDataItemClass(unittest.TestCase):
         class Listener(object):
             def __init__(self):
                 self.data_changed = 0
-            def data_item_content_changed(self, data_item, changes):
+            def data_source_content_changed(self, data_item, changes):
                 if DataItem.DATA in changes:
                     self.data_changed += 1
         listener = Listener()
@@ -664,7 +664,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
-        # data_item_content_changed
         class Listener(object):
             def __init__(self):
                 self.reset()
@@ -690,7 +689,6 @@ class TestDataItemClass(unittest.TestCase):
 
     # necessary to make inspector display updated values properly
     def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
-        # data_item_content_changed
         class Listener(object):
             def __init__(self):
                 self.reset()
@@ -794,7 +792,6 @@ class TestDataItemClass(unittest.TestCase):
 
     # necessary to make inspector display updated values properly
     def test_adding_region_generates_display_changed(self):
-        # data_item_content_changed
         class Listener(object):
             def __init__(self):
                 self.reset()

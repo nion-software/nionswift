@@ -295,12 +295,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
     # thread safe
-    def data_item_content_changed(self, data_item, changes):
+    def data_source_content_changed(self, data_item, changes):
         DATA = 1
         METADATA = 2
         SOURCE = 4
         if DATA in changes or METADATA in changes or SOURCE in changes:
-            # TODO: Threading: Display data_item_content_changed __preview, __preview_data
+            # TODO: Threading: Display data_source_content_changed __preview, __preview_data
             self.__preview_data = None
             self.__preview = None
             self.notify_listeners("display_changed", self)
@@ -311,7 +311,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
-    def data_item_needs_recompute(self, data_item):
+    def data_source_needs_recompute(self, data_item):
         for processor in self.__processors.values():
             processor.data_item_changed()
 

@@ -357,7 +357,7 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             self._removed_master_data_item(index, data_item)
 
     # thread safe
-    def data_item_content_changed(self, data_item, changes):
+    def data_source_content_changed(self, data_item, changes):
         with self._update_mutex:
             if not data_item in self.__master_data_items:
                 logging.debug("Data item not in master list %s", data_item)
@@ -422,7 +422,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
             self._removed_master_data_item(index, data_item)
 
     # thread safe
-    def data_item_content_changed(self, data_item, changes):
+    def data_source_content_changed(self, data_item, changes):
         with self._update_mutex:
             if not data_item in self.__master_data_items:
                 logging.debug("data item not in master data %s", data_item)

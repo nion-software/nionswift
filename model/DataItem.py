@@ -102,7 +102,7 @@ class CalibrationList(object):
 
     Listeners should take care to not call functions which result in cycles of notifications. For instance,
     listeners should not read the data property (although cached_data is ok) since calling data may trigger
-    the data to be computed which will emit data_item_content_changed, resulting in a cycle.
+    the data to be computed which will emit data_source_content_changed, resulting in a cycle.
 
     Data items will emit the following notifications to listeners.
 
@@ -190,22 +190,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     *Notifications*
 
     Data items will emit the following notifications to listeners. Listeners should take care to not call
-     functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
+     functions which result in cycles of notifications. For instance, functions handling data_source_content_changed
      should not read the data property (although cached_data is ok) since calling data may trigger the data
-     to be computed which will emit data_item_content_changed, resulting in a cycle.
+     to be computed which will emit data_source_content_changed, resulting in a cycle.
 
-    * data_item_content_changed(data_item, changes)
-    * data_item_needs_recompute(data_item)
-    * data_item_calibration_changed()
+    * data_source_content_changed(data_item, changes)
+    * data_source_needs_recompute(data_item)
     * request_remove_data_item(data_item)
 
-    data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set
+    data_source_content_changed is invoked when the content of the data item changes. The changes parameter is a set
     of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
 
-    data_item_needs_recompute is invoked when a recompute of the data is necessary. This can happen when an operation
+    data_source_needs_recompute is invoked when a recompute of the data is necessary. This can happen when an operation
     changes or when source data changes. This may be called on a thread.
-
-    TODO: merge usage of data_item_calibration_changed with data_item_content_changed.
 
     request_remove_data_item is invoked when a region associated with an operation is removed by the user. This
     message can be used to remove the associated dependent data item. This will not be called from a thread.
@@ -547,7 +544,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             old_live_count = self.__live_count
             self.__live_count += count
         if old_live_count == 0:
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+            self.notify_data_source_content_changed(set([METADATA]))  # this will affect is_live, so notify
         for data_item in self.dependent_data_items:
             data_item.begin_live(count)
 
@@ -564,7 +561,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             assert self.__live_count >= 0
             live_count = self.__live_count
         if live_count == 0:
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+            self.notify_data_source_content_changed(set([METADATA]))  # this will affect is_live, so notify
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -602,7 +599,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if data_item_change_count == 0 and len(changes) > 0:
             for processor in self.__processors.values():
                 processor.data_item_changed()
-            self.notify_listeners("data_item_content_changed", self, changes)
+            self.notify_listeners("data_source_content_changed", self, changes)
 
     def __validate_datetime(self, value):
         return copy.deepcopy(value)
@@ -630,18 +627,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__metadata_changed()
 
     def __metadata_changed(self):
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_data_source_content_changed(set([METADATA]))
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
 
     def temp_metadata_changed(self):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_data_source_content_changed(set([METADATA]))
 
-    # call this when the listeners need to be updated (via data_item_content_changed).
-    # Calling this method will send the data_item_content_changed method to each listener.
-    def notify_data_item_content_changed(self, changes):
+    # call this when the listeners need to be updated (via data_source_content_changed).
+    # Calling this method will send the data_source_content_changed method to each listener.
+    def notify_data_source_content_changed(self, changes):
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
@@ -730,12 +727,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __intensity_calibration_changed(self, name, value):
         self.notify_set_property(name, value)
-        self.notify_data_item_content_changed(set([METADATA]))
-        self.notify_listeners("data_item_calibration_changed")
+        self.notify_data_source_content_changed(set([METADATA]))
 
     def __dimensional_calibrations_changed(self, name, value):
-        self.notify_data_item_content_changed(set([METADATA]))
-        self.notify_listeners("data_item_calibration_changed")
+        self.notify_set_property(name, value)
+        self.notify_data_source_content_changed(set([METADATA]))
 
     # call this when data changes. this makes sure that the right number
     # of dimensional_calibrations exist in this object.
@@ -793,7 +789,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # listen
         display.add_listener(self)
         display._set_data_item(self)
-        self.notify_data_item_content_changed(set([DISPLAYS]))
+        self.notify_data_source_content_changed(set([DISPLAYS]))
         # connect the regions
         for region in self.regions:
             region_graphic = region.graphic
@@ -807,7 +803,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             if region_graphic:
                 display.remove_region_graphic(region_graphic)
         # unlisten
-        self.notify_data_item_content_changed(set([DISPLAYS]))
+        self.notify_data_source_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
         display._set_data_item(None)
         display.close()
@@ -822,7 +818,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # listen
         region.add_listener(self)
         region._set_data_item(self)
-        self.notify_data_item_content_changed(set([DISPLAYS]))
+        self.notify_data_source_content_changed(set([DISPLAYS]))
         # connect to the displays
         region_graphic = region.graphic
         if region_graphic:
@@ -836,7 +832,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             for display in self.displays:
                 display.remove_region_graphic(region_graphic)
         # and unlisten
-        self.notify_data_item_content_changed(set([DISPLAYS]))
+        self.notify_data_source_content_changed(set([DISPLAYS]))
         region.remove_listener(self)
         region._set_data_item(None)
 
@@ -907,7 +903,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             new_value.set_dependent_data_item(self)
             new_value.set_data_item_manager(self.__data_item_manager)
         self.__sync_operation()
-        self.notify_data_item_content_changed(set([DATA]))
+        self.notify_data_source_content_changed(set([DATA]))
         if not self._is_reading:
             self.__mark_data_stale()
 
@@ -953,23 +949,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_data_source_content_changed(set([METADATA]))
         for processor in self.__processors.values():
             processor.item_property_changed(key, value)
 
     # this message comes from the displays.
     # thread safe
     def display_changed(self, display):
-        self.notify_data_item_content_changed(set([DISPLAYS]))
+        self.notify_data_source_content_changed(set([DISPLAYS]))
 
-    # data_item_content_changed comes from data sources to indicate that data
+    # data_source_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
     def data_source_content_changed(self, data_source, changes):
         if DATA in changes or SOURCE in changes:
             if not self._is_reading:
                 self.__mark_data_stale()
 
-    # data_item_needs_recompute comes from data sources to indicate that data has
+    # data_source_needs_recompute comes from data sources to indicate that data has
     # become stale. the connection is established via add_listener.
     def data_source_needs_recompute(self, data_source):
         if not self._is_reading:
@@ -996,7 +992,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
                 self.notify_set_property("data_range", self.data_range)
                 self.notify_set_property("data_sample", self.data_sample)
-            self.notify_data_item_content_changed(set([DATA]))
+            self.notify_data_source_content_changed(set([DATA]))
 
     def __load_master_data(self):
         # load data from managed object context if data is not already loaded
@@ -1040,7 +1036,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__is_master_data_stale = True
         for processor in self.__processors.values():
             processor.data_item_changed()
-        self.notify_listeners("data_item_needs_recompute", self)
+        self.notify_listeners("data_source_needs_recompute", self)
 
     # used for testing
     def __is_data_loaded(self):

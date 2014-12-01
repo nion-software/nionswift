@@ -144,10 +144,10 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             if self.__data_item_manager:
                 self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
 
-    def data_item_content_changed(self, data_item, changes):
+    def data_source_content_changed(self, data_item, changes):
         self.notify_listeners("data_source_content_changed", self, changes)
 
-    def data_item_needs_recompute(self, data_item):
+    def data_source_needs_recompute(self, data_item):
         self.notify_listeners("data_source_needs_recompute", self)
 
 

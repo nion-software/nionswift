@@ -459,8 +459,7 @@ class TestDataPanelClass(unittest.TestCase):
                 self.reset()
             def reset(self):
                 self._changed = False
-            def data_item_content_changed(self, data_item, changes):
-                #self._data_changed = self._data_changed or DataItem.DATA in changes
+            def data_source_content_changed(self, data_item, changes):
                 self._changed = True
         listener = Listener()
         data_item.add_listener(listener)

@@ -529,7 +529,7 @@ class TestOperationClass(unittest.TestCase):
             def reset(self):
                 self._data_changed = False
                 self._display_changed = False
-            def data_item_content_changed(self, data_item, changes):
+            def data_source_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
             def display_changed(self, display):
                 self._display_changed = True
@@ -560,7 +560,7 @@ class TestOperationClass(unittest.TestCase):
             def reset(self):
                 self._data_changed = False
                 self._display_changed = False
-            def data_item_content_changed(self, data_item, changes):
+            def data_source_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
             def display_changed(self, display):
                 self._display_changed = True
