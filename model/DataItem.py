@@ -261,9 +261,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 return numpy.dtype(value) if value is not None else None
         self.define_property("master_data_shape", master_data_shape, changed=self.__property_changed)
         self.define_property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed)
-        # TODO: file format rename calibrations to match property names
-        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__intensity_calibration_changed, key="intrinsic_intensity_calibration")
-        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed, key="intrinsic_spatial_calibrations")
+        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__intensity_calibration_changed)
+        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)

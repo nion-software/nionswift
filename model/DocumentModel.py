@@ -377,6 +377,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         del properties["operations"]
                     if "data_sources" in properties:
                         del properties["data_sources"]
+                    if "intrinsic_intensity_calibration" in properties:
+                        properties["intensity_calibration"] = properties["intrinsic_intensity_calibration"]
+                        del properties["intrinsic_intensity_calibration"]
+                    if "intrinsic_spatial_calibrations" in properties:
+                        properties["dimensional_calibrations"] = properties["intrinsic_spatial_calibrations"]
+                        del properties["intrinsic_spatial_calibrations"]
                     properties["version"] = 6
                     # no rewrite needed
                     # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())

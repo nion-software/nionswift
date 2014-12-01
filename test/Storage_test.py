@@ -1008,6 +1008,8 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
         data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["intrinsic_spatial_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        data_item_dict["intrinsic_intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["version"] = 5
         data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
         data_item2_dict = data_reference_handler.properties.setdefault("B", dict())
@@ -1027,6 +1029,12 @@ class TestStorageClass(unittest.TestCase):
         self.assertIsNotNone(data_item.operation)
         self.assertEqual(len(data_item.operation.data_sources), 1)
         self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
+        # calibration renaming
+        data_item = document_model.data_items[0]
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
+        self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
 
 
 if __name__ == '__main__':
