@@ -328,6 +328,32 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.remove_data_item(data_item_result)
         document_model.recompute_all()
 
+    def test_processing_duplicate_does_copy(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        document_controller.processing_duplicate()
+
+    def test_processing_duplicate_with_operation_copies_it_but_has_same_data_source(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        source_data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        document_model.append_data_item(source_data_item)
+        data_item = DataItem.DataItem()
+        invert_operation = Operation.OperationItem("invert-operation")
+        invert_operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+        data_item.set_operation(invert_operation)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        data_item_dup = document_controller.processing_duplicate()
+        self.assertIsNotNone(data_item_dup.operation)
+        self.assertNotEqual(data_item_dup.operation, data_item.operation)
+        self.assertNotEqual(data_item_dup.operation.data_sources[0], data_item.operation.data_sources[0])
+        self.assertEqual(data_item_dup.operation.data_sources[0].data_item_uuid, data_item.operation.data_sources[0].data_item_uuid)
+        self.assertEqual(data_item_dup.operation.data_sources[0].data_item, data_item.operation.data_sources[0].data_item)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

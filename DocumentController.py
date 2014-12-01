@@ -866,9 +866,8 @@ class DocumentController(Observable.Broadcaster):
     def processing_duplicate(self, select=True):
         data_item = self.selected_data_item
         if data_item:
-            new_data_item = DataItem.DataItem()
+            new_data_item = copy.deepcopy(data_item)
             new_data_item.title = _("Clone of ") + data_item.title
-            new_data_item.add_data_source(Operation.DataItemDataSource(data_item))
             self.document_model.append_data_item(new_data_item)
             if select:
                 self.select_data_item_in_data_panel(new_data_item)
@@ -888,7 +887,6 @@ class DocumentController(Observable.Broadcaster):
             assert isinstance(data_item, DataItem.DataItem)
             data_item_copy = data_item.snapshot()
             data_item_copy.title = _("Snapshot of ") + data_item.title
-            # TODO: put this into existing group if copied from group
             self.document_model.append_data_item(data_item_copy)
             if select:
                 self.select_data_item_in_data_panel(data_item_copy)
