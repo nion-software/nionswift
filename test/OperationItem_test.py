@@ -107,6 +107,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list = []
         operation_list.append((data_item_real, Operation.OperationItem("fft-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("invert-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("auto-correlate-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("gaussian-blur-operation")))
         crop_2d_operation = Operation.OperationItem("crop-operation")
         operation_list.append((data_item_real, crop_2d_operation))

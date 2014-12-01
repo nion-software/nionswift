@@ -214,6 +214,8 @@ class DocumentController(Observable.Broadcaster):
 
         self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
+        self.processing_menu.add_menu_item(_("Auto Correlate"), lambda: self.processing_auto_correlate())
+        self.processing_menu.add_menu_item(_("Cross Correlate"), lambda: self.processing_cross_correlate())
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
         self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
@@ -698,6 +700,11 @@ class DocumentController(Observable.Broadcaster):
         assert operation is not None
         return self.add_processing_operation(operation, prefix, suffix, in_place, select, crop_region)
 
+    def add_binary_processing_operation_by_id(self, operation_id, data_item1, data_item2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
+        operation = Operation.OperationItem(operation_id)
+        assert operation is not None
+        return self.add_binary_processing_operation(operation, data_item1, data_item2, prefix, suffix, crop_region1, crop_region2)
+
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         if data_item:
@@ -743,6 +750,17 @@ class DocumentController(Observable.Broadcaster):
                 return new_data_item
         return None
 
+    def add_binary_processing_operation(self, operation, data_item1, data_item2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
+        if data_item1 and data_item2:
+            new_data_item = DataItem.DataItem()
+            new_data_item.title = (prefix if prefix else "") + data_item1.title + (suffix if suffix else "")
+            new_data_item.add_operation(operation)
+            new_data_item.add_data_source(data_item1)
+            new_data_item.add_data_source(data_item2)
+            self.display_data_item(new_data_item, source_data_item=data_item, select=True)
+            return new_data_item
+        return None
+
     def __get_crop_region(self, data_item):
         crop_region = None
         if data_item and len(data_item.spatial_shape) == 2:
@@ -760,6 +778,19 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_ifft(self, select=True):
         return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
+
+    def processing_auto_correlate(self, select=True):
+        crop_region = self.__get_crop_region(self.selected_data_item)
+        return self.add_processing_operation_by_id("auto-correlate-operation", prefix=_("Auto Correlate of "), select=select, crop_region=crop_region)
+
+    def processing_cross_correlate(self, select=True):
+        selected_data_items = self.__selected_data_items
+        if len(selected_data_items) == 2:
+            data_item1 = selected_data_items[0]
+            data_item2 = selected_data_items[1]
+            crop_region1 = self.__get_crop_region(data_item1)
+            crop_region2 = self.__get_crop_region(data_item2)
+            return self.add_binary_processing_operation_by_id("auto-correlate-operation", data_item1, data_item2, prefix=_("Auto Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
 
     def processing_gaussian_blur(self, select=True):
         return self.add_processing_operation_by_id("gaussian-blur-operation", prefix=_("Gaussian Blur of "), select=select)

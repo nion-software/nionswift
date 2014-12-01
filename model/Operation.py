@@ -15,6 +15,7 @@ import scipy.fftpack
 import scipy.ndimage
 import scipy.ndimage.filters
 import scipy.ndimage.fourier
+import scipy.signal
 
 # local libraries
 from nion.swift.model import Calibration
@@ -324,13 +325,17 @@ class Operation(object):
 
             def __get_data(self):
                 assert len(self.__data_inputs) == 1
-                return self.__operation.get_processed_data(self.__data_inputs[0].data)
+                return self.__operation.get_processed_data_multi(self.__data_inputs)
             data = property(__get_data)
 
         if len(data_inputs) == 1:
             return [ProcessedDataItem(self, data_inputs)]
 
         return []
+
+    # public method to do processing. double check that data is a copy and not the original.
+    def get_processed_data_multi(self, data_inputs):
+        return self.get_processed_data(data_inputs[0].data)
 
     # public method to do processing. double check that data is a copy and not the original.
     def get_processed_data(self, data):
@@ -401,6 +406,32 @@ class IFFTOperation(Operation):
         return [Calibration.Calibration(0.0,
                                      1.0 / (source_calibrations[i].scale * data_shape[i]),
                                      "1/" + source_calibrations[i].units) for i in range(len(source_calibrations))]
+
+
+class AutoCorrelateOperation(Operation):
+
+    def __init__(self):
+        super(AutoCorrelateOperation, self).__init__(_("Auto Correlate"), "auto-correlate-operation")
+
+    def process(self, data):
+        if Image.is_data_2d(data):
+            data_copy = data.copy()  # let other threads use data while we're processing
+            return scipy.signal.fftconvolve(data_copy, data_copy, mode='same')
+        raise NotImplementedError()
+
+
+class CrossCorrelateOperation(Operation):
+
+    def __init__(self):
+        super(CrossCorrelateOperation, self).__init__(_("Cross Correlate"), "cross-correlate-operation")
+
+    def get_processed_data_multi(self, data_inputs):
+        if len(data_inputs) == 2:
+            data1 = data_inputs[0].data
+            data2 = data_inputs[1].data
+            if Image.is_data_2d(data1) and Image.is_data_2d(data2):
+                return scipy.signal.fftconvolve(data1.copy(), data2.copy(), mode='same')
+        raise NotImplementedError()
 
 
 class InvertOperation(Operation):
@@ -818,6 +849,8 @@ class OperationPropertyToRegionBinding(OperationPropertyBinding):
 
 OperationManager().register_operation("fft-operation", lambda: FFTOperation())
 OperationManager().register_operation("inverse-fft-operation", lambda: IFFTOperation())
+OperationManager().register_operation("auto-correlate-operation", lambda: AutoCorrelateOperation())
+OperationManager().register_operation("cross-correlate-operation", lambda: CrossCorrelateOperation())
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
 OperationManager().register_operation("crop-operation", lambda: Crop2dOperation())
