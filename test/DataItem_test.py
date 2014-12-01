@@ -403,8 +403,8 @@ class TestDataItemClass(unittest.TestCase):
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
         data_range = data_item.data_range
-        data_min = math.log(math.sqrt(2*2 + 3*3) + 1)
-        data_max = math.log(math.sqrt(12*12 + 13*13) + 1)
+        data_min = math.log(math.sqrt(2*2 + 3*3))
+        data_max = math.log(math.sqrt(12*12 + 13*13))
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
         self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 

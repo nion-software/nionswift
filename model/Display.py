@@ -158,6 +158,16 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             self.data_item.add_listener(self)
             self.storage_cache = self.data_item.storage_cache
 
+    def auto_display_limits(self):
+        # auto set the display limits if not yet set and data is complex
+        if self.data_item.is_data_complex_type and self.display_limits is None:
+            data = self.data_item.data
+            samples, fraction = 200, 0.1
+            sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
+            display_limit_low = numpy.log(sorted_data[samples*fraction])
+            display_limit_high = self.data_item.data_range[1]
+            self.display_limits = display_limit_low, display_limit_high
+
     def __get_preview_2d(self):
         if self.__preview is None:
             data_2d = self.preview_2d_data
