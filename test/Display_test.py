@@ -57,5 +57,10 @@ class TestDisplayClass(unittest.TestCase):
         display.display_limits = None
         self.assertIsNone(display.display_limits)
 
+    def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
+        data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
+        display = data_item.displays[0]
+        self.assertIsNotNone(display.preview_2d_data)
+
 if __name__ == '__main__':
     unittest.main()

@@ -3,12 +3,12 @@
 """
 
 # standard libraries
+import collections
 import copy
 import logging
 import gettext
 import numbers
 import weakref
-import uuid
 
 # third party libraries
 import numpy
@@ -178,22 +178,30 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.__preview
     preview_2d = property(__get_preview_2d)
 
-    def __get_preview_2d_data(self):
-        if self.__preview_data is None:
-            data = self.data_item.data
-            if Image.is_data_2d(data):
-                data_2d = Image.scalar_from_array(data)
-            # TODO: fix me 3d
-            elif Image.is_data_3d(data):
-                slice_operation = Operation.Slice3dOperation()
-                slice_operation.slice_center = self.slice_center
-                slice_operation.slice_width = self.slice_width
-                data_2d = slice_operation.process(data)
-            else:
-                data_2d = None
-            self.__preview_data = data_2d
-        return self.__preview_data
-    preview_2d_data = property(__get_preview_2d_data)
+    @property
+    def preview_2d_data(self):
+        try:
+            if self.__preview_data is None:
+                data = self.data_item.data
+                if Image.is_data_2d(data):
+                    data_2d = Image.scalar_from_array(data)
+                # TODO: fix me 3d
+                elif Image.is_data_3d(data):
+                    slice_operation = Operation.Slice3dOperation()
+                    slice_operation.slice_center = self.slice_center
+                    slice_operation.slice_width = self.slice_width
+                    DataSourceTuple = collections.namedtuple("DataSourceTuple", ["data"])
+                    data_source = DataSourceTuple(data=data)  # quite a hack
+                    data_2d = slice_operation.get_processed_data([data_source])
+                else:
+                    data_2d = None
+                self.__preview_data = data_2d
+            return self.__preview_data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     def __get_preview_2d_shape(self):
         if self.data_item.is_data_2d:
