@@ -636,26 +636,37 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
 
-    def __calculate_data_range_for_data(self, data):
+    def __calculate_data_stats_for_data(self, data):
         if data is not None and data.size:
             if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
                 data_range = (0, 255)
+                data_sample = None
             elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
                 scalar_data = Image.scalar_from_array(data)
                 data_range = (scalar_data.min(), scalar_data.max())
+                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
             else:
                 data_range = (data.min(), data.max())
+                data_sample = None
         else:
             data_range = None
-        if data_range:
+            data_sample = None
+        if data_range is not None:
             self.set_cached_value("data_range", data_range)
         else:
             self.remove_cached_value("data_range")
-        return data_range
+        if data_sample is not None:
+            self.set_cached_value("data_sample", data_sample)
+        else:
+            self.remove_cached_value("data_sample")
 
-    def __get_data_range(self):
+    @property
+    def data_range(self):
         return self.get_cached_value("data_range")
-    data_range = property(__get_data_range)
+
+    @property
+    def data_sample(self):
+        return self.get_cached_value("data_sample")
 
     # calibration stuff
 
@@ -963,12 +974,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.master_data_dtype = data.dtype if data is not None else None
                 spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
                 self.__sync_dimensional_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
-                self.__calculate_data_range_for_data(data)
+                self.__calculate_data_stats_for_data(data)
             # tell the managed object context about it
             if self.__master_data is not None:
                 if self.managed_object_context:
                     self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
                 self.notify_set_property("data_range", self.data_range)
+                self.notify_set_property("data_sample", self.data_sample)
             self.notify_data_item_content_changed(set([DATA]))
 
     def __load_master_data(self):

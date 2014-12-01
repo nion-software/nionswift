@@ -254,13 +254,29 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.notify_listeners("display_changed", self)
     lookup_table = property(__get_lookup_table, __set_lookup_table)
 
-    def __get_data_range(self):
+    @property
+    def data_range(self):
         return self.data_item.data_range if self.data_item else None
-    data_range = property(__get_data_range)
+
+    @property
+    def data_sample(self):
+        return self.data_item.data_sample if self.data_item else None
 
     def __get_display_range(self):
         data_range = self.data_range
-        return self.display_limits if self.display_limits else data_range
+        if self.display_limits:
+            return self.display_limits
+        if self.data_item and self.data_item.is_data_complex_type:
+            data_sample = self.data_item.data_sample
+            if data_sample is not None:
+                data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
+                display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
+                display_limit_high = data_range[1]
+                return display_limit_low, display_limit_high
+            else:
+                return data_range
+        else:
+            return self.display_limits if self.display_limits else data_range
     def __set_display_range(self, display_range):
         self.display_limits = display_range
     # TODO: this is only valid after data has been called (!)
