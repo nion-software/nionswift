@@ -283,112 +283,122 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
-            version = properties.get("version", 0)
-            if version <= 1:
-                if "spatial_calibrations" in properties:
-                    properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
-                    del properties["spatial_calibrations"]
-                if "intensity_calibration" in properties:
-                    properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
-                    del properties["intensity_calibration"]
-                if "data_source_uuid" in properties:
-                    # for now, this is not translated into v2. it was an extra item.
-                    del properties["data_source_uuid"]
-                if "properties" in properties:
-                    old_properties = properties["properties"]
-                    new_properties = properties.setdefault("hardware_source", dict())
-                    new_properties.update(copy.deepcopy(old_properties))
-                    if "session_uuid" in new_properties:
-                        del new_properties["session_uuid"]
-                    del properties["properties"]
-                temp_data = self.__data_reference_handler.load_data_reference(reference_type, reference)
-                if temp_data is not None:
-                    properties["master_data_dtype"] = str(temp_data.dtype)
-                    properties["master_data_shape"] = temp_data.shape
-                properties["displays"] = [{}]
-                properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
-                properties["version"] = 2
-                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
-                version = 2
-                if self.__log_migrations:
-                    logging.info("Updated %s to %s (ndata1)", reference, version)
-            if version == 2:
-                # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
-                for display_properties in properties.get("displays", list()):
-                    display_properties.setdefault("uuid", str(uuid.uuid4()))
-                    for graphic_properties in display_properties.get("graphics", list()):
-                        graphic_properties.setdefault("uuid", str(uuid.uuid4()))
-                for operation_properties in properties.get("operations", list()):
-                    operation_properties.setdefault("uuid", str(uuid.uuid4()))
-                properties["version"] = 3
-                self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
-                version = 3
-                if self.__log_migrations:
-                    logging.info("Updated %s to %s (add uuids)", reference, version)
-            if version == 3:
-                # version 3 -> 4 changes origin to offset in all calibrations.
-                calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
-                if "origin" in calibration_dict:
-                    calibration_dict["offset"] = calibration_dict["origin"]
-                    del calibration_dict["origin"]
-                for calibration_dict in properties.get("intrinsic_spatial_calibrations", list()):
+            try:
+                version = properties.get("version", 0)
+                if version <= 1:
+                    if "spatial_calibrations" in properties:
+                        properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
+                        del properties["spatial_calibrations"]
+                    if "intensity_calibration" in properties:
+                        properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
+                        del properties["intensity_calibration"]
+                    if "data_source_uuid" in properties:
+                        # for now, this is not translated into v2. it was an extra item.
+                        del properties["data_source_uuid"]
+                    if "properties" in properties:
+                        old_properties = properties["properties"]
+                        new_properties = properties.setdefault("hardware_source", dict())
+                        new_properties.update(copy.deepcopy(old_properties))
+                        if "session_uuid" in new_properties:
+                            del new_properties["session_uuid"]
+                        del properties["properties"]
+                    temp_data = self.__data_reference_handler.load_data_reference(reference_type, reference)
+                    if temp_data is not None:
+                        properties["master_data_dtype"] = str(temp_data.dtype)
+                        properties["master_data_shape"] = temp_data.shape
+                    properties["displays"] = [{}]
+                    properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                    properties["version"] = 2
+                    # rewrite needed since we added a uuid
+                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 2
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (ndata1)", reference, version)
+                if version == 2:
+                    # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
+                    for display_properties in properties.get("displays", list()):
+                        display_properties.setdefault("uuid", str(uuid.uuid4()))
+                        for graphic_properties in display_properties.get("graphics", list()):
+                            graphic_properties.setdefault("uuid", str(uuid.uuid4()))
+                    for operation_properties in properties.get("operations", list()):
+                        operation_properties.setdefault("uuid", str(uuid.uuid4()))
+                    properties["version"] = 3
+                    # rewrite needed since we added a uuid
+                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 3
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (add uuids)", reference, version)
+                if version == 3:
+                    # version 3 -> 4 changes origin to offset in all calibrations.
+                    calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
                     if "origin" in calibration_dict:
                         calibration_dict["offset"] = calibration_dict["origin"]
                         del calibration_dict["origin"]
-                properties["version"] = 4
-                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
-                version = 4
-                if self.__log_migrations:
-                    logging.info("Updated %s to %s (calibration offset)", reference, version)
-            if version == 4:
-                # version 4 -> 5 changes region_uuid to region_connections map.
-                operations_list = properties.get("operations", list())
-                for operation_dict in operations_list:
-                    if operation_dict["operation_id"] == "crop-operation" and "region_uuid" in operation_dict:
-                        operation_dict["region_connections"] = { "crop": operation_dict["region_uuid"] }
-                        del operation_dict["region_uuid"]
-                    elif operation_dict["operation_id"] == "line-profile-operation" and "region_uuid" in operation_dict:
-                        operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
-                        del operation_dict["region_uuid"]
-                properties["version"] = 5
-                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
-                version = 5
-                if self.__log_migrations:
-                    logging.info("Updated %s to %s (region_uuid)", reference, version)
-            if version == 5:
-                # version 5 -> 6 changes operations to a single operation, expands data sources list
-                operations_list = properties.get("operations", list())
-                if len(operations_list) == 1:
-                    operation_dict = operations_list[0]
-                    operation_dict["type"] = "operation"
-                    properties["operation"] = operation_dict
-                    data_sources_list = properties.get("data_sources", list())
-                    if len(data_sources_list) > 0:
-                        new_data_sources_list = list()
-                        for data_source_uuid_str in data_sources_list:
-                            new_data_sources_list.append({"type": "data-item-data-source", "data_item_uuid": data_source_uuid_str})
-                        operation_dict["data_sources"] = new_data_sources_list
-                if "operations" in properties:
-                    del properties["operations"]
-                if "data_sources" in properties:
-                    del properties["data_sources"]
-                properties["version"] = 6
-                # no rewrite needed
-                # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
-                version = 6
-                if self.__log_migrations:
-                    logging.info("Updated %s to %s (operation hierarchy)", reference, version)
-            # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
-            # NOTE: change writer_version in DataItem.py
-            data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
-            data_item.begin_reading()
-            if version <= data_item.writer_version:
-                persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
-                data_item.read_from_dict(persistent_storage.properties)
-                assert(len(data_item.displays) > 0)
-                self.set_persistent_storage_for_object(data_item, persistent_storage)
-                data_item.managed_object_context = self
-                data_items.append(data_item)
+                    for calibration_dict in properties.get("intrinsic_spatial_calibrations", list()):
+                        if "origin" in calibration_dict:
+                            calibration_dict["offset"] = calibration_dict["origin"]
+                            del calibration_dict["origin"]
+                    properties["version"] = 4
+                    # no rewrite needed
+                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 4
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (calibration offset)", reference, version)
+                if version == 4:
+                    # version 4 -> 5 changes region_uuid to region_connections map.
+                    operations_list = properties.get("operations", list())
+                    for operation_dict in operations_list:
+                        if operation_dict["operation_id"] == "crop-operation" and "region_uuid" in operation_dict:
+                            operation_dict["region_connections"] = { "crop": operation_dict["region_uuid"] }
+                            del operation_dict["region_uuid"]
+                        elif operation_dict["operation_id"] == "line-profile-operation" and "region_uuid" in operation_dict:
+                            operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
+                            del operation_dict["region_uuid"]
+                    properties["version"] = 5
+                    # no rewrite needed
+                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 5
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (region_uuid)", reference, version)
+                if version == 5:
+                    # version 5 -> 6 changes operations to a single operation, expands data sources list
+                    operations_list = properties.get("operations", list())
+                    if len(operations_list) == 1:
+                        operation_dict = operations_list[0]
+                        operation_dict["type"] = "operation"
+                        properties["operation"] = operation_dict
+                        data_sources_list = properties.get("data_sources", list())
+                        if len(data_sources_list) > 0:
+                            new_data_sources_list = list()
+                            for data_source_uuid_str in data_sources_list:
+                                new_data_sources_list.append({"type": "data-item-data-source", "data_item_uuid": data_source_uuid_str})
+                            operation_dict["data_sources"] = new_data_sources_list
+                    if "operations" in properties:
+                        del properties["operations"]
+                    if "data_sources" in properties:
+                        del properties["data_sources"]
+                    properties["version"] = 6
+                    # no rewrite needed
+                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 6
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (operation hierarchy)", reference, version)
+                # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
+                # NOTE: change writer_version in DataItem.py
+                data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
+                if version <= data_item.writer_version:
+                    data_item.begin_reading()
+                    persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
+                    data_item.read_from_dict(persistent_storage.properties)
+                    assert(len(data_item.displays) > 0)
+                    self.set_persistent_storage_for_object(data_item, persistent_storage)
+                    data_item.managed_object_context = self
+                    data_items.append(data_item)
+            except Exception as e:
+                logging.info("Error reading %s (uuid=%s)", reference, data_item_uuid)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
         # all sorts of interconnections may occur between data items and other objects.
         # give the data item a chance to mark itself clean after reading all of them in.
         for data_item in data_items:

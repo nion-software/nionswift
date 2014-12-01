@@ -925,7 +925,7 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
-        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertEqual(len(data_item.dimensional_calibrations), 2)
         self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
@@ -951,10 +951,10 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
-        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
-        self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0])
-        self.assertTrue("uuid" in data_reference_handler.properties["A"]["displays"][0]["graphics"][0])
-        self.assertTrue("uuid" in data_reference_handler.properties["A"]["operation"])
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
+        self.assertTrue("uuid" in data_item.properties["displays"][0])
+        self.assertTrue("uuid" in data_item.properties["displays"][0]["graphics"][0])
+        self.assertTrue("uuid" in data_item.properties["operation"])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
@@ -972,7 +972,7 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
-        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertEqual(len(data_item.dimensional_calibrations), 2)
         self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
@@ -995,10 +995,10 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
-        self.assertEqual(data_reference_handler.properties["A"]["version"], data_item.writer_version)
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertEqual(len(data_item.operation.region_connections), 1)
         self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
-        self.assertFalse("region_uuid" in data_reference_handler.properties["A"]["operation"])
+        self.assertFalse("region_uuid" in data_item.properties["operation"])
 
     def test_data_items_v5_migration(self):
         # construct v4 data item
@@ -1023,7 +1023,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
         self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
         data_item = document_model.data_items[1]
-        self.assertEqual(data_reference_handler.properties["B"]["version"], data_item.writer_version)
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertIsNotNone(data_item.operation)
         self.assertEqual(len(data_item.operation.data_sources), 1)
         self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
