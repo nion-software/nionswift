@@ -518,13 +518,18 @@ class FFTOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        data_shape = data_sources[0].data_shape
+        if data is None or data_shape is None:
             return None
+        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
+        # see https://gist.github.com/endolith/1257010
         if Image.is_data_1d(data):
-            return scipy.fftpack.fftshift(scipy.fftpack.fft(data))
+            scaling = 1.0 / numpy.sqrt(data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.fft(data) * scaling)
         elif Image.is_data_2d(data):
             data_copy = data.copy()  # let other threads use data while we're processing
-            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_copy))
+            scaling = 1.0 / numpy.sqrt(data_shape[1] * data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_copy) * scaling)
         else:
             raise NotImplementedError()
 
@@ -554,12 +559,18 @@ class IFFTOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        data_shape = data_sources[0].data_shape
+        if data is None or data_shape is None:
             return None
+        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
+        # see https://gist.github.com/endolith/1257010
         if Image.is_data_1d(data):
-            return scipy.fftpack.fftshift(scipy.fftpack.ifft(data))
+            scaling = numpy.sqrt(data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.ifft(data) * scaling)
         elif Image.is_data_2d(data):
-            return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data))
+            data_copy = data.copy()  # let other threads use data while we're processing
+            scaling = numpy.sqrt(data_shape[1] * data_shape[0])
+            return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_copy) * scaling)
         else:
             raise NotImplementedError()
 
@@ -587,7 +598,17 @@ class AutoCorrelateOperation(Operation):
             return None
         if Image.is_data_2d(data):
             data_copy = data.copy()  # let other threads use data while we're processing
-            return scipy.signal.fftconvolve(data_copy, data_copy, mode='same')
+            data_std = data_copy.std(dtype=numpy.float64)
+            if data_std != 0.0:
+                data_norm = (data_copy - data_copy.mean(dtype=numpy.float64)) / data_std
+            else:
+                data_norm = data_copy
+            scaling = 1.0 / (data_norm.shape[0] * data_norm.shape[1])
+            data_norm = numpy.fft.rfft2(data_norm)
+            return numpy.fft.fftshift(numpy.fft.irfft2(data_norm * numpy.conj(data_norm))) * scaling
+            # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
+            # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
+            # return scipy.signal.fftconvolve(data_copy, numpy.conj(data_copy), mode='same')
         raise NotImplementedError()
 
 
@@ -603,7 +624,13 @@ class CrossCorrelateOperation(Operation):
             if data1 is None or data2 is None:
                 return None
             if Image.is_data_2d(data1) and Image.is_data_2d(data2):
-                return scipy.signal.fftconvolve(data1.copy(), data2.copy(), mode='same')
+                norm1 = (data1 - data1.mean(dtype=numpy.float64)) / data1.std(dtype=numpy.float64)
+                norm2 = (data2 - data2.mean(dtype=numpy.float64)) / data2.std(dtype=numpy.float64)
+                scaling = 1.0 / (norm1.shape[0] * norm1.shape[1])
+                return numpy.fft.fftshift(numpy.fft.irfft2(numpy.fft.rfft2(norm1) * numpy.conj(numpy.fft.rfft2(norm2)))) * scaling
+                # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
+                # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
+                # return scipy.signal.fftconvolve(data1.copy(), numpy.conj(data2.copy()), mode='same')
         raise NotImplementedError()
 
 
