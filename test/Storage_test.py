@@ -143,6 +143,7 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DictStorageCache()
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             self.assertEqual(document_model.data_items[0].data_range, data_range)
+            document_model.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -171,6 +172,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             stats3 = copy.deepcopy(document_model.data_items[0].get_processed_data("statistics"))
             self.assertEqual(stats2, stats3)
+            document_model.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -199,6 +201,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             histogram3 = numpy.copy(document_model.data_items[0].displays[0].get_processed_data("histogram"))
             self.assertTrue(numpy.array_equal(histogram2, histogram3))
+            document_model.close()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -793,6 +796,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data2_file_path))
             self.assertTrue(os.path.isfile(data2_file_path))
             # clean up
+            document_model.close()
             document_model = None
             storage_cache = None
             # delete the original file
@@ -928,6 +932,9 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
             histogram3 = numpy.copy(document_model.data_items[1].displays[0].get_processed_data("histogram"))
             self.assertTrue(numpy.array_equal(histogram2, histogram3))
+            document_model.close()
+            storage_cache = None
+            document_model = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
