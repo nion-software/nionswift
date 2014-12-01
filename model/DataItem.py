@@ -97,19 +97,28 @@ class CalibrationList(object):
 
     *Notifications*
 
-    Data items will emit the following notifications to listeners. Listeners should take care to not call
-     functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
-     should not read the data property (although cached_data is ok) since calling data may trigger the data
-     to be computed which will emit data_item_content_changed, resulting in a cycle.
+    Sources can be in a "needs recompute" state or a "computed" state. Notifications are emitted when
+    the state changes.
+
+    Listeners should take care to not call functions which result in cycles of notifications. For instance,
+    listeners should not read the data property (although cached_data is ok) since calling data may trigger
+    the data to be computed which will emit data_item_content_changed, resulting in a cycle.
+
+    Data items will emit the following notifications to listeners.
 
     * data_source_content_changed(data_source, changes)
     * data_source_needs_recompute(data_source)
 
-    data_source_content_changed is invoked when the content of the data source changes. The changes parameter is a set
-    of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
+    data_source_content_changed is emitted when the data source changes from "needs recompute" to "computed",
+    i.e., when content of the data source changes. The changes parameter is a set of changes taken from the
+    list DATA, METADATA, DISPLAYS, SOURCE. This notification will be emitted on a thread.
 
-    data_source_needs_recompute is invoked when a recompute of the data source is necessary. This can happen when an
-    operation changes or when source data changes. This may be called on a thread.
+    data_source_needs_recompute is emitted when the data source changes from "computed" to "needs recompute",
+    i.e. when a recompute of the data source is necessary. This can happen when an operation changes or when
+    source data changes. This notification will be emitted on a thread.
+
+    When the owner of the data source receives a data_source_needs_recompute notification, it should call
+    recompute which will compute the data and subsequently emit a data_source_content_changed notification.
 """
 
 
