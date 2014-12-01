@@ -1146,59 +1146,61 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     size_and_data_format_as_string = property(__get_size_and_data_format_as_string)
 
     def __get_data_shape(self):
-        return self.data_shape_and_dtype[0]
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return self.data_shape_and_dtype[0] if data_shape_and_dtype is not None else None
     data_shape = property(__get_data_shape)
 
     def __get_spatial_shape(self):
         data_shape_and_dtype = self.data_shape_and_dtype
-        if data_shape_and_dtype:
+        if data_shape_and_dtype is not None:
             data_shape, data_dtype = self.data_shape_and_dtype
             return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
         return None
     spatial_shape = property(__get_spatial_shape)
 
     def __get_data_dtype(self):
-        return self.data_shape_and_dtype[1]
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return data_shape_and_dtype[1] if data_shape_and_dtype is not None else None
     data_dtype = property(__get_data_dtype)
 
     def __is_data_1d(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_1d(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_1d = property(__is_data_1d)
 
     def __is_data_2d(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_2d(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_2d = property(__is_data_2d)
 
     def __is_data_3d(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_3d(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_3d = property(__is_data_3d)
 
     def __is_data_rgb(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgb(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_rgb = property(__is_data_rgb)
 
     def __is_data_rgba(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgba(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_rgba = property(__is_data_rgba)
 
     def __is_data_rgb_type(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgb(data_shape, data_dtype) or Image.is_shape_and_dtype_rgba(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return (Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) or Image.is_shape_and_dtype_rgba(*data_shape_and_dtype)) if data_shape_and_dtype else False
     is_data_rgb_type = property(__is_data_rgb_type)
 
     def __is_data_scalar_type(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_scalar_type(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_scalar_type(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_scalar_type = property(__is_data_scalar_type)
 
     def __is_data_complex_type(self):
-        data_shape, data_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_complex_type(data_shape, data_dtype)
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
     is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
