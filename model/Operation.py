@@ -624,8 +624,16 @@ class CrossCorrelateOperation(Operation):
             if data1 is None or data2 is None:
                 return None
             if Image.is_data_2d(data1) and Image.is_data_2d(data2):
-                norm1 = (data1 - data1.mean(dtype=numpy.float64)) / data1.std(dtype=numpy.float64)
-                norm2 = (data2 - data2.mean(dtype=numpy.float64)) / data2.std(dtype=numpy.float64)
+                data_std1 = data1.std(dtype=numpy.float64)
+                if data_std1 != 0.0:
+                    norm1 = (data1 - data1.mean(dtype=numpy.float64)) / data_std1
+                else:
+                    norm1 = data1
+                data_std2 = data2.std(dtype=numpy.float64)
+                if data_std2 != 0.0:
+                    norm2 = (data2 - data2.mean(dtype=numpy.float64)) / data_std2
+                else:
+                    norm2 = data2
                 scaling = 1.0 / (norm1.shape[0] * norm1.shape[1])
                 return numpy.fft.fftshift(numpy.fft.irfft2(numpy.fft.rfft2(norm1) * numpy.conj(numpy.fft.rfft2(norm2)))) * scaling
                 # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.

@@ -598,6 +598,23 @@ class TestOperationClass(unittest.TestCase):
         self.assertTrue(crop_data_item.is_data_stale)
         self.assertFalse(fft_data_item.is_data_stale)
 
+    def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        operation = Operation.OperationItem("cross-correlate-operation")
+        operation.add_data_source(Operation.DataItemDataSource(data_item1))
+        operation.add_data_source(Operation.DataItemDataSource(data_item2))
+        cc_data_item = DataItem.DataItem()
+        cc_data_item.set_operation(operation)
+        document_model.append_data_item(cc_data_item)
+        cc_data_item.recompute_data()
+        document_model.remove_data_item(data_item1)
+        cc_data_item.recompute_data()
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

@@ -1108,13 +1108,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                             if operation:
                                 self.increment_data_ref_count()  # make sure master data is loaded
                                 try:
-                                    self.__set_master_data(operation.data)
+                                    operation_data = operation.data
+                                    if operation_data is not None:
+                                        self.__set_master_data(operation_data)
                                 finally:
                                     self.decrement_data_ref_count()  # unload master data
-                                self.set_intensity_calibration(operation.intensity_calibration)
-                                operation_dimensional_calibrations = operation.dimensional_calibrations or list()
-                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                    self.set_dimensional_calibration(index, dimensional_calibration)
+                                operation_intensity_calibration = operation.intensity_calibration
+                                operation_dimensional_calibrations = operation.dimensional_calibrations
+                                if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                                    self.set_intensity_calibration(operation_intensity_calibration)
+                                    for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                        self.set_dimensional_calibration(index, dimensional_calibration)
                         self.__is_master_data_stale = False
 
     def __get_data_shape_and_dtype(self):
