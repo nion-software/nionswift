@@ -18,6 +18,7 @@ class DataItemProcessor(object):
      as stale.
 
     TODO: review whether item_property_changed is necessary
+
     In addition, items should call item_property_changed when a property changes so that subclasses
      can watch for specific property changes and be marked as stale.
 

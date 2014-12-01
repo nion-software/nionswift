@@ -393,7 +393,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             old_display.remove_listener(self)
         self.__display = display
         if display and display != old_display:
-            display.add_listener(self)  # for selection_changed
+            display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
         if self.__display is None:
             # handle case where display is empty
@@ -401,7 +401,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__update_data_info(data_info)
             self.line_graph_regions_canvas_item.regions = list()
         else:
-            self.selection_changed(self.__display.graphic_selection)
+            self.display_graphic_selection_changed(self.__display, self.__display.graphic_selection)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -411,7 +411,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def wait_for_prepare_data(self):
         self.__prepare_data_thread.trigger(wait=True)
 
-    def selection_changed(self, graphic_selection):
+    def display_graphic_selection_changed(self, display, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
         regions = list()
         display = self.display
@@ -901,7 +901,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             old_display.remove_listener(self)
         self.__display = display
         if display and display != old_display:
-            display.add_listener(self)  # for selection_changed
+            display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
         if self.__display is None:
             self.bitmap_canvas_item.rgba_bitmap_data = None
@@ -911,7 +911,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
         else:
-            self.selection_changed(self.__display.graphic_selection)
+            self.display_graphic_selection_changed(self.__display, self.__display.graphic_selection)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -921,7 +921,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def wait_for_prepare_data(self):
         self.__prepare_data_thread.trigger(wait=True)
 
-    def selection_changed(self, graphic_selection):
+    def display_graphic_selection_changed(self, display, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
         self.graphics_canvas_item.update()
 

@@ -687,7 +687,7 @@ class DataPanel(Panel.Panel):
             self.__indexes = set()
             self.__anchor_index = None
             if old_index != self.__indexes:
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def __update_anchor_index(self):
             for index in self.__indexes:
                 if self.__anchor_index is None or index < self.__anchor_index:
@@ -699,7 +699,7 @@ class DataPanel(Panel.Panel):
             if len(old_index) == 0:
                 self.__anchor_index = index
             if old_index != self.__indexes:
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def remove(self, index):
             assert isinstance(index, numbers.Integral)
             old_index = self.__indexes.copy()
@@ -707,7 +707,7 @@ class DataPanel(Panel.Panel):
             if not self.__anchor_index in self.__indexes:
                 self.__update_anchor_index()
             if old_index != self.__indexes:
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def set(self, index):
             assert isinstance(index, numbers.Integral)
             old_index = self.__indexes.copy()
@@ -715,7 +715,7 @@ class DataPanel(Panel.Panel):
             self.__indexes.add(index)
             self.__anchor_index = index
             if old_index != self.__indexes:
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def toggle(self, index):
             assert isinstance(index, numbers.Integral)
             if index in self.__indexes:
@@ -732,7 +732,7 @@ class DataPanel(Panel.Panel):
                 for new_index in range(index, self.__anchor_index + 1):
                     self.__indexes.add(new_index)
             if old_index != self.__indexes:
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def insert_index(self, new_index):
             new_indexes = set()
             for index in self.__indexes:
@@ -745,7 +745,7 @@ class DataPanel(Panel.Panel):
                     self.__anchor_index += 1
             if self.__indexes != new_indexes:
                 self.__indexes = new_indexes
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
         def remove_index(self, remove_index):
             new_indexes = set()
             for index in self.__indexes:
@@ -761,7 +761,7 @@ class DataPanel(Panel.Panel):
                     self.__anchor_index -= 1
             if self.__indexes != new_indexes:
                 self.__indexes = new_indexes
-                self.notify_listeners("selection_changed", self)
+                self.notify_listeners("data_item_selection_changed", self)
 
 
     class DataGridController(object):
@@ -830,7 +830,7 @@ class DataPanel(Panel.Panel):
         document_controller = property(__get_document_controller)
 
         # this message comes from the data_item_selection and is set up in add_listener
-        def selection_changed(self, data_item_selection):
+        def data_item_selection_changed(self, data_item_selection):
             self.selected_indexes = list(data_item_selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed(list(data_item_selection.indexes))

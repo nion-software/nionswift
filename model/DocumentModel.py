@@ -243,7 +243,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         A ManagedObjectContext that adds extra methods for handling data items.
 
         Versioning
-        ==========
+
         If the file is too old, it must be migrated to the newer version.
         If the file is too new, it cannot be loaded.
 

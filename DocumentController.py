@@ -36,6 +36,24 @@ _ = gettext.gettext
 
 class DocumentController(Observable.Broadcaster):
 
+    """
+    Manage a document window.
+
+    Operations
+
+    Operations can be applied to the selected data item (as selected in a pane or an item in the data panel.
+
+    If an operation can operate on a region and a suitable region is selected, the operation will operate on
+    the region.
+
+    If an operation must operate on a region and a suitable region is not selected, a default region will be
+    created and the operation will operate on that region.
+
+    If an operation can operate on multiple data items and multiple data items are selected in the data panel,
+    the operation will operate on all of them. The data panel will keep track of the primary data item and
+    the others will be unordered past that. The same region rules apply.
+    """
+
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
     def __init__(self, ui, document_model, workspace_id=None, app=None):

@@ -48,26 +48,26 @@ class GraphicSelection(Observable.Broadcaster):
         old_index = self.__indexes.copy()
         self.__indexes = set()
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def add(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def remove(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.remove(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def set(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes = set()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def toggle(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
@@ -76,7 +76,7 @@ class GraphicSelection(Observable.Broadcaster):
         else:
             self._indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def insert_index(self, new_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -86,7 +86,7 @@ class GraphicSelection(Observable.Broadcaster):
                 new_indexes.add(index+1)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
     def remove_index(self, remove_index):
         new_indexes = set()
         for index in self.__indexes:
@@ -97,7 +97,7 @@ class GraphicSelection(Observable.Broadcaster):
                     new_indexes.add(index)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("selection_changed", self)
+            self.notify_listeners("graphic_selection_changed", self)
 
 
 class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
@@ -135,9 +135,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
 
-    def selection_changed(self, graphic_selection):
+    def graphic_selection_changed(self, graphic_selection):
         """ This message comes from the graphic selection object. Notify our listeners too. """
-        self.notify_listeners("selection_changed", graphic_selection)
+        self.notify_listeners("display_graphic_selection_changed", self, graphic_selection)
 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
