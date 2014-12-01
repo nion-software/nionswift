@@ -125,6 +125,28 @@ class TestStorageClass(unittest.TestCase):
             storage_cache.close()
             storage_cache.close()
 
+    def test_storage_cache_validates_data_range_upon_reading(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            storage_cache = Storage.DictStorageCache()
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_range = data_item.data_range
+            document_model.close()
+            # read it back
+            storage_cache = Storage.DictStorageCache()
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            self.assertEqual(document_model.data_items[0].data_range, data_range)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_storage_cache_stores_and_reloads_cached_statistics_values(self):
         # tests caching on data item
         current_working_directory = os.getcwd()

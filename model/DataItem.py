@@ -388,6 +388,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # override from Cacheable to update the children that need updating
         for display in self.displays:
             display.storage_cache = storage_cache
+        self.__validate_data_stats()
 
     def _is_cache_delayed(self):
         """ Override from Cacheable base class to indicate when caching is delayed. """
@@ -635,6 +636,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
+
+    def __validate_data_stats(self):
+        """Ensure that data stats are valid after reading."""
+        if self.has_master_data and (self.data_range is None or (self.is_data_complex_type and self.data_sample is None)):
+            self.__calculate_data_stats_for_data(self.cached_data)
 
     def __calculate_data_stats_for_data(self, data):
         if data is not None and data.size:
