@@ -518,6 +518,8 @@ class FFTOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         if Image.is_data_1d(data):
             return scipy.fftpack.fftshift(scipy.fftpack.fft(data))
         elif Image.is_data_2d(data):
@@ -528,12 +530,16 @@ class FFTOperation(Operation):
 
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
+        if data_shape is None:
+            return None
         return data_shape, numpy.dtype(numpy.complex128)
 
     def get_processed_dimensional_calibrations(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if data_shape is None or data_dtype is None or dimensional_calibrations is None:
+            return None
         assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
@@ -548,6 +554,8 @@ class IFFTOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         if Image.is_data_1d(data):
             return scipy.fftpack.fftshift(scipy.fftpack.ifft(data))
         elif Image.is_data_2d(data):
@@ -559,6 +567,8 @@ class IFFTOperation(Operation):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if data_shape is None or data_dtype is None or dimensional_calibrations is None:
+            return None
         assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
@@ -573,6 +583,8 @@ class AutoCorrelateOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         if Image.is_data_2d(data):
             data_copy = data.copy()  # let other threads use data while we're processing
             return scipy.signal.fftconvolve(data_copy, data_copy, mode='same')
@@ -588,6 +600,8 @@ class CrossCorrelateOperation(Operation):
         if len(data_sources) == 2:
             data1 = data_sources[0].data
             data2 = data_sources[1].data
+            if data1 is None or data2 is None:
+                return None
             if Image.is_data_2d(data1) and Image.is_data_2d(data2):
                 return scipy.signal.fftconvolve(data1.copy(), data2.copy(), mode='same')
         raise NotImplementedError()
@@ -601,17 +615,17 @@ class InvertOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is not None:
-            if Image.is_data_rgba(data) or Image.is_data_rgb(data):
-                if Image.is_data_rgba(data):
-                    inverted = 255 - data[:]
-                    inverted[...,3] = data[...,3]
-                    return inverted
-                else:
-                    return 255 - data[:]
+        if data is None:
+            return None
+        if Image.is_data_rgba(data) or Image.is_data_rgb(data):
+            if Image.is_data_rgba(data):
+                inverted = 255 - data[:]
+                inverted[...,3] = data[...,3]
+                return inverted
             else:
-                return -data[:]
-        return None
+                return 255 - data[:]
+        else:
+            return -data[:]
 
 
 class GaussianBlurOperation(Operation):
@@ -626,6 +640,8 @@ class GaussianBlurOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         return scipy.ndimage.gaussian_filter(data, sigma=10*self.get_property("sigma"))
 
 
@@ -691,11 +707,15 @@ class Slice3dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         return data_shape[1:], data_dtype
 
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         shape = data.shape
         slice_center = self.get_property("slice_center")
         slice_width = self.get_property("slice_width")
@@ -720,12 +740,16 @@ class Pick3dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         return (data_shape[0], ), data_dtype
 
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         shape = data.shape
+        if data is None or shape is None:
+            return None
         position = self.get_property("position")
         position = Geometry.FloatPoint.make(position)
         position_i = Geometry.IntPoint(y=position.y * shape[1], x=position.x * shape[2])
@@ -743,16 +767,22 @@ class Projection2dOperation(Operation):
 
     def get_processed_dimensional_calibrations(self, data_sources):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if dimensional_calibrations is None:
+            return None
         return copy.deepcopy(dimensional_calibrations)[1:]
 
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         return data_shape[1:], data_dtype
 
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
             if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
                 rgb_image = numpy.empty(data.shape[1:], numpy.uint8)
@@ -785,6 +815,8 @@ class Resample2dOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         height = self.get_property("height", data.shape[0])
         width = self.get_property("width", data.shape[1])
         if data.shape[1] == width and data.shape[0] == height:
@@ -794,6 +826,8 @@ class Resample2dOperation(Operation):
     def get_processed_dimensional_calibrations(self, data_sources):
         data_shape = data_sources[0].data_shape
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if data_shape is None or dimensional_calibrations is None:
+            return None
         assert len(dimensional_calibrations) == 2
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
@@ -805,6 +839,8 @@ class Resample2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         height = self.get_property("height", data_shape[0])
         width = self.get_property("width", data_shape[1])
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -835,6 +871,8 @@ class HistogramOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         histogram_data = numpy.histogram(data, bins=self.bins)
         return histogram_data[0].astype(numpy.int)
 
@@ -856,6 +894,8 @@ class LineProfileOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         start, end = self.get_property("vector")
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
@@ -868,6 +908,8 @@ class LineProfileOperation(Operation):
 
     def get_processed_dimensional_calibrations(self, data_sources):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if dimensional_calibrations is None:
+            return None
         return [Calibration.Calibration(0.0, dimensional_calibrations[1].scale, dimensional_calibrations[1].units)]
 
     # calculate grid of coordinates. returns n coordinate arrays for each row.
@@ -895,6 +937,8 @@ class LineProfileOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         assert Image.is_data_2d(data)
         if Image.is_data_rgb_type(data):
             data = Image.convert_to_grayscale(data, numpy.double)
@@ -926,6 +970,8 @@ class ConvertToScalarOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
+        if data is None:
+            return None
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
             return Image.convert_to_grayscale(data, numpy.double)
         elif Image.is_data_complex_type(data):
@@ -936,6 +982,8 @@ class ConvertToScalarOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)
         elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):

@@ -488,9 +488,8 @@ class TestOperationClass(unittest.TestCase):
             self.param = 0.0
             self.region_types = {"a": "point-region", "b": "point-region"}
             self.region_bindings = {"a": [Operation.RegionBinding("a", "position")], "b": [Operation.RegionBinding("b", "position")]}
-        def process(self, data):
-            d = numpy.zeros((16, 16))
-            return d
+        def get_processed_data(self, data_sources):
+            return numpy.zeros((16, 16))
 
     def test_removing_operation_with_multiple_associated_regions_removes_all_regions(self):
         document_model = DocumentModel.DocumentModel()
