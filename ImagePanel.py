@@ -1997,7 +1997,7 @@ class ImagePanel(object):
     def update_display_canvas(self, display):
         data_item = display.data_item if display else None
         if self.__header_canvas_item:  # may be closed
-            self.__header_canvas_item.title = data_item.title if data_item else unicode()
+            self.__header_canvas_item.title = self.document_controller.get_displayed_title_for_data_item(data_item)
         display_type = None
         if data_item:
             if data_item.is_data_1d:

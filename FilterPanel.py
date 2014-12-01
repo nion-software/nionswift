@@ -237,7 +237,8 @@ class FilterController(object):
 
         def text_filter(data_item):
             """ Filter data item on caption and title. """
-            return re.search(text, " ".join((data_item.caption, data_item.title)), re.IGNORECASE)
+            data_item_title = self.document_controller.get_displayed_title_for_data_item(data_item)
+            return re.search(text, " ".join((data_item.caption, data_item_title)), re.IGNORECASE)
 
         if text is not None:
             self.__text_filter = text_filter

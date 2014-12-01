@@ -445,7 +445,7 @@ class DataPanel(Panel.Panel):
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
-                "display": data_item.title,
+                "display": self.document_controller.get_displayed_title_for_data_item(data_item),
             }
             self.list_model_controller.begin_insert(before_index, before_index)
             self.list_model_controller.model.insert(before_index, properties)
@@ -496,7 +496,7 @@ class DataPanel(Panel.Panel):
             if display.get_processor("thumbnail").is_data_stale:
                 self.document_controller.document_model.dispatch_task(lambda: display.get_processor("thumbnail").recompute_data_limited(self.ui), "thumbnail")
             thumbnail_data = display.get_processed_data("thumbnail")
-            title_str = data_item.title
+            title_str = self.document_controller.get_displayed_title_for_data_item(data_item)
             format_str = data_item.size_and_data_format_as_string
             datetime_str = data_item.datetime_original_as_string
             def get_live_status_as_string(data_item):

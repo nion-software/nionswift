@@ -622,6 +622,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
 
+    def temp_metadata_changed(self):
+        """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
+        self.notify_data_item_content_changed(set([METADATA]))
+
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
     def notify_data_item_content_changed(self, changes):
