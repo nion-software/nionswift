@@ -89,9 +89,8 @@ class FilePersistentStorage(object):
         if not managed_parent:
             return self.__properties
         else:
-            index = object.get_index_in_parent()
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
-            return parent_storage_dict[managed_parent.relationship_name][index]
+            return object.get_accessor_in_parent()(parent_storage_dict)
 
     def update_properties(self):
         if self.__filepath:
@@ -114,6 +113,18 @@ class FilePersistentStorage(object):
             del item_list[index]
         self.update_properties()
         item.managed_object_context = None
+
+    def set_item(self, parent, name, item):
+        storage_dict = self.__get_storage_dict(parent)
+        with self.__properties_lock:
+            if item:
+                item_dict = item.write_to_dict()
+                storage_dict[name] = item_dict
+                item.managed_object_context = parent.managed_object_context
+            else:
+                if name in storage_dict:
+                    del storage_dict[name]
+        self.update_properties()
 
     def set_value(self, object, name, value):
         storage_dict = self.__get_storage_dict(object)
@@ -160,9 +171,8 @@ class DataItemPersistentStorage(object):
         if not managed_parent:
             return self.__properties
         else:
-            index = object.get_index_in_parent()
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
-            return parent_storage_dict[managed_parent.relationship_name][index]
+            return object.get_accessor_in_parent()(parent_storage_dict)
 
     def update_properties(self):
         if not self.write_delayed:
@@ -187,6 +197,18 @@ class DataItemPersistentStorage(object):
             del item_list[index]
         self.update_properties()
         item.managed_object_context = None
+
+    def set_item(self, parent, name, item):
+        storage_dict = self.__get_storage_dict(parent)
+        with self.__properties_lock:
+            if item:
+                item_dict = item.write_to_dict()
+                storage_dict[name] = item_dict
+                item.managed_object_context = parent.managed_object_context
+            else:
+                if name in storage_dict:
+                    del storage_dict[name]
+        self.update_properties()
 
     def get_default_reference(self, data_item):
         uuid_ = data_item.uuid
