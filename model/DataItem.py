@@ -281,6 +281,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__metadata_lock = threading.RLock()
         self.__master_data = None
         self.__master_data_lock = threading.RLock()
+        self.__recompute_lock = threading.RLock()
+        self.__recompute_allowed = True
         self.__is_master_data_stale = True
         self.__is_master_data_stale_lock = threading.RLock()
         self.__data_ref_count = 0
@@ -371,6 +373,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def about_to_be_removed(self):
         """ Tell contained objects that this data item is about to be removed from its container. """
+        with self.__recompute_lock:
+            self.__recompute_allowed = False
         for connection in self.connections:
             connection.about_to_be_removed()
         if self.operation:
@@ -1096,20 +1100,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # if there are no changes, then this will not trigger any notifications. it is important that the
         # notifications, if any, take place outside of the lock to prevent deadlocks.
         with self.data_item_changes():
-            with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
-                if self.is_data_stale:
-                    operation = self.operation
-                    if operation:
-                        self.increment_data_ref_count()  # make sure master data is loaded
-                        try:
-                            self.__set_master_data(operation.data)
-                        finally:
-                            self.decrement_data_ref_count()  # unload master data
-                        self.set_intensity_calibration(operation.intensity_calibration)
-                        operation_dimensional_calibrations = operation.dimensional_calibrations or list()
-                        for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                            self.set_dimensional_calibration(index, dimensional_calibration)
-                self.__is_master_data_stale = False
+            with self.__recompute_lock:
+                if self.__recompute_allowed:
+                    with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
+                        if self.is_data_stale:
+                            operation = self.operation
+                            if operation:
+                                self.increment_data_ref_count()  # make sure master data is loaded
+                                try:
+                                    self.__set_master_data(operation.data)
+                                finally:
+                                    self.decrement_data_ref_count()  # unload master data
+                                self.set_intensity_calibration(operation.intensity_calibration)
+                                operation_dimensional_calibrations = operation.dimensional_calibrations or list()
+                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                    self.set_dimensional_calibration(index, dimensional_calibration)
+                        self.__is_master_data_stale = False
 
     def __get_data_shape_and_dtype(self):
         if self.is_data_stale:
