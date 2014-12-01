@@ -51,6 +51,7 @@ class PointRegion(Region):
         super(PointRegion, self).__init__("point-region")
         self.define_property("position", (0.5, 0.5), changed=self._property_changed)
         self.__graphic = Graphics.PointGraphic()
+        self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
@@ -81,6 +82,7 @@ class LineRegion(Region):
         self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector)
         self.define_property("width", 1.0, changed=self._property_changed)
         self.__graphic = Graphics.LineProfileGraphic()
+        self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
         self.__graphic.add_listener(self)
@@ -121,6 +123,44 @@ class RectRegion(Region):
         self.define_property("size", (1.0, 1.0), changed=self._property_changed)
         # TODO: add rotation property to rect region
         self.__graphic = Graphics.RectangleGraphic()
+        self.__graphic.set_region(self)
+        self.__graphic.color = "#F80"
+        self.__graphic.add_listener(self)
+        self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
+        self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
+
+    def __get_graphic(self):
+        return self.__graphic
+    graphic = property(__get_graphic)
+
+    def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
+        self.notify_listeners("remove_region_because_graphic_removed", self)
+
+    def __get_bounds(self):
+        center = self.center
+        size = self.size
+        return (center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size
+    def __set_bounds(self, bounds):
+        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
+        self.size = bounds[1]
+    bounds = property(__get_bounds, __set_bounds)
+
+    def _property_changed(self, name, value):
+        # override to implement dependency. argh.
+        self.notify_set_property(name, value)
+        self.notify_set_property("bounds", self.bounds)
+
+
+class EllipseRegion(Region):
+
+    def __init__(self):
+        super(EllipseRegion, self).__init__("ellipse-region")
+        self.define_property("center", (0.0, 0.0), changed=self._property_changed)
+        self.define_property("size", (1.0, 1.0), changed=self._property_changed)
+        self.define_property("angle", 0.0, changed=self._property_changed)
+        self.__graphic = Graphics.EllipseGraphic()
+        self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
@@ -164,6 +204,7 @@ class IntervalRegion(Region):
             properties["end"] = value[1]
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval)
         self.__graphic = Graphics.IntervalGraphic()
+        self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
@@ -230,6 +271,7 @@ def region_factory(lookup_id):
         "point-region": PointRegion,
         "line-region": LineRegion,
         "rectangle-region": RectRegion,
+        "ellipse-region": EllipseRegion,
         "interval-region": IntervalRegion,
     }
     type = lookup_id("type")

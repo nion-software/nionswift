@@ -154,16 +154,16 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
-        line_graphic = document_controller.add_line_graphic()
+        line_graphic = document_controller.add_line_region()
         # make sure assumptions are correct
         self.assertEqual(len(image_panel.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in image_panel.display.graphic_selection.indexes)
-        self.assertEqual(len(data_item.displays[0].graphics), 1)
-        self.assertEqual(data_item.displays[0].graphics[0], line_graphic)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
+        self.assertEqual(data_item.displays[0].drawn_graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
         self.assertEqual(len(image_panel.display.graphic_selection.indexes), 0)
-        self.assertEqual(len(data_item.displays[0].graphics), 0)
+        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
         # clean up
         image_panel.close()
 

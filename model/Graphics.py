@@ -124,8 +124,14 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         super(Graphic, self).__init__()
         self.define_type(type)
         self.define_property("color", "#F00", changed=self._property_changed)
+        self.__region = None
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
+    @property
+    def region(self):
+        return self.__region
+    def set_region(self, region):
+        self.__region = region
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0]-p2[0], 2)+pow(p1[1]-p2[1], 2)) < radius

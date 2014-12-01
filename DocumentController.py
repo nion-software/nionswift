@@ -111,7 +111,6 @@ class DocumentController(Observable.Broadcaster):
         self.edit_menu = None
         self.processing_menu = None
         self.view_menu = None
-        self.graphic_menu = None
         self.window_menu = None
         self.help_menu = None
         self.library_menu = None
@@ -156,8 +155,6 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu = self.document_window.add_menu(_("Processing"))
 
         self.view_menu = self.document_window.add_menu(_("View"))
-
-        self.graphic_menu = self.document_window.add_menu(_("Graphic"))
 
         self.window_menu = self.document_window.add_menu(_("Window"))
 
@@ -205,6 +202,15 @@ class DocumentController(Observable.Broadcaster):
         self.script_action = self.edit_menu.add_menu_item(_("Script"), lambda: self.prepare_data_item_script(), key_sequence="Ctrl+Shift+K")
         #self.edit_menu.add_separator()
         #self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
+
+
+        # these are temporary menu items, so don't need to assign them to variables, for now
+        self.processing_menu.add_menu_item(_("Add Line Region"), lambda: self.add_line_region())
+        self.processing_menu.add_menu_item(_("Add Ellipse Region"), lambda: self.add_ellipse_region())
+        self.processing_menu.add_menu_item(_("Add Rectangle Region"), lambda: self.add_rectangle_region())
+        self.processing_menu.add_menu_item(_("Add Point Region"), lambda: self.add_point_region())
+        self.processing_menu.add_menu_item(_("Add Interval Region"), lambda: self.add_interval_region())
+        self.processing_menu.add_separator()
 
         self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
@@ -261,12 +267,6 @@ class DocumentController(Observable.Broadcaster):
                 self.__dynamic_view_actions.append(action)
 
         self.view_menu.on_about_to_show = adjust_view_menu
-
-        # these are temporary menu items, so don't need to assign them to variables, for now
-        self.graphic_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
-        self.graphic_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
-        self.graphic_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
-        self.graphic_menu.add_menu_item(_("Add Point Graphic"), lambda: self.add_point_graphic())
 
         #self.help_action = self.help_menu.add_menu_item(_("Help"), lambda: self.no_operation(), key_sequence="help")
         self.about_action = self.help_menu.add_menu_item(_("About"), lambda: self.show_about_box(), role="about")
@@ -600,47 +600,74 @@ class DocumentController(Observable.Broadcaster):
             assert data_group in container.data_groups
             container.remove_data_group(data_group)
 
-    def add_line_graphic(self):
+    def add_line_region(self):
         display = self.selected_display
         if display:
             assert isinstance(display, Display.Display)
-            graphic = Graphics.LineGraphic()
-            graphic.start = (0.2,0.2)
-            graphic.end = (0.8,0.8)
-            display.append_graphic(graphic)
+            data_item = display.data_item
+            assert data_item
+            region = Region.LineRegion()
+            region.start = (0.2, 0.2)
+            region.end = (0.8, 0.8)
+            data_item.add_region(region)
+            graphic = region.graphic
             display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
-    def add_rectangle_graphic(self):
+    def add_rectangle_region(self):
         display = self.selected_display
         if display:
             assert isinstance(display, Display.Display)
-            graphic = Graphics.RectangleGraphic()
-            graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            display.append_graphic(graphic)
+            data_item = display.data_item
+            assert data_item
+            region = Region.RectRegion()
+            region.bounds = ((0.25,0.25), (0.5,0.5))
+            data_item.add_region(region)
+            graphic = region.graphic
             display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
-    def add_ellipse_graphic(self):
+    def add_ellipse_region(self):
         display = self.selected_display
         if display:
             assert isinstance(display, Display.Display)
-            graphic = Graphics.EllipseGraphic()
-            graphic.bounds = ((0.25,0.25), (0.5,0.5))
-            display.append_graphic(graphic)
+            data_item = display.data_item
+            assert data_item
+            region = Region.EllipseRegion()
+            region.bounds = ((0.25,0.25), (0.5,0.5))
+            data_item.add_region(region)
+            graphic = region.graphic
             display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None
 
-    def add_point_graphic(self):
+    def add_point_region(self):
         display = self.selected_display
         if display:
             assert isinstance(display, Display.Display)
-            graphic = Graphics.PointGraphic()
-            graphic.position = (0.5, 0.5)
-            display.append_graphic(graphic)
+            data_item = display.data_item
+            assert data_item
+            region = Region.PointRegion()
+            region.position = (0.5,0.5)
+            data_item.add_region(region)
+            graphic = region.graphic
+            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_interval_region(self):
+        display = self.selected_display
+        if display:
+            assert isinstance(display, Display.Display)
+            data_item = display.data_item
+            assert data_item
+            region = Region.IntervalRegion()
+            region.start = 0.25
+            region.end = 0.75
+            data_item.add_region(region)
+            graphic = region.graphic
             display.graphic_selection.set(display.drawn_graphics.index(graphic))
             return graphic
         return None

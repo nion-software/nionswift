@@ -58,6 +58,7 @@ class TestStorageClass(unittest.TestCase):
         data_item.add_region(Region.PointRegion())
         data_item.add_region(Region.LineRegion())
         data_item.add_region(Region.RectRegion())
+        data_item.add_region(Region.EllipseRegion())
         document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
@@ -80,10 +81,10 @@ class TestStorageClass(unittest.TestCase):
         document_controller.selected_image_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_data_item, data_item)
-        document_controller.add_line_graphic()
-        document_controller.add_rectangle_graphic()
-        document_controller.add_ellipse_graphic()
-        document_controller.add_point_graphic()
+        document_controller.add_line_region()
+        document_controller.add_rectangle_region()
+        document_controller.add_ellipse_region()
+        document_controller.add_point_region()
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_gaussian_blur()
         image_panel.set_displayed_data_item(data_item)
@@ -556,14 +557,14 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)  # verify assumptions
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 9)  # verify assumptions
         document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify drawn_graphics reload
-        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 8)
+        self.assertEqual(len(document_model.data_items[0].displays[0].drawn_graphics), 9)
         # clean up
         document_controller.close()
 
