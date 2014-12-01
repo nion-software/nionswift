@@ -2,6 +2,7 @@
 import copy
 import datetime
 import gettext
+import itertools
 import logging
 import os
 import threading
@@ -288,7 +289,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
         self.__lookup_data_item = None
-        self.__direct_data_sources = None
         self.__dependent_data_item_refs = list()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
@@ -893,18 +893,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # is_reading can be passed to indicate that the content changed notification should not
     # be emitted.
     def connect_data_sources(self, lookup_data_item=None, direct_data_sources=None, is_reading=False):
-        self.__lookup_data_item = lookup_data_item
-        self.__direct_data_sources = direct_data_sources
         if direct_data_sources is not None:
-            data_items = direct_data_sources
-        else:
-            data_items = [lookup_data_item(data_source.data_item_uuid) for data_source in self.data_sources]
+            lookup_data_item = lambda data_item_uuid: next(itertools.islice(itertools.ifilter(lambda x: x.uuid == data_item_uuid, direct_data_sources), 0, None), None)
+        self.__lookup_data_item = lookup_data_item
+        data_items = [lookup_data_item(data_source.data_item_uuid) for data_source in self.data_sources]
         data_source_connected = False  # keep track of whether a data source was connected during this call
         with self.__master_data_lock:
             for data_source in data_items:
                 if data_source is not None:
                     assert isinstance(data_source, DataItem)
-                    # we will receive data_item_content_changed from data_source
+                    # we will receive data_item_content_changed and data_item_needs_recompute from data_source
                     data_source.add_listener(self)
                     data_source.add_dependent_data_item(self)
                     self.__data_sources.append(data_source)
@@ -922,7 +920,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 data_source.remove_listener(self)
                 self.__data_sources.remove(data_source)
         self.__lookup_data_item = None
-        self.__direct_data_sources = None
         # notify of changes
         self.data_item_content_changed(None, set([SOURCE]))
 
@@ -979,8 +976,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.session_id = data_source.session_id
         self.append_item("data_sources", DataItemReference(data_source.uuid))
         # connect to the data source if possible
-        if self.__lookup_data_item or self.__direct_data_sources:
-            self.connect_data_sources(self.__lookup_data_item, self.__direct_data_sources)
+        if self.__lookup_data_item:
+            self.connect_data_sources(self.__lookup_data_item)
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
