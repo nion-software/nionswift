@@ -33,10 +33,14 @@ RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "
 
 class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
     """
-        OperationItem represents an operation on numpy data array.
-        Pass in a description during construction. The description
-        should describe what parameters are editable and how they
-        are connected to the operation.
+        OperationItems compute new data from other data items, regions, and metadata.
+
+        Operations are split into data computation, which might be slow, and computations
+        of metadata such as calibrations, data shapes, data sizes, and other metadata,
+        which are fast.
+
+        Metadata is important to calculate quickly since it may be used from the UI, to
+        enable/disable menu items, for instance.
         """
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()

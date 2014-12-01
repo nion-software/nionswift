@@ -2,7 +2,7 @@ import threading
 import time
 import weakref
 
-# TODO: file format storage processor output in data item itself
+# TODO: file format: Cache the storage processor output in data item itself rather than separate cache
 
 
 class DataItemProcessor(object):

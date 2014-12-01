@@ -1112,12 +1112,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             raise
 
     def __get_data_output(self):
-        """Calculate the operations applied to the data sources. Returns an intermediate data item."""
+        """Calculate the operations applied to the data sources. Returns an intermediate data item.
+
+        An intermediate data item provides immediate access to data shape, type, and calibrations, but
+        does not compute data until requested.
+        """
         data_sources = copy.copy(self.__data_sources)
         # apply operations
         for operation in self.operations:
-            data_shapes_and_dtypes = [data_source.data_shape_and_dtype for data_source in data_sources]
-            operation.update_data_shapes_and_dtypes(data_shapes_and_dtypes)
             data_sources = operation.get_processed_intermediate_data_items(data_sources)
         if len(data_sources) > 0:
             assert len(data_sources) == 1

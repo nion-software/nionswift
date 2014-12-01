@@ -333,7 +333,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 version = 5
                 if self.__log_migrations:
                     logging.info("Updated %s to %s (region_uuid)", reference, version)
-            # NOTE: Search for to-do items having keyword 'file format' to gather together 'would be nice' changes
+            # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
             # NOTE: change writer_version in DataItem.py
             data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
             data_item.begin_reading()
