@@ -152,11 +152,13 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
 
 
 def data_source_list_factory(lookup_id):
-    build_map = {
-        "data-item-data-source": DataItemDataSource
-    }
     type = lookup_id("type")
-    return build_map[type]() if type in build_map else None
+    if type == "data-item-data-source":
+        return DataItemDataSource()
+    elif type == "operation":
+        return operation_item_factory(lookup_id)
+    else:
+        return None
 
 
 class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
@@ -305,7 +307,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
-        self.notify_listeners("operation_changed", self)
+        DATA = 1
+        self.notify_listeners("data_source_content_changed", self, set([DATA]))
 
     def __set_region(self, region_connection_id, region):
         # When region becomes available, establish bindings. Also add listener to watch for its deletion.
@@ -640,6 +643,8 @@ class Crop2dOperation(Operation):
     def get_processed_dimensional_calibrations(self, data_sources):
         data_shape = data_sources[0].data_shape
         dimensional_calibrations = data_sources[0].dimensional_calibrations
+        if data_shape is None or dimensional_calibrations is None:
+            return None
         cropped_dimensional_calibrations = list()
         bounds = self.get_property("bounds")
         for index, dimensional_calibration in enumerate(dimensional_calibrations):
@@ -652,6 +657,8 @@ class Crop2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
+        if data_shape is None or data_dtype is None:
+            return None
         bounds = self.get_property("bounds")
         bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -662,7 +669,9 @@ class Crop2dOperation(Operation):
     def get_processed_data(self, data_sources):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        shape = data.shape
+        shape = data_sources[0].data_shape
+        if data is None or shape is None:
+            return None
         bounds = self.get_property("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()

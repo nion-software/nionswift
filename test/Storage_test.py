@@ -823,6 +823,25 @@ class TestStorageClass(unittest.TestCase):
         # check it
         self.assertEqual(len(document_model.data_items), 0)
 
+    def test_reloading_composite_operation_reconnects_when_reloaded(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+        document_model.append_data_item(data_item)
+        crop_region = Region.RectRegion()
+        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.add_region(crop_region)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        operation = Operation.OperationItem("invert-operation")
+        document_controller.add_processing_operation(operation, crop_region=crop_region)
+        document_model.close()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        self.assertEqual(document_model.data_items[0].regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+        document_model.data_items[0].regions[0].bounds = ((0.3, 0.4), (0.5, 0.6))
+        self.assertEqual(document_model.data_items[0].regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)

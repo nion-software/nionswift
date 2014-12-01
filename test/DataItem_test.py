@@ -614,6 +614,21 @@ class TestDataItemClass(unittest.TestCase):
         summed_data = data_item_sum.data
         self.assertEqual(summed_data[0, 0], 3)
 
+    def test_operation_with_composite_data_source_applies_composition_and_generates_correct_result(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        document_model.append_data_item(data_item)
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        invert_operation = Operation.OperationItem("invert-operation")
+        invert_operation.add_data_source(crop_operation)
+        data_item_result = DataItem.DataItem()
+        data_item_result.set_operation(invert_operation)
+        self.assertEqual(data_item_result.data_shape, (128, 128))
+        self.assertEqual(data_item_result.data_dtype, data_item.data_dtype)
+        self.assertAlmostEqual(data_item_result.data[50, 50], -1.0)
+
     def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

@@ -732,7 +732,15 @@ class DocumentController(Observable.Broadcaster):
                 data_item.set_operation(operation)
                 return data_item
             else:
-                operation.add_data_source(Operation.DataItemDataSource(data_item))
+                data_source = Operation.DataItemDataSource(data_item)
+                if crop_region:
+                    crop_operation = Operation.OperationItem("crop-operation")
+                    assert crop_region in data_item.regions
+                    crop_operation.set_property("bounds", crop_region.bounds)
+                    crop_operation.establish_associated_region("crop", data_item, crop_region)
+                    crop_operation.add_data_source(data_source)
+                    data_source = crop_operation
+                operation.add_data_source(data_source)
                 new_data_item = DataItem.DataItem()
                 new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
                 new_data_item.set_operation(operation)
@@ -745,9 +753,25 @@ class DocumentController(Observable.Broadcaster):
             new_data_item = DataItem.DataItem()
             new_data_item.title = (prefix if prefix else "") + data_item1.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
-            # new_data_item.add_data_source(Operation.DataItemDataSource(data_item1))
-            # new_data_item.add_data_source(Operation.DataItemDataSource(data_item2))
-            self.display_data_item(new_data_item, source_data_item=data_item, select=True)
+            data_source1 = Operation.DataItemDataSource(data_item1)
+            if crop_region1:
+                crop_operation = Operation.OperationItem("crop-operation")
+                assert crop_region1 in data_item1.regions
+                crop_operation.set_property("bounds", crop_region1.bounds)
+                crop_operation.establish_associated_region("crop", data_item1, crop_region1)
+                crop_operation.add_data_source(data_source1)
+                data_source1 = crop_operation
+            data_source2 = Operation.DataItemDataSource(data_item2)
+            if crop_region2:
+                crop_operation = Operation.OperationItem("crop-operation")
+                assert crop_region2 in data_item2.regions
+                crop_operation.set_property("bounds", crop_region2.bounds)
+                crop_operation.establish_associated_region("crop", data_item2, crop_region2)
+                crop_operation.add_data_source(data_source2)
+                data_source2 = crop_operation
+            operation.add_data_source(data_source1)
+            operation.add_data_source(data_source2)
+            self.display_data_item(new_data_item, source_data_item=data_item1, select=True)
             return new_data_item
         return None
 
@@ -780,7 +804,7 @@ class DocumentController(Observable.Broadcaster):
             data_item2 = selected_data_items[1]
             crop_region1 = self.__get_crop_region(data_item1)
             crop_region2 = self.__get_crop_region(data_item2)
-            return self.add_binary_processing_operation_by_id("auto-correlate-operation", data_item1, data_item2, prefix=_("Auto Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
+            return self.add_binary_processing_operation_by_id("cross-correlate-operation", data_item1, data_item2, prefix=_("Cross Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
 
     def processing_gaussian_blur(self, select=True):
         return self.add_processing_operation_by_id("gaussian-blur-operation", prefix=_("Gaussian Blur of "), select=select)

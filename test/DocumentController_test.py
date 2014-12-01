@@ -14,7 +14,8 @@ from nion.swift import ImagePanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Storage
+from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.ui import Test
 
 
@@ -221,6 +222,111 @@ class TestDocumentControllerClass(unittest.TestCase):
         with data_item.data_item_changes():
             pass  # triggers usage of 'processors' which gets set to null when closed
         document_controller2.close()  # this would fail even if processors part didn't fail
+
+    def test_processing_on_crop_region_constructs_composite_operation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        crop_region = Region.RectRegion()
+        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.add_region(crop_region)
+        document_model.append_data_item(data_item)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        data_item_result = document_controller.add_processing_operation_by_id("invert-operation", crop_region=crop_region)
+        self.assertEqual(data_item_result.data_shape, (128, 128))
+        self.assertEqual(data_item_result.data_dtype, data_item.data_dtype)
+        self.assertAlmostEqual(data_item_result.data[50, 50], -1.0)
+
+    def test_processing_on_crop_region_connects_region_to_operation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        crop_region = Region.RectRegion()
+        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.add_region(crop_region)
+        document_model.append_data_item(data_item)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        operation = Operation.OperationItem("invert-operation")
+        document_controller.add_processing_operation(operation, crop_region=crop_region)
+        self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
+        crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
+        self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
+
+    def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        crop_region = Region.RectRegion()
+        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.add_region(crop_region)
+        document_model.append_data_item(data_item)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        operation = Operation.OperationItem("invert-operation")
+        data_item_result = document_controller.add_processing_operation(operation, crop_region=crop_region)
+        document_model.recompute_all()
+        self.assertFalse(data_item_result.is_data_stale)
+        crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
+        self.assertTrue(data_item_result.is_data_stale)
+
+    class SumOperation(Operation.Operation):
+
+        def __init__(self):
+            super(TestDocumentControllerClass.SumOperation, self).__init__("Sum", "sum-operation")
+
+        def get_processed_data(self, data_sources):
+            result = None
+            for data_item in data_sources:
+                if result is None:
+                    result = data_item.data
+                else:
+                    result += data_item.data
+            return result
+
+    def test_processing_on_dual_crop_region_constructs_composite_operation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data1 = numpy.zeros((256, 256), numpy.float32)
+        data1[0:128, 0:128] = 1
+        data_item1 = DataItem.DataItem(data1)
+        crop_region1 = Region.RectRegion()
+        crop_region1.bounds = ((0.0, 0.0), (0.5, 0.5))
+        data_item1.add_region(crop_region1)
+        document_model.append_data_item(data_item1)
+        data2 = numpy.zeros((256, 256), numpy.float32)
+        data2[0:128, 0:128] = 2
+        data_item2 = DataItem.DataItem(data2)
+        crop_region2 = Region.RectRegion()
+        crop_region2.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item2.add_region(crop_region2)
+        document_model.append_data_item(data_item2)
+        sum_operation = TestDocumentControllerClass.SumOperation()
+        Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
+        sum_operation_item = Operation.OperationItem("sum-operation")
+        data_item_result = document_controller.add_binary_processing_operation(sum_operation_item, data_item1, data_item2, crop_region1=crop_region1, crop_region2=crop_region2)
+        self.assertEqual(data_item_result.data_shape, (128, 128))
+        self.assertEqual(data_item_result.data_dtype, numpy.float32)
+        self.assertAlmostEqual(data_item_result.data[32, 32], 3.0)
+        self.assertAlmostEqual(data_item_result.data[96, 32], 1.0)
+        self.assertAlmostEqual(data_item_result.data[96, 96], 1.0)
+        self.assertAlmostEqual(data_item_result.data[32, 96], 1.0)
+
+    def test_deleting_processed_data_item_and_then_recomputing_works(self):
+        # processed data item should be removed from recomputing queue
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        crop_region = Region.RectRegion()
+        crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
+        data_item.add_region(crop_region)
+        document_model.append_data_item(data_item)
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        data_item_result = document_controller.add_processing_operation_by_id("invert-operation", crop_region=crop_region)
+        document_model.remove_data_item(data_item_result)
+        document_model.recompute_all()
 
 
 if __name__ == '__main__':

@@ -878,11 +878,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.__mark_data_stale()
 
     # this message comes from the operation.
-    def operation_changed(self, operation):
-        if not self._is_reading:
-            self.__mark_data_stale()
-
-    # this message comes from the operation.
     # it is generated when the user deletes a operation graphic.
     # that informs the display which notifies the graphic which
     # notifies the operation which notifies this data item. ugh.
@@ -937,12 +932,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # has changed. the connection is established via add_listener.
     def data_source_content_changed(self, data_source, changes):
         if DATA in changes or SOURCE in changes:
-            self.__mark_data_stale()
+            if not self._is_reading:
+                self.__mark_data_stale()
 
     # data_item_needs_recompute comes from data sources to indicate that data has
     # become stale. the connection is established via add_listener.
     def data_source_needs_recompute(self, data_source):
-        self.__mark_data_stale()
+        if not self._is_reading:
+            self.__mark_data_stale()
 
     def __get_master_data(self):
         with self.__master_data_lock:
@@ -1105,7 +1102,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                         finally:
                             self.decrement_data_ref_count()  # unload master data
                         self.set_intensity_calibration(operation.intensity_calibration)
-                        for index, dimensional_calibration in enumerate(operation.dimensional_calibrations):
+                        operation_dimensional_calibrations = operation.dimensional_calibrations or list()
+                        for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
                             self.set_dimensional_calibration(index, dimensional_calibration)
                 self.__is_master_data_stale = False
 
