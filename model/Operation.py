@@ -493,7 +493,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             # save this to remove region if this object gets removed.
             self.__weak_regions.append(weakref.ref(region))
 
-    def establish_associated_region(self, region_connection_id, source_data_item, region=None):
+    def establish_associated_region(self, region_connection_id, buffered_data_source, region=None):
         """
             Associate the region with this operation, update its initial values, and connect it to this operation.
 
@@ -523,7 +523,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                     region.end = 0.75
                 assert region
                 assert region.type == self.operation.region_types[region_connection_id]
-                source_data_item.add_region(region)
+                buffered_data_source.add_region(region)
             assert region
             assert region.type == self.operation.region_types[region_connection_id]
             # copy the properties from the operation to the region

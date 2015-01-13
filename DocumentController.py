@@ -730,7 +730,7 @@ class DocumentController(Observable.Broadcaster):
                     crop_operation = Operation.OperationItem("crop-operation")
                     assert crop_region in data_item.regions
                     crop_operation.set_property("bounds", crop_region.bounds)
-                    crop_operation.establish_associated_region("crop", data_item, crop_region)
+                    crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
                     crop_operation.add_data_source(data_source)
                     data_source = crop_operation
                 operation.add_data_source(data_source)
@@ -751,7 +751,7 @@ class DocumentController(Observable.Broadcaster):
                 crop_operation = Operation.OperationItem("crop-operation")
                 assert crop_region1 in data_item1.regions
                 crop_operation.set_property("bounds", crop_region1.bounds)
-                crop_operation.establish_associated_region("crop", data_item1, crop_region1)
+                crop_operation.establish_associated_region("crop", data_item1.maybe_data_source, crop_region1)
                 crop_operation.add_data_source(data_source1)
                 data_source1 = crop_operation
             data_source2 = Operation.DataItemDataSource(data_item2)
@@ -759,7 +759,7 @@ class DocumentController(Observable.Broadcaster):
                 crop_operation = Operation.OperationItem("crop-operation")
                 assert crop_region2 in data_item2.regions
                 crop_operation.set_property("bounds", crop_region2.bounds)
-                crop_operation.establish_associated_region("crop", data_item2, crop_region2)
+                crop_operation.establish_associated_region("crop", data_item2.maybe_data_source, crop_region2)
                 crop_operation.add_data_source(data_source2)
                 data_source2 = crop_operation
             operation.add_data_source(data_source1)
@@ -816,7 +816,7 @@ class DocumentController(Observable.Broadcaster):
             bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", bounds)
-            operation.establish_associated_region("crop", data_item, crop_region)  # after setting operation properties
+            operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
@@ -830,7 +830,7 @@ class DocumentController(Observable.Broadcaster):
         data_item = self.selected_data_item
         if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
-            operation.establish_associated_region("pick", data_item)  # after setting operation properties
+            operation.establish_associated_region("pick", data_item.maybe_data_source)  # after setting operation properties
             pick_data_item = self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
             pick_interval = Region.IntervalRegion()
             pick_data_item.add_region(pick_interval)
@@ -849,7 +849,7 @@ class DocumentController(Observable.Broadcaster):
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
-            operation.establish_associated_region("line", data_item)  # after setting operation properties
+            operation.establish_associated_region("line", data_item.maybe_data_source)  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Line Profile of "), select=select)
         return None
 

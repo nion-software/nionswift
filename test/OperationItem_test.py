@@ -502,7 +502,7 @@ class TestOperationClass(unittest.TestCase):
         crop_region = Region.RectRegion()
         data_item.add_region(crop_region)
         crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
-        crop_operation.establish_associated_region("crop", data_item, crop_region)
+        crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
         data_item2.set_operation(crop_operation)
         # see if the region is connected to the operation
         self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
@@ -529,8 +529,8 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         Operation.OperationManager().register_operation("dummy2-operation", lambda: TestOperationClass.Dummy2Operation())
         dummy_operation = Operation.OperationItem("dummy2-operation")
-        dummy_operation.establish_associated_region("a", data_item)
-        dummy_operation.establish_associated_region("b", data_item)
+        dummy_operation.establish_associated_region("a", data_item.maybe_data_source)
+        dummy_operation.establish_associated_region("b", data_item.maybe_data_source)
         dummy_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item2.set_operation(dummy_operation)
         # assumptions
@@ -615,7 +615,7 @@ class TestOperationClass(unittest.TestCase):
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
         data_item.add_region(crop_region)
-        crop_operation.establish_associated_region("crop", data_item, crop_region)
+        crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
         crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
         crop_data_item.set_operation(crop_operation)
         document_model.append_data_item(crop_data_item)
