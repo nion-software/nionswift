@@ -72,8 +72,11 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__data_item_manager_lock = threading.RLock()
         self.__data_item = None
         self.__weak_dependent_data_item = None
+        # create a publisher of data_and_calibration objects.
+        # when a subscriber subscribes to the publisher, be sure to publish the first data value
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
+        # set the data item
         self.set_data_item(data_item)
 
     def about_to_be_removed(self):
@@ -141,10 +144,12 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             self.__notify_next_data_and_calibration()
 
     def __notify_next_data_and_calibration(self):
+        """Grab the data_and_calibration from the data item and pass it to subscribers."""
         data_and_calibration = self.__data_item.data_and_calibration if self.__data_item else None
         self.__publisher.notify_next_value(data_and_calibration)
 
     def get_data_and_calibration_publisher(self):
+        """Return the data and calibration publisher. This is a required method for data sources."""
         return self.__publisher
 
 

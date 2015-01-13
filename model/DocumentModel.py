@@ -864,7 +864,3 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def start_dispatcher(self):
         self.__thread_pool.start(16)
-
-    def sync_data_item(self, data_item):
-        """Synchronizes the data item by applying any pending operations and processing."""
-        data_item.recompute_data()

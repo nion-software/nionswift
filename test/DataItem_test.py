@@ -581,7 +581,7 @@ class TestDataItemClass(unittest.TestCase):
         dummy_operation_item.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_dummy.set_operation(dummy_operation_item)
         document_model.append_data_item(data_item_dummy)
-        document_model.sync_data_item(data_item_dummy)
+        data_item_dummy.recompute_data()
         with data_item_dummy.data_ref() as d:
             start_count = dummy_operation.count
             d.data
