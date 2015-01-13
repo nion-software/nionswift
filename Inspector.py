@@ -258,7 +258,7 @@ class BoundSpatialCalibration(Observable.Observable):
     def close(self):
         self.data_item.remove_listener(self)
 
-    def data_source_content_changed(self, data_item, changes):
+    def data_item_content_changed(self, data_item, changes):
         """ Message comes from data item. """
         METADATA = 2
         if METADATA in changes:
@@ -310,7 +310,7 @@ class BoundIntensityCalibration(Observable.Observable):
     def close(self):
         self.data_item.remove_listener(self)
 
-    def data_source_content_changed(self, data_item, changes):
+    def data_item_content_changed(self, data_item, changes):
         """ Message comes from data item. """
         METADATA = 2
         if METADATA in changes:

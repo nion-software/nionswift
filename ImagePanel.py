@@ -1978,7 +1978,7 @@ class ImagePanel(object):
     # the connection is established in __set_display via display.add_listener.
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
-    # thread safe (may be called from data_source_content_changed).
+    # thread safe (may be called from data_item_content_changed).
     def display_changed(self, display):
         with self.__pending_display_update_lock:
             self.__pending_display_update = display

@@ -144,10 +144,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
             data_items.append(data_item)
         self.assertEqual(len(binding.data_items), 0)
         with data_items[0].live():
-            binding.data_source_content_changed(data_items[0], [DataItem.METADATA])
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 1)
             with data_items[2].live():
-                binding.data_source_content_changed(data_items[2], [DataItem.METADATA])
+                binding.data_item_content_changed(data_items[2], [DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 2)
                 self.assertTrue(binding.data_items.index(data_items[0]) < binding.data_items.index(data_items[2]))
 
@@ -163,10 +163,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
             data_items.append(data_item)
         self.assertEqual(len(binding.data_items), 0)
         with data_items[0].live():
-            binding.data_source_content_changed(data_items[0], [DataItem.METADATA])
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 1)
             with data_items[2].live():
-                binding.data_source_content_changed(data_items[2], [DataItem.METADATA])
+                binding.data_item_content_changed(data_items[2], [DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 2)
 
     def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
@@ -184,7 +184,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             data_items.append(data_item)
         self.assertEqual(len(binding.data_items), 4)
         with data_items[0].live():
-            binding.data_source_content_changed(data_items[0], [DataItem.METADATA])
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 3)
 
     def test_filtered_binding_updates_when_source_binding_has_data_item_that_updates(self):
@@ -201,7 +201,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
         filter_binding.filter = is_live_filter
         self.assertEqual(len(filter_binding.data_items), 0)
         with data_items[0].live():
-            binding.data_source_content_changed(data_items[0], [DataItem.METADATA])
+            binding.data_item_content_changed(data_items[0], [DataItem.METADATA])
             self.assertEqual(len(binding.data_items), 4)  # verify assumption
             self.assertTrue(data_items[0] in filter_binding.data_items)
 
@@ -248,7 +248,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             def update_randomly():
                 for _ in range(cc):
                     data_item = random.choice(binding._get_master_data_items())
-                    binding.data_source_content_changed(data_item, [])
+                    binding.data_item_content_changed(data_item, [])
                 finished.set()
             binding.data_item_inserted(None, data_items[0], 0, False)
             threading.Thread(target = update_randomly).start()

@@ -236,6 +236,7 @@ class TestDataItemClass(unittest.TestCase):
         # the thumbnail should also be dirty.
         with data_item.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
+        data_item_inverted.recompute_data()
         self.assertTrue(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
 
     def test_delete_nested_data_item(self):
@@ -292,7 +293,7 @@ class TestDataItemClass(unittest.TestCase):
             def reset(self):
                 self._data_changed = False
                 self._display_changed = False
-            def data_source_content_changed(self, data_item, changes):
+            def data_item_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
             def display_changed(self, display):
                 self._display_changed = True
@@ -447,7 +448,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(data_item.is_data_loaded)
         self.assertFalse(data_item.is_data_loaded)
 
-    def test_modifying_source_data_should_not_trigger_data_changed_notification_from_dependent_data(self):
+    def test_modifying_source_data_should_trigger_data_changed_notification_from_dependent_data(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -460,13 +461,16 @@ class TestDataItemClass(unittest.TestCase):
         class Listener(object):
             def __init__(self):
                 self.data_changed = False
-            def data_source_content_changed(self, data_item, changes):
+            def data_item_content_changed(self, data_item, changes):
                 self.data_changed = self.data_changed or DataItem.DATA in changes
         listener = Listener()
         data_item_inverted.add_listener(listener)
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
-        self.assertFalse(listener.data_changed)
+        data_item_inverted.recompute_data()
+        self.assertTrue(listener.data_changed)
+        self.assertFalse(data_item.is_data_stale)
+        self.assertFalse(data_item_inverted.is_data_stale)
 
     def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -481,7 +485,7 @@ class TestDataItemClass(unittest.TestCase):
         class Listener(object):
             def __init__(self):
                 self.needs_recompute = False
-            def data_source_needs_recompute(self, data_item):
+            def data_item_needs_recompute(self, data_item):
                 self.needs_recompute = True
         listener = Listener()
         data_item_inverted.add_listener(listener)
@@ -523,11 +527,12 @@ class TestDataItemClass(unittest.TestCase):
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         self.assertTrue(data_item_inverted.is_data_stale)
+        data_item_inverted.recompute_data()
         self.assertTrue(data_item_inverted2.is_data_stale)
 
     def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
         # this test ensures that doing a recompute_data is efficient and doesn't produce
-        # extra data_source_content_changed messages.
+        # extra data_item_content_changed messages.
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -536,10 +541,12 @@ class TestDataItemClass(unittest.TestCase):
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
+        data_item_inverted.recompute_data()
+        self.assertFalse(data_item_inverted.is_data_stale)
         class Listener(object):
             def __init__(self):
                 self.data_changed = 0
-            def data_source_content_changed(self, data_item, changes):
+            def data_item_content_changed(self, data_item, changes):
                 if DataItem.DATA in changes:
                     self.data_changed += 1
         listener = Listener()

@@ -156,11 +156,8 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             if self.__data_item_manager:
                 self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
 
-    def data_source_content_changed(self, data_item, changes):
+    def data_item_content_changed(self, data_item, changes):
         self.notify_listeners("data_source_content_changed", self, changes)
-
-    def data_source_needs_recompute(self, data_item):
-        self.notify_listeners("data_source_needs_recompute", self)
 
 
 def data_source_list_factory(lookup_id):
@@ -313,11 +310,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     # has changed. the connection is established via add_listener.
     def data_source_content_changed(self, data_source, changes):
         self.notify_listeners("data_source_content_changed", self, changes)
-
-    # data_source_needs_recompute comes from data sources to indicate that data has
-    # become stale. the connection is established via add_listener.
-    def data_source_needs_recompute(self, data_source):
-        self.notify_listeners("data_source_needs_recompute", self)
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)

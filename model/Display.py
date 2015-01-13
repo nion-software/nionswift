@@ -303,12 +303,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.
     # thread safe
-    def data_source_content_changed(self, data_item, changes):
+    def data_item_content_changed(self, data_item, changes):
         DATA = 1
         METADATA = 2
         SOURCE = 4
-        if DATA in changes or METADATA in changes or SOURCE in changes:
-            # TODO: Threading: Display data_source_content_changed __preview, __preview_data
+        if not set((DATA, METADATA, SOURCE)).isdisjoint(changes):  # any of these in changes?
             self.__preview_data = None
             self.__preview = None
             self.notify_listeners("display_changed", self)
@@ -316,12 +315,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             if not self._is_reading:
                 for processor in self.__processors.values():
                     processor.data_item_changed()
-
-    # this message received from data item. the connection is established using
-    # add_listener and remove_listener.
-    def data_source_needs_recompute(self, data_item):
-        for processor in self.__processors.values():
-            processor.data_item_changed()
 
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)

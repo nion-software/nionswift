@@ -430,15 +430,15 @@ class DataPanel(Panel.Panel):
             data_items = self.__binding.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
-        # data_source_content_changed is received from data items tracked in this model.
+        # data_item_content_changed is received from data items tracked in this model.
         # the connection is established in add_data_item using add_listener.
-        def data_source_content_changed(self, data_item, changes):
+        def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 
         # this method if called when one of our listened to items changes.
         def __data_item_inserted(self, data_item, before_index):
-            # add the listener. this will result in calls to data_source_content_changed
+            # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.displays[0].add_listener(self)
             self.__data_items.append(data_item)
@@ -472,7 +472,7 @@ class DataPanel(Panel.Panel):
         # notification from display
         def display_processor_data_updated(self, display, processor):
             if processor == display.get_processor("thumbnail"):
-                self.data_source_content_changed(display.data_item, [DataItem.DISPLAYS])
+                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
 
         def item_mime_data(self, row):
             data_item = self.get_data_item_by_index(row)
@@ -868,15 +868,15 @@ class DataPanel(Panel.Panel):
             data_items = self.__binding.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
-        # data_source_content_changed is received from data items tracked in this model.
+        # data_item_content_changed is received from data items tracked in this model.
         # the connection is established in add_data_item using add_listener.
-        def data_source_content_changed(self, data_item, changes):
+        def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items.add(data_item)
 
         # this method if called when one of our listened to items changes.
         def __data_item_inserted(self, data_item, before_index):
-            # add the listener. this will result in calls to data_source_content_changed
+            # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.displays[0].add_listener(self)
             self.__data_items.append(data_item)
@@ -902,7 +902,7 @@ class DataPanel(Panel.Panel):
         # notification from display
         def display_processor_data_updated(self, display, processor):
             if processor == display.get_processor("thumbnail"):
-                self.data_source_content_changed(display.data_item, [DataItem.DISPLAYS])
+                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
