@@ -615,6 +615,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.notify_listeners("data_item_deleted", data_item)
 
     def add_data_item_listener(self, data_item_uuid, listener):
+        """Add listener for the data_item_uuid. Listener will get set_buffered_data_source messages."""
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
         assert listener not in listener_list
         listener_list.append(listener)

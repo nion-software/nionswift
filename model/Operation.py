@@ -172,6 +172,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         else:
             data_item_uuid = None
         self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
+        self.__subscription = None
         self.__buffered_data_source = None
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
@@ -184,7 +185,9 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.set_buffered_data_source(buffered_data_source)
 
     def close(self):
-        pass
+        if self.__subscription:
+            self.__subscription.close()
+            self.__subscription = None
 
     def about_to_be_removed(self):
         pass
@@ -229,18 +232,26 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         The data_item_manager will call this method when that happens.
         """
         dependent_data_item = self.__get_dependent_data_item()
+        if self.__subscription:
+            self.__subscription.close()
+            self.__subscription = None
         source_data_item = self.source_data_item
         if source_data_item:
-            source_data_item.remove_listener(self)
             if dependent_data_item:
                 source_data_item.remove_dependent_data_item(dependent_data_item)
         self.__buffered_data_source = buffered_data_source
         source_data_item = self.source_data_item
+        if self.__buffered_data_source:
+            def next_value(data_and_calibration):
+                # called when the buffered data source publishes new data.
+                self.__publisher.notify_next_value(data_and_calibration)
+            # make a subscriber to call next_value when buffered data source publishes new data.
+            subscriber = Observable.Subscriber(next_value)
+            # store the subscription while its in use.
+            self.__subscription = self.__buffered_data_source.get_data_and_calibration_publisher().subscribex(subscriber)
         if source_data_item:
-            source_data_item.add_listener(self)
             if dependent_data_item:
                 source_data_item.add_dependent_data_item(dependent_data_item)
-        self.__notify_next_data_and_calibration()
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
@@ -252,12 +263,6 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             # adding data item manager
             if self.__data_item_manager:
                 self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
-
-    def data_item_content_changed(self, data_item, changes):
-        """Message from data item when the content of data item changes."""
-        DATA = 1
-        if DATA in changes:
-            self.__notify_next_data_and_calibration()
 
     def __notify_next_data_and_calibration(self):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
