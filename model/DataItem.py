@@ -1,5 +1,4 @@
 # standard libraries
-import collections
 import copy
 import datetime
 import gettext
@@ -168,6 +167,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__recompute_allowed = True
         self.__pending_data = None
         self.__pending_data_lock = threading.RLock()
+        self.__is_recomputing = False
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
@@ -284,13 +284,20 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             new_value.add_listener(self)
             new_value.set_dependent_data_item(self.__get_dependent_data_item())
             new_value.set_data_item_manager(self.__data_item_manager)
-            def next_value(data_and_calibration):
-                with self.__pending_data_lock:
-                    self.__pending_data = data_and_calibration
-                self.notify_listeners("buffered_data_source_needs_recompute", self)
-            subscriber = Observable.Subscriber(next_value)
+            subscriber = Observable.Subscriber(self.__handle_next_value)
             publisher = new_value.get_data_and_calibration_publisher()
             self.__subscription = publisher.subscribex(subscriber)
+
+    def __handle_next_value(self, data_and_calibration):
+        # when a new value from the data source comes in, it should replace
+        # any existing pending value. if the data is not being computed, it
+        # should also schedule the computation using the data item manager.
+        # the recompute function will take care of scheduling another
+        # computation if necessary at the end.
+        with self.__pending_data_lock:
+            self.__pending_data = data_and_calibration
+            if self.__data_item_manager and not self.__is_recomputing:
+                self.__data_item_manager.dispatch_task(self.recompute_data, "data")
 
     @property
     def ordered_data_item_data_sources(self):
@@ -567,21 +574,27 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             with self.__recompute_lock:
                 if self.__recompute_allowed:
                     with self.__pending_data_lock:  # only one thread should be computing data at once
-                        if self.__pending_data is not None:
-                            self.increment_data_ref_count()  # make sure data is loaded
-                            try:
-                                operation_data = self.__pending_data.data_fn()
-                                if operation_data is not None:
-                                    self.__set_data(operation_data)
-                            finally:
-                                self.decrement_data_ref_count()  # unload data
-                            operation_intensity_calibration = self.__pending_data.intensity_calibration
-                            operation_dimensional_calibrations = self.__pending_data.dimensional_calibrations
-                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                                self.set_intensity_calibration(operation_intensity_calibration)
-                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                    self.set_dimensional_calibration(index, dimensional_calibration)
-                            self.__pending_data = None
+                        pending_data = self.__pending_data
+                        self.__pending_data = None
+                        self.__is_recomputing = True
+                    if pending_data is not None:
+                        self.increment_data_ref_count()  # make sure data is loaded
+                        try:
+                            operation_data = pending_data.data_fn()
+                            if operation_data is not None:
+                                self.__set_data(operation_data)
+                        finally:
+                            self.decrement_data_ref_count()  # unload data
+                        operation_intensity_calibration = pending_data.intensity_calibration
+                        operation_dimensional_calibrations = pending_data.dimensional_calibrations
+                        if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                            self.set_intensity_calibration(operation_intensity_calibration)
+                            for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                self.set_dimensional_calibration(index, dimensional_calibration)
+                    with self.__pending_data_lock:
+                        self.__is_recomputing = False
+                        if self.__pending_data and self.__data_item_manager:
+                            self.__data_item_manager.dispatch_task(self.recompute_data, "data")
 
     @property
     def is_data_complex_type(self):
@@ -652,14 +665,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
      to be computed which will emit data_item_content_changed, resulting in a cycle.
 
     * data_item_content_changed(data_item, changes)
-    * data_item_needs_recompute(data_item)
-    * request_remove_data_item(data_item)
 
     data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set
     of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
-
-    data_item_needs_recompute is invoked when a recompute of the data is necessary. This can happen when an operation
-    changes or when source data changes. This may be called on a thread.
 
     request_remove_data_item is invoked when a region associated with an operation is removed by the user. This
     message can be used to remove the associated dependent data item. This will not be called from a thread.
@@ -1234,9 +1242,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
             data_source.decrement_data_ref_count()
-
-    def buffered_data_source_needs_recompute(self, data_source):
-        self.notify_listeners("data_item_needs_recompute", self)
 
     def append_data_source(self, data_source):
         self.append_item("data_sources", data_source)

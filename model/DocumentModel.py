@@ -886,9 +886,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def dispatch_task(self, task, description=None):
         self.__thread_pool.queue_fn(task, description)
 
-    def data_item_needs_recompute(self, data_item):
-        self.dispatch_task(lambda: data_item.recompute_data(), "data")
-
     def recompute_all(self):
         self.__thread_pool.run_all()
 

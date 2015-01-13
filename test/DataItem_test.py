@@ -509,16 +509,9 @@ class TestDataItemClass(unittest.TestCase):
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
-        class Listener(object):
-            def __init__(self):
-                self.needs_recompute = False
-            def data_item_needs_recompute(self, data_item):
-                self.needs_recompute = True
-        listener = Listener()
-        data_item_inverted.add_listener(listener)
         with data_item.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
-        self.assertTrue(listener.needs_recompute)
+        self.assertTrue(data_item_inverted.is_data_stale)
 
     def test_modifying_source_data_should_queue_recompute_in_document_model(self):
         document_model = DocumentModel.DocumentModel()
