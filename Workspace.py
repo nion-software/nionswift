@@ -99,10 +99,14 @@ class WorkspaceController(object):
             self.__canvas_item.close()
             self.__canvas_item = None
         self.__workspace = None
-        for dock_widget in copy.copy(self.dock_widgets):
+        # closing dock widgets is currently a mess due to the call to self.document_controller.periodic in
+        # DataPanel.update_data_panel_selection. work in progress. to avoid weird callbacks, copy the dock widgets
+        # before closing, then clear the list, and handle the 'None' case in periodic. not nice.
+        dock_widgets_copy = copy.copy(self.dock_widgets)
+        self.dock_widgets = None
+        for dock_widget in dock_widgets_copy:
             dock_widget.panel.close()
             dock_widget.close()
-        self.dock_widgets = None
         self.__content_column = None
         self.filter_panel = None
         self.filter_row = None
@@ -115,7 +119,7 @@ class WorkspaceController(object):
         # for each of the panels too
         ts = []
         t0 = time.time()
-        for dock_widget in self.dock_widgets:
+        for dock_widget in self.dock_widgets if self.dock_widgets else list():
             start = time.time()
             dock_widget.panel.periodic()
             time1 = time.time()
