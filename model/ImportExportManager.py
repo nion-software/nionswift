@@ -234,13 +234,14 @@ def update_data_item_from_data_element(data_item, data_element, data_file_path=N
 
 def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
     # assumes that data item has a single buffered_data_source
-    assert data_item.maybe_data_source
+    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+    assert display_specifier.buffered_data_source and display_specifier.display
     with data_item.data_item_changes():
         # file path
         # master data
         if data_file_path is not None:
             data_item.source_file_path = data_file_path
-        with data_item.maybe_data_source.data_ref() as data_ref:
+        with display_specifier.buffered_data_source.data_ref() as data_ref:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
             if sub_area is not None:
@@ -259,13 +260,13 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # spatial calibrations
         if "spatial_calibrations" in data_element:
             dimensional_calibrations = data_element.get("spatial_calibrations")
-            if len(dimensional_calibrations) == len(data_item.maybe_data_source.dimensional_shape):
+            if len(dimensional_calibrations) == len(display_specifier.buffered_data_source.dimensional_shape):
                 for dimension, dimension_calibration in enumerate(dimensional_calibrations):
                     offset = float(dimension_calibration.get("offset", 0.0))
                     scale = float(dimension_calibration.get("scale", 1.0))
                     units = unicode(dimension_calibration.get("units", ""))
                     if scale != 0.0:
-                        data_item.maybe_data_source.set_dimensional_calibration(dimension, Calibration.Calibration(offset, scale, units))
+                        display_specifier.buffered_data_source.set_dimensional_calibration(dimension, Calibration.Calibration(offset, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
             offset = float(intensity_calibration.get("offset", 0.0))
@@ -318,12 +319,12 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         if "arrows" in data_element:
             for arrow_coordinates in data_element["arrows"]:
                 start, end = arrow_coordinates
-                dimensional_shape = data_item.maybe_data_source.dimensional_shape
+                dimensional_shape = display_specifier.buffered_data_source.dimensional_shape
                 line_graphic = Graphics.LineGraphic()
                 line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
                 line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
                 line_graphic.end_arrow_enabled = True
-                data_item.displays[0].append_graphic(line_graphic)
+                display_specifier.display.append_graphic(line_graphic)
 
 
 def create_data_element_from_data_item(data_item, include_data=True):
@@ -383,7 +384,8 @@ class StandardImportExportHandler(ImportExportHandler):
         return data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.displays[0].preview_2d  # export the display rather than the data for these types
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        data = display_specifier.display.preview_2d  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path, extension)
 
