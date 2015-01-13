@@ -1925,9 +1925,7 @@ class ImagePanel(object):
 
     # set the default display for the data item. just a simpler method to call.
     def set_displayed_data_item(self, data_item):
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        display = buffered_data_source.displays[0] if buffered_data_source else None
-        self.set_displayed_data_item_and_display(DataItem.DisplaySpecifier(data_item, buffered_data_source, display))
+        self.set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
 
     def replace_displayed_data_item_and_display(self, display_specifier):
         """
@@ -1989,10 +1987,7 @@ class ImagePanel(object):
             thumbnail_data = self.__display_specifier.display.get_processed_data("thumbnail")
             def drag_finished(action):
                 if action == "move" and self.document_controller.replaced_data_item is not None:
-                    data_item = self.document_controller.replaced_data_item
-                    buffered_data_source = data_item.maybe_data_source if data_item else None
-                    display = buffered_data_source.displays[0] if buffered_data_source else None
-                    display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+                    display_specifier = DataItem.DisplaySpecifier.from_data_item(self.document_controller.replaced_data_item)
                     self.__set_display(display_specifier)
                     self.document_controller.replaced_data_item = None
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)

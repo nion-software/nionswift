@@ -467,9 +467,7 @@ class DocumentController(Observable.Broadcaster):
 
     def notify_selected_data_item_changed(self, data_item):
         # DEPRECATED
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        display = buffered_data_source.displays[0] if buffered_data_source else None
-        display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         self.notify_selected_display_specifier_changed(display_specifier)
 
     def set_selected_data_items(self, selected_data_items):
@@ -504,10 +502,7 @@ class DocumentController(Observable.Broadcaster):
         if self.weak_data_panel:
             data_panel = self.weak_data_panel()
             if data_panel and data_panel.focused:
-                data_item = data_panel.data_item
-                buffered_data_source = data_item.maybe_data_source if data_item else None
-                display = buffered_data_source.displays[0] if buffered_data_source else None
-                return DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+                return DataItem.DisplaySpecifier.from_data_item(data_panel.data_item)
         # if not found, check for focused or selected image panel
         if self.selected_image_panel:
             return self.selected_image_panel.display_specifier
@@ -686,10 +681,10 @@ class DocumentController(Observable.Broadcaster):
         assert operation is not None
         return self.add_processing_operation(operation, prefix, suffix, in_place, select, crop_region)
 
-    def add_binary_processing_operation_by_id(self, operation_id, data_item1, data_item2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
+    def add_binary_processing_operation_by_id(self, operation_id, display_specifier1, display_specifier2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
         operation = Operation.OperationItem(operation_id)
         assert operation is not None
-        return self.add_binary_processing_operation(operation, data_item1, data_item2, prefix, suffix, crop_region1, crop_region2)
+        return self.add_binary_processing_operation(operation, display_specifier1, display_specifier2, prefix, suffix, crop_region1, crop_region2)
 
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
@@ -714,60 +709,61 @@ class DocumentController(Observable.Broadcaster):
                 inspector_panel.request_focus = True
 
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):
-        data_item = self.selected_display_specifier.data_item
-        if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
+        display_specifier = self.selected_display_specifier
+        if display_specifier.data_item:
+            assert isinstance(display_specifier.data_item, DataItem.DataItem)
             if in_place:  # in place?
-                data_item.set_operation(operation)
-                return data_item
+                display_specifier.data_item.set_operation(operation)
+                return display_specifier.data_item
             else:
-                data_source = Operation.DataItemDataSource(data_item)
+                data_source = Operation.DataItemDataSource(display_specifier.data_item)
                 if crop_region:
                     crop_operation = Operation.OperationItem("crop-operation")
-                    assert crop_region in data_item.regions
+                    assert crop_region in display_specifier.buffered_data_source.regions
                     crop_operation.set_property("bounds", crop_region.bounds)
-                    crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
+                    crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
                     crop_operation.add_data_source(data_source)
                     data_source = crop_operation
                 operation.add_data_source(data_source)
                 new_data_item = DataItem.DataItem()
-                new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
+                new_data_item.title = (prefix if prefix else "") + display_specifier.data_item.title + (suffix if suffix else "")
                 new_data_item.set_operation(operation)
-                self.display_data_item(new_data_item, source_data_item=data_item, select=select)
+                self.display_data_item(new_data_item, source_data_item=display_specifier.data_item, select=select)
                 return new_data_item
         return None
 
-    def add_binary_processing_operation(self, operation, data_item1, data_item2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
-        if data_item1 and data_item2:
+    def add_binary_processing_operation(self, operation, display_specifier1, display_specifier2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
+        if display_specifier1.buffered_data_source and display_specifier2.buffered_data_source:
             new_data_item = DataItem.DataItem()
-            new_data_item.title = (prefix if prefix else "") + data_item1.title + (suffix if suffix else "")
+            new_data_item.title = (prefix if prefix else "") + display_specifier1.data_item.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
-            data_source1 = Operation.DataItemDataSource(data_item1)
+            data_source1 = Operation.DataItemDataSource(display_specifier1.data_item)
             if crop_region1:
                 crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region1 in data_item1.regions
+                assert crop_region1 in display_specifier1.buffered_data_source.regions
                 crop_operation.set_property("bounds", crop_region1.bounds)
-                crop_operation.establish_associated_region("crop", data_item1.maybe_data_source, crop_region1)
+                crop_operation.establish_associated_region("crop", display_specifier1.buffered_data_source, crop_region1)
                 crop_operation.add_data_source(data_source1)
                 data_source1 = crop_operation
-            data_source2 = Operation.DataItemDataSource(data_item2)
+            data_source2 = Operation.DataItemDataSource(display_specifier2.data_item)
             if crop_region2:
                 crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region2 in data_item2.regions
+                assert crop_region2 in display_specifier2.buffered_data_source.regions
                 crop_operation.set_property("bounds", crop_region2.bounds)
-                crop_operation.establish_associated_region("crop", data_item2.maybe_data_source, crop_region2)
+                crop_operation.establish_associated_region("crop", display_specifier2.buffered_data_source, crop_region2)
                 crop_operation.add_data_source(data_source2)
                 data_source2 = crop_operation
             operation.add_data_source(data_source1)
             operation.add_data_source(data_source2)
-            self.display_data_item(new_data_item, source_data_item=data_item1, select=True)
+            self.display_data_item(new_data_item, source_data_item=display_specifier1.data_item, select=True)
             return new_data_item
         return None
 
-    def __get_crop_region(self, data_item):
+    def __get_crop_region(self, display_specifier):
         crop_region = None
-        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
-            display = data_item.displays[0]
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
+            display = display_specifier.display
             current_index = display.graphic_selection.current_index
             if current_index is not None:
                 region = display.drawn_graphics[current_index].region
@@ -776,14 +772,14 @@ class DocumentController(Observable.Broadcaster):
         return crop_region
 
     def processing_fft(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier)
         return self.add_processing_operation_by_id("fft-operation", prefix=_("FFT of "), select=select, crop_region=crop_region)
 
     def processing_ifft(self, select=True):
         return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
 
     def processing_auto_correlate(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier)
         return self.add_processing_operation_by_id("auto-correlate-operation", prefix=_("Auto Correlate of "), select=select, crop_region=crop_region)
 
     def processing_cross_correlate(self, select=True):
@@ -791,8 +787,8 @@ class DocumentController(Observable.Broadcaster):
         if len(selected_data_items) == 2:
             data_item1 = selected_data_items[0]
             data_item2 = selected_data_items[1]
-            crop_region1 = self.__get_crop_region(data_item1)
-            crop_region2 = self.__get_crop_region(data_item2)
+            crop_region1 = self.__get_crop_region(DataItem.DisplaySpecifier.from_data_item(data_item1))
+            crop_region2 = self.__get_crop_region(DataItem.DisplaySpecifier.from_data_item(data_item2))
             return self.add_binary_processing_operation_by_id("cross-correlate-operation", data_item1, data_item2, prefix=_("Cross Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
 
     def processing_gaussian_blur(self, select=True):
@@ -802,17 +798,18 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("resample-operation", prefix=_("Resample of "), select=select)
 
     def processing_histogram(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier)
         return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select, crop_region=crop_region)
 
     def processing_crop(self, select=True):
-        data_item = self.selected_display_specifier.data_item
-        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
-            crop_region = self.__get_crop_region(data_item)
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
+            crop_region = self.__get_crop_region(display_specifier)
             bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", bounds)
-            operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)  # after setting operation properties
+            operation.establish_associated_region("crop", buffered_data_source, crop_region)  # after setting operation properties
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
@@ -823,14 +820,15 @@ class DocumentController(Observable.Broadcaster):
             return self.add_processing_operation(operation, prefix=_("Slice of "), select=select)
 
     def processing_pick(self, select=True):
-        data_item = self.selected_display_specifier.data_item
-        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
-            operation.establish_associated_region("pick", data_item.maybe_data_source)  # after setting operation properties
+            operation.establish_associated_region("pick", buffered_data_source)  # after setting operation properties
             pick_data_item = self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
             pick_interval = Region.IntervalRegion()
             pick_data_item.add_region(pick_interval)
-            pick_data_item.add_connection(Connection.PropertyConnection(data_item.displays[0], "slice_interval", pick_interval, "interval"))
+            pick_data_item.add_connection(Connection.PropertyConnection(display_specifier.display, "slice_interval", pick_interval, "interval"))
             return pick_data_item
 
     def processing_projection(self, select=True):

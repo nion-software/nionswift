@@ -306,7 +306,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         sum_operation = TestDocumentControllerClass.SumOperation()
         Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
         sum_operation_item = Operation.OperationItem("sum-operation")
-        result_data_item = document_controller.add_binary_processing_operation(sum_operation_item, data_item1, data_item2, crop_region1=crop_region1, crop_region2=crop_region2)
+        left_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item1)
+        right_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)
+        result_data_item = document_controller.add_binary_processing_operation(sum_operation_item, left_display_specifier, right_display_specifier, crop_region1=crop_region1, crop_region2=crop_region2)
         result_data_item.recompute_data()
         buffered_data_source = result_data_item.maybe_data_source
         self.assertEqual(buffered_data_source.data_shape, (128, 128))

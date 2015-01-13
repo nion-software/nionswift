@@ -1498,6 +1498,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
 
 class DisplaySpecifier(object):
+    """Specify a Display contained within a DataItem.
+
+    If display is not None, then data_item is not None.
+    If buffered_data_source is not None, then data_item is not None.
+    """
 
     def __init__(self, data_item=None, buffered_data_source=None, display=None):
         self.data_item = data_item
@@ -1509,6 +1514,12 @@ class DisplaySpecifier(object):
 
     def __ne__(self, other):
         return self.data_item != other.data_item or self.buffered_data_source != other.buffered_data_source or self.display != other.display
+
+    @classmethod
+    def from_data_item(cls, data_item):
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        display = buffered_data_source.displays[0] if buffered_data_source else None
+        return cls(data_item, buffered_data_source, display)
 
 
 _computation_fns = list()
