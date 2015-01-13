@@ -361,7 +361,6 @@ class DataPanel(Panel.Panel):
         def __init__(self, document_controller):
             self.ui = document_controller.ui
             self.__binding = document_controller.filtered_data_items_binding
-            self.__data_items = list()  # data items being listened to
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
             def data_item_removed(data_item, index):
@@ -375,12 +374,10 @@ class DataPanel(Panel.Panel):
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
-            self.__changed_data_items = set()
+            self.__changed_data_items = False
             self.__changed_data_items_mutex = threading.RLock()
 
         def close(self):
-            while len(self.__data_items) > 0:
-                self.__data_item_removed(self.__data_items[0], 0)
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
             self.list_model_controller.close()
@@ -390,8 +387,8 @@ class DataPanel(Panel.Panel):
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
-                self.__changed_data_items = set()
-            if len(changed_data_items) > 0:
+                self.__changed_data_items = False
+            if changed_data_items:
                 self.list_model_controller.data_changed()
 
         # thread safe
@@ -434,14 +431,13 @@ class DataPanel(Panel.Panel):
         # the connection is established in add_data_item using add_listener.
         def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
-                self.__changed_data_items.add(data_item)
+                self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
         def __data_item_inserted(self, data_item, before_index):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.displays[0].add_listener(self)
-            self.__data_items.append(data_item)
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
@@ -461,7 +457,6 @@ class DataPanel(Panel.Panel):
             # remove the listener.
             data_item.displays[0].remove_listener(self)
             data_item.remove_listener(self)
-            self.__data_items.remove(data_item)
 
         # notification from display
         def display_processor_needs_recompute(self, display, processor):
@@ -472,7 +467,8 @@ class DataPanel(Panel.Panel):
         # notification from display
         def display_processor_data_updated(self, display, processor):
             if processor == display.get_processor("thumbnail"):
-                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
+                with self.__changed_data_items_mutex:
+                    self.__changed_data_items = True
 
         def item_mime_data(self, row):
             data_item = self.get_data_item_by_index(row)
@@ -779,7 +775,6 @@ class DataPanel(Panel.Panel):
             self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
             self.widget = self.root_canvas_item.canvas_widget
             self.__binding = document_controller.filtered_data_items_binding
-            self.__data_items = list()  # data items being listened to
             self.selection = DataPanel.DataItemSelection()
             self.selection.add_listener(self)
             self.selected_indexes = list()
@@ -795,12 +790,10 @@ class DataPanel(Panel.Panel):
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
-            self.__changed_data_items = set()
+            self.__changed_data_items = False
             self.__changed_data_items_mutex = threading.RLock()
 
         def close(self):
-            while len(self.__data_items) > 0:
-                self.__data_item_removed(self.__data_items[0], 0)
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
             self.on_selection_changed = None
@@ -811,8 +804,8 @@ class DataPanel(Panel.Panel):
             # handle the 'changed' stuff
             with self.__changed_data_items_mutex:
                 changed_data_items = self.__changed_data_items
-                self.__changed_data_items = set()
-            if len(changed_data_items) > 0:
+                self.__changed_data_items = False
+            if changed_data_items:
                 self.icon_view_canvas_item.update()
 
         # thread safe
@@ -871,14 +864,13 @@ class DataPanel(Panel.Panel):
         # the connection is established in add_data_item using add_listener.
         def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
-                self.__changed_data_items.add(data_item)
+                self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
         def __data_item_inserted(self, data_item, before_index):
             # add the listener. this will result in calls to data_item_content_changed
             data_item.add_listener(self)
             data_item.displays[0].add_listener(self)
-            self.__data_items.append(data_item)
             self.selection.insert_index(before_index)
             self.icon_view_canvas_item.update()
 
@@ -888,7 +880,6 @@ class DataPanel(Panel.Panel):
             # remove the listener.
             data_item.displays[0].remove_listener(self)
             data_item.remove_listener(self)
-            self.__data_items.remove(data_item)
             self.selection.insert_index(index)
             self.icon_view_canvas_item.update()
 
@@ -901,7 +892,8 @@ class DataPanel(Panel.Panel):
         # notification from display
         def display_processor_data_updated(self, display, processor):
             if processor == display.get_processor("thumbnail"):
-                self.data_item_content_changed(display.data_item, [DataItem.DISPLAYS])
+                with self.__changed_data_items_mutex:
+                    self.__changed_data_items = True
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
