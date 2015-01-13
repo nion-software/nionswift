@@ -850,48 +850,84 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.__transaction_count
     transaction_count = property(__get_transaction_count)
 
+    def __enter_write_delay_state(self):
+        if self.managed_object_context:
+            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+            if persistent_storage:
+                persistent_storage.write_delayed = True
+
+    def __exit_write_delay_state(self):
+        if self.managed_object_context:
+            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+            if persistent_storage:
+                persistent_storage.write_delayed = False
+            self.managed_object_context.write_data_item(self)
+
     def begin_transaction(self, count=1):
+        """Begin transaction state.
+
+        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
+        All changes to the object are delayed until the transaction state exits.
+
+        Has the side effects of entering the write delay state, cache delay state (via is_cached_delayed),
+        loading data of data sources, and entering transaction state for dependent data items.
+        """
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
+        # maintain the transaction count under a mutex
         assert count > 0
         with self.__transaction_count_mutex:
             old_transaction_count = self.__transaction_count
             self.__transaction_count += count
+        # if the old transaction count was 0, it means we're entering the transaction state.
         if old_transaction_count == 0:
-            if self.managed_object_context:
-                persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
-                if persistent_storage:
-                    persistent_storage.write_delayed = True
+            # first enter the write delay state.
+            self.__enter_write_delay_state()
+            # now tell each data source to load its data.
+            # this prevents paging in and out.
             for data_source in self.data_sources:
                 data_source.increment_data_ref_count()
+        # finally, tell dependent data items to enter their transaction states also
+        # so that they also don't write change to disk immediately.
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
     def end_transaction(self, count=1):
+        """End transaction state.
+
+        Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
+        unloading data of data sources, and exiting transaction state for dependent data items.
+
+        As a consequence of exiting write delay state, data and metadata may be written to disk.
+
+        As a consequence of existing cache delay state, cache may be written to disk.
+        """
         assert count > 0
+        # first, tell our dependent data items to exit their transaction states.
         for data_item in self.dependent_data_items:
             data_item.end_transaction(count)
+        # maintain the transaction count under a mutex
         with self.__transaction_count_mutex:
             self.__transaction_count -= count
             assert self.__transaction_count >= 0
             transaction_count = self.__transaction_count
+        # if the new transaction count is 0, it means we're exiting the transaction state.
         if transaction_count == 0:
+            # being in the transaction state has the side effect of delaying the cache too.
+            # spill whatever was into the local cache into the persistent cache.
             self.spill_cache()
-            if self.managed_object_context:
-                persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
-                if persistent_storage:
-                    persistent_storage.write_delayed = False
-                self.managed_object_context.write_data_item(self)
+            # exit the write delay state.
+            self.__exit_write_delay_state()
+            # finally, tell each data source to unload its data.
             for data_source in self.data_sources:
                 data_source.decrement_data_ref_count()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def managed_object_context_changed(self):
-        # handle case where managed object context is set on an item that is already under transaction
+        # handle case where managed object context is set on an item that is already under transaction.
+        # this can occur during acquisition. any other cases?
         super(DataItem, self).managed_object_context_changed()
-        if self.__transaction_count > 0 and self.managed_object_context:
-            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
-            if persistent_storage:
-                persistent_storage.write_delayed = True
+        if self.__transaction_count > 0:
+            self.__enter_write_delay_state()
 
     def get_data_file_info(self):
         if self.managed_object_context:
@@ -1168,6 +1204,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_source.add_listener(self)
         data_source.set_dependent_data_item(self)
         data_source.set_data_item_manager(self.__data_item_manager)
+        # being in transaction state means that data sources have their data loaded.
+        # so load data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
             data_source.increment_data_ref_count()
         def next_value(data_and_calibration):
@@ -1188,6 +1226,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_source.remove_listener(self)
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
+        # being in transaction state means that data sources have their data loaded.
+        # so unload data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
             data_source.decrement_data_ref_count()
 
@@ -1355,10 +1395,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.__live_count > 0:
             data_item.end_live(self.__live_count)
 
-    def __get_dependent_data_items(self):
+    @property
+    def dependent_data_items(self):
+        """Return the list of dependent data items."""
         with self.__dependent_data_item_refs_lock:
             return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
-    dependent_data_items = property(__get_dependent_data_items)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
