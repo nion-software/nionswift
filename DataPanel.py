@@ -574,10 +574,8 @@ class DataPanel(Panel.Panel):
 
             items_per_row = 4
             item_width = int(canvas_bounds.width / items_per_row)
-            item_rows = int(canvas_bounds.height / item_width) + 1
 
             drawing_context.save()
-
             try:
                 max_index = len(self.__delegate.data_items)
                 top_visible_row = visible_rect.top / item_width
