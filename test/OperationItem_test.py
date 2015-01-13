@@ -83,6 +83,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -118,6 +119,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -140,6 +142,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -173,6 +176,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -206,6 +210,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -228,6 +233,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -250,6 +256,7 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            data_item.recompute_data()
             with data_item.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
@@ -265,6 +272,7 @@ class TestOperationClass(unittest.TestCase):
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_real.set_operation(operation)
+        data_item_real.recompute_data()
         # make sure we get the right shape
         self.assertEqual(data_item_real.spatial_shape, (1000, 500))
         with data_item_real.data_ref() as data_real_accessor:
@@ -279,6 +287,7 @@ class TestOperationClass(unittest.TestCase):
         fft_operation.add_data_source(Operation.DataItemDataSource(data_item))
         fft_data_item.set_operation(fft_operation)
         self.document_model.append_data_item(fft_data_item)
+        fft_data_item.recompute_data()
 
         with fft_data_item.data_ref() as fft_data_ref:
             self.assertEqual(fft_data_ref.data.shape, (512, 512))
@@ -292,6 +301,7 @@ class TestOperationClass(unittest.TestCase):
         scalar_operation.add_data_source(Operation.DataItemDataSource(data_item))
         scalar_data_item.set_operation(scalar_operation)
         self.document_model.append_data_item(scalar_data_item)
+        scalar_data_item.recompute_data()
         with scalar_data_item.data_ref() as scalar_data_ref:
             self.assertEqual(scalar_data_ref.data.dtype, numpy.dtype(numpy.float64))
 
@@ -338,6 +348,7 @@ class TestOperationClass(unittest.TestCase):
         data_item2.set_operation(dummy_operation)
         document_model.append_data_item(data_item2)
         dummy_operation.set_property("param", 5.2)
+        data_item2.recompute_data()
         document_controller.close()
         # read it back then make sure parameter was actually updated
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
@@ -354,6 +365,7 @@ class TestOperationClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
         data_item_rgba2.set_operation(invert_operation)
+        data_item_rgba2.recompute_data()
         with data_item_rgba2.data_ref() as data_ref:
             pixel = data_ref.data[0,0,...]
             self.assertEqual(pixel[0], 255 - 20)
@@ -382,10 +394,21 @@ class TestOperationClass(unittest.TestCase):
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
         data_item_rgba2.set_operation(invert_operation)
         self.document_model.append_data_item(data_item_rgba2)
+        data_item_rgba2.recompute_data()
         self.image_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
         data_item_rgba_copy = self.document_controller.processing_snapshot()
         self.assertTrue(data_item_rgba_copy.has_master_data)
+
+    def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
+        data_item = DataItem.DataItem()
+        self.assertIsNone(data_item.data)
+        self.assertIsNone(data_item.data_dtype)
+        self.assertIsNone(data_item.data_shape)
+        data_item_copy = data_item.snapshot()
+        self.assertIsNone(data_item_copy.data)
+        self.assertIsNone(data_item_copy.data_dtype)
+        self.assertIsNone(data_item_copy.data_shape)
 
     def test_snapshot_of_operation_should_copy_calibrations_not_dimensional_calibrations(self):
         # setup
@@ -397,6 +420,7 @@ class TestOperationClass(unittest.TestCase):
         operation.add_data_source(Operation.DataItemDataSource(self.data_item))
         data_item2.set_operation(operation)
         self.document_model.append_data_item(data_item2)
+        data_item2.recompute_data()
         # make sure our assumptions are correct
         self.assertEqual(len(self.data_item.dimensional_calibrations), 2)
         self.assertEqual(len(data_item2.dimensional_calibrations), 2)

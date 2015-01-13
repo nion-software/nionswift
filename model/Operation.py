@@ -94,9 +94,15 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
 
     @property
     def data(self):
-        if self.__data_item:
-            return self.__data_item.data
-        return None
+        try:
+            if self.__data_item:
+                return self.__data_item.computed_data
+            return None
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     @property
     def ordered_data_item_data_sources(self):
@@ -435,9 +441,15 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     @property
     def data(self):
-        if self.operation:
-            return self.operation.get_processed_data(self.data_sources)
-        return None
+        try:
+            if self.operation:
+                return self.operation.get_processed_data(self.data_sources)
+            return None
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
 
     @property
     def ordered_data_item_data_sources(self):

@@ -610,6 +610,7 @@ class TestDataItemClass(unittest.TestCase):
         sum_operation_item.add_data_source(Operation.DataItemDataSource(data_item2))
         sum_operation_item.add_data_source(Operation.DataItemDataSource(data_item3))
         data_item_sum.set_operation(sum_operation_item)
+        data_item_sum.recompute_data()
         document_model.append_data_item(data_item_sum)
         summed_data = data_item_sum.data
         self.assertEqual(summed_data[0, 0], 3)
@@ -625,6 +626,7 @@ class TestDataItemClass(unittest.TestCase):
         invert_operation.add_data_source(crop_operation)
         data_item_result = DataItem.DataItem()
         data_item_result.set_operation(invert_operation)
+        data_item_result.recompute_data()
         self.assertEqual(data_item_result.data_shape, (128, 128))
         self.assertEqual(data_item_result.data_dtype, data_item.data_dtype)
         self.assertAlmostEqual(data_item_result.data[50, 50], -1.0)
@@ -823,6 +825,7 @@ class TestDataItemClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item2.set_operation(invert_operation)
+        data_item2.recompute_data()
         # see if the data source got connected
         self.assertIsNotNone(data_item2.data)
         self.assertEqual(data_item2.operation.data_sources[0].data_item, data_item)
@@ -1021,7 +1024,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
         self.assertFalse(data_item_inverted.is_data_stale)
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
         with data_item.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
@@ -1029,8 +1032,8 @@ class TestDataItemClass(unittest.TestCase):
         # data is now unloaded and stale.
         self.assertFalse(data_item_inverted.is_data_loaded)
         self.assertTrue(data_item_inverted.is_data_stale)
-        # force the data to reload, but don't recompute, by using cached_data
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        # don't recompute
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
         # data should still be stale
         self.assertTrue(data_item_inverted.is_data_stale)
 
@@ -1044,12 +1047,12 @@ class TestDataItemClass(unittest.TestCase):
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
         with data_item.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         data_item_inverted.recompute_data()
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -3.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -3.0)
 
     def test_recomputing_data_does_not_notify_listeners_of_stale_data_unless_it_is_really_stale(self):
         document_model = DocumentModel.DocumentModel()
@@ -1074,15 +1077,15 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
         self.assertFalse(data_item_inverted.is_data_stale)
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
         with data_item.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         # verify the actual data values are still stale
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -1.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
         # recompute and verify the data values are valid
         data_item_inverted.recompute_data()
-        self.assertAlmostEqual(data_item_inverted.cached_data[0, 0], -3.0)
+        self.assertAlmostEqual(data_item_inverted.data[0, 0], -3.0)
 
     def test_statistics_marked_dirty_when_data_changed(self):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))

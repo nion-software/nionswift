@@ -922,6 +922,7 @@ class TestStorageClass(unittest.TestCase):
             data_item_cropped.set_operation(crop_operation)
             crop_operation.establish_associated_region("crop", data_item)
             document_model.append_data_item(data_item_cropped)
+            data_item_cropped.recompute_data()
             histogram1 = numpy.copy(data_item_cropped.displays[0].get_processed_data("histogram"))
             data_item_cropped.displays[0].get_processor("histogram").recompute_data(None)
             histogram2 = numpy.copy(data_item_cropped.displays[0].get_processed_data("histogram"))

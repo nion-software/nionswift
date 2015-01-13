@@ -110,7 +110,7 @@ class CalibrationList(object):
     the state changes.
 
     Listeners should take care to not call functions which result in cycles of notifications. For instance,
-    listeners should not read the data property (although cached_data is ok) since calling data may trigger
+    listeners should not read the computed_data property (although data is ok) since calling data will trigger
     the data to be computed which will emit data_source_content_changed, resulting in a cycle.
 
     Data items will emit the following notifications to listeners.
@@ -178,7 +178,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *data* an ndarray. see note about accessing data below.
     * *data_shape* an ndarray shape
     * *data_dtype* an ndarray shape
-    * *cached_data* an ndarray. see note about accessing data below.
+    * *computed_data* an ndarray. see note about accessing data below.
 
     and
 
@@ -208,18 +208,15 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
      the data will be unloaded from memory if it is not used somewhere else. The context manager has a
      master_data property to access the data.
 
-    Furthermore, data accessed via the data property will always return the fully computed data. If data
+    Furthermore, data accessed via the computed_data property will always return the fully computed data. If data
      sources are out of date, they will be updated and accessing the data property will not return until
      all data sources have valid data. This can cause lengthy blocks on the calling thread.
-
-    An alternative accessor is cached_data which will return the most recently computed data, which may be
-     None. However, it is guaranteed to not block the calling thread.
 
     *Notifications*
 
     Data items will emit the following notifications to listeners. Listeners should take care to not call
      functions which result in cycles of notifications. For instance, functions handling data_source_content_changed
-     should not read the data property (although cached_data is ok) since calling data may trigger the data
+     should not read the computed_data property (although data is ok) since that will trigger the data
      to be computed which will emit data_source_content_changed, resulting in a cycle.
 
     * data_source_content_changed(data_item, changes)
@@ -391,13 +388,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_item_copy.copy_metadata_from(self)
         # calibrations
         data_item_copy.set_intensity_calibration(self.intensity_calibration)
-        for index in xrange(len(self.spatial_shape)):
-            data_item_copy.set_dimensional_calibration(index, self.dimensional_calibrations[index])
+        if self.spatial_shape:
+            for index in xrange(len(self.spatial_shape)):
+                data_item_copy.set_dimensional_calibration(index, self.dimensional_calibrations[index])
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
         # master data. operation is NOT copied, since this is a snapshot of the data
-        data_item_copy.__set_master_data(numpy.copy(self.data))
+        data = self.data
+        if data is not None:
+            data_item_copy.__set_master_data(numpy.copy(data))
         return data_item_copy
 
     def about_to_be_removed(self):
@@ -669,7 +669,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
         if self.has_master_data and (self.data_range is None or (self.is_data_complex_type and self.data_sample is None)):
-            self.__calculate_data_stats_for_data(self.cached_data)
+            self.__calculate_data_stats_for_data(self.data)
 
     def __calculate_data_stats_for_data(self, data):
         if data is not None and data.size:
@@ -1077,21 +1077,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             master_data = property(__get_master_data, __set_master_data)
             def master_data_updated(self):
                 set_master_data(self.__data_item, get_master_data(self.__data_item))
-            def __get_data(self):
+            @property
+            def data(self):
+                return self.__get_master_data()
+            @property
+            def computed_data(self):
                 self.__data_item.recompute_data()
                 return self.__get_master_data()
-            data = property(__get_data)
         return DataAccessor(self)
 
     @property
     def data(self):
-        """Return the up-to-date data for this data item.
+        """Return the cached data for this data item.
 
-        The data returned from this method will be the latest data and if a computation
-        is in progress it will wait for the computation to complete.
+        The data returned from this method may not be the latest data if a computation
+        is in progress.
 
-        This method may block for a significant amount of time and should be avoided
-        on the main thread.
+        This method will never block and can be called from the main thread.
 
         Multiple calls to access data should be bracketed in a data_ref context to
         avoid loading and unloading from disk."""
@@ -1105,19 +1107,20 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             raise
 
     @property
-    def cached_data(self):
-        """Return the cached data for this data item.
+    def computed_data(self):
+        """Return the up-to-date data for this data item.
 
-        The data returned from this method may not be the latest data if a computation
-        is in progress.
+        The data returned from this method will be the latest data and if a computation
+        is in progress it will wait for the computation to complete.
 
-        This method will never block and can be called from the main thread.
+        This method may block for a significant amount of time and should be avoided
+        on the main thread.
 
         Multiple calls to access data should be bracketed in a data_ref context to
         avoid loading and unloading from disk."""
         try:
             with self.data_ref() as data_ref:
-                return data_ref.master_data
+                return data_ref.computed_data
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -1184,7 +1187,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
             else:
                 if not self.data_dtype.type in dtype_names:
-                    logging.debug("Unknown %s", self.data_dtype)
+                    logging.debug("Unknown dtype %s", self.data_dtype.type)
                 data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
             return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
         return _("No Data")
@@ -1249,7 +1252,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     is_data_complex_type = property(__is_data_complex_type)
 
     def get_data_value(self, pos):
-        data = self.cached_data
+        data = self.data
         if self.is_data_1d:
             if data is not None:
                 return data[pos[0]]

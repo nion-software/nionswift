@@ -234,6 +234,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
         data_item_result = document_controller.add_processing_operation_by_id("invert-operation", crop_region=crop_region)
+        data_item_result.recompute_data()
         self.assertEqual(data_item_result.data_shape, (128, 128))
         self.assertEqual(data_item_result.data_dtype, data_item.data_dtype)
         self.assertAlmostEqual(data_item_result.data[50, 50], -1.0)
@@ -306,6 +307,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
         sum_operation_item = Operation.OperationItem("sum-operation")
         data_item_result = document_controller.add_binary_processing_operation(sum_operation_item, data_item1, data_item2, crop_region1=crop_region1, crop_region2=crop_region2)
+        data_item_result.recompute_data()
         self.assertEqual(data_item_result.data_shape, (128, 128))
         self.assertEqual(data_item_result.data_dtype, numpy.float32)
         self.assertAlmostEqual(data_item_result.data[32, 32], 3.0)
