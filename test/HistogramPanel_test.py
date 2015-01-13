@@ -85,7 +85,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         # verify assumptions
         self.assertEqual(self.histogram_panel.stats1_property.value, str())
         self.assertEqual(self.histogram_panel.stats2_property.value, str())
-        self.data_item.get_processor("statistics").recompute_data(None)
+        self.data_item.maybe_data_source.get_processor("statistics").recompute_data(None)
         stats1_text = self.histogram_panel.stats1_property.value
         stats2_text = self.histogram_panel.stats2_property.value
         self.assertIsNotNone(stats1_text)

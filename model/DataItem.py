@@ -27,12 +27,12 @@ _ = gettext.gettext
 
 class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
-    def __init__(self, data_item):
-        super(StatisticsDataItemProcessor, self).__init__(data_item, "statistics_data")
+    def __init__(self, buffered_data_source):
+        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data")
 
     def get_calculated_data(self, ui, data):
         #logging.debug("Calculating statistics %s", self)
-        assert isinstance(self.item, DataItem)
+        assert isinstance(self.item, BufferedDataSource)
         mean = numpy.mean(data)
         std = numpy.std(data)
         rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
@@ -173,10 +173,15 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__subscription = None
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
+        self.__processors = dict()
+        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_data(data)
 
     def close(self):
+        for processor in self.__processors.values():
+            processor.close()
+        self.__processors = None
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
@@ -243,6 +248,24 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         if self.data_source:
             self.data_source.about_to_be_removed()
 
+    def get_processor(self, processor_id):
+        return self.__processors[processor_id]
+
+    def get_processed_data(self, processor_id):
+        return self.get_processor(processor_id).get_cached_data()
+
+    # called from processors
+    def processor_needs_recompute(self, processor):
+        self.notify_listeners("buffered_data_source_processor_needs_recompute", self, processor)
+
+    # called from processors
+    def processor_data_updated(self, processor):
+        self.notify_listeners("buffered_data_source_processor_data_updated", self, processor)
+
+    @property
+    def data_for_processor(self):
+        return self.data
+
     def remove_region(self, region):
         if self.data_source:
             self.data_source.remove_region(region)
@@ -301,6 +324,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             self.__pending_data = data_and_calibration
             if self.__data_item_manager and not self.__is_recomputing:
                 self.__data_item_manager.dispatch_task(self.recompute_data, "data")
+            for processor in self.__processors.values():
+                processor.mark_data_dirty()
 
     @property
     def ordered_data_item_data_sources(self):
@@ -570,6 +595,15 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         # to pass on the next value.
         if change_count == 0 and changed:
             self.__publisher.notify_next_value(self.data_and_calibration)
+            if not self._is_reading:
+                for processor in self.__processors.values():
+                    processor.mark_data_dirty()
+
+    # override from storage to watch for changes to this data item. notify observers.
+    def notify_set_property(self, key, value):
+        super(BufferedDataSource, self).notify_set_property(key, value)
+        for processor in self.__processors.values():
+            processor.item_property_changed(key, value)
 
     def recompute_data(self):
         """Ensures that the data is synchronized with the sources/operation by recomputing if necessary."""
@@ -835,8 +869,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_manager_lock = threading.RLock()
         self.__dependent_data_item_refs = list()
         self.__dependent_data_item_refs_lock = threading.RLock()
-        self.__processors = dict()
-        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             data_source = BufferedDataSource(data)
             self.append_data_source(data_source)
@@ -877,9 +909,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             region._set_data_item(None)
         for data_source in self.data_sources:
             data_source.close()
-        for processor in self.__processors.values():
-            processor.close()
-        self.__processors = None
 
     def copy_metadata_from(self, data_item):
         self.datetime_original = data_item.datetime_original
@@ -1070,20 +1099,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return dict()
     properties = property(__get_properties)
 
-    def get_processor(self, processor_id):
-        return self.__processors[processor_id]
-
-    def get_processed_data(self, processor_id):
-        return self.get_processor(processor_id).get_cached_data()
-
-    # called from processors
-    def processor_needs_recompute(self, processor):
-        self.notify_listeners("data_item_processor_needs_recompute", self, processor)
-
-    # called from processors
-    def processor_data_updated(self, processor):
-        self.notify_listeners("data_item_processor_data_updated", self, processor)
-
     @property
     def is_live(self):
         """ Return whether this data item represents a live acquisition data item. """
@@ -1171,8 +1186,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # to notify listeners. but only notify listeners if there are actual
         # changes to report.
         if data_item_change_count == 0 and len(changes) > 0:
-            for processor in self.__processors.values():
-                processor.data_item_changed()
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_datetime(self, value):
@@ -1216,18 +1229,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
-
-    @property
-    def data_range(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_range
-        return None
-
-    @property
-    def data_sample(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_sample
-        return None
 
     # date times
 
@@ -1280,8 +1281,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_source.increment_data_ref_count()
         def next_value(data_and_calibration):
             if not self._is_reading:
-                for processor in self.__processors.values():
-                    processor.data_item_changed()
                 self.notify_listeners("data_item_content_changed", self, set([DATA]))
         subscriber = Observable.Subscriber(next_value)
         publisher = data_source.get_data_and_calibration_publisher()
@@ -1472,8 +1471,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
         self.notify_data_item_content_changed(set([METADATA]))
-        for processor in self.__processors.values():
-            processor.item_property_changed(key, value)
 
     # this message comes from the displays.
     # thread safe
@@ -1509,16 +1506,20 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for data_source in self.data_sources:
             data_source.decrement_data_ref_count()
 
-    @property
-    def data_for_processor(self):
-        return self.maybe_data_source.data
+    # notification from buffered_data_source
+    def buffered_data_source_processor_needs_recompute(self, data_item, processor):
+        self.notify_listeners("data_item_processor_needs_recompute", self, processor)
+
+    # notification from buffered_data_source
+    def buffered_data_source_processor_data_updated(self, data_item, processor):
+        self.notify_listeners("data_item_processor_data_updated", self, processor)
 
 
 _computation_fns = list()
 
-def register_data_item_computation(computation_fn):
+def register_computation(computation_fn):
     global _computation_fns
     _computation_fns.append(computation_fn)
 
-def unregister_data_item_computation(self, computation_fn):
+def unregister_computation(self, computation_fn):
     pass

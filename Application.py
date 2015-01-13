@@ -735,11 +735,11 @@ class Application(object):
     def unregister_menu_handler(self, menu_handler):
         self.__menu_handlers.remove(menu_handler)
 
-    def register_data_item_computation(self, computation_fn):
-        DataItem.register_data_item_computation(computation_fn)
+    def register_computation(self, computation_fn):
+        DataItem.register_computation(computation_fn)
 
-    def unregister_data_item_computation(self, computation_fn):
-        DataItem.unregister_data_item_computation(computation_fn)
+    def unregister_computation(self, computation_fn):
+        DataItem.unregister_computation(computation_fn)
 
     def __get_menu_handlers(self):
         return copy.copy(self.__menu_handlers)

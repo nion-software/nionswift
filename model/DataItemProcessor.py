@@ -52,7 +52,7 @@ class DataItemProcessor(object):
         return self.__weak_item() if self.__weak_item else None
 
     # thread safe
-    def data_item_changed(self):
+    def mark_data_dirty(self):
         """ Called from item to indicate its data or metadata has changed."""
         self._set_cached_value_dirty()
 

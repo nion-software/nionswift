@@ -322,7 +322,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             # clear the processor caches
             if not self._is_reading:
                 for processor in self.__processors.values():
-                    processor.data_item_changed()
+                    processor.mark_data_dirty()
 
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)

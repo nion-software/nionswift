@@ -1109,12 +1109,12 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
         document_model.append_data_item(data_item)
-        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
         document_model.recompute_all()
-        data_item.get_processor("statistics").recompute_data(None)
-        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+        data_item.maybe_data_source.get_processor("statistics").recompute_data(None)
+        self.assertFalse(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
         data_item.recompute_data()
-        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+        self.assertFalse(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
 
     def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
         # verify that this works, the more fundamental test is in test_reloading_stale_data_should_still_be_stale
@@ -1140,13 +1140,13 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_statistics_marked_dirty_when_data_changed(self):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
-        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
-        data_item.get_processor("statistics").recompute_data(None)
-        self.assertIsNotNone(data_item.get_processed_data("statistics"))
-        self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
+        data_item.maybe_data_source.get_processor("statistics").recompute_data(None)
+        self.assertIsNotNone(data_item.maybe_data_source.get_processed_data("statistics"))
+        self.assertFalse(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
-        self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item.maybe_data_source.is_cached_value_dirty("statistics_data"))
 
     def test_statistics_marked_dirty_when_source_data_changed(self):
         document_model = DocumentModel.DocumentModel()
@@ -1157,16 +1157,16 @@ class TestDataItemClass(unittest.TestCase):
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
-        data_item_inverted.get_processor("statistics").recompute_data(None)
-        data_item_inverted.get_processed_data("statistics")
+        data_item_inverted.maybe_data_source.get_processor("statistics").recompute_data(None)
+        data_item_inverted.maybe_data_source.get_processed_data("statistics")
         # here the data should be computed and the statistics should not be dirty
-        self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertFalse(data_item_inverted.maybe_data_source.is_cached_value_dirty("statistics_data"))
         # now the source data changes and the inverted data needs computing.
         # the statistics should also be dirty.
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
         data_item_inverted.recompute_data()
-        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item_inverted.maybe_data_source.is_cached_value_dirty("statistics_data"))
 
     def test_statistics_marked_dirty_when_source_data_recomputed(self):
         document_model = DocumentModel.DocumentModel()
@@ -1177,22 +1177,22 @@ class TestDataItemClass(unittest.TestCase):
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
-        data_item_inverted.get_processor("statistics").recompute_data(None)
-        data_item_inverted.get_processed_data("statistics")
+        data_item_inverted.maybe_data_source.get_processor("statistics").recompute_data(None)
+        data_item_inverted.maybe_data_source.get_processed_data("statistics")
         # here the data should be computed and the statistics should not be dirty
-        self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertFalse(data_item_inverted.maybe_data_source.is_cached_value_dirty("statistics_data"))
         # now the source data changes and the inverted data needs computing.
         # the statistics should also be dirty.
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         data_item_inverted.recompute_data()
-        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item_inverted.maybe_data_source.is_cached_value_dirty("statistics_data"))
         # next recompute data, the statistics should be dirty now.
         data_item_inverted.recompute_data()
-        self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
+        self.assertTrue(data_item_inverted.maybe_data_source.is_cached_value_dirty("statistics_data"))
         # get the new statistics and verify they are correct.
-        data_item_inverted.get_processor("statistics").recompute_data(None)
-        good_statistics = data_item_inverted.get_processed_data("statistics")
+        data_item_inverted.maybe_data_source.get_processor("statistics").recompute_data(None)
+        good_statistics = data_item_inverted.maybe_data_source.get_processed_data("statistics")
         self.assertTrue(good_statistics["mean"] == -3.0)
 
     def test_adding_operation_updates_ordered_operations_list(self):
