@@ -78,24 +78,24 @@ class CalibrationList(object):
 
     Data sources should support deep copy.
 
-    *Primary Properties*
+    *Primary Functionality*
 
-    * data_shape_and_dtype
-    * intensity_calibration
-    * dimensional_calibrations
-    * data
-
-    *Derived Properties*
-    * data_shape
-    * data_dtype
-    * ordered_data_item_data_sources
+    Data sources provide a get_data_and_calibration_publisher method to return a publisher of
+    DataAndCalibration objects.
 
     *Secondary Functionality*
 
-    Data sources can only be associated in their operation tree of a single data item. The data source
+    When data sources are about to be removed, they will receive this message.
+
+    about_to_be_removed()
+
+    Data sources can only be associated in the operation tree of a single data item. The data source
     keeps track of that so as to maintain the dependent_data_item list on data items.
 
     set_dependent_data_item(data_item)
+
+    Data sources, particularly operations, may have associated regions. When a region is deleted, it will
+    notify its listeners that it is being removed via this method.
 
     remove_region(region)
 
@@ -103,10 +103,9 @@ class CalibrationList(object):
 
     set_data_item_manager(data_item_manager)
 
-    *Notifications*
+    Data sources should provide a list of child data sources.
 
-    Data sources provide a get_data_and_calibration_publisher method to return a publisher of
-    DataAndCalibration objects.
+    * ordered_data_item_data_sources
 """
 
 
