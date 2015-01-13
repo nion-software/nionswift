@@ -32,15 +32,15 @@ class TestCalibrationClass(unittest.TestCase):
 
     def test_dependent_calibration(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
-        data_item.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
-        self.assertEqual(len(data_item.dimensional_calibrations), 2)
+        data_item.maybe_data_source.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
+        data_item.maybe_data_source.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
+        self.assertEqual(len(data_item.maybe_data_source.dimensional_calibrations), 2)
         data_item_copy = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_copy.set_operation(invert_operation)
         data_item_copy.recompute_data()
-        dimensional_calibrations = data_item_copy.dimensional_calibrations
+        dimensional_calibrations = data_item_copy.maybe_data_source.dimensional_calibrations
         self.assertEqual(len(dimensional_calibrations), 2)
         self.assertEqual(int(dimensional_calibrations[0].offset), 3)
         self.assertEqual(int(dimensional_calibrations[0].scale), 2)
@@ -52,7 +52,7 @@ class TestCalibrationClass(unittest.TestCase):
         fft_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_copy.set_operation(fft_operation)
         data_item_copy.recompute_data()
-        dimensional_calibrations = data_item_copy.dimensional_calibrations
+        dimensional_calibrations = data_item_copy.maybe_data_source.dimensional_calibrations
         self.assertEqual(int(dimensional_calibrations[0].offset), 0)
         self.assertEqual(dimensional_calibrations[0].units, "1/x")
         self.assertEqual(int(dimensional_calibrations[1].offset), 0)
@@ -68,7 +68,7 @@ class TestCalibrationClass(unittest.TestCase):
         operation3 = Operation.OperationItem("resample-operation")
         operation3.add_data_source(Operation.DataItemDataSource(data_item2))
         data_item3.set_operation(operation3)
-        data_item3.dimensional_calibrations
+        data_item3.maybe_data_source.dimensional_calibrations
 
     def test_spatial_calibration_on_rgb(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256, 4), numpy.uint8))
@@ -148,7 +148,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNot(data_item.datetime_modified, data_item_copy.datetime_modified)
         self.assertIsNot(data_item.datetime_original, data_item_copy.datetime_original)
         # make sure calibrations, operations, nor graphics are not shared
-        self.assertNotEqual(data_item.dimensional_calibrations[0], data_item_copy.dimensional_calibrations[0])
+        self.assertNotEqual(data_item.maybe_data_source.dimensional_calibrations[0], data_item_copy.maybe_data_source.dimensional_calibrations[0])
         self.assertNotEqual(data_item.operation, data_item_copy.operation)
         self.assertNotEqual(data_item.displays[0].graphics[0], data_item_copy.displays[0].graphics[0])
 
@@ -336,9 +336,9 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
         map(Listener.reset, listeners)
-        spatial_calibration_0 = data_item.dimensional_calibrations[0]
+        spatial_calibration_0 = data_item.maybe_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 1.0
-        data_item.set_dimensional_calibration(0, spatial_calibration_0)
+        data_item.maybe_data_source.set_dimensional_calibration(0, spatial_calibration_0)
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
@@ -392,9 +392,9 @@ class TestDataItemClass(unittest.TestCase):
         listener = Listener()
         data_item.add_listener(listener)
         data_item.displays[0].add_listener(listener)
-        spatial_calibration_0 = data_item.dimensional_calibrations[0]
+        spatial_calibration_0 = data_item.maybe_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 1.0
-        data_item.set_dimensional_calibration(0, spatial_calibration_0)
+        data_item.maybe_data_source.set_dimensional_calibration(0, spatial_calibration_0)
         self.assertFalse(listener._data_changed)
         self.assertTrue(listener._display_changed)
 
@@ -416,13 +416,13 @@ class TestDataItemClass(unittest.TestCase):
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
-            data_range = data_item.data_range
+            data_range = data_item.maybe_data_source.data_range
             self.assertEqual(data_range, (25, 125))
             # now test complex
             data_ref.master_data = numpy.zeros((256, 256), numpy.complex64)
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-        data_range = data_item.data_range
+        data_range = data_item.maybe_data_source.data_range
         data_min = math.log(math.sqrt(2*2 + 3*3))
         data_max = math.log(math.sqrt(12*12 + 13*13))
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
@@ -1002,7 +1002,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item.maybe_data_source.is_data_stale)
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-        data_item.set_intensity_calibration(Calibration.Calibration())
+        data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration())
         self.assertFalse(data_item.maybe_data_source.is_data_stale)
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale_for_data_item_with_data_source(self):
@@ -1018,7 +1018,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(copied_data_item)
         copied_data_item.recompute_data()
         self.assertFalse(copied_data_item.maybe_data_source.is_data_stale)
-        copied_data_item.set_intensity_calibration(Calibration.Calibration())
+        copied_data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration())
         self.assertFalse(copied_data_item.maybe_data_source.is_data_stale)
 
     def test_adding_operation_should_mark_the_data_as_stale(self):

@@ -1229,43 +1229,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             return self.data_sources[0].data_sample
         return None
 
-    # calibration stuff
-
-    @property
-    def intensity_calibration(self):
-        """ Return the intensity calibration. """
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].intensity_calibration
-        return None
-
-    @property
-    def dimensional_calibrations(self):
-        """ Return the dimensional calibrations as a list. """
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].dimensional_calibrations
-        return None
-
-    def set_intensity_calibration(self, intensity_calibration):
-        """ Set the intensity calibration on the single data source, if any. """
-        if len(self.data_sources) == 1:
-            self.data_sources[0].set_intensity_calibration(intensity_calibration)
-        else:
-            raise AttributeError("intensity_calibration")
-
-    def set_dimensional_calibrations(self, dimensional_calibrations):
-        """ Set the dimensional calibrations. """
-        if len(self.data_sources) == 1:
-            self.data_sources[0].set_dimensional_calibrations(dimensional_calibrations)
-        else:
-            raise AttributeError("dimensional_calibrations")
-
-    def set_dimensional_calibration(self, dimension, dimensional_calibration):
-        dimensional_calibrations = self.dimensional_calibrations
-        while len(dimensional_calibrations) <= dimension:
-            dimensional_calibrations.append(Calibration.Calibration())
-        dimensional_calibrations[dimension] = dimensional_calibration
-        self.set_dimensional_calibrations(dimensional_calibrations)
-
     # date times
 
     def __get_datetime_original_as_string(self):
