@@ -103,9 +103,10 @@ class CalibrationList(object):
 
     set_data_item_manager(data_item_manager)
 
-    Data sources should provide a list of child data sources.
+    Data sources should provide a list of child data sources of important types.
 
     * ordered_data_item_data_sources
+    * ordered_operation_data_sources
 """
 
 
@@ -124,12 +125,468 @@ class DtypeToStringConverter(object):
 
 def data_source_factory(lookup_id):
     type = lookup_id("type")
-    if type == "data-item-data-source":
+    if type == "buffered-data-source":
+        return BufferedDataSource()
+    elif type == "data-item-data-source":
         return Operation.DataItemDataSource()
     elif type == "operation":
         return Operation.operation_item_factory(lookup_id)
     else:
         return None
+
+
+class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
+
+    """
+    A data source that stores the data directly, with optional source data that gets updated as necessary.
+
+    The buffered data source stores data directly. If the optional data_source is present, it will update
+    the stored data when the data_source is updated.
+
+    TODO: snapshot
+    """
+
+    def __init__(self, data=None):
+        super(BufferedDataSource, self).__init__()
+        self.__weak_dependent_data_item = None
+        self.__data_item_manager = None
+        self.__data_item_manager_lock = threading.RLock()
+        self.define_type("buffered-data-source")
+        data_shape = data.shape if data is not None else None
+        data_dtype = data.dtype if data is not None else None
+        self.define_property("data_shape", data_shape)
+        self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
+        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
+        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
+        self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
+        self.__data = None
+        self.__data_lock = threading.RLock()
+        self.__change_count = 0
+        self.__change_count_lock = threading.RLock()
+        self.__change_changed = False
+        self.__recompute_lock = threading.RLock()
+        self.__recompute_allowed = True
+        self.__pending_data = None
+        self.__pending_data_lock = threading.RLock()
+        self.__data_ref_count = 0
+        self.__data_ref_count_mutex = threading.RLock()
+        self.__subscription = None
+        self.__publisher = Observable.Publisher()
+        self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
+        if data is not None:
+            self.__set_data(data)
+
+    def close(self):
+        super(BufferedDataSource, self).close()
+        if self.__subscription:
+            self.__subscription.close()
+        self.__subscription = None
+
+    def __deepcopy__(self, memo):
+        deepcopy = self.__class__()
+        deepcopy.deepcopy_from(self, memo)
+        memo[id(self)] = deepcopy
+        return deepcopy
+
+    def deepcopy_from(self, buffered_data_source, memo):
+        super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
+        self.set_intensity_calibration(buffered_data_source.intensity_calibration)
+        self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
+        if buffered_data_source.data_source:
+            self.set_item("data_source", copy.deepcopy(buffered_data_source.data_source))
+        if buffered_data_source.has_data:
+            self.__set_data(numpy.copy(buffered_data_source.data))
+        else:
+            self.__set_data(None)
+
+    def snapshot(self):
+        """
+            Take a snapshot and return a new buffered data source. A snapshot is a copy of everything
+            except the data and operation which are replaced by new data with the operation
+            applied or "burned in".
+        """
+        buffered_data_source_copy = BufferedDataSource()
+        buffered_data_source_copy.set_intensity_calibration(self.intensity_calibration)
+        buffered_data_source_copy.set_dimensional_calibrations(self.dimensional_calibrations)
+        if self.has_data:
+            buffered_data_source_copy.__set_data(numpy.copy(self.data))
+        return buffered_data_source_copy
+
+    def finish_reading(self):
+        # called when reading is finished. gives the data item a chance to
+        # mark its data as valid.
+        if self.has_data:
+            with self.__pending_data_lock:
+                self.__pending_data = None
+        super(BufferedDataSource, self).finish_reading()
+
+    def set_data_item_manager(self, data_item_manager):
+        with self.__data_item_manager_lock:
+            self.__data_item_manager = data_item_manager
+            if self.data_source:
+                self.data_source.set_data_item_manager(self.__data_item_manager)
+
+    def set_dependent_data_item(self, data_item):
+        self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
+        if self.data_source:
+            self.data_source.set_dependent_data_item(data_item)
+
+    def __get_dependent_data_item(self):
+        return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
+
+    def about_to_be_removed(self):
+        with self.__recompute_lock:
+            self.__recompute_allowed = False
+        if self.data_source:
+            self.data_source.about_to_be_removed()
+
+    def remove_region(self, region):
+        if self.data_source:
+            self.data_source.remove_region(region)
+
+    def request_remove_data_item_because_operation_removed(self, region):
+        """Notification from the data source, if any. Just pass it on."""
+        self.notify_listeners("request_remove_data_item_because_operation_removed", self)
+
+    def __metadata_property_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.__metadata_changed()
+
+    def __metadata_changed(self):
+        self.__notify_next_data_and_calibration()
+
+    def __property_changed(self, name, value):
+        self.notify_set_property(name, value)
+
+    def __notify_next_data_and_calibration(self):
+        """Grab the data_and_calibration from the data item and pass it to subscribers."""
+        with self._changes() as changes:
+            self.__change_changed = True
+
+    def get_data_and_calibration_publisher(self):
+        """Return the data and calibration publisher. This is a required method for data sources."""
+        return self.__publisher
+
+    def set_data_source(self, data_source):
+        self.set_item("data_source", data_source)
+
+    def __data_source_changed(self, name, old_value, new_value):
+        # and about to be removed messages
+        if old_value and not new_value:
+            old_value.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
+        if old_value:
+            # handle listeners/observers
+            old_value.remove_listener(self)
+            old_value.set_dependent_data_item(None)
+            old_value.set_data_item_manager(None)
+        if new_value:
+            # handle listeners/observers
+            new_value.add_listener(self)
+            new_value.set_dependent_data_item(self.__get_dependent_data_item())
+            new_value.set_data_item_manager(self.__data_item_manager)
+            def next_value(data_and_calibration):
+                with self.__pending_data_lock:
+                    self.__pending_data = data_and_calibration
+                self.notify_listeners("buffered_data_source_needs_recompute", self)
+            subscriber = Observable.Subscriber(next_value)
+            publisher = new_value.get_data_and_calibration_publisher()
+            self.__subscription = publisher.subscribex(subscriber)
+
+    @property
+    def ordered_data_item_data_sources(self):
+        if self.data_source:
+            return self.data_source.ordered_data_item_data_sources
+        else:
+            return list()
+
+    @property
+    def ordered_operation_data_sources(self):
+        if self.data_source:
+            return self.data_source.ordered_operation_data_sources
+        else:
+            return list()
+
+    @property
+    def data_and_calibration(self):
+        try:
+            data = self.data
+            data_fn = lambda: data
+            data_shape_and_dtype = self.data_shape_and_dtype
+            intensity_calibration = self.intensity_calibration
+            dimensional_calibrations = self.dimensional_calibrations
+            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
+
+    @property
+    def data_shape_and_dtype(self):
+        if self.has_data:
+            return self.data_shape, self.data_dtype
+        return None
+
+    @property
+    def intensity_calibration(self):
+        if self.has_data:
+            return copy.deepcopy(self._get_managed_property("intensity_calibration"))
+        return None
+
+    @property
+    def dimensional_calibrations(self):
+        try:
+            if self.has_data:
+                return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
+            return list()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
+
+    def set_intensity_calibration(self, calibration):
+        """ Set the intensity calibration. """
+        self._set_managed_property("intensity_calibration", calibration)
+
+    def set_dimensional_calibrations(self, dimensional_calibrations):
+        """ Set the dimensional calibrations. """
+        self._set_managed_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+
+    def set_dimensional_calibration(self, dimension, calibration):
+        dimensional_calibrations = self.dimensional_calibrations
+        while len(dimensional_calibrations) <= dimension:
+            dimensional_calibrations.append(Calibration.Calibration())
+        dimensional_calibrations[dimension] = calibration
+        self.set_dimensional_calibrations(dimensional_calibrations)
+
+    def __sync_dimensional_calibrations(self, ndim):
+        dimensional_calibrations = self.dimensional_calibrations
+        if len(dimensional_calibrations) != ndim:
+            while len(dimensional_calibrations) < ndim:
+                dimensional_calibrations.append(Calibration.Calibration())
+            while len(dimensional_calibrations) > ndim:
+                dimensional_calibrations.remove(dimensional_calibrations[-1])
+            self.set_dimensional_calibrations(dimensional_calibrations)
+
+    def storage_cache_changed(self, storage_cache):
+        # override from Cacheable
+        self.__validate_data_stats()
+
+    def __validate_data_stats(self):
+        """Ensure that data stats are valid after reading."""
+        if self.has_data and (self.data_range is None or (self.is_data_complex_type and self.data_sample is None)):
+            self.__calculate_data_stats_for_data(self.data)
+
+    def __calculate_data_stats_for_data(self, data):
+        if data is not None and data.size:
+            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+                data_range = (0, 255)
+                data_sample = None
+            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
+                scalar_data = Image.scalar_from_array(data)
+                data_range = (scalar_data.min(), scalar_data.max())
+                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
+            else:
+                data_range = (data.min(), data.max())
+                data_sample = None
+        else:
+            data_range = None
+            data_sample = None
+        if data_range is not None:
+            self.set_cached_value("data_range", data_range)
+        else:
+            self.remove_cached_value("data_range")
+        if data_sample is not None:
+            self.set_cached_value("data_sample", data_sample)
+        else:
+            self.remove_cached_value("data_sample")
+
+    @property
+    def data_range(self):
+        return self.get_cached_value("data_range")
+
+    @property
+    def data_sample(self):
+        return self.get_cached_value("data_sample")
+
+    @property
+    def has_data(self):
+        return self.data_shape is not None and self.data_dtype is not None
+
+    def __get_data(self):
+        with self.__data_lock:
+            return self.__data
+
+    def __set_data(self, data):
+        with self._changes():
+            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
+            with self.__data_lock:
+                self.__data = data
+                self.data_shape = data.shape if data is not None else None
+                self.data_dtype = data.dtype if data is not None else None
+                spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
+                self.__sync_dimensional_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
+                self.__calculate_data_stats_for_data(data)
+            # tell the managed object context about it
+            if self.__data is not None:
+                if self.managed_object_context:
+                    self.managed_object_context.rewrite_data_item_data(self, self.__data)
+                self.notify_set_property("data_range", self.data_range)
+                self.notify_set_property("data_sample", self.data_sample)
+            self.__notify_next_data_and_calibration()
+
+    def __load_data(self):
+        # load data from managed object context if data is not already loaded
+        if self.has_data and self.__data is None:
+            if self.managed_object_context:
+                #logging.debug("loading %s", self)
+                self.__data = self.managed_object_context.load_data(self)
+
+    def __unload_data(self):
+        # unload data if possible.
+        # data cannot be unloaded if there is no managed object context.
+        if self.managed_object_context:
+            self.__data = None
+            #logging.debug("unloading %s", self)
+
+    def increment_data_ref_count(self):
+        with self.__data_ref_count_mutex:
+            initial_count = self.__data_ref_count
+            self.__data_ref_count += 1
+            if initial_count == 0:
+                self.__load_data()
+        return initial_count+1
+
+    def decrement_data_ref_count(self):
+        with self.__data_ref_count_mutex:
+            self.__data_ref_count -= 1
+            final_count = self.__data_ref_count
+            if final_count == 0:
+                self.__unload_data()
+        return final_count
+
+    @property
+    def is_data_stale(self):
+        """Return whether the data is currently stale."""
+        return self.__pending_data is not None
+
+    # used for testing
+    @property
+    def is_data_loaded(self):
+        return self.has_data and self.__data is not None
+
+    @property
+    def has_data(self):
+        return self.data_shape is not None and self.data_dtype is not None
+
+    # grab a data reference as a context manager. the object
+    # returned defines data and data properties. reading data
+    # should use the data property. writing data (if allowed) should
+    # assign to the data property.
+    def data_ref(self):
+        get_data = BufferedDataSource.__get_data
+        set_data = BufferedDataSource.__set_data
+        class DataAccessor(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __enter__(self):
+                self.__data_item.increment_data_ref_count()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__data_item.decrement_data_ref_count()
+            @property
+            def data(self):
+                return get_data(self.__data_item)
+            @data.setter
+            def data(self, value):
+                set_data(self.__data_item, value)
+            def data_updated(self):
+                set_data(self.__data_item, get_data(self.__data_item))
+            @property
+            def master_data(self):
+                return get_data(self.__data_item)
+            @data.setter
+            def master_data(self, value):
+                set_data(self.__data_item, value)
+            def master_data_updated(self):
+                set_data(self.__data_item, get_data(self.__data_item))
+        return DataAccessor(self)
+
+    @property
+    def data(self):
+        """Return the cached data for this data item.
+
+        The data returned from this method may not be the latest data if a computation
+        is in progress.
+
+        This method will never block and can be called from the main thread.
+
+        Multiple calls to access data should be bracketed in a data_ref context to
+        avoid loading and unloading from disk."""
+        try:
+            with self.data_ref() as data_ref:
+                return data_ref.data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
+
+    def _changes(self):
+        # return a context manager to batch up a set of changes so that listeners
+        # are only notified after the last change is complete.
+        buffered_data_source = self
+        class ChangeContextManager(object):
+            def __enter__(self):
+                buffered_data_source._begin_changes()
+                return self
+            def __exit__(self, type, value, traceback):
+                buffered_data_source._end_changes()
+        return ChangeContextManager()
+
+    def _begin_changes(self):
+        with self.__change_count_lock:
+            self.__change_count += 1
+
+    def _end_changes(self):
+        with self.__change_count_lock:
+            self.__change_count -= 1
+            change_count = self.__change_count
+            if change_count == 0:
+                changed = self.__change_changed
+                self.__change_changed = False
+        # if the change count is now zero, it means that we're ready
+        # to pass on the next value.
+        if change_count == 0 and changed:
+            self.__publisher.notify_next_value(self.data_and_calibration)
+
+    def recompute_data(self):
+        """Ensures that the data is synchronized with the sources/operation by recomputing if necessary."""
+        with self._changes():
+            with self.__recompute_lock:
+                if self.__recompute_allowed:
+                    with self.__pending_data_lock:  # only one thread should be computing data at once
+                        if self.__pending_data is not None:
+                            self.increment_data_ref_count()  # make sure data is loaded
+                            try:
+                                operation_data = self.__pending_data.data_fn()
+                                if operation_data is not None:
+                                    self.__set_data(operation_data)
+                            finally:
+                                self.decrement_data_ref_count()  # unload data
+                            operation_intensity_calibration = self.__pending_data.intensity_calibration
+                            operation_dimensional_calibrations = self.__pending_data.dimensional_calibrations
+                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                                self.set_intensity_calibration(operation_intensity_calibration)
+                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                    self.set_dimensional_calibration(index, dimensional_calibration)
+                            self.__pending_data = None
+
+    @property
+    def is_data_complex_type(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -251,19 +708,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __init__(self, data=None, item_uuid=None, create_display=True):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.writer_version = 6  # writes this version
+        self.writer_version = 7  # writes this version
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None
-        has_master_data = data is not None
-        master_data_shape = data.shape if has_master_data else None
-        master_data_dtype = data.dtype if has_master_data else None
         current_datetime_item = Utility.get_current_datetime_item()
-        dimensional_calibrations = CalibrationList()
-        self.define_property("master_data_shape", master_data_shape, changed=self.__property_changed)
-        self.define_property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed)
-        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
-        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
         self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)
@@ -272,32 +721,27 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
-        self.define_item("operation", data_source_factory, item_changed=self.__operation_item_changed)
+        self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
+        self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
         self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
-        self.__master_data = None
-        self.__master_data_lock = threading.RLock()
-        self.__recompute_lock = threading.RLock()
-        self.__recompute_allowed = True
-        self.__pending_data = None
-        self.__pending_data_lock = threading.RLock()
-        self.__data_ref_count = 0
-        self.__data_ref_count_mutex = threading.RLock()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
         self.__dependent_data_item_refs = list()
+        self.__dependent_data_item_refs_lock = threading.RLock()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
-            self.__set_master_data(data)
+            data_source = BufferedDataSource(data)
+            self.append_data_source(data_source)
         # create a display if requested
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
@@ -309,27 +753,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_item_copy = DataItem(create_display=False)
         # metadata
         data_item_copy.copy_metadata_from(self)
-        # calibrations
-        data_item_copy.set_intensity_calibration(self.intensity_calibration)
-        data_item_copy.set_dimensional_calibrations(self.dimensional_calibrations)
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
-        # operation
-        if self.operation:
-            data_item_copy.set_operation(copy.deepcopy(self.operation))
-        # data.
-        if self.has_master_data:
-            with self.data_ref() as data_ref:
-                data_item_copy.__set_master_data(numpy.copy(data_ref.master_data))
-        else:
-            data_item_copy.__set_master_data(None)
+        # data sources
+        for data_source in copy.copy(data_item_copy.data_sources):
+            data_item_copy.remove_data_source(data_source)
+        for data_source in self.data_sources:
+            data_item_copy.append_data_source(copy.deepcopy(data_source))
         # the data source connection will be established when this copy is inserted.
         memo[id(self)] = data_item_copy
         return data_item_copy
 
     def close(self):
         """ Optional method to close the data item. """
+        for subscription in self.__subscriptions:
+            subscription.close()
+        self.__subscriptions = list()
         for display in self.displays:
             display.remove_listener(self)
             display._set_data_item(None)
@@ -361,28 +801,22 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_item_copy = DataItem(create_display=False)
         # metadata
         data_item_copy.copy_metadata_from(self)
-        # calibrations
-        data_item_copy.set_intensity_calibration(self.intensity_calibration)
-        if self.spatial_shape:
-            for index in xrange(len(self.spatial_shape)):
-                data_item_copy.set_dimensional_calibration(index, self.dimensional_calibrations[index])
+        # data sources
+        for data_source in copy.copy(data_item_copy.data_sources):
+            data_item_copy.remove_data_source(data_source)
+        for data_source in self.data_sources:
+            data_item_copy.append_data_source(data_source.snapshot())
         # displays
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
-        # master data. operation is NOT copied, since this is a snapshot of the data
-        data = self.data
-        if data is not None:
-            data_item_copy.__set_master_data(numpy.copy(data))
         return data_item_copy
 
     def about_to_be_removed(self):
         """ Tell contained objects that this data item is about to be removed from its container. """
-        with self.__recompute_lock:
-            self.__recompute_allowed = False
         for connection in self.connections:
             connection.about_to_be_removed()
-        if self.operation:
-            self.operation.about_to_be_removed()
+        for data_source in self.data_sources:
+            data_source.about_to_be_removed()
         for region in self.regions:
             region.about_to_be_removed()
         for display in self.displays:
@@ -390,9 +824,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable to update the children that need updating
+        for data_source in self.data_sources:
+            data_source.storage_cache = storage_cache
         for display in self.displays:
             display.storage_cache = storage_cache
-        self.__validate_data_stats()
 
     def _is_cache_delayed(self):
         """ Override from Cacheable base class to indicate when caching is delayed. """
@@ -426,6 +861,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
                 if persistent_storage:
                     persistent_storage.write_delayed = True
+            for data_source in self.data_sources:
+                data_source.increment_data_ref_count()
         for data_item in self.dependent_data_items:
             data_item.begin_transaction(count)
 
@@ -444,6 +881,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if persistent_storage:
                     persistent_storage.write_delayed = False
                 self.managed_object_context.write_data_item(self)
+            for data_source in self.data_sources:
+                data_source.decrement_data_ref_count()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
     def managed_object_context_changed(self):
@@ -466,6 +905,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
         with self.data_item_changes():
+            for data_source in copy.copy(self.data_sources):
+                self.remove_data_source(data_source)
             super(DataItem, self).read_from_dict(properties)
             for key in properties.keys():
                 if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
@@ -480,14 +921,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for key in self.__metadata:
             properties[key] = self.__metadata[key]
         return properties
-
-    def finish_reading(self):
-        # called when reading is finished. gives the data item a chance to
-        # mark its data as valid.
-        if self.has_master_data:
-            with self.__pending_data_lock:
-                self.__pending_data = None
-        super(DataItem, self).finish_reading()
 
     def __get_properties(self):
         """ Used for debugging. """
@@ -641,92 +1074,54 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             with self.__data_item_change_count_lock:
                 self.__data_item_changes.update(changes)
 
-    def __validate_data_stats(self):
-        """Ensure that data stats are valid after reading."""
-        if self.has_master_data and (self.data_range is None or (self.is_data_complex_type and self.data_sample is None)):
-            self.__calculate_data_stats_for_data(self.data)
-
-    def __calculate_data_stats_for_data(self, data):
-        if data is not None and data.size:
-            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
-                data_range = (0, 255)
-                data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
-                scalar_data = Image.scalar_from_array(data)
-                data_range = (scalar_data.min(), scalar_data.max())
-                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
-            else:
-                data_range = (data.min(), data.max())
-                data_sample = None
-        else:
-            data_range = None
-            data_sample = None
-        if data_range is not None:
-            self.set_cached_value("data_range", data_range)
-        else:
-            self.remove_cached_value("data_range")
-        if data_sample is not None:
-            self.set_cached_value("data_sample", data_sample)
-        else:
-            self.remove_cached_value("data_sample")
-
     @property
     def data_range(self):
-        return self.get_cached_value("data_range")
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_range
+        return None
 
     @property
     def data_sample(self):
-        return self.get_cached_value("data_sample")
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_sample
+        return None
 
     # calibration stuff
 
     @property
     def intensity_calibration(self):
         """ Return the intensity calibration. """
-        try:
-            return copy.deepcopy(self._get_managed_property("intensity_calibration"))
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].intensity_calibration
+        return None
 
     @property
     def dimensional_calibrations(self):
         """ Return the dimensional calibrations as a list. """
-        try:
-            return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].dimensional_calibrations
+        return None
 
-    def set_intensity_calibration(self, calibration):
-        """ Set the intenisty calibration. """
-        self._set_managed_property("intensity_calibration", calibration)
+    def set_intensity_calibration(self, intensity_calibration):
+        """ Set the intensity calibration on the single data source, if any. """
+        if len(self.data_sources) == 1:
+            self.data_sources[0].set_intensity_calibration(intensity_calibration)
+        else:
+            raise AttributeError("intensity_calibration")
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
-        self._set_managed_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+        if len(self.data_sources) == 1:
+            self.data_sources[0].set_dimensional_calibrations(dimensional_calibrations)
+        else:
+            raise AttributeError("dimensional_calibrations")
 
-    def set_dimensional_calibration(self, dimension, calibration):
+    def set_dimensional_calibration(self, dimension, dimensional_calibration):
         dimensional_calibrations = self.dimensional_calibrations
         while len(dimensional_calibrations) <= dimension:
             dimensional_calibrations.append(Calibration.Calibration())
-        dimensional_calibrations[dimension] = calibration
+        dimensional_calibrations[dimension] = dimensional_calibration
         self.set_dimensional_calibrations(dimensional_calibrations)
-
-    # call this when data changes. this makes sure that the right number
-    # of dimensional_calibrations exist in this object.
-    def __sync_dimensional_calibrations(self, ndim):
-        dimensional_calibrations = self.dimensional_calibrations
-        if len(dimensional_calibrations) != ndim:
-            while len(dimensional_calibrations) < ndim:
-                dimensional_calibrations.append(Calibration.Calibration())
-            while len(dimensional_calibrations) > ndim:
-                dimensional_calibrations.remove(dimensional_calibrations[-1])
-            self.set_dimensional_calibrations(dimensional_calibrations)
 
     # date times
 
@@ -768,6 +1163,42 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 if self.__metadata_copy is not None:
                     self.__data_item.replace_metadata(self.__name, self.__metadata_copy)
         return MetadataContextManager(self, name)
+
+    def __insert_data_source(self, name, before_index, data_source):
+        data_source.add_listener(self)
+        data_source.set_dependent_data_item(self)
+        data_source.set_data_item_manager(self.__data_item_manager)
+        if self.__transaction_count > 0:
+            data_source.increment_data_ref_count()
+        def next_value(data_and_calibration):
+            if not self._is_reading:
+                for processor in self.__processors.values():
+                    processor.data_item_changed()
+                self.notify_listeners("data_item_content_changed", self, set([DATA]))
+        subscriber = Observable.Subscriber(next_value)
+        publisher = data_source.get_data_and_calibration_publisher()
+        self.__subscriptions.insert(before_index, publisher.subscribex(subscriber))
+        self.notify_data_item_content_changed(set([DATA]))
+
+    def __remove_data_source(self, name, index, data_source):
+        subscription = self.__subscriptions[index]
+        del self.__subscriptions[index]
+        subscription.close()
+        data_source.about_to_be_removed()
+        data_source.remove_listener(self)
+        data_source.set_dependent_data_item(None)
+        data_source.set_data_item_manager(None)
+        if self.__transaction_count > 0:
+            data_source.decrement_data_ref_count()
+
+    def buffered_data_source_needs_recompute(self, data_source):
+        self.notify_listeners("data_item_needs_recompute", self)
+
+    def append_data_source(self, data_source):
+        self.append_item("data_sources", data_source)
+
+    def remove_data_source(self, data_source):
+        self.remove_item("data_sources", data_source)
 
     def __insert_display(self, name, before_index, display):
         # listen
@@ -842,52 +1273,38 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_connection(self, connection):
         self.remove_item("connections", connection)
 
+    @property
+    def operation(self):
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_source
+        return None
+
     def set_operation(self, operation):
-        self.set_item("operation", operation)
+        if len(self.data_sources) == 0:
+            self.append_data_source(BufferedDataSource())
+        if len(self.data_sources) == 1:
+            old_operation = self.data_sources[0].data_source
+            if old_operation is not None:
+                self.notify_remove_item("ordered_operations", old_operation, 0)
+            self.data_sources[0].set_data_source(operation)
+            if operation is not None:
+                self.notify_insert_item("ordered_operations", operation, 0)
+        else:
+            raise AttributeError("operation")
 
     @property
     def ordered_operations(self):
-        if self.operation:
-            return [self.operation]
-        else:
-            return []
+        data_sources = list()
+        for data_source in self.data_sources:
+            data_sources.extend(data_source.ordered_operation_data_sources)
+        return data_sources
 
     @property
     def ordered_data_item_data_sources(self):
-        if self.operation:
-            return self.operation.ordered_data_item_data_sources
-        else:
-            return []
-
-    def __operation_item_changed(self, name, old_value, new_value):
-        # and about to be removed messages
-        if old_value and not new_value:
-            old_value.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
-        if old_value:
-            # generate changed messages (temporary)
-            self.notify_listeners("item_removed", self, "ordered_operations", old_value, 0)
-            # handle listeners/observers
-            old_value.remove_listener(self)
-            old_value.set_dependent_data_item(None)
-            old_value.set_data_item_manager(None)
-        if new_value:
-            # generate changed messages (temporary)
-            self.notify_listeners("item_inserted", self, "ordered_operations", new_value, 0)
-            # handle listeners/observers
-            new_value.set_dependent_data_item(self)
-            new_value.set_data_item_manager(self.__data_item_manager)
-            new_value.add_listener(self)
-            def next_value(data_and_calibration):
-                if not self._is_reading:
-                    with self.__pending_data_lock:
-                        self.__pending_data = data_and_calibration
-                    for processor in self.__processors.values():
-                        processor.data_item_changed()
-                    self.notify_listeners("data_item_needs_recompute", self)
-            subscriber = Observable.Subscriber(next_value)
-            publisher = new_value.get_data_and_calibration_publisher()
-            self.__subscription = publisher.subscribex(subscriber)
-        self.notify_data_item_content_changed(set([DATA]))
+        data_sources = list()
+        for data_source in self.data_sources:
+            data_sources.extend(data_source.ordered_data_item_data_sources)
+        return data_sources
 
     # this message comes from the operation.
     # it is generated when the user deletes a operation graphic.
@@ -905,12 +1322,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """Set the data item manager. May be called from thread."""
         with self.__data_item_manager_lock:
             self.__data_item_manager = data_item_manager
-            if self.operation:
-                self.operation.set_data_item_manager(self.__data_item_manager)
+            for data_source in self.data_sources:
+                data_source.set_data_item_manager(self.__data_item_manager)
 
     # track dependent data items. useful for propagating transaction support.
     def add_dependent_data_item(self, data_item):
-        self.__dependent_data_item_refs.append(weakref.ref(data_item))
+        # add the data item from our list of dependents
+        with self.__dependent_data_item_refs_lock:
+            self.__dependent_data_item_refs.append(weakref.ref(data_item))
+        # when transaction or live count is changed, it will propagate those changes
+        # to dependent items. since we're inserting a new dependent, we need
+        # to compensate for those changes here.
         if self.__transaction_count > 0:
             data_item.begin_transaction(self.__transaction_count)
         if self.__live_count > 0:
@@ -918,14 +1340,24 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # track dependent data items. useful for propagating transaction support.
     def remove_dependent_data_item(self, data_item):
-        self.__dependent_data_item_refs.remove(weakref.ref(data_item))
+        # remove the data item from our list of dependents
+        with self.__dependent_data_item_refs_lock:
+            self.__dependent_data_item_refs.remove(weakref.ref(data_item))
+        # when transaction or live count is changed, it will propagate those changes
+        # to dependent items. since we're removing the dependent completely, we need
+        # to compensate for those changes here.
+        # TODO: is this open to a race condition?
+        # if acquisition is running, live count is being changed regularly on a thread.
+        # if that change occurs after end_live has been called below, but before it's
+        # actually changed within the end_live method, a race condition has occurred.
         if self.__transaction_count > 0:
             data_item.end_transaction(self.__transaction_count)
         if self.__live_count > 0:
             data_item.end_live(self.__live_count)
 
     def __get_dependent_data_items(self):
-        return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
+        with self.__dependent_data_item_refs_lock:
+            return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
     dependent_data_items = property(__get_dependent_data_items)
 
     # override from storage to watch for changes to this data item. notify observers.
@@ -940,191 +1372,89 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
-    def __get_master_data(self):
-        with self.__master_data_lock:
-            return self.__master_data
-    def __set_master_data(self, data):
-        with self.data_item_changes():
-            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            with self.__master_data_lock:
-                self.__master_data = data
-                self.master_data_shape = data.shape if data is not None else None
-                self.master_data_dtype = data.dtype if data is not None else None
-                spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
-                self.__sync_dimensional_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
-                self.__calculate_data_stats_for_data(data)
-            # tell the managed object context about it
-            if self.__master_data is not None:
-                if self.managed_object_context:
-                    self.managed_object_context.rewrite_data_item_data(self, self.__master_data)
-                self.notify_set_property("data_range", self.data_range)
-                self.notify_set_property("data_sample", self.data_sample)
-            self.notify_data_item_content_changed(set([DATA]))
-
-    def __load_master_data(self):
-        # load data from managed object context if data is not already loaded
-        if self.has_master_data and self.__master_data is None:
-            if self.managed_object_context:
-                #logging.debug("loading %s", self)
-                self.__master_data = self.managed_object_context.load_data(self)
-
-    def __unload_master_data(self):
-        # unload data if possible.
-        # data cannot be unloaded if transaction count > 0 or if there is no managed object context.
-        if self.__transaction_count == 0 and self.has_master_data:
-            if self.managed_object_context:
-                self.__master_data = None
-                #logging.debug("unloading %s", self)
-
     def increment_data_ref_count(self):
-        with self.__data_ref_count_mutex:
-            initial_count = self.__data_ref_count
-            self.__data_ref_count += 1
-            if initial_count == 0:
-                self.__load_master_data()
-        return initial_count+1
+        if len(self.data_sources) == 0:
+            self.append_data_source(BufferedDataSource())
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].increment_data_ref_count()
+        raise AttributeError("data_ref_count")
 
     def decrement_data_ref_count(self):
-        with self.__data_ref_count_mutex:
-            self.__data_ref_count -= 1
-            final_count = self.__data_ref_count
-            if final_count == 0:
-                self.__unload_master_data()
-        return final_count
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].decrement_data_ref_count()
+        raise AttributeError("data_ref_count")
 
     @property
     def is_data_stale(self):
         """Return whether the data is currently stale."""
-        return self.__pending_data is not None
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].is_data_stale
+        return False
 
     # used for testing
-    def __is_data_loaded(self):
-        return self.has_master_data and self.__master_data is not None
-    is_data_loaded = property(__is_data_loaded)
+    @property
+    def is_data_loaded(self):
+        """Return whether the data is currently stale."""
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].is_data_loaded
+        return False
 
-    def __get_has_master_data(self):
-        return self.master_data_shape is not None and self.master_data_dtype is not None
-    has_master_data = property(__get_has_master_data)
+    @property
+    def has_master_data(self):
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].has_data
+        return None
 
     # grab a data reference as a context manager. the object
     # returned defines data and master_data properties. reading data
     # should use the data property. writing data (if allowed) should
     # assign to the master_data property.
     def data_ref(self):
-        get_master_data = DataItem.__get_master_data
-        set_master_data = DataItem.__set_master_data
-        class DataAccessor(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __enter__(self):
-                self.__data_item.increment_data_ref_count()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__data_item.decrement_data_ref_count()
-            def __get_master_data(self):
-                return get_master_data(self.__data_item)
-            def __set_master_data(self, data):
-                set_master_data(self.__data_item, data)
-            master_data = property(__get_master_data, __set_master_data)
-            def master_data_updated(self):
-                set_master_data(self.__data_item, get_master_data(self.__data_item))
-            @property
-            def data(self):
-                return self.__get_master_data()
-            @property
-            def computed_data(self):
-                self.__data_item.recompute_data()
-                return self.__get_master_data()
-        return DataAccessor(self)
+        if len(self.data_sources) == 0:
+            self.append_data_source(BufferedDataSource())
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_ref()
+        raise AttributeError("data_ref")
 
     @property
     def data(self):
-        """Return the cached data for this data item.
-
-        The data returned from this method may not be the latest data if a computation
-        is in progress.
-
-        This method will never block and can be called from the main thread.
-
-        Multiple calls to access data should be bracketed in a data_ref context to
-        avoid loading and unloading from disk."""
-        try:
-            with self.data_ref() as data_ref:
-                return data_ref.data
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data
+        return None
 
     @property
     def computed_data(self):
-        """Return the up-to-date data for this data item.
-
-        The data returned from this method will be the latest data and if a computation
-        is in progress it will wait for the computation to complete.
-
-        This method may block for a significant amount of time and should be avoided
-        on the main thread.
-
-        Multiple calls to access data should be bracketed in a data_ref context to
-        avoid loading and unloading from disk."""
-        try:
-            with self.data_ref() as data_ref:
-                return data_ref.computed_data
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].computed_data
+        return None
 
     @property
     def data_and_calibration(self):
-        """Return the cached data and calibration for this data item.
-
-        The data returned from this method may not be the latest data if a computation
-        is in progress.
-
-        This method will never block and can be called from the main thread.
-
-        Multiple calls to access data should be bracketed in a data_ref context to
-        avoid loading and unloading from disk."""
-        data = self.data
-        data_fn = lambda: data
-        data_shape_and_dtype = self.data_shape_and_dtype
-        intensity_calibration = self.intensity_calibration
-        dimensional_calibrations = self.dimensional_calibrations
-        return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_and_calibration
+        return None
 
     def recompute_data(self):
-        """Ensures that the master data is synchronized with the sources/operation by recomputing if necessary."""
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].recompute_data()
 
-        # prevent multiple data changed notifications by surrounding everything in data_item_changes.
-        # if there are no changes, then this will not trigger any notifications. it is important that the
-        # notifications, if any, take place outside of the lock to prevent deadlocks.
-        with self.data_item_changes():
-            with self.__recompute_lock:
-                if self.__recompute_allowed:
-                    with self.__pending_data_lock:  # only one thread should be computing master data at once
-                        if self.__pending_data is not None:
-                            self.increment_data_ref_count()  # make sure master data is loaded
-                            try:
-                                operation_data = self.__pending_data.data_fn()
-                                if operation_data is not None:
-                                    self.__set_master_data(operation_data)
-                            finally:
-                                self.decrement_data_ref_count()  # unload master data
-                            operation_intensity_calibration = self.__pending_data.intensity_calibration
-                            operation_dimensional_calibrations = self.__pending_data.dimensional_calibrations
-                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                                self.set_intensity_calibration(operation_intensity_calibration)
-                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                    self.set_dimensional_calibration(index, dimensional_calibration)
-                            self.__pending_data = None
+    @property
+    def master_data_shape(self):
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_shape
+        return None
+
+    @property
+    def master_data_dtype(self):
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_dtype
+        return None
 
     @property
     def data_shape_and_dtype(self):
-        return self.master_data_shape, self.master_data_dtype
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].data_shape_and_dtype
+        return None
 
     def __get_size_and_data_format_as_string(self):
         spatial_shape = self.spatial_shape

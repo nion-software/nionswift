@@ -394,6 +394,36 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     version = 6
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (operation hierarchy)", reference, version)
+                if version == 6:
+                    # version 6 -> 7 changes data to be cached in the buffered data source object
+                    buffered_data_source_dict = dict()
+                    buffered_data_source_dict["type"] = "buffered-data-source"
+                    buffered_data_source_dict["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                    data_shape = properties.get("master_data_shape")
+                    data_dtype = properties.get("master_data_dtype")
+                    if "intensity_calibration" in properties:
+                        buffered_data_source_dict["intensity_calibration"] = properties["intensity_calibration"]
+                        del properties["intensity_calibration"]
+                    if "dimensional_calibrations" in properties:
+                        buffered_data_source_dict["dimensional_calibrations"] = properties["dimensional_calibrations"]
+                        del properties["dimensional_calibrations"]
+                    if "master_data_shape" in properties:
+                        buffered_data_source_dict["data_shape"] = data_shape
+                        del properties["master_data_shape"]
+                    if "master_data_dtype" in properties:
+                        buffered_data_source_dict["data_dtype"] = data_dtype
+                        del properties["master_data_dtype"]
+                    operation_dict = properties.pop("operation", None)
+                    if operation_dict is not None:
+                        buffered_data_source_dict["data_source"] = operation_dict
+                    if (data_shape is not None and data_dtype is not None) or operation_dict is not None:
+                        properties["data_sources"] = [buffered_data_source_dict]
+                    properties["version"] = 7
+                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 7
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (buffered data sources)", reference, version)
+
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py
                 data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
@@ -424,12 +454,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         self.set_persistent_storage_for_object(data_item, persistent_storage)
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
-        with data_item.data_ref() as data_ref:
-            self.rewrite_data_item_data(data_item, data=data_ref.master_data)
+        self.rewrite_data_item_data(data_item, data=data_item.data)
 
     def rewrite_data_item_data(self, data_item, data):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
-        persistent_storage.update_data(data_item.master_data_shape, data_item.master_data_dtype, data=data)
+        persistent_storage.update_data(data_item.data_shape, data_item.data_dtype, data=data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
@@ -573,6 +602,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.notify_listeners("data_item_deleted", data_item)
         listener_list = self.__data_item_listeners.get(data_item.uuid, list())
         for listener in listener_list:
+            # this should never occur.
             listener.set_data_item(None)
 
     def add_data_item_listener(self, data_item_uuid, listener):

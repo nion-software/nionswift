@@ -9,13 +9,11 @@ import threading
 
 # local libraries
 from nion.swift import Panel
-from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.ui import Binding
 from nion.ui import Converter
 from nion.ui import Observable
-from nion.ui import Process
 
 _ = gettext.gettext
 
@@ -315,16 +313,17 @@ class BoundIntensityCalibration(Observable.Observable):
         METADATA = 2
         if METADATA in changes:
             new_value = self.data_item.intensity_calibration
-            if new_value.offset != self.__cached_value.offset:
-                self.notify_set_property("offset", new_value.offset)
-            if new_value.scale != self.__cached_value.scale:
-                self.notify_set_property("scale", new_value.scale)
-            if new_value.units != self.__cached_value.units:
-                self.notify_set_property("units", new_value.units)
-            self.__cached_value = new_value
+            if new_value is not None:
+                if self.__cached_value is None or new_value.offset != self.__cached_value.offset:
+                    self.notify_set_property("offset", new_value.offset)
+                if self.__cached_value is None or new_value.scale != self.__cached_value.scale:
+                    self.notify_set_property("scale", new_value.scale)
+                if self.__cached_value is None or new_value.units != self.__cached_value.units:
+                    self.notify_set_property("units", new_value.units)
+                self.__cached_value = new_value
 
     def __get_offset(self):
-        return self.__cached_value.offset
+        return self.__cached_value.offset if self.__cached_value else None
     def __set_offset(self, offset):
         intensity_calibration = self.__cached_value
         intensity_calibration.offset = offset
@@ -333,7 +332,7 @@ class BoundIntensityCalibration(Observable.Observable):
     offset = property(__get_offset, __set_offset)
 
     def __get_scale(self):
-        return self.__cached_value.scale
+        return self.__cached_value.scale if self.__cached_value else None
     def __set_scale(self, scale):
         intensity_calibration = self.__cached_value
         intensity_calibration.scale = scale
@@ -342,7 +341,7 @@ class BoundIntensityCalibration(Observable.Observable):
     scale = property(__get_scale, __set_scale)
 
     def __get_units(self):
-        return self.__cached_value.units
+        return self.__cached_value.units if self.__cached_value else None
     def __set_units(self, units):
         intensity_calibration = self.__cached_value
         intensity_calibration.units = units

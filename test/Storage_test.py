@@ -763,8 +763,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
-        self.assertTrue("master_data_shape" in data_item.properties)
-        self.assertTrue("master_data_dtype" in data_item.properties)
+        self.assertTrue("data_shape" in data_item.properties.get("data_sources")[0])
+        self.assertTrue("data_dtype" in data_item.properties.get("data_sources")[0])
         self.assertTrue("uuid" in data_item.properties)
         self.assertTrue("version" in data_item.properties)
 
@@ -1006,7 +1006,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertTrue("uuid" in data_item.properties["displays"][0])
         self.assertTrue("uuid" in data_item.properties["displays"][0]["graphics"][0])
-        self.assertTrue("uuid" in data_item.properties["operation"])
+        self.assertTrue("uuid" in data_item.properties["data_sources"][0]["data_source"])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
@@ -1050,10 +1050,10 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertEqual(len(data_item.operation.region_connections), 1)
         self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
-        self.assertFalse("region_uuid" in data_item.properties["operation"])
+        self.assertFalse("region_uuid" in data_item.properties["data_sources"][0]["data_source"])
 
     def test_data_items_v5_migration(self):
-        # construct v4 data item
+        # construct v5 data item
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         data_item_dict = data_reference_handler.properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
@@ -1073,6 +1073,41 @@ class TestStorageClass(unittest.TestCase):
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         # check it
+        self.assertEqual(len(document_model.data_items), 2)
+        self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
+        self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
+        data_item = document_model.data_items[1]
+        self.assertEqual(data_item.properties["version"], data_item.writer_version)
+        self.assertIsNotNone(data_item.operation)
+        self.assertEqual(len(data_item.operation.data_sources), 1)
+        self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
+        # calibration renaming
+        data_item = document_model.data_items[0]
+        self.assertEqual(len(data_item.dimensional_calibrations), 2)
+        self.assertEqual(data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
+        self.assertEqual(data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+
+    def test_data_items_v6_migration(self):
+        # construct v6 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["uuid"] = str(uuid.uuid4())
+        data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        data_item_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["version"] = 6
+        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_item2_dict = data_reference_handler.properties.setdefault("B", dict())
+        data_item2_dict["uuid"] = str(uuid.uuid4())
+        data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item2_dict["operation"] = {"type": "operation", "operation_id": "invert-operation", "data_sources": [{"type": "data-item-data-source", "data_item_uuid": data_item_dict["uuid"]}]}
+        data_item2_dict["version"] = 6
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # # check it
         self.assertEqual(len(document_model.data_items), 2)
         self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
         self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])

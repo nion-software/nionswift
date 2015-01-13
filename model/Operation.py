@@ -47,11 +47,13 @@ class DataAndCalibration(object):
 
     @property
     def data_shape(self):
-        return self.data_shape_and_dtype[0]
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return data_shape_and_dtype[0] if data_shape_and_dtype is not None else None
 
     @property
     def data_dtype(self):
-        return self.data_shape_and_dtype[1]
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return data_shape_and_dtype[1] if data_shape_and_dtype is not None else None
 
 
 class _UuidToStringConverter(object):
@@ -87,10 +89,15 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             self.__data_item.remove_region(region)
 
     @property
+    def ordered_operation_data_sources(self):
+        return []
+
+    @property
     def ordered_data_item_data_sources(self):
         return [self.data_item]
 
     def set_dependent_data_item(self, data_item):
+        """Set the dependent data item. The dependent data item depends on this data source."""
         dependent_data_item = self.__get_dependent_data_item()
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
         if self.__data_item:
@@ -338,6 +345,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             for subscription in self.__subscriptions:
                 subscription.close()
             self.__subscriptions = list()
+            self.__data_sources_subscription.close()
+            self.__data_sources_subscription = None
             self.__operation_item.remove_observer(self)
             super(OperationItem.OperationPublisher, self).close()
 
@@ -447,6 +456,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             if values.get(property) is None:
                 values[property] = default_values[property]
         return values
+
+    @property
+    def ordered_operation_data_sources(self):
+        data_sources = list()
+        data_sources.append(self)
+        for data_source in self.data_sources:
+            data_sources.extend(data_source.ordered_operation_data_sources)
+        return data_sources
 
     @property
     def ordered_data_item_data_sources(self):
