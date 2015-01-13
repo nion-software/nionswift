@@ -683,13 +683,6 @@ class DocumentController(Observable.Broadcaster):
             return True
         return False
 
-    # sets the selected data item in the data panel and an appropriate image panel.
-    # use this sparingly, and only in response to user requests such as
-    # adding an operation or starting an acquisition.
-    # not thread safe
-    def set_data_item_selection(self, data_item, source_data_item=None):
-        self.notify_listeners("update_data_item_selection", data_item, source_data_item)
-
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):
         operation = Operation.OperationItem(operation_id)
         assert operation is not None
@@ -704,7 +697,6 @@ class DocumentController(Observable.Broadcaster):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         if data_item:
             self.document_model.append_data_item(data_item)
-            self.set_data_item_selection(data_item, source_data_item=source_data_item)
         return data_item
 
     def add_data(self, data, title=None):
@@ -717,7 +709,6 @@ class DocumentController(Observable.Broadcaster):
     def display_data_item(self, data_item, source_data_item=None, select=True):
         self.document_model.append_data_item(data_item)
         if select:
-            self.set_data_item_selection(data_item, source_data_item=source_data_item)
             self.select_data_item_in_data_panel(data_item)
             self.notify_selected_data_item_changed(data_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel

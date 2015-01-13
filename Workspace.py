@@ -566,9 +566,6 @@ class WorkspaceController(object):
         # be careful about binding the parameter. cannot use 'data_item' directly.
         def append_data_item(append_data_item):
             document_model.append_data_item(append_data_item)
-        def activate_data_item(data_item_to_activate):
-            if self.document_controller:
-                self.document_controller.set_data_item_selection(data_item_to_activate)
 
         data_items = {}
 
@@ -620,7 +617,6 @@ class WorkspaceController(object):
                 data_items[channel] = data_item
                 # check to see if its been activated. if not, activate it.
                 if channel_key not in self.__channel_activations:
-                    self.document_controller.queue_main_thread_task(lambda value=data_item: activate_data_item(value))
                     self.__channel_activations.add(channel_key)
 
         return data_items
