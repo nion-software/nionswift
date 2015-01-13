@@ -279,7 +279,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         self.__log_migrations = log_migrations
 
     def read_data_items(self):
-        """ Read data items from the data reference handler and return as a list. Data items will have managed_object_context set upon return. """
+        """
+        Read data items from the data reference handler and return as a list.
+
+        Data items will have managed_object_context set upon return, but caller will need to call finish_reading
+        on each of the data items.
+        """
         data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
         data_items = list()
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
@@ -407,8 +412,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 traceback.print_stack()
         # all sorts of interconnections may occur between data items and other objects.
         # give the data item a chance to mark itself clean after reading all of them in.
-        for data_item in data_items:
-            data_item.finish_reading()
         def sort_by_date_key(data_item):
             return Utility.get_datetime_from_datetime_item(data_item.datetime_original)
         data_items.sort(key=sort_by_date_key)
@@ -471,7 +474,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_property("workspace_uuid", converter=UuidToStringConverter())
         self.session_id = None
         self.start_new_session()
-        self.__is_reading = False
         self.__data_item_listeners = dict()
         self.__read()
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
@@ -480,16 +482,14 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __read(self):
         # first read the items
         self.read_from_dict(self.__library_storage.properties)
-        self.__is_reading = True
-        try:
-            data_items = self.managed_object_context.read_data_items()
-            for index, data_item in enumerate(data_items):
-                self.__data_items.insert(index, data_item)
-                data_item.storage_cache = self.storage_cache
-                data_item.add_listener(self)
-                data_item.set_data_item_manager(self)
-        finally:
-            self.__is_reading = False
+        data_items = self.managed_object_context.read_data_items()
+        for index, data_item in enumerate(data_items):
+            self.__data_items.insert(index, data_item)
+            data_item.storage_cache = self.storage_cache
+            data_item.add_listener(self)
+            data_item.set_data_item_manager(self)
+        for data_item in data_items:
+            data_item.finish_reading()
         # all data items will already have a managed_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
@@ -540,7 +540,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.set_data_item_manager(self)
         listener_list = self.__data_item_listeners.get(data_item.uuid, list())
         for listener in listener_list:
-            listener.set_data_item(data_item, self.__is_reading)
+            listener.set_data_item(data_item)
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
@@ -573,20 +573,20 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.notify_listeners("data_item_deleted", data_item)
         listener_list = self.__data_item_listeners.get(data_item.uuid, list())
         for listener in listener_list:
-            listener.set_data_item(None, False)
+            listener.set_data_item(None)
 
     def add_data_item_listener(self, data_item_uuid, listener):
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
         assert listener not in listener_list
         listener_list.append(listener)
         data_item = self.get_data_item_by_uuid(data_item_uuid)
-        listener.set_data_item(data_item, self.__is_reading)
+        listener.set_data_item(data_item)
 
     def remove_data_item_listener(self, data_item_uuid, listener):
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
         assert listener in listener_list
         listener_list.remove(listener)
-        listener.set_data_item(None, False)
+        listener.set_data_item(None)
 
     def _get_data_item_listeners(self, data_item_uuid):
         """For testing."""

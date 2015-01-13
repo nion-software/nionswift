@@ -902,6 +902,28 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         self.assertFalse(document_model.data_items[1].is_data_stale)
 
+    def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+        document_model.append_data_item(data_item)
+        data_item_cropped = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        data_item_cropped.set_operation(crop_operation)
+        crop_operation.establish_associated_region("crop", data_item)
+        document_model.append_data_item(data_item_cropped)
+        data_item_cropped.recompute_data()
+        self.assertFalse(document_model.data_items[1].is_data_stale)
+        document_model.close()
+        # reload and check inverted data item does not need recompute
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        document_model.recompute_all()  # shouldn't be necessary unless other tests fail
+        document_model.data_items[0].regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
+        self.assertTrue(document_model.data_items[1].is_data_stale)
+        document_model.recompute_all()
+        self.assertEqual(document_model.data_items[1].data_shape, (128, 128))
+
     def test_cropped_data_item_with_region_does_not_need_histogram_recompute_when_reloaded(self):
         # tests caching on display
         current_working_directory = os.getcwd()

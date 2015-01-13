@@ -106,7 +106,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
     def data_item(self):
         return self.__data_item
 
-    def set_data_item(self, data_item, is_reading=False):
+    def set_data_item(self, data_item):
         """Set the actual data item associated with this reference.
 
         This object stores a data_item_uuid. When it is inserted into a container, it will get get a data_item_manager.
@@ -123,8 +123,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             self.__data_item.add_listener(self)
             if dependent_data_item:
                 self.__data_item.add_dependent_data_item(dependent_data_item)
-        if not is_reading:  # notify of changes if a data source was connected
-            self.__notify_next_data_and_calibration()
+        self.__notify_next_data_and_calibration()
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
