@@ -242,7 +242,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # add processing and make sure it appeared
         self.assertEqual(data_panel.data_item, data_item1)
-        inverted_data_item = document_controller.processing_invert()
+        inverted_data_item = document_controller.processing_invert().data_item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         # now make sure data panel shows it as selected
         self.assertEqual(data_panel.data_item, inverted_data_item)

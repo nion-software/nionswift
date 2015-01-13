@@ -398,7 +398,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba2.recompute_data()
         self.image_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item_rgba2)
-        data_item_rgba_copy = self.document_controller.processing_snapshot()
+        data_item_rgba_copy = self.document_controller.processing_snapshot().data_item
         self.assertTrue(data_item_rgba_copy.maybe_data_source.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
@@ -429,18 +429,18 @@ class TestOperationClass(unittest.TestCase):
         # take snapshot
         self.image_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item2)
-        data_item_copy = self.document_controller.processing_snapshot()
+        buffered_data_source = self.document_controller.processing_snapshot().buffered_data_source
         # check calibrations
-        self.assertEqual(len(data_item_copy.maybe_data_source.dimensional_calibrations), 2)
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[0].scale, 2.0)
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[0].offset, 5.0)
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[0].units, u"nm")
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[1].scale, 2.0)
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[1].offset, 5.0)
-        self.assertEqual(data_item_copy.maybe_data_source.dimensional_calibrations[1].units, u"nm")
-        self.assertEqual(data_item_copy.maybe_data_source.intensity_calibration.scale, 2.5)
-        self.assertEqual(data_item_copy.maybe_data_source.intensity_calibration.offset, 7.5)
-        self.assertEqual(data_item_copy.maybe_data_source.intensity_calibration.units, u"ll")
+        self.assertEqual(len(buffered_data_source.dimensional_calibrations), 2)
+        self.assertEqual(buffered_data_source.dimensional_calibrations[0].scale, 2.0)
+        self.assertEqual(buffered_data_source.dimensional_calibrations[0].offset, 5.0)
+        self.assertEqual(buffered_data_source.dimensional_calibrations[0].units, u"nm")
+        self.assertEqual(buffered_data_source.dimensional_calibrations[1].scale, 2.0)
+        self.assertEqual(buffered_data_source.dimensional_calibrations[1].offset, 5.0)
+        self.assertEqual(buffered_data_source.dimensional_calibrations[1].units, u"nm")
+        self.assertEqual(buffered_data_source.intensity_calibration.scale, 2.5)
+        self.assertEqual(buffered_data_source.intensity_calibration.offset, 7.5)
+        self.assertEqual(buffered_data_source.intensity_calibration.units, u"ll")
 
     def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
@@ -500,7 +500,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
-        data_item.add_region(crop_region)
+        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         crop_operation.add_data_source(data_item._create_test_data_source())
         crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
         data_item2.set_operation(crop_operation)
@@ -614,7 +614,7 @@ class TestOperationClass(unittest.TestCase):
         crop_data_item = DataItem.DataItem()
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
-        data_item.add_region(crop_region)
+        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
         crop_operation.add_data_source(data_item._create_test_data_source())
         crop_data_item.set_operation(crop_operation)

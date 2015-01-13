@@ -55,10 +55,11 @@ class TestStorageClass(unittest.TestCase):
         data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         with data_item.open_metadata("test") as metadata:
             metadata["one"] = 1
-        data_item.add_region(Region.PointRegion())
-        data_item.add_region(Region.LineRegion())
-        data_item.add_region(Region.RectRegion())
-        data_item.add_region(Region.EllipseRegion())
+        buffered_data_source = DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source
+        buffered_data_source.add_region(Region.PointRegion())
+        buffered_data_source.add_region(Region.LineRegion())
+        buffered_data_source.add_region(Region.RectRegion())
+        buffered_data_source.add_region(Region.EllipseRegion())
         document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
@@ -750,7 +751,7 @@ class TestStorageClass(unittest.TestCase):
         point_region = Region.PointRegion()
         point_region.position = (0.6, 0.4)
         point_region_uuid = point_region.uuid
-        data_item.add_region(point_region)
+        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(point_region)
         document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -879,11 +880,11 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         crop_region = Region.RectRegion()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        data_item.add_region(crop_region)
+        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
-        document_controller.add_processing_operation(operation, crop_region=crop_region)
+        document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
         document_model.close()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))

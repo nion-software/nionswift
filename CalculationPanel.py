@@ -46,7 +46,9 @@ class CalculationPanel(Panel.Panel):
             if data_node:
                 data = data_node.data
                 if data is not None:
-                    self.document_controller.display_data_item(DataItem.DataItem(data))
+                    data_item = DataItem.DataItem(data)
+                    self.document_controller.document_model.append_data_item(data_item)
+                    self.document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
                     logging.info("Calculated %s", line_edit.text)
                 else:
                     scalar = data_node.scalar if data_node else None

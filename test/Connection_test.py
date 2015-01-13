@@ -33,7 +33,7 @@ class TestConnectionClass(unittest.TestCase):
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
         interval = Region.IntervalRegion()
-        data_item_1d.add_region(interval)
+        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
         connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         # test to see if connection updates target when source changes
@@ -48,7 +48,7 @@ class TestConnectionClass(unittest.TestCase):
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
         interval = Region.IntervalRegion()
-        data_item_1d.add_region(interval)
+        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
         connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         # test to see if connection updates target when source changes
@@ -65,7 +65,7 @@ class TestConnectionClass(unittest.TestCase):
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
         interval = Region.IntervalRegion()
-        data_item_1d.add_region(interval)
+        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
         connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         document_controller.close()

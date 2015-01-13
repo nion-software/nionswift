@@ -118,7 +118,7 @@ class TestImagePanelClass(unittest.TestCase):
     def test_deleting_data_item_with_processed_data_item_removes_processed_data_item_from_image_panel(self):
         self.assertEqual(self.image_panel.display_specifier.data_item, self.document_model.data_items[0])
         self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
-        inverted_data_item = self.document_controller.processing_invert()
+        inverted_data_item = self.document_controller.processing_invert().data_item
         self.document_controller.periodic()
         self.image_panel.set_displayed_data_item(inverted_data_item)
         self.assertEqual(self.image_panel.display_specifier.data_item, inverted_data_item)
@@ -751,7 +751,7 @@ class TestImagePanelClass(unittest.TestCase):
         region = Region.IntervalRegion()
         region.start = 0.3
         region.end = 0.4
-        line_plot_data_item.add_region(region)
+        DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 0)
         # do the click
@@ -769,7 +769,7 @@ class TestImagePanelClass(unittest.TestCase):
         region = Region.IntervalRegion()
         region.start = 0.3
         region.end = 0.4
-        line_plot_data_item.add_region(region)
+        DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 0)
         # do the first click to select
@@ -792,7 +792,7 @@ class TestImagePanelClass(unittest.TestCase):
         region = Region.IntervalRegion()
         region.start = 0.3
         region.end = 0.4
-        line_plot_data_item.add_region(region)
+        DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         # select, then click drag
         modifiers = Test.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
@@ -813,7 +813,7 @@ class TestImagePanelClass(unittest.TestCase):
         region = Region.IntervalRegion()
         region.start = 0.3
         region.end = 0.4
-        line_plot_data_item.add_region(region)
+        DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         # select, then click drag
         modifiers = Test.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
@@ -857,7 +857,7 @@ class TestImagePanelClass(unittest.TestCase):
         region = Region.IntervalRegion()
         region.start = 0.3
         region.end = 0.4
-        line_plot_data_item.add_region(region)
+        DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         line_plot_data_item.displays[0].graphic_selection.set(0)
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_data_item.maybe_data_source.regions), 1)

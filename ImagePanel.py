@@ -347,9 +347,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.line_graph_background_canvas_item)
 
         # thread for drawing
-        self.__data_item = None
-        self.__buffered_data_source = None
-        self.__display = None
+        self.__display_specifier = DataItem.DisplaySpecifier()
         self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
         self.__prepare_data_thread.start()
 
@@ -386,29 +384,27 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
     def __get_display(self):
-        return self.__display
+        return self.__display_specifier.display
     display = property(__get_display)
 
     def update_display(self, display_specifier):
         """ Update the display (model) associated with this canvas item. """
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
         # first take care of listeners and update the __display field
-        old_display = self.__display
+        old_display = self.__display_specifier.display
         if old_display and display != old_display:
             old_display.remove_listener(self)
-        self.__data_item = data_item
-        self.__buffered_data_source = buffered_data_source
-        self.__display = display
+        self.__display_specifier = copy.copy(display_specifier)
         if display and display != old_display:
             display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
-        if self.__display is None:
+        if self.__display_specifier.display is None:
             # handle case where display is empty
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
             self.line_graph_regions_canvas_item.regions = list()
         else:
-            self.display_graphic_selection_changed(self.__display, self.__display.graphic_selection)
+            self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -433,7 +429,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         def convert_to_calibrated_value_str(f):
             return (u"{0:0." + u"{0:d}".format(precision+2) + "f}").format(f)
 
-        for graphic_index, graphic in enumerate(self.__display.drawn_graphics):
+        for graphic_index, graphic in enumerate(self.__display_specifier.display.drawn_graphics):
             graphic_start, graphic_end = graphic.start, graphic.end
             graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
             left_channel = graphic_start * data_length
@@ -451,7 +447,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     # data is calculated and then sent to the line graph canvas items.
     def prepare_display_on_thread(self):
 
-        display = self.__display
+        display = self.__display_specifier.display
 
         if display:
 
@@ -564,11 +560,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
         pos = Geometry.IntPoint(x=x, y=y)
-        data_item = self.__data_item
-        display = self.__display
+        display = self.__display_specifier.display
         if not display:
             return False
-        self.delegate.document_controller.document_model.begin_data_item_transaction(data_item)
+        self.delegate.document_controller.document_model.begin_data_item_transaction(self.__display_specifier.data_item)
         if self.delegate.image_panel_get_tool_mode() == "pointer":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
@@ -588,7 +583,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                     region = Region.IntervalRegion()
                     region.start = x
                     region.end = x
-                    data_item.add_region(region)  # this will also make a drawn graphic
+                    self.__display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
                     # hack to select it. it will be the last item.
                     display.graphic_selection.set(len(display.drawn_graphics) - 1)
                     self.begin_tracking_regions(pos, Graphics.NullModifiers())
@@ -599,8 +594,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_released(x, y, modifiers):
             return True
         self.end_tracking(modifiers)
-        data_item = self.__data_item
-        display = self.__display
+        data_item = self.__display_specifier.data_item
+        display = self.__display_specifier.display
         if display:
             self.delegate.document_controller.document_model.end_data_item_transaction(data_item)
         return False
@@ -638,12 +633,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return self.delegate.image_panel_key_pressed(key)
 
     def reset_horizontal(self):
-        self.__display.left_channel = None
-        self.__display.right_channel = None
+        self.__display_specifier.display.left_channel = None
+        self.__display_specifier.display.right_channel = None
 
     def reset_vertical(self):
-        self.__display.y_min = None
-        self.__display.y_max = None
+        self.__display_specifier.display.y_min = None
+        self.__display_specifier.display.y_max = None
 
     def __get_mouse_mapping(self):
         data_size = self.__get_data_size()
@@ -730,7 +725,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
             if self.graphic_drag_items:
-                with self.__data_item.data_item_changes():
+                with self.__display_specifier.data_item.data_item_changes():
                     for graphic in self.graphic_drag_items:
                         index = self.display.drawn_graphics.index(graphic)
                         part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
@@ -745,12 +740,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 pixel_offset_x = pos.x - self.__tracking_start_pos.x
                 scaling = math.pow(10, pixel_offset_x/96.0)  # 10x per inch of travel, assume 96dpi
                 new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
-                self.__display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
-                self.__display.right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
+                self.__display_specifier.display.left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
+                self.__display_specifier.display.right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
             else:
                 delta = pos - self.__tracking_start_pos
-                self.__display.left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
-                self.__display.right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
+                self.__display_specifier.display.left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
+                self.__display_specifier.display.right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
                 return True
         elif self.__tracking_vertical:
             if self.__tracking_rescale:
@@ -763,15 +758,15 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 new_drawn_data_per_pixel = data_offset / pixel_offset
                 data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * self.__tracking_start_origin_y
                 data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                self.__display.y_min = data_min
-                self.__display.y_max = data_max
+                self.__display_specifier.display.y_min = data_min
+                self.__display_specifier.display.y_max = data_max
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
                 data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
                 data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
-                self.__display.y_min = data_min
-                self.__display.y_max = data_max
+                self.__display_specifier.display.y_min = data_min
+                self.__display_specifier.display.y_max = data_max
                 return True
         return False
 
@@ -861,9 +856,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.info_overlay_canvas_item)
 
         # thread for drawing
-        self.__data_item = None
-        self.__buffered_data_source = None
-        self.__display = None
+        self.__display_specifier = DataItem.DisplaySpecifier()
         self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
         self.__prepare_data_thread.start()
 
@@ -900,23 +893,21 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     @property
     def display(self):
-        return self.__display
+        return self.__display_specifier.display
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
     def update_display(self, display_specifier):
         # first take care of listeners and update the __display field
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
-        old_display = self.__display
+        old_display = self.__display_specifier.display
         if old_display and display != old_display:
             old_display.remove_listener(self)
-        self.__data_item = data_item
-        self.__buffered_data_source = buffered_data_source
-        self.__display = display
+        self.__display_specifier = copy.copy(display_specifier)
         if display and display != old_display:
             display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
-        if self.__display is None:
+        if self.__display_specifier.display is None:
             self.bitmap_canvas_item.rgba_bitmap_data = None
             self.bitmap_canvas_item.update()
             self.graphics_canvas_item.display = None
@@ -925,7 +916,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
         else:
-            self.display_graphic_selection_changed(self.__display, self.__display.graphic_selection)
+            self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -1039,8 +1030,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
-        data_item = self.__data_item
-        display = self.__display
+        data_item = self.__display_specifier.data_item
+        display = self.__display_specifier.display
         if not display:
             return False
         self.delegate.document_controller.document_model.begin_data_item_transaction(data_item)
@@ -1091,8 +1082,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        data_item = self.__data_item
-        display = self.__display
+        data_item = self.__display_specifier.data_item
+        display = self.__display_specifier.display
         if display:
             drawn_graphics = display.drawn_graphics
             for index in self.graphic_drag_indexes:
@@ -1141,7 +1132,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.graphic_drag_items:
-            with self.__data_item.data_item_changes():
+            with self.__display_specifier.data_item.data_item_changes():
                 for graphic in self.graphic_drag_items:
                     index = self.display.drawn_graphics.index(graphic)
                     part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
@@ -1293,8 +1284,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # data is calculated and then sent to the image canvas item.
     def prepare_display_on_thread(self):
 
-        data_item = self.__data_item
-        display = self.__display
+        data_item = self.__display_specifier.data_item
+        display = self.__display_specifier.display
 
         if display:
             # grab the data item too
