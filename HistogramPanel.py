@@ -351,6 +351,7 @@ class HistogramPanel(Panel.Panel):
     def __set_display(self, display):
         # typically could be updated from an acquisition thread and a
         # focus changed thread (why?).
+        assert not display or display.buffered_data_source
         with self.__display_lock:
             if self.__display:
                 self.__display.remove_listener(self)

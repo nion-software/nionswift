@@ -87,10 +87,6 @@ class DataItemProcessor(object):
         """Subclasses can override to return default data."""
         return None
 
-    def get_data_item(self):
-        """Subclasses must implement to return the data item associated with the item."""
-        raise NotImplementedError()
-
     @property
     def is_data_stale(self):
         """Return whether the data is stale."""
@@ -134,8 +130,7 @@ class DataItemProcessor(object):
         with self.__recompute_lock:
             if self.__cached_value_dirty:
                 item = self.item  # hold a reference in case it gets closed during execution of this method
-                data_item = self.get_data_item()
-                data = data_item.data  # grab the most up to date data
+                data = item.data_for_processor  # grab the most up to date data
                 if data is not None:  # for data to load and make sure it has data
                     try:
                         calculated_data = self.get_calculated_data(ui, data)

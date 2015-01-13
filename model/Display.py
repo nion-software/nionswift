@@ -148,7 +148,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     @property
     def buffered_data_source(self):
-        return self.data_item.data_sources[0]
+        return self.data_item.data_sources[0] if self.data_item and len(self.data_item.data_sources) > 0 else None
+
+    @property
+    def data_for_processor(self):
+        return self.buffered_data_source.data
 
     # called from data item when added/removed.
     def _set_data_item(self, data_item):
@@ -248,10 +252,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     slice_interval = property(__get_slice_interval, __set_slice_interval)
 
     def __slice_interval_changed(self, name, value):
+        # notify for dependent slice_interval property
         self.__property_changed(name, value)
         self.notify_set_property("slice_interval", self.slice_interval)
 
     def __property_changed(self, property_name, value):
+        # when one of the defined properties changes, this gets called
         self.notify_set_property(property_name, value)
         self.__preview_data = None
         self.__preview = None
@@ -275,9 +281,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.data_item.data_sample if self.data_item else None
 
     def __get_display_range(self):
-        data_range = self.data_range
         if self.display_limits:
             return self.display_limits
+        data_range = self.data_range
         if self.data_item and self.data_item.is_data_complex_type:
             data_sample = self.data_item.data_sample
             if data_sample is not None:
@@ -291,13 +297,13 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             return self.display_limits if self.display_limits else data_range
     def __set_display_range(self, display_range):
         self.display_limits = display_range
-    # TODO: this is only valid after data has been called (!)
     # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
     display_range = property(__get_display_range, __set_display_range)
 
     # message sent from data_item or graphics. established using add/remove observer.
+    # watch for changes to data_range or data_sample and notify dependent property display_range
     def property_changed(self, object, property, value):
-        if property == "data_range":
+        if property == "data_range" or property == "data_sample":
             self.__preview_data = None
             self.__preview = None
             self.notify_set_property(property, value)
@@ -425,9 +431,6 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             histogram_data = histogram_data / float(histogram_max)
         return histogram_data
 
-    def get_data_item(self):
-        return self.item.data_item
-
 
 class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
@@ -438,6 +441,7 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def get_calculated_data(self, ui, data):
         thumbnail_data = None
+        assert isinstance(self.item, Display)
         if Image.is_data_1d(data):
             thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
         elif Image.is_data_2d(data):
@@ -453,9 +457,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def get_default_data(self):
         return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
-
-    def get_data_item(self):
-        return self.item.data_item
 
     def __get_thumbnail_1d_data(self, ui, data, height, width):
         assert data is not None

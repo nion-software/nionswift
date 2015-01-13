@@ -32,6 +32,7 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def get_calculated_data(self, ui, data):
         #logging.debug("Calculating statistics %s", self)
+        assert isinstance(self.item, DataItem)
         mean = numpy.mean(data)
         std = numpy.std(data)
         rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
@@ -47,9 +48,6 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def get_default_data(self):
         return { }
-
-    def get_data_item(self):
-        return self.item
 
 
 class CalibrationList(object):
@@ -75,7 +73,7 @@ class CalibrationList(object):
 """
     Data sources are interfaces to get data and metadata.
 
-    Data sources should support deep copy.
+    Data sources should support deep copy. They are never shared (i.e. they only occur once in the model).
 
     *Primary Functionality*
 
@@ -145,8 +143,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     The buffered data source stores data directly. If the optional data_source is present, it will update
     the stored data when the data_source is updated.
-
-    TODO: snapshot
     """
 
     def __init__(self, data=None):
@@ -604,6 +600,49 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
                             self.__data_item_manager.dispatch_task(self.recompute_data, "data")
 
     @property
+    def dimensional_shape(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        if data_shape_and_dtype is not None:
+            data_shape, data_dtype = self.data_shape_and_dtype
+            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+        return None
+
+    @property
+    def is_data_1d(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
+    def is_data_2d(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
+    def is_data_3d(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
+    def is_data_rgb(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
+    def is_data_rgba(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_rgba(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
+    def is_data_rgb_type(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return (Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) or Image.is_shape_and_dtype_rgba(*data_shape_and_dtype)) if data_shape_and_dtype else False
+
+    @property
+    def is_data_scalar_type(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        return Image.is_shape_and_dtype_scalar_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    @property
     def is_data_complex_type(self):
         data_shape_and_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
@@ -789,6 +828,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             display.remove_listener(self)
             display._set_data_item(None)
             display.close()
+        for region in self.regions:
+            region.remove_listener(self)
+            region._set_data_item(None)
         for data_source in self.data_sources:
             data_source.close()
         for processor in self.__processors.values():
@@ -1486,6 +1528,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if len(self.data_sources) == 1:
             return self.data_sources[0].computed_data
         return None
+
+    @property
+    def data_for_processor(self):
+        return self.data
 
     @property
     def data_and_calibration(self):

@@ -1131,5 +1131,4 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     # it is established using add_listener
     def data_item_content_changed(self, data_item, changes):
         if data_item == self.data_item:
-            assert data_item == self.data_item
             self.display_changed(self.display)

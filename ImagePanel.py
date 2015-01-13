@@ -245,7 +245,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
-            calibrations = display.data_item.dimensional_calibrations
+            calibrations = display.buffered_data_source.dimensional_calibrations
             if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
@@ -415,9 +415,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # this message will come directly from the display when the graphic selection changes
         regions = list()
         display = self.display
-        data_item = display.data_item
-        data_length = data_item.spatial_shape[0]
-        spatial_calibration = data_item.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
+        buffered_data_source = display.buffered_data_source
+        data_length = buffered_data_source.dimensional_shape[0]
+        spatial_calibration = buffered_data_source.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = spatial_calibration.convert_to_calibrated_value(0)
         calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
@@ -449,14 +449,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if display:
 
             # grab the data item
-            data_item = display.data_item
+            buffered_data_source = display.buffered_data_source
 
             # make sure we have the correct data
             assert display is not None
-            assert data_item.is_data_1d
+            assert buffered_data_source.is_data_1d
 
             # grab the data values
-            data = data_item.data
+            data = buffered_data_source.data
 
             if data is not None:
                 # make sure complex becomes scalar
@@ -475,8 +475,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_channel = left_channel if left_channel is not None else 0
                 right_channel = right_channel if right_channel is not None else data.shape[0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_item.dimensional_calibrations[0] if display.display_calibrated_values else None
-                intensity_calibration = data_item.intensity_calibration if display.display_calibrated_values else None
+                dimensional_calibration = buffered_data_source.dimensional_calibrations[0] if display.display_calibrated_values else None
+                intensity_calibration = buffered_data_source.intensity_calibration if display.display_calibrated_values else None
                 data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
                                                                   dimensional_calibration, intensity_calibration)
             else:

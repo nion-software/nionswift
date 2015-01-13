@@ -74,7 +74,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
         if self.__display:
-            self.__display_inspector = DataItemInspector(self.ui, self.__display)
+            self.__display_inspector = DataItemInspector(self.ui, self.__display.data_item, self.__display)
             self.column.add(self.__display_inspector.widget)
 
     # not thread safe
@@ -547,13 +547,13 @@ class SliceInspectorSection(InspectorSection):
     def __init__(self, ui, display):
         super(SliceInspectorSection, self).__init__(ui, _("Display"))
 
-        data_item = display.data_item
+        buffered_data_source = display.buffered_data_source
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
         slice_center_line_edit_widget = self.ui.create_line_edit_widget()
         slice_center_slider_widget = self.ui.create_slider_widget()
-        slice_center_slider_widget.maximum = data_item.spatial_shape[0] - 1
+        slice_center_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1
         slice_center_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_center"))
         slice_center_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_center", converter=Converter.IntegerToStringConverter()))
         slice_center_row_widget.add(slice_center_label_widget)
@@ -567,7 +567,7 @@ class SliceInspectorSection(InspectorSection):
         slice_width_label_widget = self.ui.create_label_widget(_("Slice"))
         slice_width_line_edit_widget = self.ui.create_line_edit_widget()
         slice_width_slider_widget = self.ui.create_slider_widget()
-        slice_width_slider_widget.maximum = data_item.spatial_shape[0] - 1
+        slice_width_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1
         slice_width_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_width"))
         slice_width_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_width", converter=Converter.IntegerToStringConverter()))
         slice_width_row_widget.add(slice_width_label_widget)
@@ -590,10 +590,10 @@ class CalibratedValueFloatToStringConverter(object):
         self.__index = index
         self.__data_size = data_size
     def convert(self, value):
-        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
+        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
-        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
+        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -606,10 +606,10 @@ class CalibratedSizeFloatToStringConverter(object):
         self.__index = index
         self.__data_size = data_size
     def convert(self, size):
-        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
+        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
-        calibration = self.__display.data_item.dimensional_calibrations[self.__index]
+        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -780,10 +780,10 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, data_item, display):
+    def __init__(self, ui, display):
         super(GraphicsInspectorSection, self).__init__(ui, _("Graphics"))
-        self.__image_size = data_item.spatial_shape
-        self.__calibrations = data_item.dimensional_calibrations
+        self.__image_size = display.buffered_data_source.dimensional_shape
+        self.__calibrations = display.buffered_data_source.dimensional_calibrations
         self.__graphics = display.drawn_graphics
         self.__display = display
         # ui
@@ -937,10 +937,10 @@ class OperationsInspectorSection(InspectorSection):
 
 class DataItemInspector(object):
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, data_item, display):
         self.ui = ui
 
-        data_item = display.data_item
+        buffered_data_source = display.buffered_data_source
 
         self.__inspectors = list()
         content_widget = self.ui.create_column_widget()
@@ -948,14 +948,14 @@ class DataItemInspector(object):
 
         self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
         self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
-        if data_item.is_data_1d:
+        if buffered_data_source and buffered_data_source.is_data_1d:
             self.__inspectors.append(LinePlotInspectorSection(self.ui, display))
-        elif data_item.is_data_2d:
+        elif buffered_data_source and buffered_data_source.is_data_2d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
-        elif data_item.is_data_3d:
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, display))
+        elif buffered_data_source and buffered_data_source.is_data_3d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, display))
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, display))
             self.__inspectors.append(SliceInspectorSection(self.ui, display))
         self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
 

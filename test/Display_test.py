@@ -1,5 +1,5 @@
 # standard libraries
-import threading
+import logging
 import unittest
 
 # third party libraries
@@ -61,6 +61,39 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
         display = data_item.displays[0]
         self.assertIsNotNone(display.preview_2d_data)
+
+    def test_changing_data_updates_display_range(self):
+        irow, icol = numpy.ogrid[0:16, 0:16]
+        data_item = DataItem.DataItem(icol, numpy.uint32)
+        display = data_item.displays[0]
+        self.assertEqual(display.display_range, (0, 15))
+        self.assertEqual(display.data_range, (0, 15))
+        with data_item.data_ref() as dr:
+            dr.data = irow / 2 + 4
+        self.assertEqual(display.display_range, (4, 11))
+        self.assertEqual(display.data_range, (4, 11))
+
+    def test_changing_data_notifies_data_and_display_range_change(self):
+        # this is used to update the inspector
+        irow, icol = numpy.ogrid[0:16, 0:16]
+        data_item = DataItem.DataItem(icol, numpy.uint32)
+        display = data_item.displays[0]
+        class Observer(object):
+            def __init__(self):
+                self.data_range = None
+                self.display_range = None
+            def property_changed(self, object, property, value):
+                if property == "display_range":
+                    self.display_range = value
+                if property == "data_range":
+                    self.data_range = value
+        o = Observer()
+        display.add_observer(o)
+        with data_item.data_ref() as dr:
+            dr.data = irow / 2 + 4
+        self.assertEqual(o.data_range, (4, 11))
+        self.assertEqual(o.display_range, (4, 11))
+
 
 if __name__ == '__main__':
     unittest.main()
