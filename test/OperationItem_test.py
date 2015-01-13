@@ -59,8 +59,7 @@ class TestOperationClass(unittest.TestCase):
         operation2.add_data_source(Operation.DataItemDataSource(self.data_item))
         data_item.set_operation(operation2)
         self.document_model.append_data_item(data_item)
-        self.assertIsNotNone(operation2.description[0]["default"])
-        self.assertIsNotNone(operation2.get_property("width"))
+        self.assertEqual(operation2.get_realized_values([self.data_item.data_and_calibration])["width"], self.data_item.data_shape[1])
 
     # test operations against 1d data. doesn't test for correctness of the operation.
     def test_operations_1d(self):

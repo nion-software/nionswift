@@ -332,13 +332,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         dependent_data_item = self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
         data_source.set_dependent_data_item(dependent_data_item)
         data_source.set_data_item_manager(self.__data_item_manager)
-        self.__update_data_shapes_and_dtypes()
         self.__data_source_publisher.notify_next_value(self.data_sources)
 
     def __data_source_removed(self, name, index, data_source):
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
-        self.__update_data_shapes_and_dtypes()
         self.__data_source_publisher.notify_next_value(self.data_sources)
 
     class OperationPublisher(Observable.Publisher):
@@ -391,7 +389,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             if all(self.__data_and_calibrations) and len(self.__data_and_calibrations) > 0:
                 operation = self.__operation_item.operation
                 if operation:
-                    values = copy.deepcopy(self.__operation_item.values)
+                    values = self.__operation_item.get_realized_values(self.__data_and_calibrations)
                     def get_data():
                         return operation.get_processed_data(self.__data_and_calibrations, values)
                     data_fn = get_data
@@ -484,13 +482,13 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         values[property_id] = value
         self.values = values
 
-    # update the default value for this operation.
-    def __set_property_default(self, property_id, default_value):
-        for description_entry in self.description:
-            if description_entry["property"] == property_id:
-                description_entry["default"] = default_value
-                if property_id not in self.values or self.values[property_id] is None:
-                    self.set_property(property_id, default_value)
+    def get_realized_values(self, data_sources):
+        values = copy.deepcopy(self.values)
+        default_values = self.operation.property_defaults_for_data_shape_and_dtype(data_sources)
+        for property in default_values.keys():
+            if values.get(property) is None:
+                values[property] = default_values[property]
+        return values
 
     @property
     def data_shape_and_dtype(self):
@@ -548,13 +546,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             self.__data_item_manager = data_item_manager
             for data_source in self.data_sources:
                 data_source.set_data_item_manager(self.__data_item_manager)
-
-    # default value handling.
-    def __update_data_shapes_and_dtypes(self):
-        if self.operation:
-            default_values = self.operation.property_defaults_for_data_shape_and_dtype(self.data_sources)
-            for property, default_value in default_values.iteritems():
-                self.__set_property_default(property, default_value)
 
     def deepcopy_from(self, operation_item, memo):
         super(OperationItem, self).deepcopy_from(operation_item, memo)
