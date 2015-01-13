@@ -651,7 +651,6 @@ class TestImagePanelClass(unittest.TestCase):
         self.assertAlmostEqual(self.image_panel.display.y_max, 0.8 * scaling)
 
     def test_mouse_tracking_vertical_shrink_with_calibrated_origin_at_200(self):
-        logging.getLogger().setLevel(logging.DEBUG)
         line_plot_canvas_item = self.setup_line_plot()
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1

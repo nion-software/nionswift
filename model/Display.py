@@ -118,6 +118,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
+        self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
+        self.__data_properties = dict()
         self.__preview_data = None
         self.__preview = None
         self.__processors = dict()
@@ -151,29 +153,36 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.data_item.maybe_data_source if self.data_item else None
 
     @property
+    def data_and_calibration(self):
+        return self.__data_and_calibration
+
+    @property
     def data_for_processor(self):
-        return self.buffered_data_source.data
+        return self.__data_and_calibration.data if self.__data_and_calibration else None
 
     # called from data item when added/removed.
     def _set_data_item(self, data_item):
         if self.data_item:
-            self.data_item.remove_observer(self)
-            self.data_item.remove_listener(self)
             self.storage_cache = None
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         if self.data_item:
-            self.data_item.add_observer(self)
-            self.data_item.add_listener(self)
+            # establish the initial data_and_calibration; this will go away once display becomes
+            # a subscriber to a more generic publisher.
+            buffered_data_source = data_item.maybe_data_source
+            if buffered_data_source:
+                self.__data_and_calibration = buffered_data_source.data_and_calibration
+                self.__data_properties["data_range"] = buffered_data_source.data_range
+                self.__data_properties["data_sample"] = buffered_data_source.data_sample
             self.storage_cache = self.data_item.storage_cache
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
-        if self.buffered_data_source.is_data_complex_type and self.display_limits is None:
-            data = self.buffered_data_source.data
+        if self.__data_and_calibration.is_data_complex_type and self.display_limits is None:
+            data = self.__data_and_calibration.data
             samples, fraction = 200, 0.1
             sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
             display_limit_low = numpy.log(sorted_data[samples*fraction])
-            display_limit_high = self.buffered_data_source.data_range[1]
+            display_limit_high = self.data_range[1]
             self.display_limits = display_limit_low, display_limit_high
 
     def __get_preview_2d(self):
@@ -190,7 +199,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def preview_2d_data(self):
         try:
             if self.__preview_data is None:
-                data = self.buffered_data_source.data
+                data = self.__data_and_calibration.data
                 if Image.is_data_2d(data):
                     data_2d = Image.scalar_from_array(data)
                 # TODO: fix me 3d
@@ -212,10 +221,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             raise
 
     def __get_preview_2d_shape(self):
-        if self.buffered_data_source.is_data_2d:
-            return self.buffered_data_source.dimensional_shape
-        elif self.buffered_data_source.is_data_3d:
-            return self.buffered_data_source.dimensional_shape[1:]
+        if self.__data_and_calibration.is_data_2d:
+            return self.__data_and_calibration.dimensional_shape
+        elif self.__data_and_calibration.is_data_3d:
+            return self.__data_and_calibration.dimensional_shape[1:]
         else:
             return None
     preview_2d_shape = property(__get_preview_2d_shape)
@@ -237,14 +246,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.notify_set_property("display_range", self.display_range)
 
     def __get_slice_interval(self):
-        if self.buffered_data_source:
-            depth = self.buffered_data_source.dimensional_shape[0]
+        if self.__data_and_calibration:
+            depth = self.__data_and_calibration.dimensional_shape[0]
             slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
             slice_interval_end = slice_interval_start + self.slice_width
             return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
         return None
     def __set_slice_interval(self, slice_interval):
-        depth = self.buffered_data_source.dimensional_shape[0]
+        depth = self.__data_and_calibration.dimensional_shape[0]
         slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
         slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
         self.slice_center = slice_interval_center
@@ -274,18 +283,18 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     @property
     def data_range(self):
-        return self.buffered_data_source.data_range if self.buffered_data_source else None
+        return self.__data_properties.get("data_range")
 
     @property
     def data_sample(self):
-        return self.buffered_data_source.data_sample if self.buffered_data_source else None
+        return self.__data_properties.get("data_sample")
 
     def __get_display_range(self):
         if self.display_limits:
             return self.display_limits
         data_range = self.data_range
-        if self.buffered_data_source and self.buffered_data_source.is_data_complex_type:
-            data_sample = self.buffered_data_source.data_sample
+        if self.__data_and_calibration and self.__data_and_calibration.is_data_complex_type:
+            data_sample = self.data_sample
             if data_sample is not None:
                 data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
                 display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
@@ -300,29 +309,25 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
     display_range = property(__get_display_range, __set_display_range)
 
-    # message sent from data_item or graphics. established using add/remove observer.
-    # watch for changes to data_range or data_sample and notify dependent property display_range
-    def property_changed(self, object, property, value):
-        if property == "data_range" or property == "data_sample":
-            self.__preview_data = None
-            self.__preview = None
-            self.notify_set_property(property, value)
-            self.notify_set_property("display_range", self.display_range)
+    # message sent from buffered_data_source data_range or data_sample changes.
+    def update_property(self, property, value):
+        self.__preview_data = None
+        self.__preview = None
+        self.__data_properties[property] = value
+        self.notify_set_property(property, value)
+        self.notify_set_property("display_range", self.display_range)
 
-    # this message received from data item. the connection is established using
-    # add_listener and remove_listener.
+    # message sent from buffered_data_source when data changes.
     # thread safe
-    def data_item_content_changed(self, data_item, changes):
-        DATA = 1
-        METADATA = 2
-        if not set((DATA, METADATA)).isdisjoint(changes):  # any of these in changes?
-            self.__preview_data = None
-            self.__preview = None
-            self.notify_listeners("display_changed", self)
-            # clear the processor caches
-            if not self._is_reading:
-                for processor in self.__processors.values():
-                    processor.mark_data_dirty()
+    def update_data(self, data_and_calibration):
+        self.__data_and_calibration = data_and_calibration
+        self.__preview_data = None
+        self.__preview = None
+        self.notify_listeners("display_changed", self)
+        # clear the processor caches
+        if not self._is_reading:
+            for processor in self.__processors.values():
+                processor.mark_data_dirty()
 
     def add_region_graphic(self, region_graphic):
         region_graphic.add_listener(self)

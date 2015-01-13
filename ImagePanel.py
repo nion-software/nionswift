@@ -245,7 +245,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
-            calibrations = display.buffered_data_source.dimensional_calibrations
+            calibrations = display.data_and_calibration.dimensional_calibrations
             if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
@@ -415,9 +415,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # this message will come directly from the display when the graphic selection changes
         regions = list()
         display = self.display
-        buffered_data_source = display.buffered_data_source
-        data_length = buffered_data_source.dimensional_shape[0]
-        spatial_calibration = buffered_data_source.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
+        data_and_calibration = display.data_and_calibration
+        data_length = data_and_calibration.dimensional_shape[0]
+        spatial_calibration = data_and_calibration.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = spatial_calibration.convert_to_calibrated_value(0)
         calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
@@ -449,14 +449,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if display:
 
             # grab the data item
-            buffered_data_source = display.buffered_data_source
+            data_and_calibration = display.data_and_calibration
 
             # make sure we have the correct data
             assert display is not None
-            assert buffered_data_source.is_data_1d
+            assert data_and_calibration.is_data_1d
 
             # grab the data values
-            data = buffered_data_source.data
+            data = data_and_calibration.data
 
             if data is not None:
                 # make sure complex becomes scalar
@@ -475,8 +475,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_channel = left_channel if left_channel is not None else 0
                 right_channel = right_channel if right_channel is not None else data.shape[0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = buffered_data_source.dimensional_calibrations[0] if display.display_calibrated_values else None
-                intensity_calibration = buffered_data_source.intensity_calibration if display.display_calibrated_values else None
+                dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display.display_calibrated_values else None
+                intensity_calibration = data_and_calibration.intensity_calibration if display.display_calibrated_values else None
                 data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
                                                                   dimensional_calibration, intensity_calibration)
             else:
@@ -798,8 +798,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_selections = False
 
     def __get_data_size(self):
-        buffered_data_source = self.display.buffered_data_source if self.display else None
-        data_shape = buffered_data_source.dimensional_shape if buffered_data_source else None
+        data_and_calibration = self.display.data_and_calibration if self.display else None
+        data_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
         if not data_shape:
             return None
         for d in data_shape:
@@ -1281,12 +1281,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         if display:
             # grab the data item too
-            buffered_data_source = display.buffered_data_source
+            data_and_calibration = display.data_and_calibration
 
             # make sure we have the correct data
-            assert buffered_data_source is not None
+            assert data_and_calibration is not None
             # TODO: fix me 3d
-            assert buffered_data_source.is_data_2d or buffered_data_source.is_data_3d
+            assert data_and_calibration.is_data_2d or data_and_calibration.is_data_3d
 
             def update_ui():
                 # grab the bitmap image
@@ -1999,11 +1999,11 @@ class ImagePanel(object):
         if self.__header_canvas_item:  # may be closed
             self.__header_canvas_item.title = self.document_controller.get_displayed_title_for_data_item(data_item)
         display_type = None
-        buffered_data_source = display.buffered_data_source if display else None
-        if buffered_data_source:
-            if buffered_data_source.is_data_1d:
+        data_and_calibration = display.data_and_calibration if display else None
+        if data_and_calibration:
+            if data_and_calibration.is_data_1d:
                 display_type = "line_plot"
-            elif buffered_data_source.is_data_2d or buffered_data_source.is_data_3d:
+            elif data_and_calibration.is_data_2d or data_and_calibration.is_data_3d:
                 display_type = "image"
         if display_type != self.__display_type:
             if self.display_canvas_item:
@@ -2194,10 +2194,10 @@ class InfoPanel(Panel.Panel):
                 return str(value)
         position_text = ""
         value_text = ""
-        buffered_data_source = display.buffered_data_source if display else None
-        if buffered_data_source and data_size:
-            dimensional_calibrations = buffered_data_source.dimensional_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
-            intensity_calibration = buffered_data_source.intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
+        data_and_calibration = display.data_and_calibration if display else None
+        if data_and_calibration and data_size:
+            dimensional_calibrations = data_and_calibration.dimensional_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
+            intensity_calibration = data_and_calibration.intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
                 # 3d image
@@ -2206,20 +2206,20 @@ class InfoPanel(Panel.Panel):
                     position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2]),
                                                             dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
                                                             dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 2:
                 # 2d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
                     position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
                                                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 1:
                 # 1d plot
                 # make sure the position is within the bounds of the line plot
                 if pos[0] >= 0 and pos[0] < data_size[0]:
                     position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
             self.__last_source = source
         if self.__last_source == source:
             def update_position_and_value(position_text, value_text):

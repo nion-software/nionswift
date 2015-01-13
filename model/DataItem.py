@@ -342,10 +342,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             return list()
 
     @property
+    def displays(self):
+        data_item = self.__get_dependent_data_item()
+        return data_item.displays if data_item else list()
+
+    @property
     def data_and_calibration(self):
         try:
-            data = self.data
-            data_fn = lambda: data
+            data_fn = lambda: self.data
             data_shape_and_dtype = self.data_shape_and_dtype
             intensity_calibration = self.intensity_calibration
             dimensional_calibrations = self.dimensional_calibrations
@@ -467,8 +471,13 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             if self.__data is not None:
                 if self.managed_object_context:
                     self.managed_object_context.rewrite_data_item_data(self)
-                self.notify_set_property("data_range", self.data_range)
-                self.notify_set_property("data_sample", self.data_sample)
+                data_range = self.data_range
+                data_sample = self.data_sample
+                self.notify_set_property("data_range", data_range)
+                self.notify_set_property("data_sample", data_sample)
+                for display in self.displays:
+                    display.update_property("data_range", data_range)
+                    display.update_property("data_sample", data_sample)
             self.__notify_next_data_and_calibration()
 
     def __load_data(self):
@@ -594,7 +603,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         # if the change count is now zero, it means that we're ready
         # to pass on the next value.
         if change_count == 0 and changed:
-            self.__publisher.notify_next_value(self.data_and_calibration)
+            data_and_calibration = self.data_and_calibration
+            self.__publisher.notify_next_value(data_and_calibration)
+            for display in self.displays:
+                display.update_data(data_and_calibration)
             if not self._is_reading:
                 for processor in self.__processors.values():
                     processor.mark_data_dirty()
@@ -635,96 +647,46 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     @property
     def dimensional_shape(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        if data_shape_and_dtype is not None:
-            data_shape, data_dtype = self.data_shape_and_dtype
-            return Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
-        return None
+        return self.data_and_calibration.dimensional_shape
 
     @property
     def is_data_1d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_1d
 
     @property
     def is_data_2d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_2d
 
     @property
     def is_data_3d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_3d
 
     @property
     def is_data_rgb(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_rgb
 
     @property
     def is_data_rgba(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgba(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_rgba
 
     @property
     def is_data_rgb_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return (Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) or Image.is_shape_and_dtype_rgba(*data_shape_and_dtype)) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_rgb_type
 
     @property
     def is_data_scalar_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_scalar_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_scalar_type
 
     @property
     def is_data_complex_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+        return self.data_and_calibration.is_data_complex_type
 
     def get_data_value(self, pos):
-        data = self.data
-        if self.is_data_1d:
-            if data is not None:
-                return data[pos[0]]
-        elif self.is_data_2d:
-            if data is not None:
-                return data[pos[0], pos[1]]
-        # TODO: fix me 3d
-        elif self.is_data_3d:
-            if data is not None:
-                return data[pos[0], pos[1]]
-        return None
+        return self.data_and_calibration.get_data_value(pos)
 
     @property
     def size_and_data_format_as_string(self):
-        dimensional_shape = self.dimensional_shape
-        data_dtype = self.data_dtype
-        if dimensional_shape is not None and data_dtype is not None:
-            spatial_shape_str = " x ".join([str(d) for d in dimensional_shape])
-            if len(dimensional_shape) == 1:
-                spatial_shape_str += " x 1"
-            dtype_names = {
-                numpy.int8: _("Integer (8-bit)"),
-                numpy.int16: _("Integer (16-bit)"),
-                numpy.int32: _("Integer (32-bit)"),
-                numpy.int64: _("Integer (64-bit)"),
-                numpy.uint8: _("Unsigned Integer (8-bit)"),
-                numpy.uint16: _("Unsigned Integer (16-bit)"),
-                numpy.uint32: _("Unsigned Integer (32-bit)"),
-                numpy.uint64: _("Unsigned Integer (64-bit)"),
-                numpy.float32: _("Real (32-bit)"),
-                numpy.float64: _("Real (64-bit)"),
-                numpy.complex64: _("Complex (2 x 32-bit)"),
-                numpy.complex128: _("Complex (2 x 64-bit)"),
-            }
-            if self.is_data_rgb_type:
-                data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
-            else:
-                if not self.data_dtype.type in dtype_names:
-                    logging.debug("Unknown dtype %s", self.data_dtype.type)
-                data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
-            return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
-        return _("No Data")
+        return self.data_and_calibration.size_and_data_format_as_string
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
