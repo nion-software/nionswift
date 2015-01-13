@@ -29,6 +29,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
         self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.document_model.append_data_item(self.data_item)
         self.image_panel.set_displayed_data_item(self.data_item)
 
@@ -51,16 +52,16 @@ class TestOperationClass(unittest.TestCase):
         operation = Operation.OperationItem("resample-operation")
         operation.add_data_source(source_data_item._create_test_data_source())
         self.data_item.set_operation(operation)
-        with self.data_item.maybe_data_source.data_ref() as data_ref:
+        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.data  # just calculate it
-        self.data_item.maybe_data_source.dimensional_calibrations  # just calculate it
+        self.display_specifier.buffered_data_source.dimensional_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
         operation2 = Operation.OperationItem("resample-operation")
         operation2.add_data_source(self.data_item._create_test_data_source())
         data_item.set_operation(operation2)
         self.document_model.append_data_item(data_item)
-        self.assertEqual(operation2.get_realized_values([self.data_item.maybe_data_source.data_and_calibration])["width"], self.data_item.maybe_data_source.data_shape[1])
+        self.assertEqual(operation2.get_realized_values([self.display_specifier.buffered_data_source.data_and_calibration])["width"], self.display_specifier.buffered_data_source.data_shape[1])
 
     # test operations against 1d data. doesn't test for correctness of the operation.
     def test_operations_1d(self):
@@ -83,14 +84,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d(self):
@@ -119,14 +121,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_3d(self):
@@ -142,14 +145,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgb(self):
@@ -176,14 +180,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgba(self):
@@ -210,14 +215,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_operations_2d_complex128(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
@@ -233,14 +239,15 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_operations_2d_complex64(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex64))
@@ -256,26 +263,28 @@ class TestOperationClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item.recompute_data()
-            with data_item.maybe_data_source.data_ref() as data_ref:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
-                self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_crop_2d_operation_returns_correct_dimensional_shape_and_data_shape(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        data_item_real = DataItem.DataItem()
+        real_data_item = DataItem.DataItem()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         operation.add_data_source(data_item._create_test_data_source())
-        data_item_real.set_operation(operation)
-        data_item_real.recompute_data()
+        real_data_item.set_operation(operation)
+        real_display_specifier = DataItem.DisplaySpecifier.from_data_item(real_data_item)
+        real_data_item.recompute_data()
         # make sure we get the right shape
-        self.assertEqual(data_item_real.maybe_data_source.dimensional_shape, (1000, 500))
-        with data_item_real.maybe_data_source.data_ref() as data_real_accessor:
+        self.assertEqual(real_display_specifier.buffered_data_source.dimensional_shape, (1000, 500))
+        with real_display_specifier.buffered_data_source.data_ref() as data_real_accessor:
             self.assertEqual(data_real_accessor.data.shape, (1000, 500))
 
     def test_fft_2d_dtype(self):
@@ -287,9 +296,10 @@ class TestOperationClass(unittest.TestCase):
         fft_operation.add_data_source(data_item._create_test_data_source())
         fft_data_item.set_operation(fft_operation)
         self.document_model.append_data_item(fft_data_item)
+        fft_display_specifier = DataItem.DisplaySpecifier.from_data_item(fft_data_item)
         fft_data_item.recompute_data()
 
-        with fft_data_item.maybe_data_source.data_ref() as fft_data_ref:
+        with fft_display_specifier.buffered_data_source.data_ref() as fft_data_ref:
             self.assertEqual(fft_data_ref.data.shape, (512, 512))
             self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
 
@@ -301,8 +311,9 @@ class TestOperationClass(unittest.TestCase):
         scalar_operation.add_data_source(data_item._create_test_data_source())
         scalar_data_item.set_operation(scalar_operation)
         self.document_model.append_data_item(scalar_data_item)
+        scalar_display_specifier = DataItem.DisplaySpecifier.from_data_item(scalar_data_item)
         scalar_data_item.recompute_data()
-        with scalar_data_item.maybe_data_source.data_ref() as scalar_data_ref:
+        with scalar_display_specifier.buffered_data_source.data_ref() as scalar_data_ref:
             self.assertEqual(scalar_data_ref.data.dtype, numpy.dtype(numpy.float64))
 
     class DummyOperation(Operation.Operation):
@@ -353,21 +364,25 @@ class TestOperationClass(unittest.TestCase):
         document_controller.close()
         # read it back then make sure parameter was actually updated
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
-        self.assertEqual(document_model.data_items[1].operation.get_property("param"), 5.2)
-        with document_model.data_items[1].maybe_data_source.data_ref() as d:
+        read_data_item = document_model.data_items[1]
+        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        self.assertEqual(read_data_item.operation.get_property("param"), 5.2)
+        with read_display_specifier.buffered_data_source.data_ref() as d:
             self.assertEqual(d.data[0, 0], 5.2)
 
     def test_rgba_invert_operation_should_retain_alpha(self):
-        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
-        with data_item_rgba.maybe_data_source.data_ref() as data_ref:
+        rgba_data_item = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        rgba_display_specifier = DataItem.DisplaySpecifier.from_data_item(rgba_data_item)
+        with rgba_display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data[:] = (20,40,60,100)
             data_ref.master_data_updated()
-        data_item_rgba2 = DataItem.DataItem()
+        rgba2_data_item = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(data_item_rgba._create_test_data_source())
-        data_item_rgba2.set_operation(invert_operation)
-        data_item_rgba2.recompute_data()
-        with data_item_rgba2.maybe_data_source.data_ref() as data_ref:
+        invert_operation.add_data_source(rgba_data_item._create_test_data_source())
+        rgba2_data_item.set_operation(invert_operation)
+        rgba2_display_specifier = DataItem.DisplaySpecifier.from_data_item(rgba2_data_item)
+        rgba2_data_item.recompute_data()
+        with rgba2_display_specifier.buffered_data_source.data_ref() as data_ref:
             pixel = data_ref.data[0,0,...]
             self.assertEqual(pixel[0], 255 - 20)
             self.assertEqual(pixel[1], 255 - 40)
@@ -398,34 +413,37 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba2.recompute_data()
         self.image_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item_rgba2)
-        data_item_rgba_copy = self.document_controller.processing_snapshot().data_item
-        self.assertTrue(data_item_rgba_copy.maybe_data_source.has_data)
+        rgba_copy_buffered_data_source = self.document_controller.processing_snapshot().buffered_data_source
+        self.assertTrue(rgba_copy_buffered_data_source.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
         data_item = DataItem.DataItem()
         data_item.append_data_source(DataItem.BufferedDataSource())
-        self.assertIsNone(data_item.maybe_data_source.data)
-        self.assertIsNone(data_item.maybe_data_source.data_dtype)
-        self.assertIsNone(data_item.maybe_data_source.data_shape)
-        copied_data_item = data_item.snapshot()
-        self.assertIsNone(copied_data_item.maybe_data_source.data)
-        self.assertIsNone(copied_data_item.maybe_data_source.data_dtype)
-        self.assertIsNone(copied_data_item.maybe_data_source.data_shape)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        self.assertIsNone(display_specifier.buffered_data_source.data)
+        self.assertIsNone(display_specifier.buffered_data_source.data_dtype)
+        self.assertIsNone(display_specifier.buffered_data_source.data_shape)
+        snapshot_data_item = data_item.snapshot()
+        snapshot_display_specifier = DataItem.DisplaySpecifier.from_data_item(snapshot_data_item)
+        self.assertIsNone(snapshot_display_specifier.buffered_data_source.data)
+        self.assertIsNone(snapshot_display_specifier.buffered_data_source.data_dtype)
+        self.assertIsNone(snapshot_display_specifier.buffered_data_source.data_shape)
 
     def test_snapshot_of_operation_should_copy_calibrations_not_dimensional_calibrations(self):
         # setup
-        self.data_item.maybe_data_source.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
-        self.data_item.maybe_data_source.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
-        self.data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
+        self.display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(5.0, 2.0, u"nm"))
+        self.display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
         data_item2 = DataItem.DataItem()
         operation = Operation.OperationItem("invert-operation")
         operation.add_data_source(self.data_item._create_test_data_source())
         data_item2.set_operation(operation)
         self.document_model.append_data_item(data_item2)
+        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
         data_item2.recompute_data()
         # make sure our assumptions are correct
-        self.assertEqual(len(self.data_item.maybe_data_source.dimensional_calibrations), 2)
-        self.assertEqual(len(data_item2.maybe_data_source.dimensional_calibrations), 2)
+        self.assertEqual(len(self.display_specifier.buffered_data_source.dimensional_calibrations), 2)
+        self.assertEqual(len(display_specifier2.buffered_data_source.dimensional_calibrations), 2)
         # take snapshot
         self.image_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item2)
@@ -444,57 +462,62 @@ class TestOperationClass(unittest.TestCase):
 
     def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        spatial_calibration_0 = data_item.maybe_data_source.dimensional_calibrations[0]
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
-        spatial_calibration_1 = data_item.maybe_data_source.dimensional_calibrations[1]
+        spatial_calibration_1 = display_specifier.buffered_data_source.dimensional_calibrations[1]
         spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
-        data_item.maybe_data_source.set_dimensional_calibration(0, spatial_calibration_0)
-        data_item.maybe_data_source.set_dimensional_calibration(1, spatial_calibration_1)
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
         operation.add_data_source(data_item._create_test_data_source())
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
+        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
         data_item2.recompute_data()
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[0].scale, 5.0)
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[1].scale, 5.5)
-        self.assertEqual(data_item2.maybe_data_source.dimensional_calibrations[0].units, "dogs")
-        self.assertEqual(data_item2.maybe_data_source.dimensional_calibrations[1].units, "cats")
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].scale, 5.0)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].scale, 5.5)
+        self.assertEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].units, "dogs")
+        self.assertEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].units, "cats")
 
     def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        spatial_calibration_0 = data_item.maybe_data_source.dimensional_calibrations[0]
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
         spatial_calibration_0.scale = 5.0
         spatial_calibration_0.units = "dogs"
-        spatial_calibration_1 = data_item.maybe_data_source.dimensional_calibrations[1]
+        spatial_calibration_1 = display_specifier.buffered_data_source.dimensional_calibrations[1]
         spatial_calibration_1.offset = 55.0
         spatial_calibration_1.scale = 5.5
         spatial_calibration_1.units = "cats"
-        data_item.maybe_data_source.set_dimensional_calibration(0, spatial_calibration_0)
-        data_item.maybe_data_source.set_dimensional_calibration(1, spatial_calibration_1)
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("projection-operation")
         operation.add_data_source(data_item._create_test_data_source())
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
+        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
         data_item2.recompute_data()
         # make sure the calibrations are correct
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[0].offset, 55.0)
-        self.assertAlmostEqual(data_item2.maybe_data_source.dimensional_calibrations[0].scale, 5.5)
-        self.assertEqual(data_item2.maybe_data_source.dimensional_calibrations[0].units, "cats")
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].offset, 55.0)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].scale, 5.5)
+        self.assertEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].units, "cats")
 
     def test_crop_2d_region_connects_if_operation_added_after_data_item_is_in_document(self):
         document_model = DocumentModel.DocumentModel()
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         # configure the dependent item
         data_item2 = DataItem.DataItem()
         document_model.append_data_item(data_item2)
@@ -502,7 +525,7 @@ class TestOperationClass(unittest.TestCase):
         crop_region = Region.RectRegion()
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         crop_operation.add_data_source(data_item._create_test_data_source())
-        crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
+        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
         data_item2.set_operation(crop_operation)
         # see if the region is connected to the operation
         self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
@@ -524,21 +547,22 @@ class TestOperationClass(unittest.TestCase):
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         # configure the dependent item
         data_item2 = DataItem.DataItem()
         document_model.append_data_item(data_item2)
         Operation.OperationManager().register_operation("dummy2-operation", lambda: TestOperationClass.Dummy2Operation())
         dummy_operation = Operation.OperationItem("dummy2-operation")
-        dummy_operation.establish_associated_region("a", data_item.maybe_data_source)
-        dummy_operation.establish_associated_region("b", data_item.maybe_data_source)
+        dummy_operation.establish_associated_region("a", display_specifier.buffered_data_source)
+        dummy_operation.establish_associated_region("b", display_specifier.buffered_data_source)
         dummy_operation.add_data_source(data_item._create_test_data_source())
         data_item2.set_operation(dummy_operation)
         # assumptions
-        self.assertEqual(len(data_item.maybe_data_source.regions), 2)
+        self.assertEqual(len(display_specifier.buffered_data_source.regions), 2)
         # now remove the operation
         data_item2.set_operation(None)
         # check to make sure regions were removed
-        self.assertEqual(len(data_item.maybe_data_source.regions), 0)
+        self.assertEqual(len(display_specifier.buffered_data_source.regions), 0)
 
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -550,6 +574,7 @@ class TestOperationClass(unittest.TestCase):
         blur_operation.add_data_source(data_item._create_test_data_source())
         blurred_data_item.set_operation(blur_operation)
         document_model.append_data_item(blurred_data_item)
+        blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
         # establish listeners
         class Listener(object):
             def __init__(self):
@@ -563,7 +588,7 @@ class TestOperationClass(unittest.TestCase):
                 self._display_changed = True
         listener = Listener()
         blurred_data_item.add_listener(listener)
-        blurred_data_item.displays[0].add_listener(listener)
+        blurred_display_specifier.display.add_listener(listener)
         # modify an operation. make sure data and dependent data gets updated.
         listener.reset()
         blur_operation.set_property("sigma", 0.1)
@@ -581,6 +606,7 @@ class TestOperationClass(unittest.TestCase):
         blur_operation.add_data_source(data_item._create_test_data_source())
         blurred_data_item.set_operation(blur_operation)
         document_model.append_data_item(blurred_data_item)
+        blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
         # establish listeners
         class Listener(object):
             def __init__(self):
@@ -594,7 +620,7 @@ class TestOperationClass(unittest.TestCase):
                 self._display_changed = True
         listener = Listener()
         blurred_data_item.add_listener(listener)
-        blurred_data_item.displays[0].add_listener(listener)
+        blurred_display_specifier.display.add_listener(listener)
         # modify an operation. make sure data and dependent data gets updated.
         listener.reset()
         blur_operation.set_property("sigma", 0.1)
@@ -606,25 +632,28 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         fft_data_item = DataItem.DataItem()
         fft_operation = Operation.OperationItem("fft-operation")
         fft_operation.add_data_source(data_item._create_test_data_source())
         fft_data_item.set_operation(fft_operation)
         document_model.append_data_item(fft_data_item)
+        fft_display_specifier = DataItem.DisplaySpecifier.from_data_item(fft_data_item)
         crop_data_item = DataItem.DataItem()
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
-        crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
+        display_specifier.buffered_data_source.add_region(crop_region)
+        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
         crop_operation.add_data_source(data_item._create_test_data_source())
         crop_data_item.set_operation(crop_operation)
+        crop_display_specifier = DataItem.DisplaySpecifier.from_data_item(crop_data_item)
         document_model.append_data_item(crop_data_item)
         document_model.recompute_all()
-        self.assertFalse(fft_data_item.maybe_data_source.is_data_stale)
-        self.assertFalse(crop_data_item.maybe_data_source.is_data_stale)
+        self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
+        self.assertFalse(crop_display_specifier.buffered_data_source.is_data_stale)
         crop_region.bounds = Geometry.FloatRect(crop_region.bounds[0], Geometry.FloatPoint(0.1, 0.1))
-        self.assertTrue(crop_data_item.maybe_data_source.is_data_stale)
-        self.assertFalse(fft_data_item.maybe_data_source.is_data_stale)
+        self.assertTrue(crop_display_specifier.buffered_data_source.is_data_stale)
+        self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
 
     def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
         document_model = DocumentModel.DocumentModel()

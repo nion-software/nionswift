@@ -438,7 +438,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     data_item.begin_reading()
                     persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
                     data_item.read_from_dict(persistent_storage.properties)
-                    assert(len(data_item.displays) > 0)
                     self.set_persistent_storage_for_object(data_item, persistent_storage)
                     data_item.managed_object_context = self
                     data_items.append(data_item)

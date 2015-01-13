@@ -152,6 +152,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
@@ -159,12 +160,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         # make sure assumptions are correct
         self.assertEqual(len(image_panel.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in image_panel.display.graphic_selection.indexes)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 1)
-        self.assertEqual(data_item.displays[0].drawn_graphics[0], line_graphic)
+        self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
+        self.assertEqual(display_specifier.display.drawn_graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
         self.assertEqual(len(image_panel.display.graphic_selection.indexes), 0)
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
+        self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         # clean up
         image_panel.close()
 
@@ -193,6 +194,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
@@ -204,8 +206,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertTrue(line_profile_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
-        self.assertEqual(len(data_item.displays[0].drawn_graphics), 0)
-        self.assertEqual(len(data_item.displays[0].graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
+        self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
+        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(line_profile_data_item in document_model.data_items)
         # clean up
         image_panel.close()
@@ -229,16 +231,18 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
         crop_region = Region.RectRegion()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
         buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
         inverted_data_item = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
+        inverted_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(inverted_data_item)
         inverted_data_item.recompute_data()
-        self.assertEqual(inverted_data_item.maybe_data_source.data_shape, (128, 128))
-        self.assertEqual(inverted_data_item.maybe_data_source.data_dtype, data_item.maybe_data_source.data_dtype)
-        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[50, 50], -1.0)
+        self.assertEqual(inverted_display_specifier.buffered_data_source.data_shape, (128, 128))
+        self.assertEqual(inverted_display_specifier.buffered_data_source.data_dtype, display_specifier.buffered_data_source.data_dtype)
+        self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[50, 50], -1.0)
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
         document_model = DocumentModel.DocumentModel()
@@ -268,10 +272,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         cropped_data_item = document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region).data_item
+        cropped_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(cropped_data_item)
         document_model.recompute_all()
-        self.assertFalse(cropped_data_item.maybe_data_source.is_data_stale)
+        self.assertFalse(cropped_display_specifier.buffered_data_source.is_data_stale)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(cropped_data_item.maybe_data_source.is_data_stale)
+        self.assertTrue(cropped_display_specifier.buffered_data_source.is_data_stale)
 
     class SumOperation(Operation.Operation):
 
@@ -311,7 +316,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         buffered_data_source_specifier2 = DataItem.BufferedDataSourceSpecifier.from_data_item(data_item2)
         result_data_item = document_controller.add_binary_processing_operation(sum_operation_item, buffered_data_source_specifier1, buffered_data_source_specifier2, crop_region1=crop_region1, crop_region2=crop_region2)
         result_data_item.recompute_data()
-        buffered_data_source = result_data_item.maybe_data_source
+        result_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(result_data_item)
+        buffered_data_source = result_display_specifier.buffered_data_source
         self.assertEqual(buffered_data_source.data_shape, (128, 128))
         self.assertEqual(buffered_data_source.data_dtype, numpy.float32)
         self.assertAlmostEqual(buffered_data_source.data[32, 32], 3.0)

@@ -30,6 +30,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         data[500,500] = 650
         self.data_item = DataItem.DataItem(data)
         self.document_model.append_data_item(self.data_item)
+        self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         # create the histogram canvas object
         class CanvasItemContainer(object):
             def __init__(self):
@@ -41,9 +42,8 @@ class TestHistogramPanelClass(unittest.TestCase):
                 pass
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None)
         self.histogram_canvas_item = self.histogram_panel._histogram_canvas_item
-        self.display = self.data_item.displays[0]
-        display_specifier = DataItem.DisplaySpecifier(self.data_item, self.data_item.maybe_data_source, self.display)
-        self.histogram_panel.selected_display_binding_changed(display_specifier)
+        self.display = self.display_specifier.display
+        self.histogram_panel.selected_display_binding_changed(self.display_specifier)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
@@ -52,22 +52,22 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.document_controller.close()
 
     def test_drag_to_set_limits(self):
-        self.assertEqual(self.data_item.displays[0].display_range, (200, 650))
-        self.assertIsNone(self.data_item.displays[0].display_limits)
-        self.assertEqual(self.histogram_canvas_item._get_display(), self.data_item.maybe_data_source.displays[0])
+        self.assertEqual(self.display_specifier.display.display_range, (200, 650))
+        self.assertIsNone(self.display_specifier.display.display_limits)
+        self.assertEqual(self.histogram_canvas_item._get_display(), self.display_specifier.display)
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
         self.histogram_canvas_item.mouse_released(90, 58, 0)
-        self.assertIsNotNone(self.data_item.displays[0].display_limits)
-        self.assertEqual(self.data_item.displays[0].display_range, (290, 320))
+        self.assertIsNotNone(self.display_specifier.display.display_limits)
+        self.assertEqual(self.display_specifier.display.display_range, (290, 320))
         # double click and return to None
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
-        self.assertIsNone(self.data_item.displays[0].display_limits)
+        self.assertIsNone(self.display_specifier.display.display_limits)
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
@@ -76,7 +76,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         histogram_data1 = self.histogram_canvas_item.histogram_data
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
-        with self.data_item.maybe_data_source.data_ref() as data_ref:
+        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
         self.document_model.recompute_all()
         histogram_data2 = self.histogram_canvas_item.histogram_data
@@ -86,13 +86,13 @@ class TestHistogramPanelClass(unittest.TestCase):
         # verify assumptions
         self.assertEqual(self.histogram_panel.stats1_property.value, str())
         self.assertEqual(self.histogram_panel.stats2_property.value, str())
-        self.data_item.maybe_data_source.get_processor("statistics").recompute_data(None)
+        self.display_specifier.buffered_data_source.get_processor("statistics").recompute_data(None)
         stats1_text = self.histogram_panel.stats1_property.value
         stats2_text = self.histogram_panel.stats2_property.value
         self.assertIsNotNone(stats1_text)
         self.assertIsNotNone(stats2_text)
         # now change the data and verify that statistics gets recomputed via document model
-        with self.data_item.maybe_data_source.data_ref() as data_ref:
+        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
         self.document_model.recompute_all()
         self.assertNotEqual(stats1_text, self.histogram_panel.stats1_property.value)

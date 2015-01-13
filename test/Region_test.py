@@ -22,9 +22,10 @@ class TestRegionClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         point_region = Region.PointRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(point_region)
-        drawn_graphic = data_item.displays[0].drawn_graphics[0]
+        display_specifier.buffered_data_source.add_region(point_region)
+        drawn_graphic = display_specifier.display.drawn_graphics[0]
         self.assertEqual(point_region.position, drawn_graphic.position)
         point_region.position = (0.3, 0.7)
         self.assertEqual(point_region.position, drawn_graphic.position)
@@ -33,9 +34,10 @@ class TestRegionClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         point_region = Region.PointRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(point_region)
-        drawn_graphic = data_item.displays[0].drawn_graphics[0]
+        display_specifier.buffered_data_source.add_region(point_region)
+        drawn_graphic = display_specifier.display.drawn_graphics[0]
         self.assertEqual(point_region.position, drawn_graphic.position)
         drawn_graphic.position = (0.3, 0.7)
         self.assertEqual(point_region.position, drawn_graphic.position)

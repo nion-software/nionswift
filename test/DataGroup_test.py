@@ -77,8 +77,9 @@ class TestDataGroupClass(unittest.TestCase):
         operation1a1.add_data_source(data_item1a._create_test_data_source())
         data_item1a1.set_operation(operation1a1)
         document_model.append_data_item(data_item1a1)
+        display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
         data_group.append_data_item(data_item1a1)
-        data_item1a1.maybe_data_source.dimensional_calibrations
+        display_specifier1a1.buffered_data_source.dimensional_calibrations
         self.assertEqual(len(document_model.data_items), 3)
         self.assertEqual(len(data_group.counted_data_items), 3)
         self.assertIn(data_item1, data_group.counted_data_items.keys())

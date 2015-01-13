@@ -32,12 +32,15 @@ class TestConnectionClass(unittest.TestCase):
         data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
+        display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
         interval = Region.IntervalRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
-        connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        display_specifier.buffered_data_source.add_region(interval)
+        connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         # test to see if connection updates target when source changes
-        data_item_3d.displays[0].slice_center = 12
+        display_specifier_3d.display.slice_center = 12
         self.assertEqual(interval.start, 12)
 
     def test_connection_updates_source_when_target_changes(self):
@@ -47,13 +50,15 @@ class TestConnectionClass(unittest.TestCase):
         data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
+        display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
         interval = Region.IntervalRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
-        connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
+        display_specifier_1d.buffered_data_source.add_region(interval)
+        connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         # test to see if connection updates target when source changes
         interval.start = 9
-        self.assertEqual(data_item_3d.displays[0].slice_center, 9)
+        self.assertEqual(display_specifier_3d.display.slice_center, 9)
 
     def test_connection_saves_and_restores(self):
         # setup document
@@ -64,9 +69,11 @@ class TestConnectionClass(unittest.TestCase):
         data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
         document_model.append_data_item(data_item_3d)
         document_model.append_data_item(data_item_1d)
+        display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
         interval = Region.IntervalRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item_1d).buffered_data_source.add_region(interval)
-        connection = Connection.PropertyConnection(data_item_3d.displays[0], "slice_center", interval, "start")
+        display_specifier_1d.buffered_data_source.add_region(interval)
+        connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
         data_item_1d.add_connection(connection)
         document_controller.close()
         # read it back
@@ -75,13 +82,15 @@ class TestConnectionClass(unittest.TestCase):
         # verify it read back
         data_item_3d = document_model.data_items[0]
         data_item_1d = document_model.data_items[1]
-        interval = data_item_1d.maybe_data_source.regions[0]
+        display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+        interval = display_specifier_1d.buffered_data_source.regions[0]
         self.assertEqual(len(data_item_1d.connections), 1)
         # verify connection is working in both directions
-        data_item_3d.displays[0].slice_center = 11
+        display_specifier_3d.display.slice_center = 11
         self.assertEqual(interval.start, 11)
         interval.start = 7
-        self.assertEqual(data_item_3d.displays[0].slice_center, 7)
+        self.assertEqual(display_specifier_3d.display.slice_center, 7)
 
 
 if __name__ == '__main__':

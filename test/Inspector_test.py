@@ -36,8 +36,9 @@ class TestInspectorClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         # configure the inspectors
-        document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier(data_item, data_item.maybe_data_source, data_item.maybe_data_source.displays[0]))
+        document_controller.notify_selected_display_specifier_changed(display_specifier)
         document_controller.periodic()  # force UI to update
         document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
         # clean up
@@ -45,9 +46,10 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        converter = Inspector.CalibratedValueFloatToStringConverter(data_item.maybe_data_source, 0, 256)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        converter = Inspector.CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
         converter.convert(0.5)
-        converter = Inspector.CalibratedSizeFloatToStringConverter(data_item.maybe_data_source, 0, 256)
+        converter = Inspector.CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
         converter.convert(0.5)
 
     # necessary to make inspector display updated values properly
@@ -60,8 +62,9 @@ class TestInspectorClass(unittest.TestCase):
                 super(BoolModel, self).__init__()
                 self.display_calibrated_values = False
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        y_converter = Inspector.CalibratedValueFloatToStringConverter(data_item.maybe_data_source, 0, 256)
-        height_converter = Inspector.CalibratedSizeFloatToStringConverter(data_item.maybe_data_source, 0, 256)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        y_converter = Inspector.CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
+        height_converter = Inspector.CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
         bool_model = BoolModel()
         display_calibrated_values_binding = Binding.PropertyBinding(bool_model, "display_calibrated_values")
         display_calibrated_values_binding2 = Binding.PropertyBinding(bool_model, "display_calibrated_values")
@@ -72,17 +75,15 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_calibration_inspector_section_binds_initially(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        buffered_data_source = data_item.maybe_data_source
-        display = buffered_data_source.displays[0]
-        Inspector.CalibrationsInspectorSection(self.app.ui, data_item, buffered_data_source, display)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        buffered_data_source = data_item.maybe_data_source
-        display = buffered_data_source.displays[0]
-        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, data_item, buffered_data_source, display)
-        data_item.maybe_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
-        data_item.maybe_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
