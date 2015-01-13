@@ -84,6 +84,10 @@ class CalibrationList(object):
 
     *Secondary Functionality*
 
+    When data sources is about to be closed, they will receive this message.
+
+    closed()
+
     When data sources are about to be removed, they will receive this message.
 
     about_to_be_removed()
@@ -177,10 +181,11 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             self.__set_data(data)
 
     def close(self):
-        super(BufferedDataSource, self).close()
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
+        if self.data_source:
+            self.data_source.close()
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -782,6 +787,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             display.remove_listener(self)
             display._set_data_item(None)
             display.close()
+        for data_source in self.data_sources:
+            data_source.close()
         for processor in self.__processors.values():
             processor.close()
         self.__processors = None

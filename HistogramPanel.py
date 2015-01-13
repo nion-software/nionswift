@@ -395,7 +395,7 @@ class HistogramPanel(Panel.Panel):
             histogram_data = display.get_processed_data("histogram")
             self.__histogram_canvas_item.histogram_data = histogram_data
 
-    # notification from display
+    # notification from data item
     def data_item_processor_needs_recompute(self, data_item, processor):
         document_model = self.document_controller.document_model
         with self.__display_lock:
@@ -403,7 +403,7 @@ class HistogramPanel(Panel.Panel):
         if processor == display.data_item.get_processor("statistics"):
             processor.recompute_if_necessary(document_model.dispatch_task, None)
 
-    # notification from display
+    # notification from data item
     def data_item_processor_data_updated(self, data_item, processor):
         with self.__display_lock:
             display = self.__display

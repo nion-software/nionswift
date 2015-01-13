@@ -81,6 +81,9 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         # set the data item
         self.set_data_item(data_item)
 
+    def close(self):
+        pass
+
     def about_to_be_removed(self):
         pass
 
@@ -245,6 +248,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         deepcopy.deepcopy_from(self, memo)
         memo[id(self)] = deepcopy
         return deepcopy
+
+    def close(self):
+        for data_source in self.data_sources:
+            data_source.close()
 
     def about_to_be_removed(self):
         """ When the operation is about to be removed, remove the region on data source, if any. """
