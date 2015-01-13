@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import functools
 import gettext
@@ -32,6 +33,9 @@ from nion.ui import Process
 from nion.ui import Observable
 
 _ = gettext.gettext
+
+
+DisplaySpecifier = collections.namedtuple("DisplaySpecifier", ["data_item", "buffered_data_source", "display"])
 
 
 class DocumentController(Observable.Broadcaster):
@@ -502,15 +506,16 @@ class DocumentController(Observable.Broadcaster):
         return None
     selected_data_item = property(__get_selected_data_item)
 
-    def __get_selected_display(self):
-        """
-            Return the selected display.
+    @property
+    def selected_display_specifier(self):
+        """Return the selected display specifier (data_item, data_source, display).
 
-            The selected display is the display that has keyboard focus.
+        The selected display is the display that has keyboard focus.
         """
         data_item = self.selected_data_item
-        return data_item.displays[0] if data_item else None
-    selected_display = property(__get_selected_display)
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        display = buffered_data_source.displays[0] if buffered_data_source else None
+        return DisplaySpecifier(data_item, buffered_data_source, display) if display else None
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
@@ -603,11 +608,10 @@ class DocumentController(Observable.Broadcaster):
             container.remove_data_group(data_group)
 
     def add_line_region(self):
-        display = self.selected_display
-        if display:
-            assert isinstance(display, Display.Display)
-            data_item = display.data_item
-            assert data_item
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            data_item = display_specifier.data_item
+            display = display_specifier.display
             region = Region.LineRegion()
             region.start = (0.2, 0.2)
             region.end = (0.8, 0.8)
@@ -618,11 +622,10 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def add_rectangle_region(self):
-        display = self.selected_display
-        if display:
-            assert isinstance(display, Display.Display)
-            data_item = display.data_item
-            assert data_item
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            data_item = display_specifier.data_item
+            display = display_specifier.display
             region = Region.RectRegion()
             region.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.add_region(region)
@@ -632,11 +635,10 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def add_ellipse_region(self):
-        display = self.selected_display
-        if display:
-            assert isinstance(display, Display.Display)
-            data_item = display.data_item
-            assert data_item
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            data_item = display_specifier.data_item
+            display = display_specifier.display
             region = Region.EllipseRegion()
             region.bounds = ((0.25,0.25), (0.5,0.5))
             data_item.add_region(region)
@@ -646,11 +648,10 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def add_point_region(self):
-        display = self.selected_display
-        if display:
-            assert isinstance(display, Display.Display)
-            data_item = display.data_item
-            assert data_item
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            data_item = display_specifier.data_item
+            display = display_specifier.display
             region = Region.PointRegion()
             region.position = (0.5,0.5)
             data_item.add_region(region)
@@ -660,11 +661,10 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def add_interval_region(self):
-        display = self.selected_display
-        if display:
-            assert isinstance(display, Display.Display)
-            data_item = display.data_item
-            assert data_item
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            data_item = display_specifier.data_item
+            display = display_specifier.display
             region = Region.IntervalRegion()
             region.start = 0.25
             region.end = 0.75
@@ -675,12 +675,14 @@ class DocumentController(Observable.Broadcaster):
         return None
 
     def remove_graphic(self):
-        display = self.selected_display
-        if display and display.graphic_selection.has_selection():
-            graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
-            for graphic in graphics:
-                display.remove_drawn_graphic(graphic)
-            return True
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            if display.graphic_selection.has_selection():
+                graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
+                for graphic in graphics:
+                    display.remove_drawn_graphic(graphic)
+                return True
         return False
 
     def add_processing_operation_by_id(self, operation_id, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):

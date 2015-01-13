@@ -209,6 +209,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
+        self.data_item = None
         self.display = None
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
@@ -233,6 +234,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
 
+        data_item = self.data_item
         display = self.display
 
         if display:
@@ -272,7 +274,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
                     drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = display.data_item.get_metadata("hardware_source")
+                    data_item_properties = data_item.get_metadata("hardware_source")
                     info_items = list()
                     voltage = data_item_properties.get("extra_high_tension", 0)
                     if voltage:
@@ -345,6 +347,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.line_graph_background_canvas_item)
 
         # thread for drawing
+        self.__data_item = None
+        self.__buffered_data_source = None
         self.__display = None
         self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
         self.__prepare_data_thread.start()
@@ -368,7 +372,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__prepare_data_thread:
             self.__prepare_data_thread.close()
             self.__prepare_data_thread = None
-        self.update_display(None)
+        self.update_display(None, None, None)
         self.delegate.clear_task("prepare")
         # call super
         super(LinePlotCanvasItem, self).close()
@@ -385,12 +389,14 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__display
     display = property(__get_display)
 
-    def update_display(self, display):
+    def update_display(self, data_item, buffered_data_source, display):
         """ Update the display (model) associated with this canvas item. """
         # first take care of listeners and update the __display field
         old_display = self.__display
         if old_display and display != old_display:
             old_display.remove_listener(self)
+        self.__data_item = data_item
+        self.__buffered_data_source = buffered_data_source
         self.__display = display
         if display and display != old_display:
             display.add_listener(self)  # for display_graphic_selection_changed
@@ -557,10 +563,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
         pos = Geometry.IntPoint(x=x, y=y)
-        display = self.display
+        data_item = self.__data_item
+        display = self.__display
         if not display:
             return False
-        display.data_item.begin_transaction()
+        data_item.begin_transaction()
         if self.delegate.image_panel_get_tool_mode() == "pointer":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
@@ -574,14 +581,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         elif self.delegate.image_panel_get_tool_mode() == "interval":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 data_size = self.__get_data_size()
-                display = self.display
-                if display and data_size and len(data_size) == 1:
+                if data_size and len(data_size) == 1:
                     widget_mapping = self.__get_mouse_mapping()
                     x = widget_mapping.map_point_widget_to_channel_norm(pos)
                     region = Region.IntervalRegion()
                     region.start = x
                     region.end = x
-                    display.data_item.add_region(region)  # this will also make a drawn graphic
+                    data_item.add_region(region)  # this will also make a drawn graphic
                     # hack to select it. it will be the last item.
                     display.graphic_selection.set(len(display.drawn_graphics) - 1)
                     self.begin_tracking_regions(pos, Graphics.NullModifiers())
@@ -592,9 +598,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).mouse_released(x, y, modifiers):
             return True
         self.end_tracking(modifiers)
-        display = self.display
+        data_item = self.__data_item
+        display = self.__display
         if display:
-            display.data_item.end_transaction()
+            data_item.end_transaction()
         return False
 
     def context_menu_event(self, x, y, gx, gy):
@@ -722,7 +729,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
             if self.graphic_drag_items:
-                with self.display.data_item.data_item_changes():
+                with self.__data_item.data_item_changes():
                     for graphic in self.graphic_drag_items:
                         index = self.display.drawn_graphics.index(graphic)
                         part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
@@ -853,6 +860,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.info_overlay_canvas_item)
 
         # thread for drawing
+        self.__data_item = None
+        self.__buffered_data_source = None
         self.__display = None
         self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
         self.__prepare_data_thread.start()
@@ -870,7 +879,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__prepare_data_thread:
             self.__prepare_data_thread.close()
             self.__prepare_data_thread = None
-        self.update_display(None)
+        self.update_display(None, None, None)
         self.delegate.clear_task("prepare")
         # call super
         super(ImageCanvasItem, self).close()
@@ -888,17 +897,19 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
 
+    @property
+    def display(self):
+        return self.__display
+
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def __get_display(self):
-        return self.__display
-    display = property(__get_display)
-
-    def update_display(self, display):
+    def update_display(self, data_item, buffered_data_source, display):
         # first take care of listeners and update the __display field
         old_display = self.__display
         if old_display and display != old_display:
             old_display.remove_listener(self)
+        self.__data_item = data_item
+        self.__buffered_data_source = buffered_data_source
         self.__display = display
         if display and display != old_display:
             display.add_listener(self)  # for display_graphic_selection_changed
@@ -908,6 +919,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.bitmap_canvas_item.update()
             self.graphics_canvas_item.display = None
             self.graphics_canvas_item.update()
+            self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
         else:
@@ -1025,10 +1037,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
-        display = self.display
+        data_item = self.__data_item
+        display = self.__display
         if not display:
             return False
-        display.data_item.begin_transaction()
+        data_item.begin_transaction()
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
@@ -1076,7 +1089,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        display = self.display
+        data_item = self.__data_item
+        display = self.__display
         if display:
             drawn_graphics = display.drawn_graphics
             for index in self.graphic_drag_indexes:
@@ -1095,7 +1109,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                         display.graphic_selection.remove(graphic_index)
                     else:
                         display.graphic_selection.add(graphic_index)
-            display.data_item.end_transaction()
+            data_item.end_transaction()
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_part_data = {}
@@ -1125,7 +1139,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.graphic_drag_items:
-            with self.display.data_item.data_item_changes():
+            with self.__data_item.data_item_changes():
                 for graphic in self.graphic_drag_items:
                     index = self.display.drawn_graphics.index(graphic)
                     part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
@@ -1277,6 +1291,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # data is calculated and then sent to the image canvas item.
     def prepare_display_on_thread(self):
 
+        data_item = self.__data_item
         display = self.__display
 
         if display:
@@ -1296,6 +1311,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.graphics_canvas_item.display = display
                 self.graphics_canvas_item.update()
                 # update the info overlay
+                self.info_overlay_canvas_item.data_item = data_item
                 self.info_overlay_canvas_item.display = display
                 self.info_overlay_canvas_item.update()
 
@@ -2038,7 +2054,7 @@ class ImagePanel(object):
             if self.__content_canvas_item:
                 self.__content_canvas_item.update()
         if self.display_canvas_item:  # may be closed
-            self.display_canvas_item.update_display(display)
+            self.display_canvas_item.update_display(data_item, buffered_data_source, display)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_image_panel == self

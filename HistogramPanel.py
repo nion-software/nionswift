@@ -356,13 +356,13 @@ class HistogramPanel(Panel.Panel):
         with self.__display_lock:
             if self.__display:
                 self.__display.remove_listener(self)
-                self.__display.data_item.remove_listener(self)
+                self.__data_item.remove_listener(self)
             self.__data_item = data_item
             self.__buffered_data_source = buffered_data_source
             self.__display = display
             if self.__display:
                 self.__display.add_listener(self)
-                self.__display.data_item.add_listener(self)
+                self.__data_item.add_listener(self)
 
     # this message is received from the data item binding.
     # when a new display is set, this panel becomes a listener
