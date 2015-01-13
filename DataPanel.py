@@ -467,7 +467,7 @@ class DataPanel(Panel.Panel):
         def display_processor_needs_recompute(self, display, processor):
             document_model = self.document_controller.document_model
             if processor == display.get_processor("thumbnail"):
-                document_model.dispatch_task(lambda: processor.recompute_data_limited(self.ui), "thumbnail")
+                processor.recompute_if_necessary(document_model.dispatch_task, self.ui)
 
         # notification from display
         def display_processor_data_updated(self, display, processor):
@@ -493,8 +493,7 @@ class DataPanel(Panel.Panel):
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
             display = data_item.displays[0]
-            if display.get_processor("thumbnail").is_data_stale:
-                self.document_controller.document_model.dispatch_task(lambda: display.get_processor("thumbnail").recompute_data_limited(self.ui), "thumbnail")
+            display.get_processor("thumbnail").recompute_if_necessary(self.document_controller.document_model.dispatch_task, self.ui)
             thumbnail_data = display.get_processed_data("thumbnail")
             title_str = self.document_controller.get_displayed_title_for_data_item(data_item)
             format_str = data_item.size_and_data_format_as_string
@@ -582,8 +581,7 @@ class DataPanel(Panel.Panel):
                             draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
                                 display = data_item.displays[0]
-                                if display.get_processor("thumbnail").is_data_stale:
-                                    self.__delegate.document_controller.document_model.dispatch_task(lambda: display.get_processor("thumbnail").recompute_data_limited(self.__delegate.ui), "thumbnail")
+                                display.get_processor("thumbnail").recompute_if_necessary(self.__delegate.document_controller.document_model.dispatch_task, self.__delegate.ui)
                                 thumbnail_data = display.get_processed_data("thumbnail")
                                 if is_selected:
                                     drawing_context.save()
@@ -897,7 +895,7 @@ class DataPanel(Panel.Panel):
         def display_processor_needs_recompute(self, display, processor):
             document_model = self.document_controller.document_model
             if processor == display.get_processor("thumbnail"):
-                document_model.dispatch_task(lambda: processor.recompute_data_limited(self.ui), "thumbnail")
+                processor.recompute_if_necessary(document_model.dispatch_task, self.ui)
 
         # notification from display
         def display_processor_data_updated(self, display, processor):

@@ -375,8 +375,8 @@ class HistogramPanel(Panel.Panel):
         statistics_data = display.data_item.get_processed_data("statistics") if display else dict()
         if display:
             document_model = self.document_controller.document_model
-            document_model.dispatch_task(lambda: display.data_item.get_processor("statistics").recompute_data_limited(None), "statistics")
-            document_model.dispatch_task(lambda: display.get_processor("histogram").recompute_data_limited(None), "histogram")
+            display.data_item.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
+            display.get_processor("histogram").recompute_if_necessary(document_model.dispatch_task, None)
         self.__update_statistics(statistics_data)
 
     # notification from display
@@ -385,7 +385,7 @@ class HistogramPanel(Panel.Panel):
         with self.__display_lock:
             display = self.__display
         if processor == display.get_processor("histogram"):
-            document_model.dispatch_task(lambda: processor.recompute_data_limited(None), "histogram")
+            processor.recompute_if_necessary(document_model.dispatch_task, None)
 
     # notification from display
     def display_processor_data_updated(self, display, processor):
@@ -401,7 +401,7 @@ class HistogramPanel(Panel.Panel):
         with self.__display_lock:
             display = self.__display
         if processor == display.data_item.get_processor("statistics"):
-            document_model.dispatch_task(lambda: processor.recompute_data_limited(None), "statistics")
+            processor.recompute_if_necessary(document_model.dispatch_task, None)
 
     # notification from display
     def data_item_processor_data_updated(self, data_item, processor):

@@ -39,6 +39,8 @@ class DataItemProcessor(object):
         self.__cached_value = None
         self.__cached_value_dirty = None
         self.__cached_value_time = 0
+        self.__is_recomputing = False
+        self.__is_recomputing_lock = threading.RLock()
         self.__recompute_lock = threading.RLock()
 
     def close(self):
@@ -95,16 +97,31 @@ class DataItemProcessor(object):
         self.__initialize_cache()
         return self.__cached_value_dirty
 
-    def recompute_data_limited(self, ui, minimum_time=0.5):
-        """Compute the data associated with this processor but with a maximum frequency.
+    def recompute_if_necessary(self, dispatch, arg):
+        """Recompute the data on a thread, if necessary.
 
-        Uses recompute_data. Recompute data will only be called after and as often as the
-        minimum_time parameter, whose default is 0.5s.
-        """
-        current_time = time.time()
-        if current_time < self.__cached_value_time + minimum_time:
-            time.sleep(self.__cached_value_time + minimum_time - current_time)
-        self.recompute_data(ui)
+        If the data has recently been computed, this call will be rescheduled for the future.
+
+        If the data is currently being computed, it do nothing."""
+        if self.is_data_stale:
+            with self.__is_recomputing_lock:
+                is_recomputing = self.__is_recomputing
+                self.__is_recomputing = True
+            if is_recomputing:
+                pass
+            else:
+                # the only way to get here is if we're not currently computing
+                # this has the side effect of limiting the number of threads that
+                # are sleeping.
+                def recompute():
+                    minimum_time = 0.5
+                    current_time = time.time()
+                    if current_time < self.__cached_value_time + minimum_time:
+                        time.sleep(self.__cached_value_time + minimum_time - current_time)
+                    self.recompute_data(arg)
+                    with self.__is_recomputing_lock:
+                        self.__is_recomputing = False
+                dispatch(recompute, self.__cache_property_name)
 
     def recompute_data(self, ui):
         """Compute the data associated with this processor.
