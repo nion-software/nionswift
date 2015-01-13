@@ -566,7 +566,7 @@ class TestDataItemClass(unittest.TestCase):
             description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
             super(TestDataItemClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
             self.count = 0
-        def get_processed_data(self, data_sources):
+        def get_processed_data(self, data_sources, values):
             self.count += 1
             return numpy.zeros((16, 16))
 
@@ -594,7 +594,7 @@ class TestDataItemClass(unittest.TestCase):
         def __init__(self):
             super(TestDataItemClass.SumOperation, self).__init__("Add2", "add2-operation")
 
-        def get_processed_data(self, data_sources):
+        def get_processed_data(self, data_sources, values):
             result = None
             for data_item in data_sources:
                 if result is None:

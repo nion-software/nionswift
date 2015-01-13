@@ -286,10 +286,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def read_from_dict(self, properties):
         super(OperationItem, self).read_from_dict(properties)
-        # update items one by one to update operation
-        for key in self.values.keys():
-            if self.operation:
-                setattr(self.operation, key, self.values[key])
         self.managed_object_context_changed()
 
     # called from data item when added/removed.
@@ -424,8 +420,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         values = self.values
         values[property_id] = value
         self.values = values
-        if self.operation:
-            setattr(self.operation, property_id, value)
 
     # update the default value for this operation.
     def __set_property_default(self, property_id, default_value):
@@ -438,7 +432,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     @property
     def data_shape_and_dtype(self):
         if self.operation:
-            return self.operation.get_processed_data_shape_and_dtype(self.data_sources)
+            return self.operation.get_processed_data_shape_and_dtype(self.data_sources, self.values)
         return None
 
     @property
@@ -458,20 +452,20 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     @property
     def intensity_calibration(self):
         if self.operation:
-            return self.operation.get_processed_intensity_calibration(self.data_sources)
+            return self.operation.get_processed_intensity_calibration(self.data_sources, self.values)
         return None
 
     @property
     def dimensional_calibrations(self):
         if self.operation:
-            return self.operation.get_processed_dimensional_calibrations(self.data_sources)
+            return self.operation.get_processed_dimensional_calibrations(self.data_sources, self.values)
         return None
 
     @property
     def data(self):
         try:
             if self.operation:
-                return self.operation.get_processed_data(self.data_sources)
+                return self.operation.get_processed_data(self.data_sources, self.values)
             return None
         except Exception as e:
             import traceback
@@ -527,12 +521,8 @@ class Operation(object):
         self.region_types = dict()
         self.region_bindings = dict()
 
-    # handle properties from the description of the operation.
-    def get_property(self, property_id, default_value=None):
-        return getattr(self, property_id) if hasattr(self, property_id) else default_value
-
     # public method to do processing.
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         raise NotImplementedError()
         # double check that data is a copy and not the original.
         # if data is not None:
@@ -541,19 +531,19 @@ class Operation(object):
         #     assert(id(new_data.base) != id(data))
 
     # subclasses that change the type or shape of the data must override
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         if len(data_sources) > 0:
             return data_sources[0].data_shape_and_dtype
         return None
 
     # intensity calibration
-    def get_processed_intensity_calibration(self, data_sources):
+    def get_processed_intensity_calibration(self, data_sources, values):
         if len(data_sources) > 0:
             return data_sources[0].intensity_calibration
         return None
 
     # spatial calibrations
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         if len(data_sources) > 0:
             return data_sources[0].dimensional_calibrations
         return None
@@ -561,7 +551,12 @@ class Operation(object):
     # default value handling. this gives the operation a chance to update default
     # values when the data shape or dtype changes.
     def property_defaults_for_data_shape_and_dtype(self, data_sources):
-        return dict()
+        property_defaults = dict()
+        for description_entry in self.description:
+            default_value = description_entry.get("default")
+            if default_value is not None:
+                property_defaults[description_entry["property"]] = default_value
+        return property_defaults
 
 
 class FFTOperation(Operation):
@@ -569,7 +564,7 @@ class FFTOperation(Operation):
     def __init__(self):
         super(FFTOperation, self).__init__(_("FFT"), "fft-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         data_shape = data_sources[0].data_shape
@@ -587,13 +582,13 @@ class FFTOperation(Operation):
         else:
             raise NotImplementedError()
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         if data_shape is None:
             return None
         return data_shape, numpy.dtype(numpy.complex128)
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
@@ -610,7 +605,7 @@ class IFFTOperation(Operation):
     def __init__(self):
         super(IFFTOperation, self).__init__(_("Inverse FFT"), "inverse-fft-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         data_shape = data_sources[0].data_shape
@@ -628,7 +623,7 @@ class IFFTOperation(Operation):
         else:
             raise NotImplementedError()
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
@@ -645,7 +640,7 @@ class AutoCorrelateOperation(Operation):
     def __init__(self):
         super(AutoCorrelateOperation, self).__init__(_("Auto Correlate"), "auto-correlate-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -671,7 +666,7 @@ class CrossCorrelateOperation(Operation):
     def __init__(self):
         super(CrossCorrelateOperation, self).__init__(_("Cross Correlate"), "cross-correlate-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         if len(data_sources) == 2:
             data1 = data_sources[0].data
             data2 = data_sources[1].data
@@ -701,7 +696,7 @@ class InvertOperation(Operation):
     def __init__(self):
         super(InvertOperation, self).__init__(_("Invert"), "invert-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -724,14 +719,13 @@ class GaussianBlurOperation(Operation):
             { "name": _("Radius"), "property": "sigma", "type": "scalar", "default": 0.3 }
         ]
         super(GaussianBlurOperation, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
-        self.sigma = 0.3
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
             return None
-        return scipy.ndimage.gaussian_filter(data, sigma=10*self.get_property("sigma"))
+        return scipy.ndimage.gaussian_filter(data, sigma=10*values.get("sigma"))
 
 
 class Crop2dOperation(Operation):
@@ -741,17 +735,16 @@ class Crop2dOperation(Operation):
             { "name": _("Bounds"), "property": "bounds", "type": "rectangle", "default": ((0.0, 0.0), (1.0, 1.0)) }
         ]
         super(Crop2dOperation, self).__init__(_("Crop"), "crop-operation", description)
-        self.bounds = (0.0, 0.0), (1.0, 1.0)
         self.region_types = {"crop": "rectangle-region"}
         self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if data_shape is None or dimensional_calibrations is None:
             return None
         cropped_dimensional_calibrations = list()
-        bounds = self.get_property("bounds")
+        bounds = values.get("bounds")
         for index, dimensional_calibration in enumerate(dimensional_calibrations):
             cropped_calibration = Calibration.Calibration(dimensional_calibration.offset + data_shape[index] * bounds[0][index] * dimensional_calibration.scale,
                                                           dimensional_calibration.scale,
@@ -759,25 +752,25 @@ class Crop2dOperation(Operation):
             cropped_dimensional_calibrations.append(cropped_calibration)
         return cropped_dimensional_calibrations
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
-        bounds = self.get_property("bounds")
+        bounds = values.get("bounds")
         bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return bounds_int[1] + (data_shape[-1], ), data_dtype
         else:
             return bounds_int[1], data_dtype
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         shape = data_sources[0].data_shape
         if data is None or shape is None:
             return None
-        bounds = self.get_property("bounds")
+        bounds = values.get("bounds")
         bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
@@ -787,27 +780,25 @@ class Slice3dOperation(Operation):
     def __init__(self):
         description = [
             { "name": _("Slice Center"), "property": "slice_center", "type": "slice-center-field", "default": 0 },
-            { "name": _("Slice Width"), "property": "slice_width", "type": "slice-width-field", "default": 0 }
+            { "name": _("Slice Width"), "property": "slice_width", "type": "slice-width-field", "default": 1 }
         ]
         super(Slice3dOperation, self).__init__(_("Slice"), "slice-operation", description)
-        self.slice_center = 0
-        self.slice_width = 1
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
         return data_shape[1:], data_dtype
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
             return None
         shape = data.shape
-        slice_center = self.get_property("slice_center")
-        slice_width = self.get_property("slice_width")
+        slice_center = values.get("slice_center")
+        slice_width = values.get("slice_width")
         slice_start = slice_center + 1 - slice_width
         slice_start = max(slice_start, 0)
         slice_end = slice_start + slice_width
@@ -822,24 +813,23 @@ class Pick3dOperation(Operation):
             { "name": _("Position"), "property": "position", "type": "point", "default": (0.5, 0.5) },
         ]
         super(Pick3dOperation, self).__init__(_("Pick"), "pick-operation", description)
-        self.position = (0.5, 0.5)
         self.region_types = {"pick": "point-region"}
         self.region_bindings = {"pick": [RegionBinding("position", "position")]}
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
         return (data_shape[0], ), data_dtype
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         shape = data.shape
         if data is None or shape is None:
             return None
-        position = self.get_property("position")
+        position = values.get("position")
         position = Geometry.FloatPoint.make(position)
         position_i = Geometry.IntPoint(y=position.y * shape[1], x=position.x * shape[2])
         if position_i.y >= 0 and position_i.y < shape[1] and position_i.x >= 0 and position_i.x < shape[2]:
@@ -854,20 +844,20 @@ class Projection2dOperation(Operation):
         # hardcoded to axis 0 right now
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if dimensional_calibrations is None:
             return None
         return copy.deepcopy(dimensional_calibrations)[1:]
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
         return data_shape[1:], data_dtype
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -898,54 +888,50 @@ class Resample2dOperation(Operation):
             {"name": _("Height"), "property": "height", "type": "integer-field", "default": None},
         ]
         super(Resample2dOperation, self).__init__(_("Resample"), "resample-operation", description)
-        self.width = 0
-        self.height = 0
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
             return None
-        height = self.get_property("height", data.shape[0])
-        width = self.get_property("width", data.shape[1])
+        height = values.get("height", data.shape[0])
+        width = values.get("width", data.shape[1])
         if data.shape[1] == width and data.shape[0] == height:
             return data.copy()
         return Image.scaled(data, (height, width))
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if data_shape is None or dimensional_calibrations is None:
             return None
         assert len(dimensional_calibrations) == 2
-        height = self.get_property("height", data_shape[0])
-        width = self.get_property("width", data_shape[1])
+        height = values.get("height", data_shape[0])
+        width = values.get("width", data_shape[1])
         dimensions = (height, width)
         return [Calibration.Calibration(dimensional_calibrations[i].offset,
                                      dimensional_calibrations[i].scale * data_shape[i] / dimensions[i],
                                      dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
-        height = self.get_property("height", data_shape[0])
-        width = self.get_property("width", data_shape[1])
+        height = values.get("height", data_shape[0])
+        width = values.get("width", data_shape[1])
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return (height, width, data_shape[-1]), data_dtype
         else:
             return (height, width), data_dtype
 
     def property_defaults_for_data_shape_and_dtype(self, data_sources):
+        property_defaults = super(Resample2dOperation, self).property_defaults_for_data_shape_and_dtype(data_sources)
         data_shape = data_sources[0].data_shape
         if data_shape is not None:
-            property_defaults = {
-                "height": data_shape[0],
-                "width": data_shape[1],
-            }
-            return property_defaults
-        return super(Resample2dOperation, self).property_defaults_for_data_shape_and_dtype(data_sources)
+            property_defaults["height"] = data_shape[0]
+            property_defaults["width"] = data_shape[1]
+        return property_defaults
 
 
 class HistogramOperation(Operation):
@@ -954,10 +940,10 @@ class HistogramOperation(Operation):
         super(HistogramOperation, self).__init__(_("Histogram"), "histogram-operation")
         self.bins = 256
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         return (self.bins, ), numpy.dtype(numpy.int)
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -974,18 +960,16 @@ class LineProfileOperation(Operation):
             { "name": _("Integration Width"), "property": "integration_width", "type": "integer-field", "default": 1 }
         ]
         super(LineProfileOperation, self).__init__(_("Line Profile"), "line-profile-operation", description)
-        self.vector = ((0.25, 0.25), (0.75, 0.75))
-        self.integration_width = 1
         self.region_types = {"line": "line-region"}
         self.region_bindings = {"line": [RegionBinding("vector", "vector"),
                                          RegionBinding("integration_width", "width")]}
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:
             return None
-        start, end = self.get_property("vector")
+        start, end = values.get("vector")
         shape = data_shape
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
         end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
@@ -995,7 +979,7 @@ class LineProfileOperation(Operation):
         else:
             return (length, ), numpy.dtype(numpy.double)
 
-    def get_processed_dimensional_calibrations(self, data_sources):
+    def get_processed_dimensional_calibrations(self, data_sources, values):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if dimensional_calibrations is None:
             return None
@@ -1023,7 +1007,7 @@ class LineProfileOperation(Operation):
 
     # xx, yy = __coordinates(None, (4,4), (8,4), 3)
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -1031,8 +1015,8 @@ class LineProfileOperation(Operation):
         assert Image.is_data_2d(data)
         if Image.is_data_rgb_type(data):
             data = Image.convert_to_grayscale(data, numpy.double)
-        start, end = self.get_property("vector")
-        integration_width = int(self.get_property("integration_width"))
+        start, end = values.get("vector")
+        integration_width = int(values.get("integration_width"))
         shape = data.shape
         integration_width = min(max(shape[0], shape[1]), integration_width)  # limit integration width to sensible value
         start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
@@ -1056,7 +1040,7 @@ class ConvertToScalarOperation(Operation):
     def __init__(self):
         super(ConvertToScalarOperation, self).__init__(_("Convert to Scalar"), "convert-to-scalar-operation")
 
-    def get_processed_data(self, data_sources):
+    def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         if data is None:
@@ -1068,7 +1052,7 @@ class ConvertToScalarOperation(Operation):
         else:
             return data.copy()
 
-    def get_processed_data_shape_and_dtype(self, data_sources):
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         if data_shape is None or data_dtype is None:

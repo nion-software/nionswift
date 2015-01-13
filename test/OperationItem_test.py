@@ -309,10 +309,9 @@ class TestOperationClass(unittest.TestCase):
         def __init__(self):
             description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
             super(TestOperationClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
-            self.param = 0.0
-        def get_processed_data(self, data_sources):
+        def get_processed_data(self, data_sources, values):
             d = numpy.zeros((16, 16))
-            d[:] = self.get_property("param")
+            d[:] = values.get("param")
             return d
 
     # test to ensure that no duplicate relationships are created
@@ -512,10 +511,9 @@ class TestOperationClass(unittest.TestCase):
         def __init__(self):
             description = [ { "name": "A", "property": "a", "type": "point", "default": 0.0 }, { "name": "B", "property": "b", "type": "point", "default": 1.0 } ]
             super(TestOperationClass.Dummy2Operation, self).__init__("Dummy", "dummy-operation", description)
-            self.param = 0.0
             self.region_types = {"a": "point-region", "b": "point-region"}
             self.region_bindings = {"a": [Operation.RegionBinding("a", "position")], "b": [Operation.RegionBinding("b", "position")]}
-        def get_processed_data(self, data_sources):
+        def get_processed_data(self, data_sources, values):
             return numpy.zeros((16, 16))
 
     def test_removing_operation_with_multiple_associated_regions_removes_all_regions(self):

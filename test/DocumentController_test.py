@@ -277,7 +277,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         def __init__(self):
             super(TestDocumentControllerClass.SumOperation, self).__init__("Sum", "sum-operation")
 
-        def get_processed_data(self, data_sources):
+        def get_processed_data(self, data_sources, values):
             result = None
             for data_item in data_sources:
                 if result is None:

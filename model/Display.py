@@ -192,7 +192,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                     slice_operation.slice_width = self.slice_width
                     DataSourceTuple = collections.namedtuple("DataSourceTuple", ["data"])
                     data_source = DataSourceTuple(data=data)  # quite a hack
-                    data_2d = slice_operation.get_processed_data([data_source])
+                    data_2d = slice_operation.get_processed_data([data_source], {"slice_center": self.slice_center, "slice_width": self.slice_width})
                 else:
                     data_2d = None
                 self.__preview_data = data_2d
