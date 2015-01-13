@@ -1497,6 +1497,20 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.maybe_data_source.regions if self.maybe_data_source else list()
 
 
+class DisplaySpecifier(object):
+
+    def __init__(self, data_item=None, buffered_data_source=None, display=None):
+        self.data_item = data_item
+        self.buffered_data_source = buffered_data_source
+        self.display = display
+
+    def __eq__(self, other):
+        return self.data_item == other.data_item and self.buffered_data_source == other.buffered_data_source and self.display == other.display
+
+    def __ne__(self, other):
+        return self.data_item != other.data_item or self.buffered_data_source != other.buffered_data_source or self.display != other.display
+
+
 _computation_fns = list()
 
 def register_computation(computation_fn):

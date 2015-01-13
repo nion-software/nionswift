@@ -21,21 +21,15 @@ from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
-from nion.swift.model import Display
-from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.ui import Dialog
-from nion.ui import Geometry
 from nion.ui import Process
 from nion.ui import Observable
 
 _ = gettext.gettext
-
-
-DisplaySpecifier = collections.namedtuple("DisplaySpecifier", ["data_item", "buffered_data_source", "display"])
 
 
 class DocumentController(Observable.Broadcaster):
@@ -461,15 +455,22 @@ class DocumentController(Observable.Broadcaster):
             self.workspace_controller.selected_image_panel_changed(self.selected_image_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            selected_data_item = selected_image_panel.get_displayed_data_item() if selected_image_panel else None
-            self.notify_selected_data_item_changed(selected_data_item)
+            selected_display_specifier = selected_image_panel.display_specifier if selected_image_panel else DataItem.DisplaySpecifier()
+            self.notify_selected_display_specifier_changed(selected_display_specifier)
     selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_selected_data_item_changed(self, selected_data_item):
-        self.notify_listeners("selected_data_item_changed", selected_data_item)
+    def notify_selected_display_specifier_changed(self, display_specifier):
+        self.notify_listeners("selected_display_specifier_changed", display_specifier)
+
+    def notify_selected_data_item_changed(self, data_item):
+        # DEPRECATED
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        display = buffered_data_source.displays[0] if buffered_data_source else None
+        display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+        self.notify_selected_display_specifier_changed(display_specifier)
 
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
@@ -493,29 +494,24 @@ class DocumentController(Observable.Broadcaster):
         if data_panel is not None:
             data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
 
-    # access the currently selected data item. read only.
-    def __get_selected_data_item(self):
-        # first check focused data panel
-        if self.weak_data_panel:
-            data_panel = self.weak_data_panel()
-            if data_panel and data_panel.focused:
-                return data_panel.data_item
-        # if not found, check for focused or selected image panel
-        if self.selected_image_panel:
-            return self.selected_image_panel.get_displayed_data_item()
-        return None
-    selected_data_item = property(__get_selected_data_item)
-
     @property
     def selected_display_specifier(self):
         """Return the selected display specifier (data_item, data_source, display).
 
-        The selected display is the display that has keyboard focus.
+        The selected display is the display that has keyboard focus in the data panel or an image panel.
         """
-        data_item = self.selected_data_item
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        display = buffered_data_source.displays[0] if buffered_data_source else None
-        return DisplaySpecifier(data_item, buffered_data_source, display) if display else None
+        # first check focused data panel
+        if self.weak_data_panel:
+            data_panel = self.weak_data_panel()
+            if data_panel and data_panel.focused:
+                data_item = data_panel.data_item
+                buffered_data_source = data_item.maybe_data_source if data_item else None
+                display = buffered_data_source.displays[0] if buffered_data_source else None
+                return DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+        # if not found, check for focused or selected image panel
+        if self.selected_image_panel:
+            return self.selected_image_panel.display_specifier
+        return DataItem.DisplaySpecifier()
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
@@ -557,7 +553,7 @@ class DocumentController(Observable.Broadcaster):
 
     def export_file(self):
         # present a loadfile dialog to the user
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         filter = ";;".join(
             [writer.name + " files (" + " ".join(
@@ -718,7 +714,7 @@ class DocumentController(Observable.Broadcaster):
                 inspector_panel.request_focus = True
 
     def add_processing_operation(self, operation, prefix=None, suffix=None, in_place=False, select=True, crop_region=None):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             if in_place:  # in place?
@@ -780,14 +776,14 @@ class DocumentController(Observable.Broadcaster):
         return crop_region
 
     def processing_fft(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
         return self.add_processing_operation_by_id("fft-operation", prefix=_("FFT of "), select=select, crop_region=crop_region)
 
     def processing_ifft(self, select=True):
         return self.add_processing_operation_by_id("inverse-fft-operation", prefix=_("Inverse FFT of "), select=select)
 
     def processing_auto_correlate(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
         return self.add_processing_operation_by_id("auto-correlate-operation", prefix=_("Auto Correlate of "), select=select, crop_region=crop_region)
 
     def processing_cross_correlate(self, select=True):
@@ -806,11 +802,11 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("resample-operation", prefix=_("Resample of "), select=select)
 
     def processing_histogram(self, select=True):
-        crop_region = self.__get_crop_region(self.selected_data_item)
+        crop_region = self.__get_crop_region(self.selected_display_specifier.data_item)
         return self.add_processing_operation_by_id("histogram-operation", prefix=_("Histogram of "), select=select, crop_region=crop_region)
 
     def processing_crop(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
             crop_region = self.__get_crop_region(data_item)
             bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
@@ -820,14 +816,14 @@ class DocumentController(Observable.Broadcaster):
             return self.add_processing_operation(operation, prefix=_("Crop of "), select=select)
 
     def processing_slice(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("slice-operation")
             operation.set_property("slice", 0)
             return self.add_processing_operation(operation, prefix=_("Slice of "), select=select)
 
     def processing_pick(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
             operation.establish_associated_region("pick", data_item.maybe_data_source)  # after setting operation properties
@@ -838,13 +834,13 @@ class DocumentController(Observable.Broadcaster):
             return pick_data_item
 
     def processing_projection(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
             operation = Operation.OperationItem("projection-operation")
             return self.add_processing_operation(operation, prefix=_("Projection of "), select=select)
 
     def processing_line_profile(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item:
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
@@ -857,7 +853,7 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("invert-operation", suffix=_(" Inverted"), select=select)
 
     def processing_duplicate(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item:
             new_data_item = copy.deepcopy(data_item)
             new_data_item.title = _("Clone of ") + data_item.title
@@ -875,7 +871,7 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id("selector-operation", suffix=" [{0}]".format(0), select=select, in_place=True)
 
     def processing_snapshot(self, select=True):
-        data_item = self.selected_data_item
+        data_item = self.selected_display_specifier.data_item
         if data_item:
             assert isinstance(data_item, DataItem.DataItem)
             data_item_copy = data_item.snapshot()
@@ -910,13 +906,14 @@ class DocumentController(Observable.Broadcaster):
                     return r_var
             return None
         lines = list()
-        weak_data_item = weakref.ref(self.selected_data_item)
+        data_item = self.selected_display_specifier.data_item
+        weak_data_item = weakref.ref(data_item)
         data_item_var = self.__data_item_vars.setdefault(weak_data_item, find_var())
-        lines.append("%s = _document_model.get_data_item_by_key(uuid.UUID(\"%s\"))" % (data_item_var, self.selected_data_item.uuid))
+        lines.append("%s = _document_model.get_data_item_by_key(uuid.UUID(\"%s\"))" % (data_item_var, data_item.uuid))
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
-        weak_data_item().temp_metadata_changed()
+        weak_data_item().temp_metadata_changed()  # this triggers the update of the title
 
     def __get_data_item_vars(self):
         return self.__data_item_vars
@@ -1077,54 +1074,46 @@ class SelectedDisplayBinding(Observable.Broadcaster):
 
     The selected display may be in an image panel, in the data panel,
     or in another user interface element. The document controller will
-    send selected_data_item_changed when the data item changes.
+    send selected_display_specifier_changed when the data item changes.
     This object will listen to the data item to know when its data
     changes or when it gets deleted.
 
-    It will emit a data_item_binding_display_changed message when a new
+    It will emit a selected_display_binding_changed message when a new
     display is selected or when the display changes internally.
     """
     def __init__(self, document_controller):
         super(SelectedDisplayBinding, self).__init__()
-        self.__data_item = None
-        self.__buffered_data_source = None
-        self.__display = None
+        self.__display_specifier = DataItem.DisplaySpecifier()
         self.document_controller = document_controller
-        # connect self as listener. this will result in calls to selected_data_item_changed
+        # connect self as listener. this will result in calls to selected_display_specifier_changed
         self.document_controller.add_listener(self)
         # initialize with the existing value
-        self.selected_data_item_changed(document_controller.selected_data_item)
+        self.selected_display_specifier_changed(document_controller.selected_display_specifier)
 
     def close(self):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # disconnect data item
-        if self.__display:
-            self.__display.remove_listener(self)
+        if self.__display_specifier.display:
+            self.__display_specifier.display.remove_listener(self)
         # release references
-        self.__data_item = None
-        self.__buffered_data_source = None
-        self.__display = None
+        self.__display_specifier = DataItem.DisplaySpecifier()
 
     # this message is received from the document controller.
     # it is established using add_listener
     def notify_display_changed(self):
-        self.notify_listeners("data_item_binding_display_changed", self.__data_item, self.__buffered_data_source, self.__display)
+        self.notify_listeners("selected_display_binding_changed", self.__display_specifier)
 
-    def selected_data_item_changed(self, data_item):
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        display = buffered_data_source.displays[0] if buffered_data_source else None
-        if self.__data_item != data_item or self.__buffered_data_source != buffered_data_source or self.__display != display:
+    def selected_display_specifier_changed(self, display_specifier):
+        if self.__display_specifier != display_specifier:
             # disconnect listener from display
-            if self.__display:
-                self.__display.remove_listener(self)
+            if self.__display_specifier.display:
+                self.__display_specifier.display.remove_listener(self)
             # save the new state
-            self.__data_item = data_item
-            self.__buffered_data_source = buffered_data_source
-            self.__display = display
+            self.__display_specifier = copy.copy(display_specifier)
             # connect listener to display
-            if self.__display:
-                self.__display.add_listener(self)
+            if self.__display_specifier.display:
+                self.__display_specifier.display.add_listener(self)
             # notify our listeners
             self.notify_display_changed()
 

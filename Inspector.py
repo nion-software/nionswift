@@ -12,6 +12,7 @@ import operator
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Calibration
+from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.ui import Binding
@@ -19,9 +20,6 @@ from nion.ui import Converter
 from nion.ui import Observable
 
 _ = gettext.gettext
-
-
-DisplaySpecifier = collections.namedtuple("DisplaySpecifier", ["data_item", "buffered_data_source", "display"])
 
 
 class InspectorPanel(Panel.Panel):
@@ -34,18 +32,16 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
-        # these are the currently selected item
-        self.__data_item = None
-        self.__buffered_data_source = None
-        self.__display = None
+        # the currently selected display
+        self.__display_specifier = DataItem.DisplaySpecifier()
 
         self.__display_inspector = None
         self.request_focus = False
 
         # bind to the selected data item.
-        # connect self as listener. this will result in calls to data_item_binding_display_changed.
+        # connect self as listener. this will result in calls to selected_display_binding_changed.
         self.__display_binding = document_controller.create_selected_display_binding()
-        self.__set_data_item_and_display(None, None, None)
+        self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__display_binding.add_listener(self)
 
         # top level widget in this inspector is a scroll area.
@@ -65,7 +61,7 @@ class InspectorPanel(Panel.Panel):
         # data item inspector close, which is below.
         self.__display_binding.close()
         self.__display_binding = None
-        self.__set_data_item_and_display(None, None, None)
+        self.__set_display_specifier(DataItem.DisplaySpecifier())
         # close the data item inspector
         if self.__display_inspector:
             self.__display_inspector.close()
@@ -81,16 +77,14 @@ class InspectorPanel(Panel.Panel):
             self.column.remove(self.__display_inspector.widget)
             self.__display_inspector.close()
             self.__display_inspector = None
-        if self.__display:
-            self.__display_inspector = DataItemInspector(self.ui, self.__data_item, self.__buffered_data_source, self.__display)
+        if self.__display_specifier.display:
+            self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
             self.column.add(self.__display_inspector.widget)
 
     # not thread safe
-    def __set_data_item_and_display(self, data_item, buffered_data_source, display):
-        if self.__data_item != data_item or self.__buffered_data_source != buffered_data_source or self.__display != display:
-            self.__data_item = data_item
-            self.__buffered_data_source = buffered_data_source
-            self.__display = display
+    def __set_display_specifier(self, display_specifier):
+        if self.__display_specifier != display_specifier:
+            self.__display_specifier = copy.copy(display_specifier)
             self.__update_display_inspector()
         if self.request_focus:
             if self.__display_inspector:
@@ -102,9 +96,9 @@ class InspectorPanel(Panel.Panel):
     # it is established using add_listener. when it is called
     # mark the data item as needing updating.
     # thread safe.
-    def data_item_binding_display_changed(self, data_item, buffered_data_source, display):
+    def selected_display_binding_changed(self, display_specifier):
         def update_display():
-            self.__set_data_item_and_display(data_item, buffered_data_source, display)
+            self.__set_display_specifier(display_specifier)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
@@ -792,7 +786,7 @@ class GraphicsInspectorSection(InspectorSection):
         self.__image_size = buffered_data_source.dimensional_shape
         self.__calibrations = buffered_data_source.dimensional_calibrations
         self.__graphics = display.drawn_graphics
-        self.__display_specifier = DisplaySpecifier(data_item, buffered_data_source, display)
+        self.__display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -944,8 +938,10 @@ class OperationsInspectorSection(InspectorSection):
 
 class DataItemInspector(object):
 
-    def __init__(self, ui, data_item, buffered_data_source, display):
+    def __init__(self, ui, display_specifier):
         self.ui = ui
+
+        data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
 
         self.__inspectors = list()
         content_widget = self.ui.create_column_widget()

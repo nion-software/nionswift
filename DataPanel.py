@@ -1186,7 +1186,7 @@ class DataPanel(Panel.Panel):
                 self.document_controller.notify_selected_data_item_changed(self.__selection.data_item)
                 self.document_controller.set_selected_data_items(self.__selected_data_items)
             else:
-                self.document_controller.notify_selected_data_item_changed(None)
+                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
                 self.document_controller.set_selected_data_items([])
             self.document_controller.set_browser_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)

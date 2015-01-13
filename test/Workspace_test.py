@@ -186,10 +186,10 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.image_panels[0].set_displayed_data_item(data_item2)
         document_controller.workspace_controller.image_panels[1].set_displayed_data_item(data_item3)
         document_controller.workspace_controller.change_workspace(workspace_1x1)
-        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item1)
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item1)
         document_controller.workspace_controller.change_workspace(workspace_2x1)
-        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item2)
-        self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item3)
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item2)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].display_specifier.data_item, data_item3)
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
         library_storage = DocumentModel.FilePersistentStorage()
@@ -218,7 +218,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(library_storage=library_storage, data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
-        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), document_model.data_items[0])
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, document_model.data_items[0])
 
     def __test_drop_on_1x1(self, region):
         document_model = DocumentModel.DocumentModel()
@@ -248,11 +248,11 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(document_controller.workspace_controller.image_panels[1].canvas_item.canvas_rect.height, 240)
         # check that the data items are in the right spot
         if region == "left" or region == "top":
-            self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item2)
-            self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item1)
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item2)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].display_specifier.data_item, data_item1)
         else:
-            self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item1)
-            self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item2)
+            self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item1)
+            self.assertEqual(document_controller.workspace_controller.image_panels[1].display_specifier.data_item, data_item2)
         # check that it closes properly too
         document_controller.close()
 
@@ -320,7 +320,7 @@ class TestWorkspaceClass(unittest.TestCase):
         # check that there is now one image panel
         self.assertEqual(len(document_controller.workspace_controller.image_panels), 1)
         # check that there is just one top level panel now
-        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item2)
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item2)
 
     def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
         document_model = DocumentModel.DocumentModel()
@@ -346,8 +346,8 @@ class TestWorkspaceClass(unittest.TestCase):
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.image_panels), 2)
         # check that there is just one top level panel now
-        self.assertEqual(document_controller.workspace_controller.image_panels[0].get_displayed_data_item(), data_item1)
-        self.assertEqual(document_controller.workspace_controller.image_panels[1].get_displayed_data_item(), data_item3)
+        self.assertEqual(document_controller.workspace_controller.image_panels[0].display_specifier.data_item, data_item1)
+        self.assertEqual(document_controller.workspace_controller.image_panels[1].display_specifier.data_item, data_item3)
         # check that the splits are the same at the top level
         self.assertEqual(root_canvas_item.canvas_items[0].splits, splits)
 

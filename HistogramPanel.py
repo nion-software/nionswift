@@ -8,6 +8,7 @@ import threading
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import DataItem
 from nion.swift.model import Image
 from nion.ui import Binding
 from nion.ui import CanvasItem
@@ -314,7 +315,7 @@ class HistogramPanel(Panel.Panel):
         self.__display = None
         self.__display_lock = threading.RLock()
 
-        # connect self as listener. this will result in calls to data_item_binding_display_changed
+        # connect self as listener. this will result in calls to selected_display_binding_changed
         # then manually send the first initial data item changed message to set things up.
         self.__selected_display_binding.add_listener(self)
         self.__selected_display_binding.notify_display_changed()
@@ -323,7 +324,7 @@ class HistogramPanel(Panel.Panel):
         self.__root_histogram_canvas_item.close()
         self.__root_histogram_canvas_item = None
         # disconnect data item binding
-        self.data_item_binding_display_changed(None, None, None)
+        self.selected_display_binding_changed(DataItem.DisplaySpecifier())
         self.__selected_display_binding.remove_listener(self)
         self.__selected_display_binding.close()
         self.__selected_display_binding = None
@@ -373,14 +374,16 @@ class HistogramPanel(Panel.Panel):
     # in response to a data changed message, this object will update
     # the data and trigger a repaint.
     # thread safe
-    def data_item_binding_display_changed(self, data_item, buffered_data_source, display):
-        self.__set_display(data_item, buffered_data_source, display)
-        self.__histogram_canvas_item._set_display(display)
-        statistics_data = buffered_data_source.get_processed_data("statistics") if display else dict()
-        if display:
+    def selected_display_binding_changed(self, display_specifier):
+        self.__set_display(display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        self.__histogram_canvas_item._set_display(display_specifier.display)
+        if display_specifier.display:
+            statistics_data = display_specifier.buffered_data_source.get_processed_data("statistics")
             document_model = self.document_controller.document_model
-            buffered_data_source.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
-            display.get_processor("histogram").recompute_if_necessary(document_model.dispatch_task, None)
+            display_specifier.buffered_data_source.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
+            display_specifier.display.get_processor("histogram").recompute_if_necessary(document_model.dispatch_task, None)
+        else:
+            statistics_data = dict()
         self.__update_statistics(statistics_data)
 
     # notification from display

@@ -238,7 +238,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.focused = True
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         # make sure our preconditions are right
-        self.assertEqual(document_controller.selected_data_item, data_item1)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # add processing and make sure it appeared
         self.assertEqual(data_panel.data_item, data_item1)

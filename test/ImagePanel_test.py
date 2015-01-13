@@ -105,25 +105,25 @@ class TestImagePanelClass(unittest.TestCase):
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_deleting_data_item_removes_it_from_image_panel(self):
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.document_model.data_items[0])
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
         self.document_controller.processing_invert()
         self.document_controller.periodic()
         self.image_panel.set_displayed_data_item(self.data_item)
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
         self.document_model.remove_data_item(self.data_item)
-        self.assertIsNone(self.image_panel.get_displayed_data_item())
+        self.assertIsNone(self.image_panel.display_specifier.data_item)
 
     # user deletes data source of data item that is displayed. make sure to remove display if source is deleted.
     def test_deleting_data_item_with_processed_data_item_removes_processed_data_item_from_image_panel(self):
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.document_model.data_items[0])
-        self.assertEqual(self.image_panel.get_displayed_data_item(), self.data_item)
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.document_model.data_items[0])
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
         inverted_data_item = self.document_controller.processing_invert()
         self.document_controller.periodic()
         self.image_panel.set_displayed_data_item(inverted_data_item)
-        self.assertEqual(self.image_panel.get_displayed_data_item(), inverted_data_item)
+        self.assertEqual(self.image_panel.display_specifier.data_item, inverted_data_item)
         self.document_model.remove_data_item(self.data_item)
-        self.assertIsNone(self.image_panel.get_displayed_data_item())
+        self.assertIsNone(self.image_panel.display_specifier.data_item)
 
     def test_select_line(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
@@ -475,12 +475,12 @@ class TestImagePanelClass(unittest.TestCase):
     def test_delete_key_when_nothing_selected_removes_the_image_panel_content(self):
         modifiers = Test.KeyboardModifiers()
         # check assumptions
-        self.assertIsNotNone(self.image_panel.get_displayed_data_item())
+        self.assertIsNotNone(self.image_panel.display_specifier.data_item)
         # do focusing click, then delete
         self.image_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.image_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
         # check results
-        self.assertIsNone(self.image_panel.get_displayed_data_item())
+        self.assertIsNone(self.image_panel.display_specifier.data_item)
 
     def setup_line_plot(self, canvas_shape=None):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards

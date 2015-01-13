@@ -42,7 +42,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None)
         self.histogram_canvas_item = self.histogram_panel._histogram_canvas_item
         self.display = self.data_item.displays[0]
-        self.histogram_panel.data_item_binding_display_changed(self.data_item, self.data_item.maybe_data_source, self.display)
+        display_specifier = DataItem.DisplaySpecifier(self.data_item, self.data_item.maybe_data_source, self.display)
+        self.histogram_panel.selected_display_binding_changed(display_specifier)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 

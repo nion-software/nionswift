@@ -80,7 +80,7 @@ class TestStorageClass(unittest.TestCase):
         image_panel = ImagePanel.ImagePanel(document_controller)
         document_controller.selected_image_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
-        self.assertEqual(document_controller.selected_data_item, data_item)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
         document_controller.add_line_region()
         document_controller.add_rectangle_region()
         document_controller.add_ellipse_region()
@@ -94,7 +94,7 @@ class TestStorageClass(unittest.TestCase):
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_crop()
         image_panel.set_displayed_data_item(data_item2)
-        self.assertEqual(document_controller.selected_data_item, data_item2)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item2)
         document_controller.processing_fft()
         document_controller.processing_ifft()
         image_panel.canvas_item.close()

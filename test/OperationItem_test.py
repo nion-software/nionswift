@@ -397,7 +397,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_rgba2)
         data_item_rgba2.recompute_data()
         self.image_panel.set_displayed_data_item(data_item_rgba2)
-        self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
+        self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item_rgba2)
         data_item_rgba_copy = self.document_controller.processing_snapshot()
         self.assertTrue(data_item_rgba_copy.maybe_data_source.has_data)
 
@@ -428,7 +428,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(data_item2.maybe_data_source.dimensional_calibrations), 2)
         # take snapshot
         self.image_panel.set_displayed_data_item(data_item2)
-        self.assertEqual(self.document_controller.selected_data_item, data_item2)
+        self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item2)
         data_item_copy = self.document_controller.processing_snapshot()
         # check calibrations
         self.assertEqual(len(data_item_copy.maybe_data_source.dimensional_calibrations), 2)

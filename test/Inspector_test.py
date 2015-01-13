@@ -37,9 +37,9 @@ class TestInspectorClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         # configure the inspectors
-        document_controller.notify_selected_data_item_changed(data_item)
+        document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier(data_item, data_item.maybe_data_source, data_item.maybe_data_source.displays[0]))
         document_controller.periodic()  # force UI to update
-        document_controller.notify_selected_data_item_changed(None)
+        document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
         # clean up
         document_controller.close()
 
