@@ -27,7 +27,7 @@ class DataItemProcessor(object):
     by the following notifications to the container item.
 
     processor_needs_recompute(processor)
-    notify_processor_data_updated(processor)
+    processor_data_updated(processor)
     """
 
     def __init__(self, item, cache_property_name):
@@ -77,7 +77,7 @@ class DataItemProcessor(object):
         self.item.set_cached_value_dirty(self.__cache_property_name)
         self.__initialize_cache()
         self.__cached_value_dirty = True
-        self.item.notify_processor_needs_recompute(self)
+        self.item.processor_needs_recompute(self)
 
     def get_calculated_data(self, ui, data):
         """Subclasses must implement to compute and return results from data."""
@@ -171,7 +171,7 @@ class DataItemProcessor(object):
                         # import logging
                         # logging.debug("removed %s %s %s", self.item.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.item.uuid)
                 self.__recompute_lock.release()
-                self.item.notify_processor_data_updated(self)
+                self.item.processor_data_updated(self)
                 self.__recompute_lock.acquire()
 
     def get_data(self, ui):

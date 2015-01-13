@@ -989,11 +989,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.get_processor(processor_id).get_cached_data()
 
     # called from processors
-    def notify_processor_needs_recompute(self, processor):
+    def processor_needs_recompute(self, processor):
         self.notify_listeners("data_item_processor_needs_recompute", self, processor)
 
     # called from processors
-    def notify_processor_data_updated(self, processor):
+    def processor_data_updated(self, processor):
         self.notify_listeners("data_item_processor_data_updated", self, processor)
 
     @property
