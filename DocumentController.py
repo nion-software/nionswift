@@ -910,7 +910,7 @@ class DocumentController(Observable.Broadcaster):
         lines = list()
         weak_data_item = weakref.ref(self.selected_data_item)
         data_item_var = self.__data_item_vars.setdefault(weak_data_item, find_var())
-        lines.append("%s = _data_item[uuid.UUID(\"%s\")]" % (data_item_var, self.selected_data_item.uuid))
+        lines.append("%s = _document_model.get_data_item_by_key(uuid.UUID(\"%s\"))" % (data_item_var, self.selected_data_item.uuid))
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)

@@ -127,10 +127,6 @@ class ConsolePanel(Panel):
             "import numpy as numpy",
             "import uuid",
             "_document_model = _document_controller.document_model",
-            # deprecated abbreviations
-            "_d = _data",
-            "_di = _data_item",
-            "dc = _document_controller",
             ]
         for l in lines:
             self.interpret_command(l)
