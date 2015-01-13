@@ -87,8 +87,7 @@ class DataPanel(Panel.Panel):
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
-            self.__binding.close()
-            self.__binding = None
+            # binding should not be closed since it isn't created in this object
             self.clear_task("update_count")
 
         # thread safe
@@ -360,6 +359,8 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, document_controller):
             self.ui = document_controller.ui
+            # the binding will watch for changes to the filtered list of data items.
+            # when a change is received, the internal list of DisplaySpecifiers will be updated.
             self.__binding = document_controller.filtered_data_items_binding
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
@@ -367,6 +368,7 @@ class DataPanel(Panel.Panel):
                 self.__data_item_removed(data_item, index)
             self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
             self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
+            self.__data_items = self.__binding.data_items
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "display"])
             self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
@@ -380,8 +382,10 @@ class DataPanel(Panel.Panel):
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
+            # binding should not be closed since it isn't created in this object
             self.list_model_controller.close()
             self.list_model_controller = None
+            self.__data_items = None
 
         def periodic(self):
             # handle the 'changed' stuff
@@ -404,13 +408,17 @@ class DataPanel(Panel.Panel):
             return self.document_controller.data_items_binding.container
         container = property(__get_container)
 
-        def __get_data_items(self):
-            return self.__binding.data_items
-        data_items = property(__get_data_items)
+        @property
+        def data_items(self):
+            return self.__data_items
 
         def get_data_item_by_index(self, index):
-            data_items = self.__binding.data_items
+            data_items = self.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
+
+        def get_data_item_index(self, data_item):
+            data_items = self.data_items
+            return data_items.index(data_item) if data_item in data_items else -1
 
         # return a dict with key value pairs. these methods are here for testing only.
         def _get_model_data(self, index):
@@ -423,10 +431,6 @@ class DataPanel(Panel.Panel):
             if container and data_item in container.data_items:
                 container.remove_data_item(data_item)
 
-        def get_data_item_index(self, data_item):
-            data_items = self.__binding.data_items
-            return data_items.index(data_item) if data_item in data_items else -1
-
         # data_item_content_changed is received from data items tracked in this model.
         # the connection is established in add_data_item using add_listener.
         def data_item_content_changed(self, data_item, changes):
@@ -434,10 +438,11 @@ class DataPanel(Panel.Panel):
                 self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
+        # not thread safe
         def __data_item_inserted(self, data_item, before_index):
-            # add the listener. this will result in calls to data_item_content_changed
-            data_item.add_listener(self)
-            data_item.displays[0].add_listener(self)
+            self.__data_items.insert(before_index, data_item)
+            data_item.add_listener(self)  # for data_item_content_changed
+            data_item.displays[0].add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
@@ -448,8 +453,10 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.end_insert()
 
         # this method if called when one of our listened to items changes
+        # not thread safe
         def __data_item_removed(self, data_item, index):
             assert isinstance(data_item, DataItem.DataItem)
+            del self.__data_items[index]
             # manage the item model
             self.list_model_controller.begin_remove(index, index)
             del self.list_model_controller.model[index]
@@ -763,6 +770,7 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, document_controller):
             super(DataPanel.DataGridController, self).__init__()
+            self.__document_controller_weakref = weakref.ref(document_controller)
             self.ui = document_controller.ui
             self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
             self.icon_view_canvas_item = DataPanel.GridCanvasItem(self)
@@ -786,7 +794,7 @@ class DataPanel(Panel.Panel):
                 self.__data_item_removed(data_item, index)
             self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
             self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__document_controller_weakref = weakref.ref(document_controller)
+            self.__data_items = self.__binding.data_items
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
@@ -796,6 +804,8 @@ class DataPanel(Panel.Panel):
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
+            self.__data_items = None
+            # binding should not be closed since it isn't created in this object
             self.on_selection_changed = None
             self.on_context_menu_event = None
             self.root_canvas_item.close()
@@ -848,16 +858,16 @@ class DataPanel(Panel.Panel):
             if container and data_item in container.data_items:
                 container.remove_data_item(data_item)
 
-        def __get_data_items(self):
-            return self.__binding.data_items
-        data_items = property(__get_data_items)
+        @property
+        def data_items(self):
+            return self.__data_items
 
         def get_data_item_by_index(self, index):
-            data_items = self.__binding.data_items
+            data_items = self.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
         def get_data_item_index(self, data_item):
-            data_items = self.__binding.data_items
+            data_items = self.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
         # data_item_content_changed is received from data items tracked in this model.
@@ -867,16 +877,19 @@ class DataPanel(Panel.Panel):
                 self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
+        # not thread safe
         def __data_item_inserted(self, data_item, before_index):
-            # add the listener. this will result in calls to data_item_content_changed
-            data_item.add_listener(self)
-            data_item.displays[0].add_listener(self)
+            self.__data_items.insert(before_index, data_item)
+            data_item.add_listener(self)  # for data_item_content_changed
+            data_item.displays[0].add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
             self.selection.insert_index(before_index)
             self.icon_view_canvas_item.update()
 
         # this method if called when one of our listened to items changes
+        # not thread safe
         def __data_item_removed(self, data_item, index):
             assert isinstance(data_item, DataItem.DataItem)
+            del self.__data_items[index]
             # remove the listener.
             data_item.displays[0].remove_listener(self)
             data_item.remove_listener(self)
@@ -1221,9 +1234,8 @@ class DataPanel(Panel.Panel):
                 self.library_widget.set_current_row(0, -1, 0)
         # update the data group that the data item model is tracking
         self.document_controller.set_data_group_or_filter(data_group, filter_id)
-        self.periodic()  # ugh. sync the update so that it occurs before setting the index below.
+        self.document_controller.periodic()  # ugh. sync the update so that it occurs before setting the index below.
         # update the data item selection
-        #self.periodic()  # in order to update the selection, must make sure the model is updated. this is ugly.
         if self.data_view_widget.current_index == 0:
             self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         else:
@@ -1233,12 +1245,6 @@ class DataPanel(Panel.Panel):
         self.save_state()
         # unblock
         self.__block1 = saved_block1
-
-    # not thread safe
-    def update_data_item_selection(self, data_item, source_data_item=None):
-        # never change the selected data group or filter. however, if the data item appears in the list, select it
-        if data_item in self.data_item_model_controller.data_items:
-            self.update_data_panel_selection(DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
     def library_model_receive_files(self, file_paths, index, threaded=True):
         def receive_files_complete(received_data_items):

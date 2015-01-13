@@ -74,7 +74,7 @@ class TestDataPanelClass(unittest.TestCase):
         # first delete a child of a data item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)
-        data_panel.update_data_item_selection(data_item1a)
+        data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1a))
         data_panel.data_item_widget.on_key_pressed([3], self.app.ui.create_key_by_id("delete"))
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # now delete a child of a data group
@@ -91,13 +91,12 @@ class TestDataPanelClass(unittest.TestCase):
     def test_selected_data_item_persistence(self):
         library_storage = DocumentModel.FilePersistentStorage()
         document_model = DocumentModel.DocumentModel(library_storage=library_storage)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         parent_data_group.append_data_group(data_group)
-        document_controller.document_model.append_data_group(parent_data_group)
+        document_model.append_data_group(parent_data_group)
         data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
@@ -106,6 +105,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
@@ -131,7 +131,6 @@ class TestDataPanelClass(unittest.TestCase):
     # then make sure the same group is selected if the data item is in multiple groups
     def test_selected_group_persistence(self):
         document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create data_item2 earlier than data_item1 so they sort to match old test setup
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2.title = "Data 2"
@@ -149,7 +148,8 @@ class TestDataPanelClass(unittest.TestCase):
         parent_data_group.append_data_group(data_group2)
         document_model.append_data_item(data_item2)
         data_group2.append_data_item(data_item2)
-        document_controller.document_model.append_data_group(parent_data_group)
+        document_model.append_data_group(parent_data_group)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(data_panel.data_group_widget.parent_id, 0)
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
@@ -447,8 +447,10 @@ class TestDataPanelClass(unittest.TestCase):
             data_item.title = "X" if i != 1 else "Y"
             document_model.append_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
+        document_controller.periodic()  # changes to filter will be queued. update that here.
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 3)
         document_controller.display_filter = lambda data_item: data_item.title == "Y"
+        document_controller.periodic()  # changes to filter will be queued. update that here.
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 1)
 
     def test_changing_display_limits_causes_display_changed_message(self):
