@@ -706,12 +706,12 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
-        self.assertEqual(document_model.data_items[0].regions[0].start, (0.1, 0.2))
-        self.assertEqual(document_model.data_items[0].regions[0].end, (0.3, 0.4))
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].start, (0.1, 0.2))
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].end, (0.3, 0.4))
         start,end = document_model.data_items[1].operation.values["vector"]
         self.assertEqual(start, (0.1, 0.2))
         self.assertEqual(end, (0.3, 0.4))
-        document_model.data_items[0].regions[0].start = 0.11, 0.22
+        document_model.data_items[0].maybe_data_source.regions[0].start = 0.11, 0.22
         start,end = document_model.data_items[1].operation.values["vector"]
         self.assertEqual(start, (0.11, 0.22))
         self.assertEqual(end, (0.3, 0.4))
@@ -757,9 +757,9 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify
-        self.assertEqual(document_model.data_items[0].regions[0].type, "point-region")
-        self.assertEqual(document_model.data_items[0].regions[0].uuid, point_region_uuid)
-        self.assertEqual(document_model.data_items[0].regions[0].position, (0.6, 0.4))
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].type, "point-region")
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].uuid, point_region_uuid)
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].position, (0.6, 0.4))
         # clean up
         document_controller.close()
 
@@ -886,9 +886,9 @@ class TestStorageClass(unittest.TestCase):
         document_controller.add_processing_operation(operation, crop_region=crop_region)
         document_model.close()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
-        self.assertEqual(document_model.data_items[0].regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
-        document_model.data_items[0].regions[0].bounds = ((0.3, 0.4), (0.5, 0.6))
-        self.assertEqual(document_model.data_items[0].regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+        document_model.data_items[0].maybe_data_source.regions[0].bounds = ((0.3, 0.4), (0.5, 0.6))
+        self.assertEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -941,7 +941,7 @@ class TestStorageClass(unittest.TestCase):
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_model.recompute_all()  # shouldn't be necessary unless other tests fail
-        document_model.data_items[0].regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
+        document_model.data_items[0].maybe_data_source.regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
         self.assertTrue(document_model.data_items[1].maybe_data_source.is_data_stale)
         document_model.recompute_all()
         self.assertEqual(document_model.data_items[1].maybe_data_source.data_shape, (128, 128))

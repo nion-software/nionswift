@@ -801,8 +801,8 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.5, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.5, 100, modifiers)
         # make sure results are correct
-        self.assertAlmostEqual(line_plot_data_item.regions[0].start, 0.3)
-        self.assertAlmostEqual(line_plot_data_item.regions[0].end, 0.5)
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].start, 0.3)
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].end, 0.5)
 
     def test_click_drag_interval_end_channel_to_left_of_start_channel_results_in_left_less_than_right(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -822,8 +822,8 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.2, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.2, 100, modifiers)
         # make sure results are correct
-        self.assertAlmostEqual(line_plot_data_item.regions[0].start, 0.2, 2)  # pixel accuracy, approx. 1/500
-        self.assertAlmostEqual(line_plot_data_item.regions[0].end, 0.3, 2)  # pixel accuracy, approx. 1/500
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].start, 0.2, 2)  # pixel accuracy, approx. 1/500
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].end, 0.3, 2)  # pixel accuracy, approx. 1/500
 
     def test_click_drag_interval_tool_creates_selection(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -833,7 +833,7 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_data_item = self.document_model.data_items[1]
         self.document_controller.tool_mode = "interval"
         # make sure assumptions are correct
-        self.assertEqual(len(line_plot_data_item.regions), 0)
+        self.assertEqual(len(line_plot_data_item.maybe_data_source.regions), 0)
         # click drag
         modifiers = Test.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
@@ -841,10 +841,10 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.50, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.50, 100, modifiers)
         # make sure results are correct
-        self.assertEqual(len(line_plot_data_item.regions), 1)
-        self.assertTrue(isinstance(line_plot_data_item.regions[0], Region.IntervalRegion))
-        self.assertAlmostEqual(line_plot_data_item.regions[0].start, 0.35, 2)  # pixel accuracy, approx. 1/500
-        self.assertAlmostEqual(line_plot_data_item.regions[0].end, 0.50, 2)  # pixel accuracy, approx. 1/500
+        self.assertEqual(len(line_plot_data_item.maybe_data_source.regions), 1)
+        self.assertTrue(isinstance(line_plot_data_item.maybe_data_source.regions[0], Region.IntervalRegion))
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].start, 0.35, 2)  # pixel accuracy, approx. 1/500
+        self.assertAlmostEqual(line_plot_data_item.maybe_data_source.regions[0].end, 0.50, 2)  # pixel accuracy, approx. 1/500
         # and that tool is returned to pointer
         self.assertEqual(self.document_controller.tool_mode, "pointer")
 
@@ -860,11 +860,11 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_data_item.add_region(region)
         line_plot_data_item.displays[0].graphic_selection.set(0)
         # make sure assumptions are correct
-        self.assertEqual(len(line_plot_data_item.regions), 1)
+        self.assertEqual(len(line_plot_data_item.maybe_data_source.regions), 1)
         self.assertEqual(len(line_plot_data_item.displays[0].graphic_selection.indexes), 1)
         # hit the delete key
         self.image_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("delete"))
-        self.assertEqual(len(line_plot_data_item.regions), 0)
+        self.assertEqual(len(line_plot_data_item.maybe_data_source.regions), 0)
 
     def test_key_gets_dispatched_to_image_canvas_item(self):
         modifiers = Test.KeyboardModifiers()

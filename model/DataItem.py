@@ -1006,10 +1006,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Override from Cacheable base class to indicate when caching is delayed. """
         return self.__transaction_count > 0
 
-    def __get_transaction_count(self):
+    @property
+    def transaction_count(self):
         """ Return the transaction count for this data item. """
         return self.__transaction_count
-    transaction_count = property(__get_transaction_count)
 
     def __enter_write_delay_state(self):
         if self.managed_object_context:
@@ -1121,12 +1121,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             properties[key] = self.__metadata[key]
         return properties
 
-    def __get_properties(self):
+    @property
+    def properties(self):
         """ Used for debugging. """
         if self.managed_object_context:
             return self.managed_object_context.get_properties(self)
         return dict()
-    properties = property(__get_properties)
 
     @property
     def is_live(self):
@@ -1249,7 +1249,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # date times
 
-    def __get_datetime_original_as_string(self):
+    @property
+    def datetime_original_as_string(self):
         datetime_original = self.datetime_original
         if datetime_original:
             datetime_ = Utility.get_datetime_from_datetime_item(datetime_original)
@@ -1257,7 +1258,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 return datetime_.strftime("%c")
         # fall through to here
         return str()
-    datetime_original_as_string = property(__get_datetime_original_as_string)
 
     # access metadata
 
@@ -1471,10 +1471,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def displays(self):
         return self.maybe_data_source.displays if self.maybe_data_source else list()
-
-    @property
-    def regions(self):
-        return self.maybe_data_source.regions if self.maybe_data_source else list()
 
     def _create_test_data_source(self):
         return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self).buffered_data_source)

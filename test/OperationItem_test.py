@@ -534,11 +534,11 @@ class TestOperationClass(unittest.TestCase):
         dummy_operation.add_data_source(data_item._create_test_data_source())
         data_item2.set_operation(dummy_operation)
         # assumptions
-        self.assertEqual(len(data_item.regions), 2)
+        self.assertEqual(len(data_item.maybe_data_source.regions), 2)
         # now remove the operation
         data_item2.set_operation(None)
         # check to make sure regions were removed
-        self.assertEqual(len(data_item.regions), 0)
+        self.assertEqual(len(data_item.maybe_data_source.regions), 0)
 
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()

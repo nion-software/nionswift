@@ -75,7 +75,7 @@ class TestConnectionClass(unittest.TestCase):
         # verify it read back
         data_item_3d = document_model.data_items[0]
         data_item_1d = document_model.data_items[1]
-        interval = data_item_1d.regions[0]
+        interval = data_item_1d.maybe_data_source.regions[0]
         self.assertEqual(len(data_item_1d.connections), 1)
         # verify connection is working in both directions
         data_item_3d.displays[0].slice_center = 11
