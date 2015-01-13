@@ -1139,12 +1139,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     # this message is received from the data item, if there is one.
     # it is established using add_listener
     def data_item_content_changed(self, data_item, changes):
-        # TODO: consider whether selected_data_item_content_changed is needed
         if data_item == self.data_item:
-            self.selected_data_item_content_changed(data_item, changes)
-
-    # this message is received from the document controller.
-    # it is established using add_listener
-    def selected_data_item_content_changed(self, data_item, changes):
-        assert data_item == self.data_item
-        self.display_changed(self.display)
+            assert data_item == self.data_item
+            self.display_changed(self.display)

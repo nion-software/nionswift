@@ -146,6 +146,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         return self.__weak_data_item() if self.__weak_data_item else None
     data_item = property(__get_data_item)
 
+    @property
+    def buffered_data_source(self):
+        return self.data_item.data_sources[0]
+
     # called from data item when added/removed.
     def _set_data_item(self, data_item):
         if self.data_item:

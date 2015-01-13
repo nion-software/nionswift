@@ -186,6 +186,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__subscription = None
         if self.data_source:
             self.data_source.close()
+        self.__publisher.close()
+        self.__publisher = None
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -1489,6 +1491,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def data_and_calibration(self):
         if len(self.data_sources) == 1:
             return self.data_sources[0].data_and_calibration
+        return None
+
+    def get_data_and_calibration_publisher(self):
+        if len(self.data_sources) == 1:
+            return self.data_sources[0].get_data_and_calibration_publisher()
         return None
 
     def recompute_data(self):

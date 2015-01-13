@@ -1,14 +1,16 @@
 # standard libraries
 import copy
+import functools
 import gettext
 import logging
-import threading
+import operator
 
 # third party libraries
 # None
 
 # local libraries
 from nion.swift import Panel
+from nion.swift.model import Calibration
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.ui import Binding
@@ -19,6 +21,12 @@ _ = gettext.gettext
 
 
 class InspectorPanel(Panel.Panel):
+    """Inspect the current selection.
+
+    The current selection will be a list of selection specifiers, which is itself a list of containers
+    enclosing other containers or objects.
+    """
+
     def __init__(self, document_controller, panel_id, properties):
         super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
@@ -69,6 +77,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector = DataItemInspector(self.ui, self.__display)
             self.column.add(self.__display_inspector.widget)
 
+    # not thread safe
     def __set_display(self, display):
         if self.__display != display:
             self.__display = display
@@ -244,110 +253,70 @@ class InfoInspectorSection(InspectorSection):
         self.add_widget_to_content(self.info_section_format_row)
 
 
-class BoundSpatialCalibration(Observable.Observable):
+class CalibrationPublisherToObservable(Observable.Observable):
+    """Provides observable calibration object.
 
-    def __init__(self, data_item, spatial_index):
-        super(BoundSpatialCalibration, self).__init__()
-        self.data_item = data_item
-        self.spatial_index = spatial_index
-        self.__cached_value = self.data_item.dimensional_calibrations[self.spatial_index]
-        self.data_item.add_listener(self)
+    Clients can get/set/observer offset, scale, and unit properties.
+
+    Pass in a publisher that publishes DataAndCalibrations and a setter function. A typical publisher
+    might be data_and_calibration_publisher.select(lambda x: x.dimensional_calibrations[0]).cached().
+    The function setter will take a calibration argument. A typical function setter might be
+    data_source.set_dimensional_calibration(0, calibration).
+    """
+
+    def __init__(self, publisher, setter_fn):
+        super(CalibrationPublisherToObservable, self).__init__()
+        self.__cached_value = Calibration.Calibration()
+        self.__setter_fn = setter_fn
+        def handle_next_calibration(calibration):
+            if self.__cached_value is not None:
+                if calibration.offset != self.__cached_value.offset:
+                    self.notify_set_property("offset", calibration.offset)
+                if calibration.scale != self.__cached_value.scale:
+                    self.notify_set_property("scale", calibration.scale)
+                if calibration.units != self.__cached_value.units:
+                    self.notify_set_property("units", calibration.units)
+            self.__cached_value = calibration
+        subscriber = Observable.Subscriber(handle_next_calibration)
+        self.__subscription = publisher.subscribex(subscriber)
 
     def close(self):
-        self.data_item.remove_listener(self)
+        self.__subscription.close()
+        self.__cached_value = None
+        self.__setter_fn = None
 
-    def data_item_content_changed(self, data_item, changes):
-        """ Message comes from data item. """
-        METADATA = 2
-        if METADATA in changes:
-            new_value = self.data_item.dimensional_calibrations[self.spatial_index]
-            if new_value.offset != self.__cached_value.offset:
-                self.notify_set_property("offset", new_value.offset)
-            if new_value.scale != self.__cached_value.scale:
-                self.notify_set_property("scale", new_value.scale)
-            if new_value.units != self.__cached_value.units:
-                self.notify_set_property("units", new_value.units)
-            self.__cached_value = new_value
-
-    def __get_offset(self):
+    @property
+    def offset(self):
         return self.__cached_value.offset
-    def __set_offset(self, offset):
-        spatial_calibration = self.__cached_value
-        spatial_calibration.offset = offset
-        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
-        self.notify_set_property("offset", spatial_calibration.offset)
-    offset = property(__get_offset, __set_offset)
 
-    def __get_scale(self):
+    @offset.setter
+    def offset(self, value):
+        calibration = self.__cached_value
+        calibration.offset = value
+        self.__setter_fn(calibration)
+        self.notify_set_property("offset", calibration.offset)
+
+    @property
+    def scale(self):
         return self.__cached_value.scale
-    def __set_scale(self, scale):
-        spatial_calibration = self.__cached_value
-        spatial_calibration.scale = scale
-        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
-        self.notify_set_property("scale", spatial_calibration.scale)
-    scale = property(__get_scale, __set_scale)
 
-    def __get_units(self):
+    @scale.setter
+    def scale(self, value):
+        calibration = self.__cached_value
+        calibration.scale = value
+        self.__setter_fn(calibration)
+        self.notify_set_property("scale", calibration.scale)
+
+    @property
+    def units(self):
         return self.__cached_value.units
-    def __set_units(self, units):
-        spatial_calibration = self.__cached_value
-        spatial_calibration.units = units
-        self.data_item.set_dimensional_calibration(self.spatial_index, spatial_calibration)
-        self.notify_set_property("units", spatial_calibration.units)
-    units = property(__get_units, __set_units)
 
-
-class BoundIntensityCalibration(Observable.Observable):
-
-    def __init__(self, data_item):
-        super(BoundIntensityCalibration, self).__init__()
-        self.data_item = data_item
-        self.__cached_value = self.data_item.intensity_calibration
-        self.data_item.add_listener(self)
-
-    def close(self):
-        self.data_item.remove_listener(self)
-
-    def data_item_content_changed(self, data_item, changes):
-        """ Message comes from data item. """
-        METADATA = 2
-        if METADATA in changes:
-            new_value = self.data_item.intensity_calibration
-            if new_value is not None:
-                if self.__cached_value is None or new_value.offset != self.__cached_value.offset:
-                    self.notify_set_property("offset", new_value.offset)
-                if self.__cached_value is None or new_value.scale != self.__cached_value.scale:
-                    self.notify_set_property("scale", new_value.scale)
-                if self.__cached_value is None or new_value.units != self.__cached_value.units:
-                    self.notify_set_property("units", new_value.units)
-                self.__cached_value = new_value
-
-    def __get_offset(self):
-        return self.__cached_value.offset if self.__cached_value else None
-    def __set_offset(self, offset):
-        intensity_calibration = self.__cached_value
-        intensity_calibration.offset = offset
-        self.data_item.set_intensity_calibration(intensity_calibration)
-        self.notify_set_property("offset", intensity_calibration.offset)
-    offset = property(__get_offset, __set_offset)
-
-    def __get_scale(self):
-        return self.__cached_value.scale if self.__cached_value else None
-    def __set_scale(self, scale):
-        intensity_calibration = self.__cached_value
-        intensity_calibration.scale = scale
-        self.data_item.set_intensity_calibration(intensity_calibration)
-        self.notify_set_property("scale", intensity_calibration.scale)
-    scale = property(__get_scale, __set_scale)
-
-    def __get_units(self):
-        return self.__cached_value.units if self.__cached_value else None
-    def __set_units(self, units):
-        intensity_calibration = self.__cached_value
-        intensity_calibration.units = units
-        self.data_item.set_intensity_calibration(intensity_calibration)
-        self.notify_set_property("units", intensity_calibration.units)
-    units = property(__get_units, __set_units)
+    @units.setter
+    def units(self, value):
+        calibration = self.__cached_value
+        calibration.units = value
+        self.__setter_fn(calibration)
+        self.notify_set_property("units", calibration.units)
 
 
 class CalibrationsInspectorSection(InspectorSection):
@@ -358,8 +327,19 @@ class CalibrationsInspectorSection(InspectorSection):
 
     def __init__(self, ui, display):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
-        data_item = display.data_item
-        self.__calibrations = [BoundSpatialCalibration(data_item, index) for index in xrange(len(data_item.dimensional_calibrations))]
+        buffered_data_source = display.buffered_data_source
+        # get a data_and_calibration publisher
+        data_and_calibration_publisher = buffered_data_source.get_data_and_calibration_publisher()
+        # configure the bindings to dimension calibrations
+        self.__calibrations = list()
+        for index in range(len(buffered_data_source.dimensional_calibrations)):
+            # select the indexed dimensional calibration and then cache the latest value
+            def select_dimensional_calibration(index, data_and_calibration):
+                # note that arguments are reversed from typical usage so that functools.partial works correctly
+                return data_and_calibration.get_dimensional_calibration(index)
+            calibration_publisher = data_and_calibration_publisher.select(functools.partial(select_dimensional_calibration, index)).cache()
+            # then convert it to an observable so that we can bind to offset/scale/units and add it to calibrations list
+            self.__calibrations.append(CalibrationPublisherToObservable(calibration_publisher, functools.partial(buffered_data_source.set_dimensional_calibration, index)))
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -368,7 +348,8 @@ class CalibrationsInspectorSection(InspectorSection):
             list_widget.insert_item(spatial_calibration, index)
         self.add_widget_to_content(list_widget)
         # create the intensity row
-        intensity_calibration = BoundIntensityCalibration(data_item)
+        calibration_publisher = data_and_calibration_publisher.select(operator.attrgetter("intensity_calibration")).cache()
+        intensity_calibration = CalibrationPublisherToObservable(calibration_publisher, buffered_data_source.set_intensity_calibration)
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})

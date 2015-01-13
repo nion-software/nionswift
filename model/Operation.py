@@ -55,6 +55,20 @@ class DataAndCalibration(object):
         data_shape_and_dtype = self.data_shape_and_dtype
         return data_shape_and_dtype[1] if data_shape_and_dtype is not None else None
 
+    @property
+    def dimensional_shape(self):
+        data_shape_and_dtype = self.data_shape_and_dtype
+        if data_shape_and_dtype is not None:
+            data_shape, data_dtype = self.data_shape_and_dtype
+            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+        return None
+
+    def get_intensity_calibration(self):
+        return self.intensity_calibration
+
+    def get_dimensional_calibration(self, index):
+        return self.dimensional_calibrations[index]
+
 
 class _UuidToStringConverter(object):
     def convert(self, value):
