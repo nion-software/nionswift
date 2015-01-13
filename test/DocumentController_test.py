@@ -348,7 +348,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(source_data_item)
         data_item = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+        invert_operation.add_data_source(source_data_item._create_test_data_source())
         data_item.set_operation(invert_operation)
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)

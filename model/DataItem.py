@@ -1496,6 +1496,31 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def regions(self):
         return self.maybe_data_source.regions if self.maybe_data_source else list()
 
+    def _create_test_data_source(self):
+        return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self))
+
+
+class BufferedDataSourceSpecifier(object):
+    """Specify a BufferedDataSource contained within a DataItem.
+
+    If buffered_data_source is not None, then data_item is not None.
+    """
+
+    def __init__(self, data_item=None, buffered_data_source=None):
+        self.data_item = data_item
+        self.buffered_data_source = buffered_data_source
+
+    def __eq__(self, other):
+        return self.data_item == other.data_item and self.buffered_data_source == other.buffered_data_source
+
+    def __ne__(self, other):
+        return self.data_item != other.data_item or self.buffered_data_source != other.buffered_data_source
+
+    @classmethod
+    def from_data_item(cls, data_item):
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        return cls(data_item, buffered_data_source)
+
 
 class DisplaySpecifier(object):
     """Specify a Display contained within a DataItem.
@@ -1520,6 +1545,10 @@ class DisplaySpecifier(object):
         buffered_data_source = data_item.maybe_data_source if data_item else None
         display = buffered_data_source.displays[0] if buffered_data_source else None
         return cls(data_item, buffered_data_source, display)
+
+    @property
+    def buffered_data_source_specifier(self):
+        return BufferedDataSourceSpecifier(self.data_item, self.buffered_data_source)
 
 
 _computation_fns = list()

@@ -49,7 +49,7 @@ class TestOperationClass(unittest.TestCase):
         source_data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         self.document_model.append_data_item(source_data_item)
         operation = Operation.OperationItem("resample-operation")
-        operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+        operation.add_data_source(source_data_item._create_test_data_source())
         self.data_item.set_operation(operation)
         with self.data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.data  # just calculate it
@@ -57,7 +57,7 @@ class TestOperationClass(unittest.TestCase):
         # now create a new data item and add the operation before its added to document
         data_item = DataItem.DataItem()
         operation2 = Operation.OperationItem("resample-operation")
-        operation2.add_data_source(Operation.DataItemDataSource(self.data_item))
+        operation2.add_data_source(self.data_item._create_test_data_source())
         data_item.set_operation(operation2)
         self.document_model.append_data_item(data_item)
         self.assertEqual(operation2.get_realized_values([self.data_item.maybe_data_source.data_and_calibration])["width"], self.data_item.maybe_data_source.data_shape[1])
@@ -79,7 +79,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -115,7 +115,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -138,7 +138,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.OperationItem("pick-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -172,7 +172,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -206,7 +206,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_rgb, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -229,7 +229,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_complex, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -252,7 +252,7 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_complex, Operation.OperationItem("convert-to-scalar-operation")))
 
         for source_data_item, operation in operation_list:
-            operation.add_data_source(Operation.DataItemDataSource(source_data_item))
+            operation.add_data_source(source_data_item._create_test_data_source())
             data_item = DataItem.DataItem()
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
@@ -270,7 +270,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real = DataItem.DataItem()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
-        operation.add_data_source(Operation.DataItemDataSource(data_item))
+        operation.add_data_source(data_item._create_test_data_source())
         data_item_real.set_operation(operation)
         data_item_real.recompute_data()
         # make sure we get the right shape
@@ -284,7 +284,7 @@ class TestOperationClass(unittest.TestCase):
 
         fft_data_item = DataItem.DataItem()
         fft_operation = Operation.OperationItem("fft-operation")
-        fft_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        fft_operation.add_data_source(data_item._create_test_data_source())
         fft_data_item.set_operation(fft_operation)
         self.document_model.append_data_item(fft_data_item)
         fft_data_item.recompute_data()
@@ -298,7 +298,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item)
         scalar_data_item = DataItem.DataItem()
         scalar_operation = Operation.OperationItem("convert-to-scalar-operation")
-        scalar_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        scalar_operation.add_data_source(data_item._create_test_data_source())
         scalar_data_item.set_operation(scalar_operation)
         self.document_model.append_data_item(scalar_data_item)
         scalar_data_item.recompute_data()
@@ -344,7 +344,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
-        dummy_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        dummy_operation.add_data_source(data_item._create_test_data_source())
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(dummy_operation)
         document_model.append_data_item(data_item2)
@@ -364,7 +364,7 @@ class TestOperationClass(unittest.TestCase):
             data_ref.master_data_updated()
         data_item_rgba2 = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
+        invert_operation.add_data_source(data_item_rgba._create_test_data_source())
         data_item_rgba2.set_operation(invert_operation)
         data_item_rgba2.recompute_data()
         with data_item_rgba2.maybe_data_source.data_ref() as data_ref:
@@ -381,7 +381,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_rgba2)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-        operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
+        operation.add_data_source(data_item_rgba._create_test_data_source())
         data_item_rgba2.set_operation(operation)
         data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
         # make sure the operation was copied
@@ -392,7 +392,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_rgba)
         data_item_rgba2 = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
+        invert_operation.add_data_source(data_item_rgba._create_test_data_source())
         data_item_rgba2.set_operation(invert_operation)
         self.document_model.append_data_item(data_item_rgba2)
         data_item_rgba2.recompute_data()
@@ -419,7 +419,7 @@ class TestOperationClass(unittest.TestCase):
         self.data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(7.5, 2.5, u"ll"))
         data_item2 = DataItem.DataItem()
         operation = Operation.OperationItem("invert-operation")
-        operation.add_data_source(Operation.DataItemDataSource(self.data_item))
+        operation.add_data_source(self.data_item._create_test_data_source())
         data_item2.set_operation(operation)
         self.document_model.append_data_item(data_item2)
         data_item2.recompute_data()
@@ -456,7 +456,7 @@ class TestOperationClass(unittest.TestCase):
         data_item.maybe_data_source.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
-        operation.add_data_source(Operation.DataItemDataSource(data_item))
+        operation.add_data_source(data_item._create_test_data_source())
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
         data_item2.recompute_data()
@@ -481,7 +481,7 @@ class TestOperationClass(unittest.TestCase):
         data_item.maybe_data_source.set_dimensional_calibration(0, spatial_calibration_0)
         data_item.maybe_data_source.set_dimensional_calibration(1, spatial_calibration_1)
         operation = Operation.OperationItem("projection-operation")
-        operation.add_data_source(Operation.DataItemDataSource(data_item))
+        operation.add_data_source(data_item._create_test_data_source())
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
         data_item2.recompute_data()
@@ -501,7 +501,7 @@ class TestOperationClass(unittest.TestCase):
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
         data_item.add_region(crop_region)
-        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        crop_operation.add_data_source(data_item._create_test_data_source())
         crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
         data_item2.set_operation(crop_operation)
         # see if the region is connected to the operation
@@ -531,7 +531,7 @@ class TestOperationClass(unittest.TestCase):
         dummy_operation = Operation.OperationItem("dummy2-operation")
         dummy_operation.establish_associated_region("a", data_item.maybe_data_source)
         dummy_operation.establish_associated_region("b", data_item.maybe_data_source)
-        dummy_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        dummy_operation.add_data_source(data_item._create_test_data_source())
         data_item2.set_operation(dummy_operation)
         # assumptions
         self.assertEqual(len(data_item.regions), 2)
@@ -547,7 +547,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         blurred_data_item = DataItem.DataItem()
         blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        blur_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        blur_operation.add_data_source(data_item._create_test_data_source())
         blurred_data_item.set_operation(blur_operation)
         document_model.append_data_item(blurred_data_item)
         # establish listeners
@@ -578,7 +578,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         blurred_data_item = DataItem.DataItem()
         blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        blur_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        blur_operation.add_data_source(data_item._create_test_data_source())
         blurred_data_item.set_operation(blur_operation)
         document_model.append_data_item(blurred_data_item)
         # establish listeners
@@ -608,7 +608,7 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         fft_data_item = DataItem.DataItem()
         fft_operation = Operation.OperationItem("fft-operation")
-        fft_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        fft_operation.add_data_source(data_item._create_test_data_source())
         fft_data_item.set_operation(fft_operation)
         document_model.append_data_item(fft_data_item)
         crop_data_item = DataItem.DataItem()
@@ -616,7 +616,7 @@ class TestOperationClass(unittest.TestCase):
         crop_region = Region.RectRegion()
         data_item.add_region(crop_region)
         crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
-        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        crop_operation.add_data_source(data_item._create_test_data_source())
         crop_data_item.set_operation(crop_operation)
         document_model.append_data_item(crop_data_item)
         document_model.recompute_all()
@@ -633,8 +633,8 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item1)
         document_model.append_data_item(data_item2)
         operation = Operation.OperationItem("cross-correlate-operation")
-        operation.add_data_source(Operation.DataItemDataSource(data_item1))
-        operation.add_data_source(Operation.DataItemDataSource(data_item2))
+        operation.add_data_source(data_item1._create_test_data_source())
+        operation.add_data_source(data_item2._create_test_data_source())
         cc_data_item = DataItem.DataItem()
         cc_data_item.set_operation(operation)
         document_model.append_data_item(cc_data_item)

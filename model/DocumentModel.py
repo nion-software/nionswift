@@ -577,7 +577,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.set_data_item_manager(self)
         listener_list = self.__data_item_listeners.get(data_item.uuid, list())
         for listener in listener_list:
-            listener.set_data_item(data_item)
+            listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item))
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
@@ -611,20 +611,20 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         listener_list = self.__data_item_listeners.get(data_item.uuid, list())
         for listener in listener_list:
             # this should never occur.
-            listener.set_data_item(None)
+            listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier())
 
     def add_data_item_listener(self, data_item_uuid, listener):
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
         assert listener not in listener_list
         listener_list.append(listener)
         data_item = self.get_data_item_by_uuid(data_item_uuid)
-        listener.set_data_item(data_item)
+        listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item))
 
     def remove_data_item_listener(self, data_item_uuid, listener):
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
         assert listener in listener_list
         listener_list.remove(listener)
-        listener.set_data_item(None)
+        listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier())
 
     def _get_data_item_listeners(self, data_item_uuid):
         """For testing."""

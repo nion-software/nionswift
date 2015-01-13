@@ -62,7 +62,7 @@ class TestDataGroupClass(unittest.TestCase):
         # also check data item.
         data_item1a = DataItem.DataItem()
         operation1a = Operation.OperationItem("resample-operation")
-        operation1a.add_data_source(Operation.DataItemDataSource(data_item1))
+        operation1a.add_data_source(data_item1._create_test_data_source())
         data_item1a.set_operation(operation1a)
         document_model.append_data_item(data_item1a)
         data_group.append_data_item(data_item1a)
@@ -74,7 +74,7 @@ class TestDataGroupClass(unittest.TestCase):
         # also check data items.
         data_item1a1 = DataItem.DataItem()
         operation1a1 = Operation.OperationItem("resample-operation")
-        operation1a1.add_data_source(Operation.DataItemDataSource(data_item1a))
+        operation1a1.add_data_source(data_item1a._create_test_data_source())
         data_item1a1.set_operation(operation1a1)
         document_model.append_data_item(data_item1a1)
         data_group.append_data_item(data_item1a1)
@@ -89,7 +89,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         data_item2a = DataItem.DataItem()
         operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(Operation.DataItemDataSource(data_item2))
+        operation2a.add_data_source(data_item2._create_test_data_source())
         data_item2a.set_operation(operation2a)
         document_model.append_data_item(data_item2a)
         data_group.append_data_item(data_item2)
@@ -114,7 +114,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
         operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(Operation.DataItemDataSource(data_item2))
+        operation2a.add_data_source(data_item2._create_test_data_source())
         data_item2a.set_operation(operation2a)
         document_model.append_data_item(data_item2)  # add this first
         document_model.append_data_item(data_item2a)  # add this second
@@ -128,7 +128,7 @@ class TestDataGroupClass(unittest.TestCase):
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item2a = DataItem.DataItem()
         operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(Operation.DataItemDataSource(data_item2))
+        operation2a.add_data_source(data_item2._create_test_data_source())
         data_item2a.set_operation(operation2a)
         document_model.append_data_item(data_item2)
         document_model.append_data_item(data_item2a)

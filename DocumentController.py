@@ -716,7 +716,7 @@ class DocumentController(Observable.Broadcaster):
                 display_specifier.data_item.set_operation(operation)
                 return display_specifier.data_item
             else:
-                data_source = Operation.DataItemDataSource(display_specifier.data_item)
+                data_source = Operation.DataItemDataSource(display_specifier.buffered_data_source_specifier)
                 if crop_region:
                     crop_operation = Operation.OperationItem("crop-operation")
                     assert crop_region in display_specifier.buffered_data_source.regions
@@ -737,7 +737,7 @@ class DocumentController(Observable.Broadcaster):
             new_data_item = DataItem.DataItem()
             new_data_item.title = (prefix if prefix else "") + display_specifier1.data_item.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
-            data_source1 = Operation.DataItemDataSource(display_specifier1.data_item)
+            data_source1 = Operation.DataItemDataSource(display_specifier1.buffered_data_source_specifier)
             if crop_region1:
                 crop_operation = Operation.OperationItem("crop-operation")
                 assert crop_region1 in display_specifier1.buffered_data_source.regions
@@ -745,7 +745,7 @@ class DocumentController(Observable.Broadcaster):
                 crop_operation.establish_associated_region("crop", display_specifier1.buffered_data_source, crop_region1)
                 crop_operation.add_data_source(data_source1)
                 data_source1 = crop_operation
-            data_source2 = Operation.DataItemDataSource(display_specifier2.data_item)
+            data_source2 = Operation.DataItemDataSource(display_specifier2.buffered_data_source_specifier)
             if crop_region2:
                 crop_operation = Operation.OperationItem("crop-operation")
                 assert crop_region2 in display_specifier2.buffered_data_source.regions
