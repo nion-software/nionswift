@@ -457,6 +457,7 @@ class TestOperationClass(unittest.TestCase):
         operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
+        data_item2.recompute_data()
         # make sure the calibrations are correct
         self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
         self.assertAlmostEqual(data_item2.dimensional_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
@@ -481,6 +482,7 @@ class TestOperationClass(unittest.TestCase):
         operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item2 = DataItem.DataItem()
         data_item2.set_operation(operation)
+        data_item2.recompute_data()
         # make sure the calibrations are correct
         self.assertAlmostEqual(data_item2.dimensional_calibrations[0].offset, 55.0)
         self.assertAlmostEqual(data_item2.dimensional_calibrations[0].scale, 5.5)
@@ -497,6 +499,7 @@ class TestOperationClass(unittest.TestCase):
         crop_operation = Operation.OperationItem("crop-operation")
         crop_region = Region.RectRegion()
         data_item.add_region(crop_region)
+        crop_operation.add_data_source(Operation.DataItemDataSource(data_item))
         crop_operation.establish_associated_region("crop", data_item, crop_region)
         data_item2.set_operation(crop_operation)
         # see if the region is connected to the operation

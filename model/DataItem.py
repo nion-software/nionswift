@@ -1,12 +1,11 @@
 # standard libraries
+import collections
 import copy
 import datetime
 import gettext
-import itertools
 import logging
 import os
 import threading
-import uuid
 import weakref
 
 # third party libraries
@@ -108,9 +107,9 @@ class CalibrationList(object):
 
     Data items will emit the following notification to listeners when their data content changes.
 
-    * data_source_content_changed(data_source, changes)
+    * data_source_content_changed(data_source, data_and_calibration)
 
-    The changes parameter is a set of changes taken from the list DATA, METADATA, DISPLAYS, SOURCE. This
+    The changes parameter is a set of changes taken from the list DATA, METADATA, DISPLAYS. This
     notification will be emitted on a thread.
 
     Listeners should take care to not call functions which result in cycles of notifications. For instance,
@@ -124,7 +123,6 @@ class CalibrationList(object):
 DATA = 1
 METADATA = 2
 DISPLAYS = 3
-SOURCE = 4
 
 
 class DtypeToStringConverter(object):
@@ -140,8 +138,6 @@ def data_source_factory(lookup_id):
         return Operation.DataItemDataSource()
     elif type == "operation":
         return Operation.operation_item_factory(lookup_id)
-    elif type == "buffered-data_source":
-        return BufferedDataSource()
     else:
         return None
 
@@ -298,8 +294,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__master_data_lock = threading.RLock()
         self.__recompute_lock = threading.RLock()
         self.__recompute_allowed = True
-        self.__is_master_data_stale = True
-        self.__is_master_data_stale_lock = threading.RLock()
+        self.__pending_data = None
+        self.__pending_data_lock = threading.RLock()
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__data_item_change_count = 0
@@ -499,8 +495,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # called when reading is finished. gives the data item a chance to
         # mark its data as valid.
         if self.has_master_data:
-            with self.__is_master_data_stale_lock:
-                self.__is_master_data_stale = False
+            with self.__pending_data_lock:
+                self.__pending_data = None
         super(DataItem, self).finish_reading()
 
     def __get_properties(self):
@@ -698,9 +694,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def intensity_calibration(self):
         """ Return the intensity calibration. """
         try:
-            if self.is_data_stale:
-                if self.operation:
-                    return self.operation.intensity_calibration
             return copy.deepcopy(self._get_managed_property("intensity_calibration"))
         except Exception as e:
             import traceback
@@ -712,9 +705,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def dimensional_calibrations(self):
         """ Return the dimensional calibrations as a list. """
         try:
-            if self.is_data_stale:
-                if self.operation:
-                    return self.operation.dimensional_calibrations
             return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
         except Exception as e:
             import traceback
@@ -888,21 +878,17 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.notify_listeners("item_removed", self, "ordered_operations", old_value, 0)
             # handle listeners/observers
             old_value.remove_listener(self)
-            old_value.remove_observer(self)
             old_value.set_dependent_data_item(None)
             old_value.set_data_item_manager(None)
         if new_value:
             # generate changed messages (temporary)
             self.notify_listeners("item_inserted", self, "ordered_operations", new_value, 0)
             # handle listeners/observers
-            new_value.add_listener(self)
-            new_value.add_observer(self)
             new_value.set_dependent_data_item(self)
             new_value.set_data_item_manager(self.__data_item_manager)
-            new_value.update_data_shapes_and_dtypes()
+            new_value.add_listener(self)
+            new_value.notify_data_source_content_changed()
         self.notify_data_item_content_changed(set([DATA]))
-        if not self._is_reading:
-            self.__mark_data_stale()
 
     # this message comes from the operation.
     # it is generated when the user deletes a operation graphic.
@@ -957,10 +943,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # data_source_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
-    def data_source_content_changed(self, data_source, changes):
-        if DATA in changes or SOURCE in changes:
-            if not self._is_reading:
-                self.__mark_data_stale()
+    def data_source_content_changed(self, data_source, pending_data):
+        if not self._is_reading:
+            with self.__pending_data_lock:
+                self.__pending_data = pending_data
+            for processor in self.__processors.values():
+                processor.data_item_changed()
+            self.notify_listeners("data_item_needs_recompute", self)
 
     def __get_master_data(self):
         with self.__master_data_lock:
@@ -970,8 +959,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
             with self.__master_data_lock:
                 self.__master_data = data
-                with self.__is_master_data_stale_lock:
-                    self.__is_master_data_stale = False
                 self.master_data_shape = data.shape if data is not None else None
                 self.master_data_dtype = data.dtype if data is not None else None
                 spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.master_data_shape, self.master_data_dtype)
@@ -1019,15 +1006,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def is_data_stale(self):
         """Return whether the data is currently stale."""
-        return self.__is_master_data_stale
-
-    def __mark_data_stale(self):
-        """Mark the master data as stale."""
-        with self.__is_master_data_stale_lock:
-            self.__is_master_data_stale = True
-        for processor in self.__processors.values():
-            processor.data_item_changed()
-        self.notify_listeners("data_item_needs_recompute", self)
+        return self.__pending_data is not None
 
     # used for testing
     def __is_data_loaded(self):
@@ -1119,30 +1098,25 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         with self.data_item_changes():
             with self.__recompute_lock:
                 if self.__recompute_allowed:
-                    with self.__is_master_data_stale_lock:  # only one thread should be computing master data at once
-                        if self.is_data_stale:
-                            operation = self.operation
-                            if operation:
-                                self.increment_data_ref_count()  # make sure master data is loaded
-                                try:
-                                    operation_data = operation.data
-                                    if operation_data is not None:
-                                        self.__set_master_data(operation_data)
-                                finally:
-                                    self.decrement_data_ref_count()  # unload master data
-                                operation_intensity_calibration = operation.intensity_calibration
-                                operation_dimensional_calibrations = operation.dimensional_calibrations
-                                if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                                    self.set_intensity_calibration(operation_intensity_calibration)
-                                    for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                        self.set_dimensional_calibration(index, dimensional_calibration)
-                        self.__is_master_data_stale = False
+                    with self.__pending_data_lock:  # only one thread should be computing master data at once
+                        if self.__pending_data is not None:
+                            self.increment_data_ref_count()  # make sure master data is loaded
+                            try:
+                                operation_data = self.__pending_data.data_fn()
+                                if operation_data is not None:
+                                    self.__set_master_data(operation_data)
+                            finally:
+                                self.decrement_data_ref_count()  # unload master data
+                            operation_intensity_calibration = self.__pending_data.intensity_calibration
+                            operation_dimensional_calibrations = self.__pending_data.dimensional_calibrations
+                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                                self.set_intensity_calibration(operation_intensity_calibration)
+                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                    self.set_dimensional_calibration(index, dimensional_calibration)
+                            self.__pending_data = None
 
     @property
     def data_shape_and_dtype(self):
-        if self.is_data_stale:
-            if self.operation:
-                return self.operation.data_shape_and_dtype
         return self.master_data_shape, self.master_data_dtype
 
     def __get_size_and_data_format_as_string(self):

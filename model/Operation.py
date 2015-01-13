@@ -29,6 +29,7 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
+DataAndCalibration = collections.namedtuple("DataAndCalibration", ["data_fn", "data_shape_and_dtype", "intensity_calibration", "dimensional_calibrations"])
 RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
 
 
@@ -58,9 +59,6 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
     def remove_region(self, region):
         if self.__data_item and region in self.__data_item.regions:
             self.__data_item.remove_region(region)
-
-    def update_data_shapes_and_dtypes(self):
-        pass
 
     @property
     def data_shape_and_dtype(self):
@@ -142,8 +140,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             if dependent_data_item:
                 self.__data_item.add_dependent_data_item(dependent_data_item)
         if not is_reading:  # notify of changes if a data source was connected
-            SOURCE = 4
-            self.notify_listeners("data_source_content_changed", self, set([SOURCE]))
+            self.notify_data_source_content_changed()
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
@@ -157,7 +154,20 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
                 self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
 
     def data_item_content_changed(self, data_item, changes):
-        self.notify_listeners("data_source_content_changed", self, changes)
+        DATA = 1
+        if DATA in changes:
+            self.notify_data_source_content_changed()
+
+    def notify_data_source_content_changed(self):
+        if self.__data_item:
+            data_fn = lambda: self.__data_item.data
+            data_shape_and_dtype = self.__data_item.data_shape_and_dtype
+            intensity_calibration = self.__data_item.intensity_calibration
+            dimensional_calibrations = self.__data_item.dimensional_calibrations
+            data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+        else:
+            data_and_calibration = None
+        self.notify_listeners("data_source_content_changed", self, data_and_calibration)
 
 
 def data_source_list_factory(lookup_id):
@@ -203,6 +213,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
+
+        self.__stop_notify = False
 
         class UuidMapToStringConverter(object):
             def convert(self, value):
@@ -300,21 +312,45 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         data_source.add_listener(self)
         data_source.set_dependent_data_item(dependent_data_item)
         data_source.set_data_item_manager(self.__data_item_manager)
+        self.__stop_notify = True
+        try:
+            self.__update_data_shapes_and_dtypes()
+        finally:
+            self.__stop_notify = False
+            self.notify_data_source_content_changed()
 
     def __data_source_removed(self, name, index, data_source):
         data_source.remove_listener(self)
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
+        self.__stop_notify = True
+        try:
+            self.__update_data_shapes_and_dtypes()
+        finally:
+            self.__stop_notify = False
+            self.notify_data_source_content_changed()
+
+    def notify_data_source_content_changed(self):
+        if self.__stop_notify:  # argh
+            return
+        if len(self.data_sources) > 0:
+            data_fn = lambda: self.data
+            data_shape_and_dtype = self.data_shape_and_dtype
+            intensity_calibration = self.intensity_calibration
+            dimensional_calibrations = self.dimensional_calibrations
+            data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+        else:
+            data_and_calibration = None
+        self.notify_listeners("data_source_content_changed", self, data_and_calibration)
 
     # data_source_content_changed comes from data sources to indicate that data
     # has changed. the connection is established via add_listener.
-    def data_source_content_changed(self, data_source, changes):
-        self.notify_listeners("data_source_content_changed", self, changes)
+    def data_source_content_changed(self, data_source, data_and_calibration):
+        self.notify_data_source_content_changed()
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
-        DATA = 1
-        self.notify_listeners("data_source_content_changed", self, set([DATA]))
+        self.notify_data_source_content_changed()
 
     def __set_region(self, region_connection_id, region):
         # When region becomes available, establish bindings. Also add listener to watch for its deletion.
@@ -457,9 +493,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 data_source.set_data_item_manager(self.__data_item_manager)
 
     # default value handling.
-    def update_data_shapes_and_dtypes(self):
-        for data_source in self.data_sources:
-            data_source.update_data_shapes_and_dtypes()
+    def __update_data_shapes_and_dtypes(self):
         if self.operation:
             default_values = self.operation.property_defaults_for_data_shape_and_dtype(self.data_sources)
             for property, default_value in default_values.iteritems():
@@ -508,15 +542,21 @@ class Operation(object):
 
     # subclasses that change the type or shape of the data must override
     def get_processed_data_shape_and_dtype(self, data_sources):
-        return data_sources[0].data_shape_and_dtype
+        if len(data_sources) > 0:
+            return data_sources[0].data_shape_and_dtype
+        return None
 
     # intensity calibration
     def get_processed_intensity_calibration(self, data_sources):
-        return data_sources[0].intensity_calibration
+        if len(data_sources) > 0:
+            return data_sources[0].intensity_calibration
+        return None
 
     # spatial calibrations
     def get_processed_dimensional_calibrations(self, data_sources):
-        return data_sources[0].dimensional_calibrations
+        if len(data_sources) > 0:
+            return data_sources[0].dimensional_calibrations
+        return None
 
     # default value handling. this gives the operation a chance to update default
     # values when the data shape or dtype changes.

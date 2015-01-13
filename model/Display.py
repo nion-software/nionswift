@@ -306,8 +306,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def data_item_content_changed(self, data_item, changes):
         DATA = 1
         METADATA = 2
-        SOURCE = 4
-        if not set((DATA, METADATA, SOURCE)).isdisjoint(changes):  # any of these in changes?
+        if not set((DATA, METADATA)).isdisjoint(changes):  # any of these in changes?
             self.__preview_data = None
             self.__preview = None
             self.notify_listeners("display_changed", self)

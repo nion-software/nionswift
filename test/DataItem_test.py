@@ -39,6 +39,7 @@ class TestCalibrationClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_copy.set_operation(invert_operation)
+        data_item_copy.recompute_data()
         dimensional_calibrations = data_item_copy.dimensional_calibrations
         self.assertEqual(len(dimensional_calibrations), 2)
         self.assertEqual(int(dimensional_calibrations[0].offset), 3)
@@ -50,6 +51,7 @@ class TestCalibrationClass(unittest.TestCase):
         fft_operation = Operation.OperationItem("fft-operation")
         fft_operation.add_data_source(Operation.DataItemDataSource(data_item))
         data_item_copy.set_operation(fft_operation)
+        data_item_copy.recompute_data()
         dimensional_calibrations = data_item_copy.dimensional_calibrations
         self.assertEqual(int(dimensional_calibrations[0].offset), 0)
         self.assertEqual(dimensional_calibrations[0].units, "1/x")
@@ -989,7 +991,20 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy.set_intensity_calibration(Calibration.Calibration())
         self.assertFalse(data_item_copy.is_data_stale)
 
-    def test_adding_or_removing_operation_should_mark_the_data_as_stale(self):
+    def test_adding_operation_should_mark_the_data_as_stale(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item_copy = DataItem.DataItem()
+        blur_operation = Operation.OperationItem("gaussian-blur-operation")
+        blur_operation.add_data_source(Operation.DataItemDataSource(data_item))
+        document_model.append_data_item(data_item_copy)
+        data_item_copy.recompute_data()
+        self.assertFalse(data_item_copy.is_data_stale)
+        data_item_copy.set_operation(blur_operation)
+        self.assertTrue(data_item_copy.is_data_stale)
+
+    def test_removing_operation_should_not_mark_the_data_as_stale(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
@@ -1004,7 +1019,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy.recompute_data()
         self.assertFalse(data_item_copy.is_data_stale)
         data_item_copy.set_operation(None)
-        self.assertTrue(data_item_copy.is_data_stale)
+        self.assertFalse(data_item_copy.is_data_stale)
 
     def test_changing_operation_should_mark_the_data_as_stale(self):
         document_model = DocumentModel.DocumentModel()
