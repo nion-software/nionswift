@@ -377,7 +377,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNotNone(data_item_dup.operation)
         self.assertNotEqual(data_item_dup.operation, data_item.operation)
         self.assertNotEqual(data_item_dup.operation.data_sources[0], data_item.operation.data_sources[0])
-        self.assertEqual(data_item_dup.operation.data_sources[0].data_item_uuid, data_item.operation.data_sources[0].data_item_uuid)
+        self.assertEqual(data_item_dup.operation.data_sources[0].buffered_data_source_uuid, data_item.operation.data_sources[0].buffered_data_source_uuid)
         self.assertEqual(data_item_dup.operation.data_sources[0].source_data_item, data_item.operation.data_sources[0].source_data_item)
 
 

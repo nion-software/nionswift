@@ -167,15 +167,11 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
     def __init__(self, buffered_data_source=None):
         super(DataItemDataSource, self).__init__()
         self.define_type("data-item-data-source")
-        if buffered_data_source:
-            data_item_uuid = buffered_data_source._data_item.uuid if buffered_data_source._data_item else None
-        else:
-            data_item_uuid = None
-        self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
+        buffered_data_source_uuid = buffered_data_source.uuid if buffered_data_source else None
+        self.define_property("buffered_data_source_uuid", buffered_data_source_uuid, converter=_UuidToStringConverter())
         self.__subscription = None
         self.__buffered_data_source = None
-        self.__data_item_manager = None
-        self.__data_item_manager_lock = threading.RLock()
+        self.__buffered_data_source_set_changed_listener = None
         self.__weak_dependent_data_item = None
         # create a publisher of data_and_calibration objects.
         # when a subscriber subscribes to the publisher, be sure to publish the first data value
@@ -185,9 +181,8 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.set_buffered_data_source(buffered_data_source)
 
     def close(self):
-        if self.__subscription:
-            self.__subscription.close()
-            self.__subscription = None
+        self.set_buffered_data_source(None)
+        self.set_data_item_manager(None)
 
     def about_to_be_removed(self):
         pass
@@ -225,12 +220,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         return None
 
     def set_buffered_data_source(self, buffered_data_source):
-        """Set the actual data item associated with this reference.
-
-        This object stores a data_item_uuid. When it is inserted into a container, it will get get a data_item_manager.
-        The data_item_manager is used to watch for the data item with the data_item_uuid being loaded or unloaded.
-        The data_item_manager will call this method when that happens.
-        """
+        """Set the buffered_data_source associated with this reference."""
         dependent_data_item = self.__get_dependent_data_item()
         if self.__subscription:
             self.__subscription.close()
@@ -254,15 +244,29 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
                 source_data_item.add_dependent_data_item(dependent_data_item)
 
     def set_data_item_manager(self, data_item_manager):
-        with self.__data_item_manager_lock:
-            # removing existing data item manager
-            if self.__data_item_manager:
-                self.__data_item_manager.remove_data_item_listener(self.data_item_uuid, self)
-            # update new data item manager
-            self.__data_item_manager = data_item_manager
-            # adding data item manager
-            if self.__data_item_manager:
-                self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
+        # When this object is inserted into a container, it will get get a data_item_manager. The data_item_manager is
+        # used to watch for the matching buffered_data_source becoming available.
+
+        # get rid of current buffered_data_source_set_changed listener, if any
+        if self.__buffered_data_source_set_changed_listener:
+            self.__buffered_data_source_set_changed_listener.close()
+            self.__buffered_data_source_set_changed_listener  = None
+
+        # define function to handle buffered_data_source_set_changed
+        def buffered_data_source_set_changed(new_buffered_data_sources, old_buffered_data_sources):
+            for item in old_buffered_data_sources:
+                if item.uuid == self.buffered_data_source_uuid:
+                    self.set_buffered_data_source(None)
+            for item in new_buffered_data_sources:
+                if item.uuid == self.buffered_data_source_uuid:
+                    self.set_buffered_data_source(item)
+
+        if data_item_manager:
+            # listen for the set of buffered_data_sources changing.
+            self.__buffered_data_source_set_changed_listener = data_item_manager.buffered_data_source_set_changed_event.listen(buffered_data_source_set_changed)
+
+            # initialize with existing buffered_data_sources
+            buffered_data_source_set_changed(data_item_manager.buffered_data_source_set, set())
 
     def __notify_next_data_and_calibration(self):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""

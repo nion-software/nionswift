@@ -1303,6 +1303,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         publisher = data_source.get_data_and_calibration_publisher()
         self.__subscriptions.insert(before_index, publisher.subscribex(subscriber))
         self.notify_data_item_content_changed(set([DATA]))
+        # the document model watches for new data sources via observing.
+        # send this message to make data_sources observable.
+        self.notify_insert_item("data_sources", data_source, before_index)
 
     def __remove_data_source(self, name, index, data_source):
         subscription = self.__subscriptions[index]
@@ -1316,6 +1319,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
             data_source.decrement_data_ref_count()
+        # the document model watches for new data sources via observing.
+        # send this message to make data_sources observable.
+        self.notify_remove_item("data_sources", data_source, index)
 
     def append_data_source(self, data_source):
         self.append_item("data_sources", data_source)

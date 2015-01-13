@@ -460,6 +460,21 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(crop_data_item)
         # should remove properly when shutting down.
 
+    def test_removing_derived_data_item_updates_dependency_info_on_source(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1.title = "1"
+        document_model.append_data_item(data_item1)
+        data_item1a = DataItem.DataItem()
+        data_item1a.title = "1a"
+        operation1a = Operation.OperationItem("invert-operation")
+        operation1a.add_data_source(data_item1._create_test_data_source())
+        data_item1a.set_operation(operation1a)
+        document_model.append_data_item(data_item1a)
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
+        document_model.remove_data_item(data_item1a)
+        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
+
     def test_recomputing_data_should_not_leave_it_loaded(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

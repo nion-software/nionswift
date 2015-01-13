@@ -287,6 +287,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         """
         data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
         data_items = list()
+        v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             try:
                 version = properties.get("version", 0)
@@ -398,7 +399,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     # version 6 -> 7 changes data to be cached in the buffered data source object
                     buffered_data_source_dict = dict()
                     buffered_data_source_dict["type"] = "buffered-data-source"
-                    buffered_data_source_dict["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                    buffered_data_source_dict["uuid"] = v7lookup.setdefault(properties["uuid"], str(uuid.uuid4()))  # assign a new uuid
                     include_data = "master_data_shape" in properties and "master_data_dtype" in properties
                     data_shape = properties.get("master_data_shape")
                     data_dtype = properties.get("master_data_dtype")
@@ -423,6 +424,9 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     operation_dict = properties.pop("operation", None)
                     if operation_dict is not None:
                         buffered_data_source_dict["data_source"] = operation_dict
+                        for data_source_dict in operation_dict.get("data_sources", dict()):
+                            data_source_dict["buffered_data_source_uuid"] = v7lookup.setdefault(data_source_dict["data_item_uuid"], str(uuid.uuid4()))
+                            data_source_dict.pop("data_item_uuid", None)
                     if include_data or operation_dict is not None:
                         properties["data_sources"] = [buffered_data_source_dict]
                     properties["version"] = 7
@@ -508,9 +512,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_property("workspace_uuid", converter=UuidToStringConverter())
+        self.__buffered_data_source_set = set()
+        self.__buffered_data_source_set_changed_event = Observable.Event()
         self.session_id = None
         self.start_new_session()
-        self.__data_item_listeners = dict()
         self.__read()
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
         self.__library_storage.set_value(self, "version", 0)
@@ -522,7 +527,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.storage_cache = self.storage_cache
+            data_item.add_observer(self)  # watch for data_sources being added/removed
             data_item.add_listener(self)
+            self.__buffered_data_source_set.update(set(data_item.data_sources))
             data_item.set_data_item_manager(self)
         for data_item in data_items:
             data_item.finish_reading()
@@ -572,11 +579,12 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
+        data_item.add_observer(self)  # watch for data_sources being added/removed
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.set_data_item_manager(self)
-        listener_list = self.__data_item_listeners.get(data_item.uuid, list())
-        for listener in listener_list:
-            listener.set_buffered_data_source(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item).buffered_data_source)
+        # fire buffered_data_source_set_changed_event
+        self.__buffered_data_source_set.update(set(data_item.data_sources))
+        self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
@@ -590,14 +598,13 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for other_data_item in copy.copy(self.data_items):
             if other_data_item.ordered_data_item_data_sources == [data_item]:  # ordered data sources exactly equal to data item?
                 self.remove_data_item(other_data_item)
+        # fire buffered_data_source_set_changed_event
+        self.__buffered_data_source_set.difference_update(set(data_item.data_sources))
+        self.buffered_data_source_set_changed_event.fire(set(), set(data_item.data_sources))
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # disconnect the data source
         data_item.set_data_item_manager(None)
-        listener_list = self.__data_item_listeners.get(data_item.uuid, list())
-        for listener in listener_list:
-            # this should never occur.
-            listener.set_buffered_data_source(None)
         # remove it from the persistent_storage
         assert data_item is not None
         assert data_item in self.__data_items
@@ -607,30 +614,40 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # keep storage up-to-date
         self.managed_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        # unlisten to data item
+        # un-listen to data item
         data_item.remove_listener(self)
+        data_item.remove_observer(self)
         # update data item count
         self.notify_listeners("data_item_removed", self, data_item, index, False)
+        data_item.close()  # make sure dependents get updated. argh.
         if data_item.get_observer_count(self) == 0:  # ugh?
             self.notify_listeners("data_item_deleted", data_item)
 
-    def add_data_item_listener(self, data_item_uuid, listener):
-        """Add listener for the data_item_uuid. Listener will get set_buffered_data_source messages."""
-        listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
-        assert listener not in listener_list
-        listener_list.append(listener)
-        data_item = self.get_data_item_by_uuid(data_item_uuid)
-        listener.set_buffered_data_source(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item).buffered_data_source)
+    def item_inserted(self, object, key, value, before_index):
+        # called when a relationship in one of the items we're observing changes.
+        if key == "data_sources":
+            # fire buffered_data_source_set_changed_event
+            assert isinstance(value, DataItem.BufferedDataSource)
+            data_source = value
+            self.__buffered_data_source_set.update(set([data_source]))
+            self.buffered_data_source_set_changed_event.fire(set([data_source]), set())
 
-    def remove_data_item_listener(self, data_item_uuid, listener):
-        listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
-        assert listener in listener_list
-        listener_list.remove(listener)
-        listener.set_buffered_data_source(None)
+    def item_removed(self, object, key, value, index):
+        # called when a relationship in one of the items we're observing changes.
+        if key == "data_sources":
+            # fire buffered_data_source_set_changed_event
+            assert isinstance(value, DataItem.BufferedDataSource)
+            data_source = value
+            self.__buffered_data_source_set.difference_update(set([data_source]))
+            self.buffered_data_source_set_changed_event.fire(set(), set([data_source]))
 
-    def _get_data_item_listeners(self, data_item_uuid):
-        """For testing."""
-        return self.__data_item_listeners.get(data_item_uuid, list())
+    @property
+    def buffered_data_source_set(self):
+        return self.__buffered_data_source_set
+
+    @property
+    def buffered_data_source_set_changed_event(self):
+        return self.__buffered_data_source_set_changed_event
 
     def __get_data_items(self):
         return tuple(self.__data_items)  # tuple makes it read only
