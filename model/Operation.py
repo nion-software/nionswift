@@ -33,6 +33,7 @@ RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "
 
 
 class DataAndCalibration(object):
+    """Represent the ability to calculate data and provide immediate calibrations."""
 
     def __init__(self, data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations):
         self.data_fn = data_fn
@@ -81,48 +82,6 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
     def remove_region(self, region):
         if self.__data_item and region in self.__data_item.regions:
             self.__data_item.remove_region(region)
-
-    @property
-    def data_shape_and_dtype(self):
-        if self.__data_item:
-            return self.__data_item.data_shape_and_dtype
-        return None
-
-    @property
-    def data_shape(self):
-        if self.__data_item:
-            return self.__data_item.data_shape
-        return None
-
-    @property
-    def data_dtype(self):
-        if self.__data_item:
-            return self.__data_item.data_dtype
-        return None
-
-    @property
-    def intensity_calibration(self):
-        if self.__data_item:
-            return self.__data_item.intensity_calibration
-        return None
-
-    @property
-    def dimensional_calibrations(self):
-        if self.__data_item:
-            return self.__data_item.dimensional_calibrations
-        return None
-
-    @property
-    def data(self):
-        try:
-            if self.__data_item:
-                return self.__data_item.computed_data
-            return None
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
 
     @property
     def ordered_data_item_data_sources(self):
@@ -386,17 +345,12 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         def notify_next_data(self):
             """Send out the next value message."""
-            if all(self.__data_and_calibrations) and len(self.__data_and_calibrations) > 0:
+            data_and_calibrations = self.__data_and_calibrations
+            if all(data_and_calibrations) and len(data_and_calibrations) > 0:
                 operation = self.__operation_item.operation
                 if operation:
-                    values = self.__operation_item.get_realized_values(self.__data_and_calibrations)
-                    def get_data():
-                        return operation.get_processed_data(self.__data_and_calibrations, values)
-                    data_fn = get_data
-                    data_shape_and_dtype = operation.get_processed_data_shape_and_dtype(self.__data_and_calibrations, values)
-                    intensity_calibration = operation.get_processed_intensity_calibration(self.__data_and_calibrations, values)
-                    dimensional_calibrations = operation.get_processed_dimensional_calibrations(self.__data_and_calibrations, values)
-                    data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+                    values = self.__operation_item.get_realized_values(data_and_calibrations)
+                    data_and_calibration = operation.get_processed_data_and_calibration(data_and_calibrations, values)
                     self.notify_next_value(data_and_calibration)
 
         def property_changed(self, sender, property, property_value):
@@ -491,50 +445,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         return values
 
     @property
-    def data_shape_and_dtype(self):
-        if self.operation:
-            return self.operation.get_processed_data_shape_and_dtype(self.data_sources, self.values)
-        return None
-
-    @property
-    def data_shape(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        if data_shape_and_dtype is not None:
-            return data_shape_and_dtype[0]
-        return None
-
-    @property
-    def data_dtype(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        if data_shape_and_dtype is not None:
-            return data_shape_and_dtype[1]
-        return None
-
-    @property
-    def intensity_calibration(self):
-        if self.operation:
-            return self.operation.get_processed_intensity_calibration(self.data_sources, self.values)
-        return None
-
-    @property
-    def dimensional_calibrations(self):
-        if self.operation:
-            return self.operation.get_processed_dimensional_calibrations(self.data_sources, self.values)
-        return None
-
-    @property
-    def data(self):
-        try:
-            if self.operation:
-                return self.operation.get_processed_data(self.data_sources, self.values)
-            return None
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
-
-    @property
     def ordered_data_item_data_sources(self):
         data_sources = list()
         for data_source in self.data_sources:
@@ -574,6 +484,19 @@ class Operation(object):
         self.description = description if description else []
         self.region_types = dict()
         self.region_bindings = dict()
+
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+
+        def get_data():
+            return self.get_processed_data(data_and_calibrations, values)
+
+        data_shape_and_dtype = self.get_processed_data_shape_and_dtype(data_and_calibrations, values)
+        intensity_calibration = self.get_processed_intensity_calibration(data_and_calibrations, values)
+        dimensional_calibrations = self.get_processed_dimensional_calibrations(data_and_calibrations, values)
+        data_and_calibration = DataAndCalibration(get_data, data_shape_and_dtype, intensity_calibration,
+                                                  dimensional_calibrations)
+
+        return data_and_calibration
 
     # public method to do processing.
     def get_processed_data(self, data_sources, values):
