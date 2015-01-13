@@ -1458,7 +1458,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def primary_display_specifier(self):
         if len(self.data_sources) == 1:
-            DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
+            return DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
         return DisplaySpecifier()
 
     # testing methods
