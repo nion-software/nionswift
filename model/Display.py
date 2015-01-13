@@ -141,7 +141,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.notify_listeners("display_graphic_selection_changed", self, graphic_selection)
 
     def get_processor(self, processor_id):
-        return self.__processors[processor_id]
+        # check for case where we might already be closed. not pretty.
+        return self.__processors[processor_id] if self.__processors else None
 
     @property
     def data_and_calibration(self):

@@ -292,7 +292,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             self.data_source.about_to_be_removed()
 
     def get_processor(self, processor_id):
-        return self.__processors[processor_id]
+        # check for case where we might already be closed. not pretty.
+        return self.__processors[processor_id] if self.__processors else None
 
     def get_processed_data(self, processor_id):
         return self.get_processor(processor_id).get_cached_data()
