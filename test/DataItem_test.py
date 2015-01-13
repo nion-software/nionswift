@@ -988,27 +988,25 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item.is_live)
         self.assertFalse(data_item_crop1.is_live)
 
-    def test_dependent_data_item_removed_while_live_data_item_becomes_unlive(self):
+    def slow_test_dependent_data_item_removed_while_live_data_item_becomes_unlive(self):
+        # an intermittent race condition. run several times. see the changes that accompanied
+        # the addition of this code.
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
+        def live_it(n):
+            for _ in range(n):
+                with data_item.live():
+                    pass
+        thread = threading.Thread(target=live_it, args=(1000, )).start()
         with data_item.live():
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
-            self.assertEqual(data_item_inverted.dependent_data_items, [])
-            self.assertEqual(data_item.dependent_data_items, [data_item_inverted])
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
-            self.assertTrue(data_item_inverted.is_live)
-            with data_item_inverted.live():
+            for _ in range(100):
+                data_item_inverted = DataItem.DataItem()
+                invert_operation = Operation.OperationItem("invert-operation")
+                invert_operation.add_data_source(Operation.DataItemDataSource(data_item))
+                data_item_inverted.set_operation(invert_operation)
+                document_model.append_data_item(data_item_inverted)
                 document_model.remove_data_item(data_item_inverted)
-            self.assertEqual(data_item.dependent_data_items, [])
-            document_model.recompute_all()
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale(self):
         # changing metadata or data will override what has been computed

@@ -863,7 +863,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 persistent_storage.write_delayed = False
             self.managed_object_context.write_data_item(self)
 
-    def begin_transaction(self, count=1):
+    def begin_transaction(self):
         """Begin transaction state.
 
         A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
@@ -871,13 +871,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
         Has the side effects of entering the write delay state, cache delay state (via is_cached_delayed),
         loading data of data sources, and entering transaction state for dependent data items.
+
+        This method is thread safe.
         """
         #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
         # maintain the transaction count under a mutex
-        assert count > 0
         with self.__transaction_count_mutex:
             old_transaction_count = self.__transaction_count
-            self.__transaction_count += count
+            self.__transaction_count += 1
         # if the old transaction count was 0, it means we're entering the transaction state.
         if old_transaction_count == 0:
             # first enter the write delay state.
@@ -886,12 +887,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             # this prevents paging in and out.
             for data_source in self.data_sources:
                 data_source.increment_data_ref_count()
-        # finally, tell dependent data items to enter their transaction states also
-        # so that they also don't write change to disk immediately.
-        for data_item in self.dependent_data_items:
-            data_item.begin_transaction(count)
+            # finally, tell dependent data items to enter their transaction states also
+            # so that they also don't write change to disk immediately.
+            for data_item in self.dependent_data_items:
+                data_item.begin_transaction()
 
-    def end_transaction(self, count=1):
+    def end_transaction(self):
         """End transaction state.
 
         Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
@@ -900,18 +901,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         As a consequence of exiting write delay state, data and metadata may be written to disk.
 
         As a consequence of existing cache delay state, cache may be written to disk.
+
+        This method is thread safe.
         """
-        assert count > 0
-        # first, tell our dependent data items to exit their transaction states.
-        for data_item in self.dependent_data_items:
-            data_item.end_transaction(count)
         # maintain the transaction count under a mutex
         with self.__transaction_count_mutex:
-            self.__transaction_count -= count
+            self.__transaction_count -= 1
             assert self.__transaction_count >= 0
             transaction_count = self.__transaction_count
         # if the new transaction count is 0, it means we're exiting the transaction state.
         if transaction_count == 0:
+            # first, tell our dependent data items to exit their transaction states.
+            for data_item in self.dependent_data_items:
+                data_item.end_transaction()
             # being in the transaction state has the side effect of delaying the cache too.
             # spill whatever was into the local cache into the persistent cache.
             self.spill_cache()
@@ -979,10 +981,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def notify_processor_data_updated(self, processor):
         self.notify_listeners("data_item_processor_data_updated", self, processor)
 
-    def __get_is_live(self):
+    @property
+    def is_live(self):
         """ Return whether this data item represents a live acquisition data item. """
         return self.__live_count > 0
-    is_live = property(__get_is_live)
 
     def live(self):
         """ Return a context manager to put the data item under a live count. """
@@ -996,39 +998,41 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.__object.end_live()
         return LiveContextManager(self)
 
-    def __get_live_count(self):
+    @property
+    def live_count(self):
         """ Return the live count for this data item. """
         return self.__live_count
-    live_count = property(__get_live_count)
 
-    def begin_live(self, count=1):
+    def begin_live(self):
+        """Begins a live transaction with this item.
+
+        The live state is propagated to dependent data items.
+
+        This method is thread safe. See slow_test_dependent_data_item_removed_while_live_data_item_becomes_unlive.
         """
-        Begins a live transaction with this item. The live-ness property is propagated to
-        dependent data items, similar to the transactions.
-        """
-        assert count > 0
         with self.__live_count_lock:
             old_live_count = self.__live_count
-            self.__live_count += count
+            self.__live_count += 1
         if old_live_count == 0:
             self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
-        for data_item in self.dependent_data_items:
-            data_item.begin_live(count)
+            for data_item in self.dependent_data_items:
+                data_item.begin_live()
 
-    def end_live(self, count=1):
+    def end_live(self):
         """
         Ends a live transaction with this item. The live-ness property is propagated to
         dependent data items, similar to the transactions.
+
+        This method is thread safe.
         """
-        assert count > 0
-        for data_item in self.dependent_data_items:
-            data_item.end_live(count)
         with self.__live_count_lock:
-            self.__live_count -= count
+            self.__live_count -= 1
             assert self.__live_count >= 0
             live_count = self.__live_count
         if live_count == 0:
             self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+            for data_item in self.dependent_data_items:
+                data_item.end_live()
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -1374,9 +1378,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # to dependent items. since we're inserting a new dependent, we need
         # to compensate for those changes here.
         if self.__transaction_count > 0:
-            data_item.begin_transaction(self.__transaction_count)
+            data_item.begin_transaction()
         if self.__live_count > 0:
-            data_item.begin_live(self.__live_count)
+            data_item.begin_live()
 
     # track dependent data items. useful for propagating transaction support.
     def remove_dependent_data_item(self, data_item):
@@ -1391,9 +1395,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # if that change occurs after end_live has been called below, but before it's
         # actually changed within the end_live method, a race condition has occurred.
         if self.__transaction_count > 0:
-            data_item.end_transaction(self.__transaction_count)
+            data_item.end_transaction()
         if self.__live_count > 0:
-            data_item.end_live(self.__live_count)
+            data_item.end_live()
 
     @property
     def dependent_data_items(self):
