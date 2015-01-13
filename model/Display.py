@@ -148,7 +148,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     @property
     def buffered_data_source(self):
-        return self.data_item.data_sources[0] if self.data_item and len(self.data_item.data_sources) > 0 else None
+        return self.data_item.maybe_data_source if self.data_item else None
 
     @property
     def data_for_processor(self):
@@ -168,12 +168,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
-        if self.data_item.is_data_complex_type and self.display_limits is None:
-            data = self.data_item.data
+        if self.buffered_data_source.is_data_complex_type and self.display_limits is None:
+            data = self.buffered_data_source.data
             samples, fraction = 200, 0.1
             sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
             display_limit_low = numpy.log(sorted_data[samples*fraction])
-            display_limit_high = self.data_item.data_range[1]
+            display_limit_high = self.buffered_data_source.data_range[1]
             self.display_limits = display_limit_low, display_limit_high
 
     def __get_preview_2d(self):
@@ -190,7 +190,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def preview_2d_data(self):
         try:
             if self.__preview_data is None:
-                data = self.data_item.data
+                data = self.buffered_data_source.data
                 if Image.is_data_2d(data):
                     data_2d = Image.scalar_from_array(data)
                 # TODO: fix me 3d
@@ -212,10 +212,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             raise
 
     def __get_preview_2d_shape(self):
-        if self.data_item.is_data_2d:
-            return self.data_item.spatial_shape
-        elif self.data_item.is_data_3d:
-            return self.data_item.spatial_shape[1:]
+        if self.buffered_data_source.is_data_2d:
+            return self.buffered_data_source.dimensional_shape
+        elif self.buffered_data_source.is_data_3d:
+            return self.buffered_data_source.dimensional_shape[1:]
         else:
             return None
     preview_2d_shape = property(__get_preview_2d_shape)
@@ -237,14 +237,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.notify_set_property("display_range", self.display_range)
 
     def __get_slice_interval(self):
-        if self.data_item:
-            depth = self.data_item.spatial_shape[0]
+        if self.buffered_data_source:
+            depth = self.buffered_data_source.dimensional_shape[0]
             slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
             slice_interval_end = slice_interval_start + self.slice_width
             return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
         return None
     def __set_slice_interval(self, slice_interval):
-        depth = self.data_item.spatial_shape[0]
+        depth = self.buffered_data_source.dimensional_shape[0]
         slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
         slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
         self.slice_center = slice_interval_center
@@ -274,18 +274,18 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     @property
     def data_range(self):
-        return self.data_item.data_range if self.data_item else None
+        return self.buffered_data_source.data_range if self.buffered_data_source else None
 
     @property
     def data_sample(self):
-        return self.data_item.data_sample if self.data_item else None
+        return self.buffered_data_source.data_sample if self.buffered_data_source else None
 
     def __get_display_range(self):
         if self.display_limits:
             return self.display_limits
         data_range = self.data_range
-        if self.data_item and self.data_item.is_data_complex_type:
-            data_sample = self.data_item.data_sample
+        if self.buffered_data_source and self.buffered_data_source.is_data_complex_type:
+            data_sample = self.buffered_data_source.data_sample
             if data_sample is not None:
                 data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
                 display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
@@ -307,8 +307,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             self.__preview_data = None
             self.__preview = None
             self.notify_set_property(property, value)
-            if self.data_item:
-                self.notify_set_property("display_range", self.display_range)
+            self.notify_set_property("display_range", self.display_range)
 
     # this message received from data item. the connection is established using
     # add_listener and remove_listener.

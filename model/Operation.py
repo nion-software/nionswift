@@ -60,7 +60,7 @@ class DataAndCalibration(object):
         data_shape_and_dtype = self.data_shape_and_dtype
         if data_shape_and_dtype is not None:
             data_shape, data_dtype = self.data_shape_and_dtype
-            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+            return Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         return None
 
     def get_intensity_calibration(self):
@@ -168,7 +168,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
 
     def __notify_next_data_and_calibration(self):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
-        data_and_calibration = self.__data_item.data_and_calibration if self.__data_item else None
+        data_and_calibration = self.__data_item.maybe_data_source.data_and_calibration if self.__data_item and self.__data_item.maybe_data_source else None
         self.__publisher.notify_next_value(data_and_calibration)
 
     def get_data_and_calibration_publisher(self):
@@ -613,7 +613,7 @@ class FFTOperation(Operation):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if data_shape is None or data_dtype is None or dimensional_calibrations is None:
             return None
-        assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
+        assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
                                      "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
@@ -648,7 +648,7 @@ class IFFTOperation(Operation):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
         if data_shape is None or data_dtype is None or dimensional_calibrations is None:
             return None
-        assert len(dimensional_calibrations) == len(Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype))
+        assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
                                      1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
                                      "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
@@ -1146,7 +1146,7 @@ class SliceOperationPropertyBinding(Binding.Binding):
         super(SliceOperationPropertyBinding, self).__init__(source,  converter)
         self.__property_name = property_name
         def validate_and_set(value):
-            value = min(value, self.source.data_item.spatial_shape[0])
+            value = min(value, self.source.data_item.maybe_data_source.dimensional_shape[0])
             value = max(value, 0)
             self.source.set_property(self.__property_name, value)
         self.source_setter = validate_and_set

@@ -74,7 +74,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
         if self.__display:
-            self.__display_inspector = DataItemInspector(self.ui, self.__display.data_item, self.__display)
+            self.__display_inspector = DataItemInspector(self.ui, self.__display)
             self.column.add(self.__display_inspector.widget)
 
     # not thread safe
@@ -899,7 +899,7 @@ class OperationsInspectorSection(InspectorSection):
                 label_widget = self.ui.create_label_widget(name)
                 line_edit_widget = self.ui.create_line_edit_widget()
                 slider_widget = self.ui.create_slider_widget()
-                slider_widget.maximum = operation.data_sources[0].spatial_shape[0] - 1
+                slider_widget.maximum = operation.data_sources[0].dimensional_shape[0] - 1
                 slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
                 line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)
@@ -916,7 +916,7 @@ class OperationsInspectorSection(InspectorSection):
                 line_edit_widget = self.ui.create_line_edit_widget()
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.minimum = 1
-                slider_widget.maximum = operation.data_sources[0].spatial_shape[0]
+                slider_widget.maximum = operation.data_sources[0].dimensional_shape[0]
                 slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
                 line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)
@@ -937,9 +937,10 @@ class OperationsInspectorSection(InspectorSection):
 
 class DataItemInspector(object):
 
-    def __init__(self, ui, data_item, display):
+    def __init__(self, ui, display):
         self.ui = ui
 
+        data_item = display.data_item
         buffered_data_source = display.buffered_data_source
 
         self.__inspectors = list()

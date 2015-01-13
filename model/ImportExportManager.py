@@ -255,7 +255,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # spatial calibrations
         if "spatial_calibrations" in data_element:
             dimensional_calibrations = data_element.get("spatial_calibrations")
-            if len(dimensional_calibrations) == len(data_item.spatial_shape):
+            if len(dimensional_calibrations) == len(data_item.maybe_data_source.dimensional_shape):
                 for dimension, dimension_calibration in enumerate(dimensional_calibrations):
                     offset = float(dimension_calibration.get("offset", 0.0))
                     scale = float(dimension_calibration.get("scale", 1.0))
@@ -314,10 +314,10 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         if "arrows" in data_element:
             for arrow_coordinates in data_element["arrows"]:
                 start, end = arrow_coordinates
-                spatial_shape = data_item.spatial_shape
+                dimensional_shape = data_item.maybe_data_source.dimensional_shape
                 line_graphic = Graphics.LineGraphic()
-                line_graphic.start = (float(start[0]) / spatial_shape[0], float(start[1]) / spatial_shape[1])
-                line_graphic.end = (float(end[0]) / spatial_shape[0], float(end[1]) / spatial_shape[1])
+                line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
+                line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
                 line_graphic.end_arrow_enabled = True
                 data_item.displays[0].append_graphic(line_graphic)
 
@@ -376,7 +376,7 @@ class StandardImportExportHandler(ImportExportHandler):
         return list()
 
     def can_write(self, data_item, extension):
-        return len(data_item.spatial_shape) == 2
+        return data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2
 
     def write(self, ui, data_item, path, extension):
         data = data_item.displays[0].preview_2d  # export the display rather than the data for these types

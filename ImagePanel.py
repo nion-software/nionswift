@@ -798,8 +798,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_selections = False
 
     def __get_data_size(self):
-        data_item = self.display.data_item if self.display else None
-        data_shape = data_item.spatial_shape if data_item else None
+        buffered_data_source = self.display.buffered_data_source if self.display else None
+        data_shape = buffered_data_source.dimensional_shape if buffered_data_source else None
         if not data_shape:
             return None
         for d in data_shape:
@@ -883,8 +883,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_preferred_aspect_ratio(self):
         if self.display:
-            spatial_shape = self.display.preview_2d_shape
-            return spatial_shape[1] / spatial_shape[0] if spatial_shape[0] != 0 else 1.0
+            dimensional_shape = self.display.preview_2d_shape
+            return dimensional_shape[1] / dimensional_shape[0] if dimensional_shape[0] != 0 else 1.0
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
 
@@ -960,13 +960,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.info_overlay_canvas_item.image_canvas_size = None
             return
         if self.image_canvas_mode == "fill":
-            spatial_shape = self.display.preview_2d_shape
-            scale_h = float(spatial_shape[1]) / scroll_area_canvas_size[1]
-            scale_v = float(spatial_shape[0]) / scroll_area_canvas_size[0]
+            dimensional_shape = self.display.preview_2d_shape
+            scale_h = float(dimensional_shape[1]) / scroll_area_canvas_size[1]
+            scale_v = float(dimensional_shape[0]) / scroll_area_canvas_size[0]
             if scale_v < scale_h:
-                image_canvas_size = (scroll_area_canvas_size[0], scroll_area_canvas_size[0] * spatial_shape[1] / spatial_shape[0])
+                image_canvas_size = (scroll_area_canvas_size[0], scroll_area_canvas_size[0] * dimensional_shape[1] / dimensional_shape[0])
             else:
-                image_canvas_size = (scroll_area_canvas_size[1] * spatial_shape[0] / spatial_shape[1], scroll_area_canvas_size[1])
+                image_canvas_size = (scroll_area_canvas_size[1] * dimensional_shape[0] / dimensional_shape[1], scroll_area_canvas_size[1])
             image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         elif self.image_canvas_mode == "fit":
@@ -979,26 +979,26 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         else:
             c = self.__last_image_norm_center
-            spatial_shape = self.display.preview_2d_shape
+            dimensional_shape = self.display.preview_2d_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
-            canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
+            canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
             image_canvas_origin_y = (scroll_area_canvas_size[0] * 0.5) - c[0] * canvas_rect[1][0] - canvas_rect[0][0]
             image_canvas_origin_x = (scroll_area_canvas_size[1] * 0.5) - c[1] * canvas_rect[1][1] - canvas_rect[0][1]
             image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size)
         # the image will be drawn centered within the canvas size
-        spatial_shape = self.display.preview_2d_shape
+        dimensional_shape = self.display.preview_2d_shape
         #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
         #logging.debug("image_canvas_origin %s", image_canvas_origin)
         #logging.debug("image_canvas_size %s", image_canvas_size)
-        #logging.debug("spatial_shape %s", spatial_shape)
-        #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / spatial_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / spatial_shape[1])
+        #logging.debug("dimensional_shape %s", dimensional_shape)
+        #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / dimensional_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / dimensional_shape[1])
         widget_mapping = WidgetImageMapping(self.display.preview_2d_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
-        canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), spatial_shape)
-        scroll_rect = Geometry.fit_to_size(((0, 0), scroll_area_canvas_size), spatial_shape)
+        canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
+        scroll_rect = Geometry.fit_to_size(((0, 0), scroll_area_canvas_size), dimensional_shape)
         self.__last_image_zoom = float(canvas_rect[1][0]) / scroll_rect[1][0]
         #logging.debug("z %s (%s)", self.__last_image_zoom, float(canvas_rect[1][1]) / scroll_rect[1][1])
         self.info_overlay_canvas_item.image_canvas_origin = image_canvas_origin
@@ -1281,12 +1281,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         if display:
             # grab the data item too
-            data_item = display.data_item
+            buffered_data_source = display.buffered_data_source
 
             # make sure we have the correct data
-            assert data_item is not None
+            assert buffered_data_source is not None
             # TODO: fix me 3d
-            assert data_item.is_data_2d or data_item.is_data_3d
+            assert buffered_data_source.is_data_2d or buffered_data_source.is_data_3d
 
             def update_ui():
                 # grab the bitmap image
@@ -1638,7 +1638,7 @@ class LiveImagePanelController(object):
                     data_item = data_item_state.get("data_item")
                     scan_position = data_item.get_metadata("hardware_source").get("scan_position")
                     if scan_position is not None:
-                        partial_str = " " + str(int(100 * scan_position["y"] / data_item.spatial_shape[0])) + "%"
+                        partial_str = " " + str(int(100 * scan_position["y"] / data_item.maybe_data_source.dimensional_shape[0])) + "%"
                     state_text_canvas_item.text = map_channel_state_to_text[channel_state] + partial_str
                     state_text_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
                     self.__playback_controls_composition.refresh_layout()
@@ -1930,10 +1930,10 @@ class ImagePanel(object):
             assert isinstance(display, Display.Display)
             # keep new data in memory. if new and old values are the same, putting
             # this here will prevent the data from unloading and then reloading.
-            display.data_item.increment_data_ref_count()
+            display.buffered_data_source.increment_data_ref_count()
         # track data item in this class to report changes
         if self.__display:
-            self.__display.data_item.decrement_data_ref_count()  # don't keep data in memory anymore
+            self.__display.buffered_data_source.decrement_data_ref_count()  # don't keep data in memory anymore
             self.__display.remove_listener(self)
         self.__display = display
         # these connections should be configured after the messages above.
@@ -1999,10 +1999,11 @@ class ImagePanel(object):
         if self.__header_canvas_item:  # may be closed
             self.__header_canvas_item.title = self.document_controller.get_displayed_title_for_data_item(data_item)
         display_type = None
-        if data_item:
-            if data_item.is_data_1d:
+        buffered_data_source = display.buffered_data_source if display else None
+        if buffered_data_source:
+            if buffered_data_source.is_data_1d:
                 display_type = "line_plot"
-            elif data_item.is_data_2d or data_item.is_data_3d:
+            elif buffered_data_source.is_data_2d or buffered_data_source.is_data_3d:
                 display_type = "image"
         if display_type != self.__display_type:
             if self.display_canvas_item:
@@ -2193,9 +2194,10 @@ class InfoPanel(Panel.Panel):
                 return str(value)
         position_text = ""
         value_text = ""
-        if display and data_size:
-            dimensional_calibrations = display.data_item.dimensional_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
-            intensity_calibration = display.data_item.intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
+        buffered_data_source = display.buffered_data_source if display else None
+        if buffered_data_source and data_size:
+            dimensional_calibrations = buffered_data_source.dimensional_calibrations if display.display_calibrated_values else [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
+            intensity_calibration = buffered_data_source.intensity_calibration if display.display_calibrated_values else Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
                 # 3d image
@@ -2204,20 +2206,20 @@ class InfoPanel(Panel.Panel):
                     position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2]),
                                                             dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
                                                             dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 2:
                 # 2d image
                 # make sure the position is within the bounds of the image
                 if pos[0] >= 0 and pos[0] < data_size[0] and pos[1] >= 0 and pos[1] < data_size[1]:
                     position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
                                                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
             if pos and len(pos) == 1:
                 # 1d plot
                 # make sure the position is within the bounds of the line plot
                 if pos[0] >= 0 and pos[0] < data_size[0]:
                     position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(display.data_item.get_data_value(pos), intensity_calibration)
+                    value_text = get_value_text(buffered_data_source.get_data_value(pos), intensity_calibration)
             self.__last_source = source
         if self.__last_source == source:
             def update_position_and_value(position_text, value_text):

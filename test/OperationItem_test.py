@@ -59,7 +59,7 @@ class TestOperationClass(unittest.TestCase):
         operation2.add_data_source(Operation.DataItemDataSource(self.data_item))
         data_item.set_operation(operation2)
         self.document_model.append_data_item(data_item)
-        self.assertEqual(operation2.get_realized_values([self.data_item.data_and_calibration])["width"], self.data_item.data_shape[1])
+        self.assertEqual(operation2.get_realized_values([self.data_item.maybe_data_source.data_and_calibration])["width"], self.data_item.maybe_data_source.data_shape[1])
 
     # test operations against 1d data. doesn't test for correctness of the operation.
     def test_operations_1d(self):
@@ -87,9 +87,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d(self):
@@ -123,9 +123,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_3d(self):
@@ -146,9 +146,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgb(self):
@@ -180,9 +180,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgba(self):
@@ -214,9 +214,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_operations_2d_complex128(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
@@ -237,9 +237,9 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
     def test_operations_2d_complex64(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex64))
@@ -260,11 +260,11 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
-                self.assertEqual(data_item.data_shape_and_dtype[0], data_ref.data.shape)
-                self.assertEqual(data_item.data_shape_and_dtype[1], data_ref.data.dtype)
-                self.assertIsNotNone(data_item.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(data_item.maybe_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
-    def test_crop_2d_operation_returns_correct_spatial_shape_and_data_shape(self):
+    def test_crop_2d_operation_returns_correct_dimensional_shape_and_data_shape(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         data_item_real = DataItem.DataItem()
         operation = Operation.OperationItem("crop-operation")
@@ -273,7 +273,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.set_operation(operation)
         data_item_real.recompute_data()
         # make sure we get the right shape
-        self.assertEqual(data_item_real.spatial_shape, (1000, 500))
+        self.assertEqual(data_item_real.maybe_data_source.dimensional_shape, (1000, 500))
         with data_item_real.data_ref() as data_real_accessor:
             self.assertEqual(data_real_accessor.data.shape, (1000, 500))
 
@@ -396,17 +396,18 @@ class TestOperationClass(unittest.TestCase):
         self.image_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_data_item, data_item_rgba2)
         data_item_rgba_copy = self.document_controller.processing_snapshot()
-        self.assertTrue(data_item_rgba_copy.has_master_data)
+        self.assertTrue(data_item_rgba_copy.maybe_data_source.has_data)
 
     def test_snapshot_empty_data_item_should_produce_empty_data_item(self):
         data_item = DataItem.DataItem()
-        self.assertIsNone(data_item.data)
-        self.assertIsNone(data_item.data_dtype)
-        self.assertIsNone(data_item.data_shape)
-        data_item_copy = data_item.snapshot()
-        self.assertIsNone(data_item_copy.data)
-        self.assertIsNone(data_item_copy.data_dtype)
-        self.assertIsNone(data_item_copy.data_shape)
+        data_item.append_data_source(DataItem.BufferedDataSource())
+        self.assertIsNone(data_item.maybe_data_source.data)
+        self.assertIsNone(data_item.maybe_data_source.data_dtype)
+        self.assertIsNone(data_item.maybe_data_source.data_shape)
+        copied_data_item = data_item.snapshot()
+        self.assertIsNone(copied_data_item.maybe_data_source.data)
+        self.assertIsNone(copied_data_item.maybe_data_source.data_dtype)
+        self.assertIsNone(copied_data_item.maybe_data_source.data_shape)
 
     def test_snapshot_of_operation_should_copy_calibrations_not_dimensional_calibrations(self):
         # setup
@@ -616,11 +617,11 @@ class TestOperationClass(unittest.TestCase):
         crop_data_item.set_operation(crop_operation)
         document_model.append_data_item(crop_data_item)
         document_model.recompute_all()
-        self.assertFalse(fft_data_item.is_data_stale)
-        self.assertFalse(crop_data_item.is_data_stale)
+        self.assertFalse(fft_data_item.maybe_data_source.is_data_stale)
+        self.assertFalse(crop_data_item.maybe_data_source.is_data_stale)
         crop_region.bounds = Geometry.FloatRect(crop_region.bounds[0], Geometry.FloatPoint(0.1, 0.1))
-        self.assertTrue(crop_data_item.is_data_stale)
-        self.assertFalse(fft_data_item.is_data_stale)
+        self.assertTrue(crop_data_item.maybe_data_source.is_data_stale)
+        self.assertFalse(fft_data_item.maybe_data_source.is_data_stale)
 
     def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
         document_model = DocumentModel.DocumentModel()

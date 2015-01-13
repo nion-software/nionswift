@@ -248,7 +248,7 @@ class DataItemPersistentStorage(object):
                     self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
 
     def load_data(self):
-        assert self.data_item.has_master_data
+        assert self.data_item.maybe_data_source and self.data_item.maybe_data_source.has_data
         with self.__data_reference_handler_lock:
             return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
 
@@ -454,11 +454,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         self.set_persistent_storage_for_object(data_item, persistent_storage)
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
-        self.rewrite_data_item_data(data_item, data=data_item.data)
+        if data_item.maybe_data_source:
+            self.rewrite_data_item_data(data_item.maybe_data_source, data=data_item.data)
 
-    def rewrite_data_item_data(self, data_item, data):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
-        persistent_storage.update_data(data_item.data_shape, data_item.data_dtype, data=data)
+    def rewrite_data_item_data(self, buffered_data_source, data):
+        persistent_storage = self.get_persistent_storage_for_object(buffered_data_source)
+        persistent_storage.update_data(buffered_data_source.data_shape, buffered_data_source.data_dtype, data=data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)

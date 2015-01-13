@@ -573,7 +573,7 @@ class DocumentController(Observable.Broadcaster):
             if directory:
                 for index, data_item in enumerate(selected_data_items):
                     try:
-                        pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.spatial_shape])
+                        pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape])
                         date_str = Utility.get_datetime_from_datetime_item(data_item.datetime_original).isoformat().replace(':', '')
                         path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
                         ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
@@ -768,7 +768,7 @@ class DocumentController(Observable.Broadcaster):
 
     def __get_crop_region(self, data_item):
         crop_region = None
-        if data_item and len(data_item.spatial_shape) == 2:
+        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
             display = data_item.displays[0]
             current_index = display.graphic_selection.current_index
             if current_index is not None:
@@ -809,7 +809,7 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_crop(self, select=True):
         data_item = self.selected_data_item
-        if data_item and len(data_item.spatial_shape) == 2:
+        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
             crop_region = self.__get_crop_region(data_item)
             bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
             operation = Operation.OperationItem("crop-operation")
@@ -819,14 +819,14 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_slice(self, select=True):
         data_item = self.selected_data_item
-        if data_item and len(data_item.spatial_shape) == 3:
+        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("slice-operation")
             operation.set_property("slice", 0)
             return self.add_processing_operation(operation, prefix=_("Slice of "), select=select)
 
     def processing_pick(self, select=True):
         data_item = self.selected_data_item
-        if data_item and len(data_item.spatial_shape) == 3:
+        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
             operation.establish_associated_region("pick", data_item)  # after setting operation properties
             pick_data_item = self.add_processing_operation(operation, prefix=_("Pick of "), select=select)
@@ -837,7 +837,7 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_projection(self, select=True):
         data_item = self.selected_data_item
-        if data_item and len(data_item.spatial_shape) == 2:
+        if data_item and data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2:
             operation = Operation.OperationItem("projection-operation")
             return self.add_processing_operation(operation, prefix=_("Projection of "), select=select)
 
@@ -983,7 +983,7 @@ class DocumentController(Observable.Broadcaster):
                             # grab a data ref and initialize the data save events
                             data_item_save_event = dict()
                             for data_item in data_items:
-                                data_item.increment_data_ref_count()
+                                data_item.increment_data_ref_counts()
                                 data_item_save_event[data_item] = threading.Event()
 
                             def insert_data_item(_document_model, _data_group, _data_items, index_ref):
@@ -1019,7 +1019,7 @@ class DocumentController(Observable.Broadcaster):
                                     self.periodic()  # make sure periodic gets called at least once
                                     while not data_item_save_event[data_item].wait(0.05):
                                         self.periodic()
-                                data_item.decrement_data_ref_count()
+                                data_item.decrement_data_ref_counts()
 
                             received_data_items.extend(data_items)
 

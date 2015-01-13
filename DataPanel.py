@@ -494,18 +494,19 @@ class DataPanel(Panel.Panel):
                 return
             display = data_item.displays[0]
             display.get_processor("thumbnail").recompute_if_necessary(self.document_controller.document_model.dispatch_task, self.ui)
+            buffered_data_source = display.buffered_data_source
             thumbnail_data = display.get_processed_data("thumbnail")
             title_str = self.document_controller.get_displayed_title_for_data_item(data_item)
-            format_str = data_item.size_and_data_format_as_string
+            format_str = buffered_data_source.size_and_data_format_as_string
             datetime_str = data_item.datetime_original_as_string
-            def get_live_status_as_string(data_item):
+            def get_live_status_as_string():
                 if data_item.is_live:
                     live_metadata = data_item.get_metadata("hardware_source")
                     frame_index_str = str(live_metadata.get("frame_index", str()))
-                    partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.spatial_shape[-1]) if "valid_rows" in live_metadata else str()
+                    partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), buffered_data_source.dimensional_shape[-1]) if "valid_rows" in live_metadata else str()
                     return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
                 return str()
-            display4 = get_live_status_as_string(data_item)
+            display4 = get_live_status_as_string()
             ctx.save()
             if thumbnail_data is not None:
                 draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))

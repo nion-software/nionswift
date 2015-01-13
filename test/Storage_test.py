@@ -492,11 +492,12 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
-            self.assertFalse(data_item.has_master_data)
-            self.assertIsNone(data_item.data_shape)
-            self.assertIsNone(data_item.data_dtype)
+            self.assertFalse(data_item.maybe_data_source.has_data)
+            self.assertIsNone(data_item.maybe_data_source.data_shape)
+            self.assertIsNone(data_item.maybe_data_source.data_dtype)
             self.assertEqual(reference_type, "relative_file")
             self.assertIsNotNone(reference)
             # clean up
@@ -882,7 +883,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.close()
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
-        self.assertFalse(document_model.data_items[1].is_data_stale)
+        self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -896,11 +897,11 @@ class TestStorageClass(unittest.TestCase):
         crop_operation.establish_associated_region("crop", data_item)
         document_model.append_data_item(data_item_cropped)
         data_item_cropped.recompute_data()
-        self.assertFalse(document_model.data_items[1].is_data_stale)
+        self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
         document_model.close()
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
-        self.assertFalse(document_model.data_items[1].is_data_stale)
+        self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -914,15 +915,15 @@ class TestStorageClass(unittest.TestCase):
         crop_operation.establish_associated_region("crop", data_item)
         document_model.append_data_item(data_item_cropped)
         data_item_cropped.recompute_data()
-        self.assertFalse(document_model.data_items[1].is_data_stale)
+        self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
         document_model.close()
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_model.recompute_all()  # shouldn't be necessary unless other tests fail
         document_model.data_items[0].regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
-        self.assertTrue(document_model.data_items[1].is_data_stale)
+        self.assertTrue(document_model.data_items[1].maybe_data_source.is_data_stale)
         document_model.recompute_all()
-        self.assertEqual(document_model.data_items[1].data_shape, (128, 128))
+        self.assertEqual(document_model.data_items[1].maybe_data_source.data_shape, (128, 128))
 
     def test_cropped_data_item_with_region_does_not_need_histogram_recompute_when_reloaded(self):
         # tests caching on display
@@ -985,8 +986,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.get_metadata("hardware_source")["voltage"], 200.0)
         self.assertFalse("session_uuid" in data_item.get_metadata("hardware_source"))
         self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
-        self.assertEqual(data_item.master_data_dtype, numpy.uint32)
-        self.assertEqual(data_item.master_data_shape, (256, 256))
+        self.assertEqual(data_item.maybe_data_source.data_dtype, numpy.uint32)
+        self.assertEqual(data_item.maybe_data_source.data_shape, (256, 256))
 
     def test_data_items_v2_migration(self):
         # construct v2 data item

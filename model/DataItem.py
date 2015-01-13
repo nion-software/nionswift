@@ -435,8 +435,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
                 self.__data = data
                 self.data_shape = data.shape if data is not None else None
                 self.data_dtype = data.dtype if data is not None else None
-                spatial_shape = Image.spatial_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
-                self.__sync_dimensional_calibrations(len(spatial_shape) if spatial_shape is not None else 0)
+                dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
+                self.__sync_dimensional_calibrations(len(dimensional_shape) if dimensional_shape is not None else 0)
                 self.__calculate_data_stats_for_data(data)
             # tell the managed object context about it
             if self.__data is not None:
@@ -604,7 +604,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         data_shape_and_dtype = self.data_shape_and_dtype
         if data_shape_and_dtype is not None:
             data_shape, data_dtype = self.data_shape_and_dtype
-            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
+            return Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         return None
 
     @property
@@ -646,6 +646,51 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def is_data_complex_type(self):
         data_shape_and_dtype = self.data_shape_and_dtype
         return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+
+    def get_data_value(self, pos):
+        data = self.data
+        if self.is_data_1d:
+            if data is not None:
+                return data[pos[0]]
+        elif self.is_data_2d:
+            if data is not None:
+                return data[pos[0], pos[1]]
+        # TODO: fix me 3d
+        elif self.is_data_3d:
+            if data is not None:
+                return data[pos[0], pos[1]]
+        return None
+
+    @property
+    def size_and_data_format_as_string(self):
+        dimensional_shape = self.dimensional_shape
+        data_dtype = self.data_dtype
+        if dimensional_shape is not None and data_dtype is not None:
+            spatial_shape_str = " x ".join([str(d) for d in dimensional_shape])
+            if len(dimensional_shape) == 1:
+                spatial_shape_str += " x 1"
+            dtype_names = {
+                numpy.int8: _("Integer (8-bit)"),
+                numpy.int16: _("Integer (16-bit)"),
+                numpy.int32: _("Integer (32-bit)"),
+                numpy.int64: _("Integer (64-bit)"),
+                numpy.uint8: _("Unsigned Integer (8-bit)"),
+                numpy.uint16: _("Unsigned Integer (16-bit)"),
+                numpy.uint32: _("Unsigned Integer (32-bit)"),
+                numpy.uint64: _("Unsigned Integer (64-bit)"),
+                numpy.float32: _("Real (32-bit)"),
+                numpy.float64: _("Real (64-bit)"),
+                numpy.complex64: _("Complex (2 x 32-bit)"),
+                numpy.complex128: _("Complex (2 x 64-bit)"),
+            }
+            if self.is_data_rgb_type:
+                data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
+            else:
+                if not self.data_dtype.type in dtype_names:
+                    logging.debug("Unknown dtype %s", self.data_dtype.type)
+                data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
+            return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
+        return _("No Data")
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -1473,38 +1518,34 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
 
-    def increment_data_ref_count(self):
-        if len(self.data_sources) == 0:
-            self.append_data_source(BufferedDataSource())
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].increment_data_ref_count()
-        raise AttributeError("data_ref_count")
+    @property
+    def maybe_data_source(self):
+        return self.data_sources[0] if len(self.data_sources) == 1 else None
 
-    def decrement_data_ref_count(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].decrement_data_ref_count()
-        raise AttributeError("data_ref_count")
+    def recompute_data(self):
+        """Recompute all data sources."""
+        for data_source in self.data_sources:
+            data_source.recompute_data()
 
     @property
-    def is_data_stale(self):
-        """Return whether the data is currently stale."""
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].is_data_stale
-        return False
+    def size_and_data_format_as_string(self):
+        data_source_count = len(self.data_sources)
+        if data_source_count == 0:
+            return _("No Data")
+        elif data_source_count == 1:
+            return self.maybe_data_source.size_and_data_format_as_string
+        else:
+            return _("Multiple Data Sources ({0})".format(data_source_count))
 
-    # used for testing
-    @property
-    def is_data_loaded(self):
-        """Return whether the data is currently stale."""
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].is_data_loaded
-        return False
+    def increment_data_ref_counts(self):
+        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
+        for data_source in self.data_sources:
+            data_source.increment_data_ref_count()
 
-    @property
-    def has_master_data(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].has_data
-        return None
+    def decrement_data_ref_counts(self):
+        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
+        for data_source in self.data_sources:
+            data_source.decrement_data_ref_count()
 
     # grab a data reference as a context manager. the object
     # returned defines data and master_data properties. reading data
@@ -1532,142 +1573,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def data_for_processor(self):
         return self.data
-
-    @property
-    def data_and_calibration(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_and_calibration
-        return None
-
-    def get_data_and_calibration_publisher(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].get_data_and_calibration_publisher()
-        return None
-
-    def recompute_data(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].recompute_data()
-
-    @property
-    def master_data_shape(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_shape
-        return None
-
-    @property
-    def master_data_dtype(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_dtype
-        return None
-
-    @property
-    def data_shape_and_dtype(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_shape_and_dtype
-        return None
-
-    def __get_size_and_data_format_as_string(self):
-        spatial_shape = self.spatial_shape
-        data_dtype = self.data_dtype
-        if spatial_shape is not None and data_dtype is not None:
-            spatial_shape_str = " x ".join([str(d) for d in spatial_shape])
-            if len(spatial_shape) == 1:
-                spatial_shape_str += " x 1"
-            dtype_names = {
-                numpy.int8: _("Integer (8-bit)"),
-                numpy.int16: _("Integer (16-bit)"),
-                numpy.int32: _("Integer (32-bit)"),
-                numpy.int64: _("Integer (64-bit)"),
-                numpy.uint8: _("Unsigned Integer (8-bit)"),
-                numpy.uint16: _("Unsigned Integer (16-bit)"),
-                numpy.uint32: _("Unsigned Integer (32-bit)"),
-                numpy.uint64: _("Unsigned Integer (64-bit)"),
-                numpy.float32: _("Real (32-bit)"),
-                numpy.float64: _("Real (64-bit)"),
-                numpy.complex64: _("Complex (2 x 32-bit)"),
-                numpy.complex128: _("Complex (2 x 64-bit)"),
-            }
-            if self.is_data_rgb_type:
-                data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
-            else:
-                if not self.data_dtype.type in dtype_names:
-                    logging.debug("Unknown dtype %s", self.data_dtype.type)
-                data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
-            return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
-        return _("No Data")
-    size_and_data_format_as_string = property(__get_size_and_data_format_as_string)
-
-    def __get_data_shape(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return self.data_shape_and_dtype[0] if data_shape_and_dtype is not None else None
-    data_shape = property(__get_data_shape)
-
-    def __get_spatial_shape(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        if data_shape_and_dtype is not None:
-            data_shape, data_dtype = self.data_shape_and_dtype
-            return Image.spatial_shape_from_shape_and_dtype(data_shape, data_dtype)
-        return None
-    spatial_shape = property(__get_spatial_shape)
-
-    def __get_data_dtype(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return data_shape_and_dtype[1] if data_shape_and_dtype is not None else None
-    data_dtype = property(__get_data_dtype)
-
-    def __is_data_1d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_1d = property(__is_data_1d)
-
-    def __is_data_2d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_2d = property(__is_data_2d)
-
-    def __is_data_3d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_3d = property(__is_data_3d)
-
-    def __is_data_rgb(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_rgb = property(__is_data_rgb)
-
-    def __is_data_rgba(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgba(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_rgba = property(__is_data_rgba)
-
-    def __is_data_rgb_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return (Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) or Image.is_shape_and_dtype_rgba(*data_shape_and_dtype)) if data_shape_and_dtype else False
-    is_data_rgb_type = property(__is_data_rgb_type)
-
-    def __is_data_scalar_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_scalar_type(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_scalar_type = property(__is_data_scalar_type)
-
-    def __is_data_complex_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
-    is_data_complex_type = property(__is_data_complex_type)
-
-    def get_data_value(self, pos):
-        data = self.data
-        if self.is_data_1d:
-            if data is not None:
-                return data[pos[0]]
-        elif self.is_data_2d:
-            if data is not None:
-                return data[pos[0], pos[1]]
-        # TODO: fix me 3d
-        elif self.is_data_3d:
-            if data is not None:
-                return data[pos[0], pos[1]]
-        return None
 
 
 _computation_fns = list()

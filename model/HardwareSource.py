@@ -500,7 +500,7 @@ class HardwareSource(Observable.Broadcaster):
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
-            data_item.increment_data_ref_count()
+            data_item.increment_data_ref_counts()
             data_item.begin_transaction()
             data_item.begin_live()
 
@@ -532,7 +532,7 @@ class HardwareSource(Observable.Broadcaster):
             # of the transaction, the data would be unloaded from memory, losing it forever.
             data_item.end_transaction()
             data_item.end_live()
-            data_item.decrement_data_ref_count()
+            data_item.decrement_data_ref_counts()
 
         # keep the channel to data item map around so that we know what changed between
         # last iteration and this one. also handle reference counts.

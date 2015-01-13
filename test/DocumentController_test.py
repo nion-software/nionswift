@@ -233,11 +233,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
-        data_item_result = document_controller.add_processing_operation_by_id("invert-operation", crop_region=crop_region)
-        data_item_result.recompute_data()
-        self.assertEqual(data_item_result.data_shape, (128, 128))
-        self.assertEqual(data_item_result.data_dtype, data_item.data_dtype)
-        self.assertAlmostEqual(data_item_result.data[50, 50], -1.0)
+        inverted_data_item = document_controller.add_processing_operation_by_id("invert-operation", crop_region=crop_region)
+        inverted_data_item.recompute_data()
+        self.assertEqual(inverted_data_item.maybe_data_source.data_shape, (128, 128))
+        self.assertEqual(inverted_data_item.maybe_data_source.data_dtype, data_item.maybe_data_source.data_dtype)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[50, 50], -1.0)
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
         document_model = DocumentModel.DocumentModel()
@@ -266,11 +266,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
-        data_item_result = document_controller.add_processing_operation(operation, crop_region=crop_region)
+        cropped_data_item = document_controller.add_processing_operation(operation, crop_region=crop_region)
         document_model.recompute_all()
-        self.assertFalse(data_item_result.is_data_stale)
+        self.assertFalse(cropped_data_item.maybe_data_source.is_data_stale)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(data_item_result.is_data_stale)
+        self.assertTrue(cropped_data_item.maybe_data_source.is_data_stale)
 
     class SumOperation(Operation.Operation):
 
@@ -306,14 +306,15 @@ class TestDocumentControllerClass(unittest.TestCase):
         sum_operation = TestDocumentControllerClass.SumOperation()
         Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
         sum_operation_item = Operation.OperationItem("sum-operation")
-        data_item_result = document_controller.add_binary_processing_operation(sum_operation_item, data_item1, data_item2, crop_region1=crop_region1, crop_region2=crop_region2)
-        data_item_result.recompute_data()
-        self.assertEqual(data_item_result.data_shape, (128, 128))
-        self.assertEqual(data_item_result.data_dtype, numpy.float32)
-        self.assertAlmostEqual(data_item_result.data[32, 32], 3.0)
-        self.assertAlmostEqual(data_item_result.data[96, 32], 1.0)
-        self.assertAlmostEqual(data_item_result.data[96, 96], 1.0)
-        self.assertAlmostEqual(data_item_result.data[32, 96], 1.0)
+        result_data_item = document_controller.add_binary_processing_operation(sum_operation_item, data_item1, data_item2, crop_region1=crop_region1, crop_region2=crop_region2)
+        result_data_item.recompute_data()
+        buffered_data_source = result_data_item.maybe_data_source
+        self.assertEqual(buffered_data_source.data_shape, (128, 128))
+        self.assertEqual(buffered_data_source.data_dtype, numpy.float32)
+        self.assertAlmostEqual(buffered_data_source.data[32, 32], 3.0)
+        self.assertAlmostEqual(buffered_data_source.data[96, 32], 1.0)
+        self.assertAlmostEqual(buffered_data_source.data[96, 96], 1.0)
+        self.assertAlmostEqual(buffered_data_source.data[32, 96], 1.0)
 
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
