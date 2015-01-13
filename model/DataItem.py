@@ -335,22 +335,22 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def set_data_source(self, data_source):
         self.set_item("data_source", data_source)
 
-    def __data_source_changed(self, name, old_value, new_value):
+    def __data_source_changed(self, name, old_data_source, new_data_source):
         # and about to be removed messages
-        if old_value and not new_value:
-            old_value.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
-        if old_value:
+        if old_data_source and not new_data_source:
+            old_data_source.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
+        if old_data_source:
             # handle listeners/observers
-            old_value.remove_listener(self)
-            old_value.set_dependent_data_item(None)
-            old_value.set_data_item_manager(None)
-        if new_value:
+            old_data_source.remove_listener(self)
+            old_data_source.set_dependent_data_item(None)
+            old_data_source.set_data_item_manager(None)
+        if new_data_source:
             # handle listeners/observers
-            new_value.add_listener(self)
-            new_value.set_dependent_data_item(self.__get_dependent_data_item())
-            new_value.set_data_item_manager(self.__data_item_manager)
+            new_data_source.add_listener(self)
+            new_data_source.set_dependent_data_item(self.__get_dependent_data_item())
+            new_data_source.set_data_item_manager(self.__data_item_manager)
             subscriber = Observable.Subscriber(self.__handle_next_value)
-            publisher = new_value.get_data_and_calibration_publisher()
+            publisher = new_data_source.get_data_and_calibration_publisher()
             self.__subscription = publisher.subscribex(subscriber)
 
     def __handle_next_value(self, data_and_calibration):
@@ -1002,18 +1002,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Override from Cacheable base class to indicate when caching is delayed. """
         return self.__transaction_count > 0
 
-    def transaction(self):
-        """ Return a context manager to put the data item under a 'transaction'. """
-        class TransactionContextManager(object):
-            def __init__(self, object):
-                self.__object = object
-            def __enter__(self):
-                self.__object.begin_transaction()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__object.end_transaction()
-        return TransactionContextManager(self)
-
     def __get_transaction_count(self):
         """ Return the transaction count for this data item. """
         return self.__transaction_count
@@ -1032,7 +1020,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 persistent_storage.write_delayed = False
             self.managed_object_context.write_data_item(self)
 
-    def begin_transaction(self):
+    def _begin_transaction(self):
         """Begin transaction state.
 
         A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
@@ -1059,9 +1047,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             # finally, tell dependent data items to enter their transaction states also
             # so that they also don't write change to disk immediately.
             for data_item in self.dependent_data_items:
-                data_item.begin_transaction()
+                data_item._begin_transaction()
 
-    def end_transaction(self):
+    def _end_transaction(self):
         """End transaction state.
 
         Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
@@ -1082,7 +1070,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if transaction_count == 0:
             # first, tell our dependent data items to exit their transaction states.
             for data_item in self.dependent_data_items:
-                data_item.end_transaction()
+                data_item._end_transaction()
             # being in the transaction state has the side effect of delaying the cache too.
             # spill whatever was into the local cache into the persistent cache.
             self.spill_cache()
@@ -1141,24 +1129,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """ Return whether this data item represents a live acquisition data item. """
         return self.__live_count > 0
 
-    def live(self):
-        """ Return a context manager to put the data item under a live count. """
-        class LiveContextManager(object):
-            def __init__(self, object):
-                self.__object = object
-            def __enter__(self):
-                self.__object.begin_live()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__object.end_live()
-        return LiveContextManager(self)
-
     @property
     def live_count(self):
         """ Return the live count for this data item. """
         return self.__live_count
 
-    def begin_live(self):
+    def _begin_live(self):
         """Begins a live transaction with this item.
 
         The live state is propagated to dependent data items.
@@ -1171,9 +1147,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if old_live_count == 0:
             self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
             for data_item in self.dependent_data_items:
-                data_item.begin_live()
+                data_item._begin_live()
 
-    def end_live(self):
+    def _end_live(self):
         """
         Ends a live transaction with this item. The live-ness property is propagated to
         dependent data items, similar to the transactions.
@@ -1187,7 +1163,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if live_count == 0:
             self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
             for data_item in self.dependent_data_items:
-                data_item.end_live()
+                data_item._end_live()
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -1405,9 +1381,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # to dependent items. since we're inserting a new dependent, we need
         # to compensate for those changes here.
         if self.__transaction_count > 0:
-            data_item.begin_transaction()
+            data_item._begin_transaction()
         if self.__live_count > 0:
-            data_item.begin_live()
+            data_item._begin_live()
 
     # track dependent data items. useful for propagating transaction support.
     def remove_dependent_data_item(self, data_item):
@@ -1422,13 +1398,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # if that change occurs after end_live has been called below, but before it's
         # actually changed within the end_live method, a race condition has occurred.
         if self.__transaction_count > 0:
-            data_item.end_transaction()
+            data_item._end_transaction()
         if self.__live_count > 0:
-            data_item.end_live()
+            data_item._end_live()
 
     @property
     def dependent_data_items(self):
-        """Return the list of dependent data items."""
+        """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependent_data_item_refs_lock:
             return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
 

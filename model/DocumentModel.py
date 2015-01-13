@@ -586,6 +586,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             if data_item in data_group.data_items:
                 data_group.remove_data_item(data_item)
         # remove data items that are entirely dependent on data item being removed
+        # entirely dependent means that the data item has a single data item source
+        # and it matches the data_item being removed.
         for other_data_item in copy.copy(self.data_items):
             if other_data_item.ordered_data_item_data_sources == [data_item]:  # ordered data sources exactly equal to data item?
                 self.remove_data_item(other_data_item)
@@ -593,6 +595,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.about_to_be_removed()
         # disconnect the data source
         data_item.set_data_item_manager(None)
+        listener_list = self.__data_item_listeners.get(data_item.uuid, list())
+        for listener in listener_list:
+            # this should never occur.
+            listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier())
         # remove it from the persistent_storage
         assert data_item is not None
         assert data_item in self.__data_items
@@ -608,10 +614,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         if data_item.get_observer_count(self) == 0:  # ugh?
             self.notify_listeners("data_item_deleted", data_item)
-        listener_list = self.__data_item_listeners.get(data_item.uuid, list())
-        for listener in listener_list:
-            # this should never occur.
-            listener.set_buffered_data_source_specifier(DataItem.BufferedDataSourceSpecifier())
 
     def add_data_item_listener(self, data_item_uuid, listener):
         listener_list = self.__data_item_listeners.setdefault(data_item_uuid, list())
@@ -634,8 +636,50 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         return tuple(self.__data_items)  # tuple makes it read only
     data_items = property(__get_data_items)
 
+    # transactions, live state, and dependencies
+
     def get_dependent_data_items(self, parent_data_item):
         return parent_data_item.dependent_data_items
+
+    def data_item_transaction(self, data_item):
+        """ Return a context manager to put the data item under a 'transaction'. """
+        class TransactionContextManager(object):
+            def __init__(self, manager, object):
+                self.__manager = manager
+                self.__object = object
+            def __enter__(self):
+                self.__manager.begin_data_item_transaction(self.__object)
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__manager.end_data_item_transaction(self.__object)
+        return TransactionContextManager(self, data_item)
+
+    def begin_data_item_transaction(self, data_item):
+        data_item._begin_transaction()
+
+    def end_data_item_transaction(self, data_item):
+        data_item._end_transaction()
+
+    def data_item_live(self, data_item):
+        """ Return a context manager to put the data item in a 'live state'. """
+        class LiveContextManager(object):
+            def __init__(self, manager, object):
+                self.__manager = manager
+                self.__object = object
+            def __enter__(self):
+                self.__manager.begin_data_item_live(self.__object)
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__manager.end_data_item_live(self.__object)
+        return LiveContextManager(self, data_item)
+
+    def begin_data_item_live(self, data_item):
+        data_item._begin_live()
+
+    def end_data_item_live(self, data_item):
+        data_item._end_live()
+
+    # data groups
 
     def append_data_group(self, data_group):
         self.insert_data_group(len(self.data_groups), data_group)

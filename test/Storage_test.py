@@ -425,7 +425,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.append_data_source(DataItem.BufferedDataSource())
         data_item.title = 'title'
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
@@ -440,12 +440,12 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         document_model.append_data_item(data_item3)
         # interleaved transactions
-        data_item1.begin_transaction()
-        data_item2.begin_transaction()
-        data_item1.end_transaction()
-        data_item3.begin_transaction()
-        data_item3.end_transaction()
-        data_item2.end_transaction()
+        document_model.begin_data_item_transaction(data_item1)
+        document_model.begin_data_item_transaction(data_item2)
+        document_model.end_data_item_transaction(data_item1)
+        document_model.begin_data_item_transaction(data_item3)
+        document_model.end_data_item_transaction(data_item3)
+        document_model.end_data_item_transaction(data_item2)
 
     def test_data_item_should_store_modifications_within_transactions(self):
         reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
@@ -456,7 +456,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             data_item.datetime_original = reference_date
         # make sure it reloads
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -540,7 +540,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # write data with transaction
             handler = NDataHandler.NDataHandler(os.path.join(current_working_directory, "__Test", "Nion Swift Data"))
-            with data_item.transaction():
+            with document_model.data_item_transaction(data_item):
                 with data_item.maybe_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 reference = document_model.managed_object_context.get_persistent_storage_for_object(data_item).get_default_reference(data_item)
@@ -623,10 +623,9 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem()
         data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
-        data_item.begin_transaction()
-        with data_item.maybe_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-        data_item.end_transaction()
+        with document_model.data_item_transaction(data_item):
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
         self.assertEqual(len(data_item.maybe_data_source.dimensional_calibrations), 2)
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)

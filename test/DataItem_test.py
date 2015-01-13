@@ -183,12 +183,13 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(data_item_copy.operation.get_property("bounds"), data_item.operation.get_property("bounds"))
 
     def test_copy_data_item_with_transaction(self):
+        document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item.begin_transaction()
-        with data_item.maybe_data_source.data_ref() as data_ref:
-            data_ref.master_data[:] = 1
-            data_item_copy = copy.deepcopy(data_item)
-        data_item.end_transaction()
+        document_model.append_data_item(data_item)
+        with document_model.data_item_transaction(data_item):
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data[:] = 1
+                data_item_copy = copy.deepcopy(data_item)
         with data_item.maybe_data_source.data_ref() as data_ref:
             with data_item_copy.maybe_data_source.data_ref() as data_copy_accessor:
                 self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
@@ -861,7 +862,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.set_operation(invert_operation)
         document_model.append_data_item(data_item2)
         # make sure the dependency list is updated
-        self.assertEqual(data_item.dependent_data_items, [data_item2])
+        self.assertEqual(document_model.get_dependent_data_items(data_item), [data_item2])
 
     def test_begin_transaction_also_begins_transaction_for_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -875,7 +876,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.set_operation(invert_operation)
         document_model.append_data_item(data_item2)
         # begin the transaction
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             self.assertTrue(data_item.transaction_count > 0)
             self.assertTrue(data_item2.transaction_count > 0)
         self.assertEqual(data_item.transaction_count, 0)
@@ -887,7 +888,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
         # begin the transaction
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             # configure the dependent item
             data_item2 = DataItem.DataItem()
             invert_operation = Operation.OperationItem("invert-operation")
@@ -906,7 +907,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
         # begin the transaction
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             data_item_crop1 = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
@@ -929,7 +930,7 @@ class TestDataItemClass(unittest.TestCase):
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         # begin the transaction
-        with data_item.transaction():
+        with document_model.data_item_transaction(data_item):
             document_model.append_data_item(data_item)
             persistent_storage = data_item.managed_object_context.get_persistent_storage_for_object(data_item)
             self.assertTrue(persistent_storage.write_delayed)
@@ -939,7 +940,7 @@ class TestDataItemClass(unittest.TestCase):
         # configure the source item
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
-        with data_item.live():
+        with document_model.data_item_live(data_item):
             data_item_crop1 = DataItem.DataItem()
             crop_operation = Operation.OperationItem("crop-operation")
             crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
@@ -964,7 +965,7 @@ class TestDataItemClass(unittest.TestCase):
         sum_operation_item.add_data_source(data_item._create_test_data_source())
         data_item_crop1.set_operation(sum_operation_item)
         document_model.append_data_item(data_item_crop1)
-        with data_item.live():
+        with document_model.data_item_live(data_item):
             # check assumptions
             self.assertTrue(data_item.is_live)
             self.assertTrue(data_item_crop1.is_live)

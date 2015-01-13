@@ -137,9 +137,13 @@ class WorkspaceController(object):
         self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
         self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
 
-    def __get_document_controller(self):
+    @property
+    def document_controller(self):
         return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
+
+    @property
+    def document_model(self):
+        return self.document_controller.document_model
 
     def _find_dock_widget(self, dock_widget_id):
         for dock_widget in self.dock_widgets:

@@ -36,6 +36,10 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
 class DummyWorkspaceController(object):
 
+    def __init__(self, document_model):
+        self.document_controller = self  # hack so that document_controller.document_model works
+        self.document_model = document_model
+
     def did_stop_playing(self, hardware_source):
         pass
 
@@ -113,7 +117,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_setting_current_snapshot_succeeds_and_does_not_leak_memory(self):
         # stopping acquisition should not clear session
         document_model = DocumentModel.DocumentModel()
-        workspace_controller = DummyWorkspaceController()
+        workspace_controller = DummyWorkspaceController(document_model)
         source = SimpleHardwareSource(0.01)
         self.assertEqual(source.frame_index, 0)
         source.start_playing(workspace_controller)

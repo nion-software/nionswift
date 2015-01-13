@@ -501,8 +501,8 @@ class HardwareSource(Observable.Broadcaster):
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
             data_item.increment_data_ref_counts()
-            data_item.begin_transaction()
-            data_item.begin_live()
+            self.__workspace_controller.document_controller.document_model.begin_data_item_transaction(data_item)
+            self.__workspace_controller.document_controller.document_model.begin_data_item_live(data_item)
 
         # update the data items with the new data.
         completed_data_items = []  # TODO: remove hardware_source_updated_data_items notification
@@ -530,8 +530,8 @@ class HardwareSource(Observable.Broadcaster):
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
-            data_item.end_transaction()
-            data_item.end_live()
+            self.__workspace_controller.document_model.end_data_item_transaction(data_item)
+            self.__workspace_controller.document_model.end_data_item_live(data_item)
             data_item.decrement_data_ref_counts()
 
         # keep the channel to data item map around so that we know what changed between

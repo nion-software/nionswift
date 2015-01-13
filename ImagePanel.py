@@ -568,7 +568,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         display = self.__display
         if not display:
             return False
-        data_item.begin_transaction()
+        self.delegate.document_controller.document_model.begin_data_item_transaction(data_item)
         if self.delegate.image_panel_get_tool_mode() == "pointer":
             if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
@@ -602,7 +602,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         data_item = self.__data_item
         display = self.__display
         if display:
-            data_item.end_transaction()
+            self.delegate.document_controller.document_model.end_data_item_transaction(data_item)
         return False
 
     def context_menu_event(self, x, y, gx, gy):
@@ -1043,7 +1043,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         display = self.__display
         if not display:
             return False
-        data_item.begin_transaction()
+        self.delegate.document_controller.document_model.begin_data_item_transaction(data_item)
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
@@ -1111,7 +1111,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                         display.graphic_selection.remove(graphic_index)
                     else:
                         display.graphic_selection.add(graphic_index)
-            data_item.end_transaction()
+            self.delegate.document_controller.document_model.end_data_item_transaction(data_item)
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_part_data = {}
