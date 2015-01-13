@@ -825,7 +825,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
-        self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
+        self.define_relationship("connections", Connection.connection_factory)
         self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
         self.__live_count_lock = threading.RLock()
@@ -870,11 +870,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             subscription.close()
         self.__subscriptions = list()
         for display in self.displays:
-            display.remove_listener(self)
             display.close()
         for region in self.regions:
             region.remove_listener(self)
-            region._set_data_item(None)
         for data_source in self.data_sources:
             data_source.close()
 
@@ -1284,11 +1282,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __insert_display(self, name, before_index, display):
         # listen
-        display.add_listener(self)
         if self.maybe_data_source:
             display.update_properties(self.maybe_data_source.data_properties)
             display.update_data(self.maybe_data_source.data_and_calibration)
-        self.notify_data_item_content_changed(set([DISPLAYS]))
         # connect the regions
         for region in self.regions:
             region_graphic = region.graphic
@@ -1301,9 +1297,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             region_graphic = region.graphic
             if region_graphic:
                 display.remove_region_graphic(region_graphic)
-        # unlisten
-        self.notify_data_item_content_changed(set([DISPLAYS]))
-        display.remove_listener(self)
+        # close the display
         display.close()
 
     def add_display(self, display):
@@ -1314,8 +1308,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __insert_region(self, name, before_index, region):
         # listen
-        region.add_listener(self)
-        region._set_data_item(self)
+        region.add_listener(self)  # remove_region_because_graphic_removed
         self.notify_data_item_content_changed(set([DISPLAYS]))
         # connect to the displays
         region_graphic = region.graphic
@@ -1332,7 +1325,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # and unlisten
         self.notify_data_item_content_changed(set([DISPLAYS]))
         region.remove_listener(self)
-        region._set_data_item(None)
 
     def add_region(self, region):
         self.append_item("regions", region)
@@ -1340,15 +1332,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_region(self, region):
         self.remove_item("regions", region)
 
-    def __insert_connection(self, name, before_index, connection):
-        # listen
-        connection.add_listener(self)
-        connection._set_data_item(self)
-
-    def __remove_connection(self, name, index, connection):
-        # unlisten
-        connection.remove_listener(self)
-        connection._set_data_item(None)
+    # this message comes from the region.
+    # it is generated when the user deletes a graphic.
+    def remove_region_because_graphic_removed(self, region):
+        self.remove_region(region)
 
     def add_connection(self, connection):
         self.append_item("connections", connection)
@@ -1395,11 +1382,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # notifies the operation which notifies this data item. ugh.
     def request_remove_data_item_because_operation_removed(self, operation):
         self.notify_listeners("request_remove_data_item", self)
-
-    # this message comes from the region.
-    # it is generated when the user deletes a graphic.
-    def remove_region_because_graphic_removed(self, region):
-        self.remove_region(region)
 
     def set_data_item_manager(self, data_item_manager):
         """Set the data item manager. May be called from thread."""
@@ -1448,11 +1430,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def notify_set_property(self, key, value):
         super(DataItem, self).notify_set_property(key, value)
         self.notify_data_item_content_changed(set([METADATA]))
-
-    # this message comes from the displays.
-    # thread safe
-    def display_changed(self, display):
-        self.notify_data_item_content_changed(set([DISPLAYS]))
 
     @property
     def maybe_data_source(self):

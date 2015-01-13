@@ -22,20 +22,11 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
 
     def __init__(self, type):
         super(Region, self).__init__()
-        self.__weak_data_item = None
         self.define_type(type)
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def about_to_be_removed(self):
         pass
-
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
-
-    # called from data item when added/removed.
-    def _set_data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -43,6 +34,10 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def __get_graphic(self):
         return None
     graphic = property(__get_graphic)
+
+    def remove_region_graphic(self, region_graphic):
+        # message from the graphic when its being removed
+        self.notify_listeners("remove_region_because_graphic_removed", self)
 
 
 class PointRegion(Region):
@@ -59,10 +54,6 @@ class PointRegion(Region):
     def __get_graphic(self):
         return self.__graphic
     graphic = property(__get_graphic)
-
-    def remove_region_graphic(self, region_graphic):
-        # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
 
 
 class LineRegion(Region):
@@ -110,10 +101,6 @@ class LineRegion(Region):
         return self.__graphic
     graphic = property(__get_graphic)
 
-    def remove_region_graphic(self, region_graphic):
-        # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
-
 
 class RectRegion(Region):
 
@@ -132,10 +119,6 @@ class RectRegion(Region):
     def __get_graphic(self):
         return self.__graphic
     graphic = property(__get_graphic)
-
-    def remove_region_graphic(self, region_graphic):
-        # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
 
     def __get_bounds(self):
         center = self.center
@@ -169,10 +152,6 @@ class EllipseRegion(Region):
     def __get_graphic(self):
         return self.__graphic
     graphic = property(__get_graphic)
-
-    def remove_region_graphic(self, region_graphic):
-        # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
 
     def __get_bounds(self):
         center = self.center
@@ -212,10 +191,6 @@ class IntervalRegion(Region):
     def __get_graphic(self):
         return self.__graphic
     graphic = property(__get_graphic)
-
-    def remove_region_graphic(self, region_graphic):
-        # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
 
     def __interval_changed(self, name, value):
         self._property_changed(name, value)

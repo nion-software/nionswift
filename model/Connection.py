@@ -21,19 +21,10 @@ class Connection(Observable.Observable, Observable.Broadcaster, Observable.Manag
 
     def __init__(self, type):
         super(Connection, self).__init__()
-        self.__weak_data_item = None
         self.define_type(type)
 
     def about_to_be_removed(self):
         pass
-
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
-
-    # called from data item when added/removed.
-    def _set_data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
