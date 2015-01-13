@@ -28,7 +28,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         data = numpy.zeros((1000, 1000), dtype=numpy.uint32)
         data[:] = 200
         data[500,500] = 650
-        self.data_item = self.document_model.set_data_by_key("test", data)
+        self.data_item = DataItem.DataItem(data)
+        self.document_model.append_data_item(self.data_item)
         # create the histogram canvas object
         class CanvasItemContainer(object):
             def __init__(self):
@@ -74,7 +75,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         histogram_data1 = self.histogram_canvas_item.histogram_data
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
-        with self.data_item.data_ref() as data_ref:
+        with self.data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
         self.document_model.recompute_all()
         histogram_data2 = self.histogram_canvas_item.histogram_data
@@ -90,7 +91,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertIsNotNone(stats1_text)
         self.assertIsNotNone(stats2_text)
         # now change the data and verify that statistics gets recomputed via document model
-        with self.data_item.data_ref() as data_ref:
+        with self.data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
         self.document_model.recompute_all()
         self.assertNotEqual(stats1_text, self.histogram_panel.stats1_property.value)

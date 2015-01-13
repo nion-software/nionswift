@@ -441,7 +441,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             # tell the managed object context about it
             if self.__data is not None:
                 if self.managed_object_context:
-                    self.managed_object_context.rewrite_data_item_data(self, self.__data)
+                    self.managed_object_context.rewrite_data_item_data(self)
                 self.notify_set_property("data_range", self.data_range)
                 self.notify_set_property("data_sample", self.data_sample)
             self.__notify_next_data_and_calibration()
@@ -714,7 +714,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *data* an ndarray. see note about accessing data below.
     * *data_shape* an ndarray shape
     * *data_dtype* an ndarray shape
-    * *computed_data* an ndarray. see note about accessing data below.
 
     and
 
@@ -752,8 +751,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     Data items will emit the following notifications to listeners. Listeners should take care to not call
      functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
-     should not read the computed_data property (although data is ok) since that will trigger the data
-     to be computed which will emit data_item_content_changed, resulting in a cycle.
+     should not use functions that will trigger the data to be computed which will emit data_item_content_changed,
+     resulting in a cycle.
 
     * data_item_content_changed(data_item, changes)
 
@@ -1547,32 +1546,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for data_source in self.data_sources:
             data_source.decrement_data_ref_count()
 
-    # grab a data reference as a context manager. the object
-    # returned defines data and master_data properties. reading data
-    # should use the data property. writing data (if allowed) should
-    # assign to the master_data property.
-    def data_ref(self):
-        if len(self.data_sources) == 0:
-            self.append_data_source(BufferedDataSource())
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_ref()
-        raise AttributeError("data_ref")
-
-    @property
-    def data(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data
-        return None
-
-    @property
-    def computed_data(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].computed_data
-        return None
-
     @property
     def data_for_processor(self):
-        return self.data
+        return self.maybe_data_source.data
 
 
 _computation_fns = list()

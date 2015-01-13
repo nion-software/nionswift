@@ -455,11 +455,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
         if data_item.maybe_data_source:
-            self.rewrite_data_item_data(data_item.maybe_data_source, data=data_item.data)
+            self.rewrite_data_item_data(data_item.maybe_data_source)
 
-    def rewrite_data_item_data(self, buffered_data_source, data):
+    def rewrite_data_item_data(self, buffered_data_source):
         persistent_storage = self.get_persistent_storage_for_object(buffered_data_source)
-        persistent_storage.update_data(buffered_data_source.data_shape, buffered_data_source.data_dtype, data=data)
+        persistent_storage.update_data(buffered_data_source.data_shape, buffered_data_source.data_dtype, data=buffered_data_source.data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self.get_persistent_storage_for_object(data_item)
@@ -680,69 +680,23 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         data_group.append_data_item(data_item)
         else:
             # for testing, add a checkerboard image data item
-            checkerboard_image_source = DataItem.DataItem()
-            checkerboard_image_source.title = "Checkerboard"
-            with checkerboard_image_source.data_ref() as data_ref:
-                data_ref.master_data = Image.create_checkerboard((512, 512))
-            self.append_data_item(checkerboard_image_source)
+            checkerboard_data_item = DataItem.DataItem(Image.create_checkerboard((512, 512)))
+            checkerboard_data_item.title = "Checkerboard"
+            self.append_data_item(checkerboard_data_item)
             # for testing, add a color image data item
-            color_image_source = DataItem.DataItem()
-            color_image_source.title = "Green Color"
-            with color_image_source.data_ref() as data_ref:
-                data_ref.master_data = Image.create_color_image((512, 512), 128, 255, 128)
-            self.append_data_item(color_image_source)
+            color_data_item = DataItem.DataItem(Image.create_color_image((512, 512), 128, 255, 128))
+            color_data_item.title = "Green Color"
+            self.append_data_item(color_data_item)
             # for testing, add a color image data item
-            lena_image_source = DataItem.DataItem()
-            lena_image_source.title = "Lena"
-            with lena_image_source.data_ref() as data_ref:
-                data_ref.master_data = scipy.misc.lena()
-            self.append_data_item(lena_image_source)
+            lena_data_item = DataItem.DataItem(scipy.misc.lena())
+            lena_data_item.title = "Lena"
+            self.append_data_item(lena_data_item)
 
     # this message comes from a data item when it wants to be removed from the document. ugh.
     def request_remove_data_item(self, data_item):
         DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)
 
     # TODO: what about thread safety for these classes?
-
-    class _DataAccessorIter(object):
-        def __init__(self, iter):
-            self.iter = iter
-        def __iter__(self):
-            return self
-        def next(self):
-            data_item = self.iter.next()
-            if data_item:
-                return data_item.data
-            return None
-
-    class DataAccessor(object):
-        def __init__(self, document_model):
-            self.__document_model_weakref = weakref.ref(document_model)
-        def __get_document_model(self):
-            return self.__document_model_weakref()
-        document_model = property(__get_document_model)
-        # access by bracket notation
-        def __len__(self):
-            return self.document_model.get_data_item_count()
-        def __getitem__(self, key):
-            data = self.document_model.get_data_by_key(key)
-            if data is None:
-                raise KeyError
-            return data
-        def __setitem__(self, key, value):
-            return self.document_model.set_data_by_key(key, value)
-        def __delitem__(self, key):
-            data_item = self.document_model.get_data_item_by_key(key)
-            if data_item:
-                self.document_model.remove_data_item(data_item)
-        def __iter__(self):
-            return DocumentModel._DataAccessorIter(self.document_model.get_flat_data_item_generator())
-        def uuid_keys(self):
-            return [data_item.uuid for data_item in self.document_model.data_items_by_key]
-        def title_keys(self):
-            return [data_item.title for data_item in self.document_model.data_items_by_key]
-        def keys(self):
-            return self.uuid_keys()
 
     class DataItemAccessor(object):
         def __init__(self, document_model):
@@ -804,27 +758,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         if isinstance(key, uuid.UUID):
             return self.get_data_item_by_uuid(key)
         return self.get_data_item_by_title(str(key))
-    def get_data_by_key(self, key):
-        data_item = self.get_data_item_by_key(key)
-        if data_item:
-            return data_item.data
-        return None
-    def set_data_by_key(self, key, data):
-        data_item = self.get_data_item_by_key(key)
-        if data_item:
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = data
-        else:
-            if isinstance(key, numbers.Integral):
-                raise IndexError
-            if isinstance(key, uuid.UUID):
-                raise KeyError
-            data_item = DataItem.DataItem()
-            data_item.title = str(key)
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = data
-            self.append_data_item(data_item)
-        return data_item
 
     # access data items by title
     def get_data_item_by_title(self, title):
@@ -832,27 +765,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             if data_item.title == title:
                 return data_item
         return None
-    def get_data_by_title(self, title):
-        data_item = self.get_data_item_by_title(title)
-        if data_item:
-            return data_item.data
-        return None
 
     # access data items by index
     def get_data_item_by_index(self, index):
         return list(self.get_flat_data_item_generator())[index]
-    def get_data_by_index(self, index):
-        data_item = self.get_data_item_by_index(index)
-        if data_item:
-            return data_item.data
-        return None
-    def set_data_by_index(self, index, data):
-        data_item = self.get_data_item_by_index(index)
-        if data_item:
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = data
-        else:
-            raise IndexError
+
     def get_index_for_data_item(self, data_item):
         return list(self.get_flat_data_item_generator()).index(data_item)
 
@@ -862,18 +779,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             if data_item.uuid == uuid:
                 return data_item
         return None
-    def get_data_by_uuid(self, uuid):
-        data_item = self.get_data_item_by_uuid(uuid)
-        if data_item:
-            return data_item.data
-        return None
-    def set_data_by_uuid(self, uuid, data):
-        data_item = self.get_data_item_by_uuid(uuid)
-        if data_item:
-            with data_item.data_ref() as data_ref:
-                data_ref.master_data = data
-        else:
-            raise KeyError
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)

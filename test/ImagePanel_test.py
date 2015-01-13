@@ -11,11 +11,11 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import ImagePanel
 from nion.swift import Panel
+from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Region
-from nion.swift.model import Storage
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Test
@@ -62,7 +62,8 @@ class TestImagePanelClass(unittest.TestCase):
         self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
-        self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        self.document_model.append_data_item(self.data_item)
         self.image_panel.set_displayed_data_item(self.data_item)
         header_height = Panel.HeaderCanvasItem().header_height
         self.image_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
@@ -401,7 +402,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_resize_nonsquare_rectangle(self):
         self.image_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
-        self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
+        self.document_model.append_data_item(self.data_item)
+        self.image_panel.set_displayed_data_item(self.data_item)
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_region()
         # make sure items it is in the right place
@@ -422,7 +425,9 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_resize_nonsquare_ellipse(self):
         self.image_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
-        self.data_item = self.document_model.set_data_by_key("test", numpy.zeros((2000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
+        self.document_model.append_data_item(self.data_item)
+        self.image_panel.set_displayed_data_item(self.data_item)
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_region()
         # make sure items it is in the right place
@@ -479,7 +484,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def setup_line_plot(self, canvas_shape=None):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
-        data_item_1d = self.document_model.set_data_by_key("test_1d", create_1d_data())
+        data_item_1d = DataItem.DataItem(create_1d_data())
+        self.document_model.append_data_item(data_item_1d)
         self.image_panel.set_displayed_data_item(data_item_1d)
         self.image_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()

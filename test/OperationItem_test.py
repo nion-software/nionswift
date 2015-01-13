@@ -28,7 +28,8 @@ class TestOperationClass(unittest.TestCase):
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.image_panel = self.document_controller.selected_image_panel
-        self.data_item = self.document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        self.document_model.append_data_item(self.data_item)
         self.image_panel.set_displayed_data_item(self.data_item)
 
     def tearDown(self):
@@ -50,7 +51,7 @@ class TestOperationClass(unittest.TestCase):
         operation = Operation.OperationItem("resample-operation")
         operation.add_data_source(Operation.DataItemDataSource(source_data_item))
         self.data_item.set_operation(operation)
-        with self.data_item.data_ref() as data_ref:
+        with self.data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.data  # just calculate it
         self.data_item.dimensional_calibrations  # just calculate it
         # now create a new data item and add the operation before its added to document
@@ -83,7 +84,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -119,7 +120,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -142,7 +143,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -176,7 +177,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -210,7 +211,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -233,7 +234,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -256,7 +257,7 @@ class TestOperationClass(unittest.TestCase):
             data_item.set_operation(operation)
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.dimensional_calibrations)
@@ -274,7 +275,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_real.recompute_data()
         # make sure we get the right shape
         self.assertEqual(data_item_real.maybe_data_source.dimensional_shape, (1000, 500))
-        with data_item_real.data_ref() as data_real_accessor:
+        with data_item_real.maybe_data_source.data_ref() as data_real_accessor:
             self.assertEqual(data_real_accessor.data.shape, (1000, 500))
 
     def test_fft_2d_dtype(self):
@@ -288,7 +289,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(fft_data_item)
         fft_data_item.recompute_data()
 
-        with fft_data_item.data_ref() as fft_data_ref:
+        with fft_data_item.maybe_data_source.data_ref() as fft_data_ref:
             self.assertEqual(fft_data_ref.data.shape, (512, 512))
             self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
 
@@ -301,7 +302,7 @@ class TestOperationClass(unittest.TestCase):
         scalar_data_item.set_operation(scalar_operation)
         self.document_model.append_data_item(scalar_data_item)
         scalar_data_item.recompute_data()
-        with scalar_data_item.data_ref() as scalar_data_ref:
+        with scalar_data_item.maybe_data_source.data_ref() as scalar_data_ref:
             self.assertEqual(scalar_data_ref.data.dtype, numpy.dtype(numpy.float64))
 
     class DummyOperation(Operation.Operation):
@@ -320,7 +321,8 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((1000, 1000)))
+        data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        document_model.append_data_item(data_item)
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
         data_item.set_operation(dummy_operation)
@@ -338,7 +340,8 @@ class TestOperationClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = document_controller.document_model.set_data_by_key("test", numpy.zeros((4, 4)))
+        data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+        document_model.append_data_item(data_item)
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
         dummy_operation.add_data_source(Operation.DataItemDataSource(data_item))
@@ -351,12 +354,12 @@ class TestOperationClass(unittest.TestCase):
         # read it back then make sure parameter was actually updated
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         self.assertEqual(document_model.data_items[1].operation.get_property("param"), 5.2)
-        with document_model.data_items[1].data_ref() as d:
+        with document_model.data_items[1].maybe_data_source.data_ref() as d:
             self.assertEqual(d.data[0, 0], 5.2)
 
     def test_rgba_invert_operation_should_retain_alpha(self):
         data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
-        with data_item_rgba.data_ref() as data_ref:
+        with data_item_rgba.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data[:] = (20,40,60,100)
             data_ref.master_data_updated()
         data_item_rgba2 = DataItem.DataItem()
@@ -364,7 +367,7 @@ class TestOperationClass(unittest.TestCase):
         invert_operation.add_data_source(Operation.DataItemDataSource(data_item_rgba))
         data_item_rgba2.set_operation(invert_operation)
         data_item_rgba2.recompute_data()
-        with data_item_rgba2.data_ref() as data_ref:
+        with data_item_rgba2.maybe_data_source.data_ref() as data_ref:
             pixel = data_ref.data[0,0,...]
             self.assertEqual(pixel[0], 255 - 20)
             self.assertEqual(pixel[1], 255 - 40)

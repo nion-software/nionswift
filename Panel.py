@@ -126,8 +126,6 @@ class ConsolePanel(Panel):
             "import numpy as np",
             "import numpy as numpy",
             "import uuid",
-            "_data = DocumentModel.DocumentModel.DataAccessor(_document_controller.document_model)",
-            "_data_item = DocumentModel.DocumentModel.DataItemAccessor(_document_controller.document_model)",
             "_document_model = _document_controller.document_model",
             # deprecated abbreviations
             "_d = _data",

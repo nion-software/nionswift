@@ -138,7 +138,7 @@ class ImportExportHandler(object):
             self.write_file(data_item, extension, f)
 
     def write_file(self, data_item, extension, file):
-        data = data_item.data
+        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
         if data is not None:
             self.write_data(data, extension, file)
 
@@ -224,6 +224,8 @@ def create_data_item_from_data_element(data_element, data_file_path=None):
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
 def update_data_item_from_data_element(data_item, data_element, data_file_path=None):
+    if len(data_item.data_sources) == 0:
+        data_item.append_data_source(DataItem.BufferedDataSource())
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
         update_data_item_from_data_element_1(data_item, data_element, data_file_path)
@@ -231,12 +233,14 @@ def update_data_item_from_data_element(data_item, data_element, data_file_path=N
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
 def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
+    # assumes that data item has a single buffered_data_source
+    assert data_item.maybe_data_source
     with data_item.data_item_changes():
         # file path
         # master data
         if data_file_path is not None:
             data_item.source_file_path = data_file_path
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data = data_element["data"]
             sub_area = data_element.get("sub_area")
             if sub_area is not None:
@@ -326,8 +330,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element = dict()
     data_element["version"] = 1
     data_element["reader_version"] = 1
-    if include_data:
-        data_element["data"] = data_item.data
+    if include_data and data_item.maybe_data_source:
+        data_element["data"] = data_item.maybe_data_source.data
     dimensional_calibrations = data_item.dimensional_calibrations
     if dimensional_calibrations is not None:
         calibrations_element = list()
@@ -401,7 +405,7 @@ class CSVImportExportHandler(ImportExportHandler):
         return True
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.data
+        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
 
@@ -431,7 +435,7 @@ class NDataImportExportHandler(ImportExportHandler):
 
     def write(self, ui, data_item, path, extension):
         data_element = create_data_element_from_data_item(data_item, include_data=False)
-        data = data_item.data
+        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
         if data is not None:
             root, ext = os.path.splitext(path)
             metadata_path = root + "_metadata.json"

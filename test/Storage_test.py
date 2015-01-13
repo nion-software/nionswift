@@ -262,7 +262,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
         self.assertIsNotNone(document_controller.document_model.data_items[0])
-        with document_controller.document_model.data_items[0].data_ref() as data_ref:
+        with document_controller.document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
             self.assertIsNotNone(data_ref.data)
         self.assertEqual(data_item0_uuid, document_controller.document_model.data_items[0].uuid)
         self.assertEqual(data_item0_calibration_len, len(document_controller.document_model.data_items[0].dimensional_calibrations))
@@ -296,20 +296,20 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_group(data_group)
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data2
         document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.data_items[0].data_ref() as data_ref:
+        with document_controller.document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
     def update_data(self, data_item):
         data2 = numpy.zeros((16, 16), numpy.uint32)
         data2[0,0] = 2
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data2
 
     # test whether we can update the db from a thread
@@ -334,7 +334,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with document_controller.document_model.data_items[0].data_ref() as data_ref:
+        with document_controller.document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
 
     def test_storage_insert_items(self):
@@ -408,9 +408,10 @@ class TestStorageClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
         data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
         data_item.title = 'title'
         with data_item.transaction():
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             data_group.append_data_item(data_item)
@@ -457,8 +458,9 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
             data_item.datetime_original = reference_date
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
@@ -469,7 +471,7 @@ class TestStorageClass(unittest.TestCase):
             # make sure the data reloads
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
-            with document_model.data_items[0].data_ref() as data_ref:
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 self.assertIsNotNone(data_ref.data)
             # and then make sure the data file gets removed on disk when removed
             document_model.remove_data_item(document_model.data_items[0])
@@ -518,11 +520,12 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
             document_model.append_data_item(data_item)
             # write data with transaction
             handler = NDataHandler.NDataHandler(os.path.join(current_working_directory, "__Test", "Nion Swift Data"))
             with data_item.transaction():
-                with data_item.data_ref() as data_ref:
+                with data_item.maybe_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 reference = document_model.managed_object_context.get_persistent_storage_for_object(data_item).get_default_reference(data_item)
                 data_file_path = os.path.join(current_working_directory, "__Test", "Nion Swift Data", reference + ".ndata")
@@ -551,8 +554,9 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
             data_item.datetime_original = reference_date
-            with data_item.data_ref() as data_ref:
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             reference_type, reference = data_item.get_data_file_info()
@@ -601,9 +605,10 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create empty data item
         data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
         data_item.begin_transaction()
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
         data_item.end_transaction()
         self.assertEqual(len(data_item.dimensional_calibrations), 2)
@@ -779,7 +784,8 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = Storage.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
-            with data_item.data_ref() as data_ref:
+            data_item.append_data_source(DataItem.BufferedDataSource())
+            with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
             document_model.append_data_item(data_item)
             data_item2 = DataItem.DataItem()

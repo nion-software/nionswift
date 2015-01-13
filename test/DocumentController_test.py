@@ -279,11 +279,11 @@ class TestDocumentControllerClass(unittest.TestCase):
 
         def get_processed_data(self, data_sources, values):
             result = None
-            for data_item in data_sources:
+            for data_source in data_sources:
                 if result is None:
-                    result = data_item.data
+                    result = data_source.data
                 else:
-                    result += data_item.data
+                    result += data_source.data
             return result
 
     def test_processing_on_dual_crop_region_constructs_composite_operation(self):

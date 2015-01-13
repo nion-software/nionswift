@@ -187,7 +187,7 @@ class DataItemDataNode(DataNode):
         self.__data_item = data_item
 
     def _get_data(self, data_list):
-        return self.__data_item.data
+        return self.__data_item.maybe_data_source.data if self.__data_item.maybe_data_source else None
 
 
 def execute_code_lines(code_lines, g, l):

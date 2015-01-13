@@ -111,28 +111,20 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_copy_data_item(self):
         source_data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data = numpy.zeros((256, 256), numpy.uint32)
+        data[128, 128] = 1000  # data range (0, 1000)
+        data_item = DataItem.DataItem(data)
         data_item.title = "data_item"
         with data_item.open_metadata("test") as metadata:
             metadata["one"] = 1
             metadata["two"] = 22
-        with data_item.data_ref() as data_ref:
-            data_ref.master_data[128, 128] = 1000  # data range (0, 1000)
-            data_ref.master_data_updated()
         data_item.displays[0].display_limits = (100, 900)
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(Operation.DataItemDataSource(source_data_item))
         data_item.set_operation(invert_operation)
         data_item.displays[0].append_graphic(Graphics.RectangleGraphic())
         data_item_copy = copy.deepcopy(data_item)
-        with data_item_copy.data_ref() as data_copy_accessor:
-            # make sure the data is not shared between the original and the copy
-            self.assertEqual(data_ref.master_data[0,0], 0)
-            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
-            data_ref.master_data[:] = 1
-            data_ref.master_data_updated()
-            self.assertEqual(data_ref.master_data[0,0], 1)
-            self.assertEqual(data_copy_accessor.master_data[0,0], 0)
+        self.assertNotEqual(id(data), id(data_item_copy.maybe_data_source.data))
         # make sure properties and other items got copied
         #self.assertEqual(len(data_item_copy.properties), 19)  # not valid since properties only exist if in document
         self.assertIsNot(data_item.properties, data_item_copy.properties)
@@ -193,12 +185,12 @@ class TestDataItemClass(unittest.TestCase):
     def test_copy_data_item_with_transaction(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.begin_transaction()
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data[:] = 1
             data_item_copy = copy.deepcopy(data_item)
         data_item.end_transaction()
-        with data_item.data_ref() as data_ref:
-            with data_item_copy.data_ref() as data_copy_accessor:
+        with data_item.maybe_data_source.data_ref() as data_ref:
+            with data_item_copy.maybe_data_source.data_ref() as data_copy_accessor:
                 self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
                 self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
                 data_ref.master_data[:] = 2
@@ -211,7 +203,7 @@ class TestDataItemClass(unittest.TestCase):
         display.get_processor("thumbnail").recompute_data(self.app.ui)
         self.assertIsNotNone(display.get_processed_data("thumbnail"))
         self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
         self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
 
@@ -236,7 +228,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
         # now the source data changes and the inverted data needs computing.
         # the thumbnail should also be dirty.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
         data_item_inverted.recompute_data()
         self.assertTrue(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
@@ -314,7 +306,7 @@ class TestDataItemClass(unittest.TestCase):
         # changing the master data of the source should trigger a data changed message
         # subsequently that should trigger a changed message for dependent items
         map(Listener.reset, listeners)
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
         document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
@@ -422,7 +414,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         # test scalar
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
             data_range = data_item.data_range
             self.assertEqual(data_range, (25, 125))
@@ -471,7 +463,7 @@ class TestDataItemClass(unittest.TestCase):
         # begin checks
         data_item_inverted.recompute_data()
         self.assertFalse(data_item.maybe_data_source.is_data_loaded)
-        with data_item_inverted.data_ref() as d:
+        with data_item_inverted.maybe_data_source.data_ref() as d:
             self.assertFalse(data_item.maybe_data_source.is_data_loaded)
         self.assertFalse(data_item.maybe_data_source.is_data_loaded)
 
@@ -492,7 +484,7 @@ class TestDataItemClass(unittest.TestCase):
                 self.data_changed = self.data_changed or DataItem.DATA in changes
         listener = Listener()
         data_item_inverted.add_listener(listener)
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         data_item_inverted.recompute_data()
         self.assertTrue(listener.data_changed)
@@ -509,7 +501,7 @@ class TestDataItemClass(unittest.TestCase):
         inverted_data_item.set_operation(invert_operation)
         document_model.append_data_item(inverted_data_item)
         inverted_data_item.recompute_data()
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
 
@@ -523,7 +515,7 @@ class TestDataItemClass(unittest.TestCase):
         inverted_data_item.set_operation(invert_operation)
         document_model.append_data_item(inverted_data_item)
         inverted_data_item.recompute_data()
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
         document_model.recompute_all()
@@ -544,7 +536,7 @@ class TestDataItemClass(unittest.TestCase):
         inverted2_data_item.set_operation(invert_operation2)
         document_model.append_data_item(inverted2_data_item)
         inverted2_data_item.recompute_data()
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
         inverted_data_item.recompute_data()
@@ -571,7 +563,7 @@ class TestDataItemClass(unittest.TestCase):
                     self.data_changed += 1
         listener = Listener()
         inverted_data_item.add_listener(listener)
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((256, 256), numpy.uint32)
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
         self.assertEqual(listener.data_changed, 0)
@@ -600,7 +592,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item_dummy.set_operation(dummy_operation_item)
         document_model.append_data_item(data_item_dummy)
         data_item_dummy.recompute_data()
-        with data_item_dummy.data_ref() as d:
+        with data_item_dummy.maybe_data_source.data_ref() as d:
             start_count = dummy_operation.count
             d.data
             self.assertEqual(dummy_operation.count, start_count)
@@ -614,11 +606,11 @@ class TestDataItemClass(unittest.TestCase):
 
         def get_processed_data(self, data_sources, values):
             result = None
-            for data_item in data_sources:
+            for data_source in data_sources:
                 if result is None:
-                    result = data_item.data
+                    result = data_source.data
                 else:
-                    result += data_item.data
+                    result += data_source.data
             return result
 
     def test_operation_with_multiple_data_sources_is_allowed(self):
@@ -639,7 +631,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item_sum.set_operation(sum_operation_item)
         data_item_sum.recompute_data()
         document_model.append_data_item(data_item_sum)
-        summed_data = data_item_sum.data
+        summed_data = data_item_sum.maybe_data_source.data
         self.assertEqual(summed_data[0, 0], 3)
 
     def test_operation_with_composite_data_source_applies_composition_and_generates_correct_result(self):
@@ -854,7 +846,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.set_operation(invert_operation)
         data_item2.recompute_data()
         # see if the data source got connected
-        self.assertIsNotNone(data_item2.data)
+        self.assertIsNotNone(data_item2.maybe_data_source.data)
         self.assertEqual(data_item2.operation.data_sources[0].data_item, data_item)
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
@@ -1008,7 +1000,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         document_model.append_data_item(data_item)
         self.assertFalse(data_item.maybe_data_source.is_data_stale)
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
         data_item.set_intensity_calibration(Calibration.Calibration())
         self.assertFalse(data_item.maybe_data_source.is_data_stale)
@@ -1083,16 +1075,16 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(inverted_data_item)
         inverted_data_item.recompute_data()
         self.assertFalse(inverted_data_item.maybe_data_source.is_data_stale)
-        self.assertAlmostEqual(inverted_data_item.data[0, 0], -1.0)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
         # data is now unloaded and stale.
         self.assertFalse(inverted_data_item.maybe_data_source.is_data_loaded)
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
         # don't recompute
-        self.assertAlmostEqual(inverted_data_item.data[0, 0], -1.0)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[0, 0], -1.0)
         # data should still be stale
         self.assertTrue(inverted_data_item.maybe_data_source.is_data_stale)
 
@@ -1106,12 +1098,12 @@ class TestDataItemClass(unittest.TestCase):
         data_item_inverted.set_operation(invert_operation)
         document_model.append_data_item(data_item_inverted)
         data_item_inverted.recompute_data()
-        self.assertAlmostEqual(data_item_inverted.data[0, 0], -1.0)
+        self.assertAlmostEqual(data_item_inverted.maybe_data_source.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         data_item_inverted.recompute_data()
-        self.assertAlmostEqual(data_item_inverted.data[0, 0], -3.0)
+        self.assertAlmostEqual(data_item_inverted.maybe_data_source.data[0, 0], -3.0)
 
     def test_recomputing_data_does_not_notify_listeners_of_stale_data_unless_it_is_really_stale(self):
         document_model = DocumentModel.DocumentModel()
@@ -1136,15 +1128,15 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(inverted_data_item)
         inverted_data_item.recompute_data()
         self.assertFalse(inverted_data_item.maybe_data_source.is_data_stale)
-        self.assertAlmostEqual(inverted_data_item.data[0, 0], -1.0)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[0, 0], -1.0)
         # now the source data changes and the inverted data needs computing.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         # verify the actual data values are still stale
-        self.assertAlmostEqual(inverted_data_item.data[0, 0], -1.0)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[0, 0], -1.0)
         # recompute and verify the data values are valid
         inverted_data_item.recompute_data()
-        self.assertAlmostEqual(inverted_data_item.data[0, 0], -3.0)
+        self.assertAlmostEqual(inverted_data_item.maybe_data_source.data[0, 0], -3.0)
 
     def test_statistics_marked_dirty_when_data_changed(self):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.uint32))
@@ -1152,7 +1144,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.get_processor("statistics").recompute_data(None)
         self.assertIsNotNone(data_item.get_processed_data("statistics"))
         self.assertFalse(data_item.is_cached_value_dirty("statistics_data"))
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
         self.assertTrue(data_item.is_cached_value_dirty("statistics_data"))
 
@@ -1171,7 +1163,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
         # now the source data changes and the inverted data needs computing.
         # the statistics should also be dirty.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 1.0
         data_item_inverted.recompute_data()
         self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))
@@ -1191,7 +1183,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(data_item_inverted.is_cached_value_dirty("statistics_data"))
         # now the source data changes and the inverted data needs computing.
         # the statistics should also be dirty.
-        with data_item.data_ref() as data_ref:
+        with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.master_data = data_ref.master_data + 2.0
         data_item_inverted.recompute_data()
         self.assertTrue(data_item_inverted.is_cached_value_dirty("statistics_data"))

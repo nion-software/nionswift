@@ -68,7 +68,7 @@ class TestDisplayClass(unittest.TestCase):
         display = data_item.displays[0]
         self.assertEqual(display.display_range, (0, 15))
         self.assertEqual(display.data_range, (0, 15))
-        with data_item.data_ref() as dr:
+        with data_item.maybe_data_source.data_ref() as dr:
             dr.data = irow / 2 + 4
         self.assertEqual(display.display_range, (4, 11))
         self.assertEqual(display.data_range, (4, 11))
@@ -89,7 +89,7 @@ class TestDisplayClass(unittest.TestCase):
                     self.data_range = value
         o = Observer()
         display.add_observer(o)
-        with data_item.data_ref() as dr:
+        with data_item.maybe_data_source.data_ref() as dr:
             dr.data = irow / 2 + 4
         self.assertEqual(o.data_range, (4, 11))
         self.assertEqual(o.display_range, (4, 11))
