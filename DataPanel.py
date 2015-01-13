@@ -442,7 +442,9 @@ class DataPanel(Panel.Panel):
         def __data_item_inserted(self, data_item, before_index):
             self.__data_items.insert(before_index, data_item)
             data_item.add_listener(self)  # for data_item_content_changed
-            data_item.displays[0].add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
+            display_specifier = data_item.primary_display_specifier
+            if display_specifier.display:
+                display_specifier.display.add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
             # do the insert
             properties = {
                 "uuid": str(data_item.uuid),
@@ -462,7 +464,9 @@ class DataPanel(Panel.Panel):
             del self.list_model_controller.model[index]
             self.list_model_controller.end_remove()
             # remove the listener.
-            data_item.displays[0].remove_listener(self)
+            display_specifier = data_item.primary_display_specifier
+            if display_specifier.display:
+                display_specifier.display.remove_listener(self)
             data_item.remove_listener(self)
 
         # notification from display
@@ -495,7 +499,10 @@ class DataPanel(Panel.Panel):
                 # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
-            display = data_item.displays[0]
+            display_specifier = data_item.primary_display_specifier
+            display = display_specifier.display
+            if not display:
+                return
             display.get_processor("thumbnail").recompute_if_necessary(self.document_controller.document_model.dispatch_task, self.ui)
             data_and_calibration = display.data_and_calibration
             thumbnail_data = display.get_processed_data("thumbnail")
@@ -584,19 +591,21 @@ class DataPanel(Panel.Panel):
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
                             draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
-                                display = data_item.displays[0]
-                                display.get_processor("thumbnail").recompute_if_necessary(self.__delegate.document_controller.document_model.dispatch_task, self.__delegate.ui)
-                                thumbnail_data = display.get_processed_data("thumbnail")
-                                if is_selected:
-                                    drawing_context.save()
-                                    drawing_context.begin_path()
-                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                    drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
-                                    drawing_context.fill()
-                                    drawing_context.restore()
-                                if thumbnail_data is not None:
-                                    draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                                    drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+                                display_specifier = data_item.primary_display_specifier
+                                display = display_specifier.display
+                                if display:
+                                    display.get_processor("thumbnail").recompute_if_necessary(self.__delegate.document_controller.document_model.dispatch_task, self.__delegate.ui)
+                                    thumbnail_data = display.get_processed_data("thumbnail")
+                                    if is_selected:
+                                        drawing_context.save()
+                                        drawing_context.begin_path()
+                                        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                        drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
+                                        drawing_context.fill()
+                                        drawing_context.restore()
+                                    if thumbnail_data is not None:
+                                        draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                                        drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
                         index += 1
             finally:
                 drawing_context.restore()
@@ -850,8 +859,11 @@ class DataPanel(Panel.Panel):
         def drag_started(self, data_item, x, y, modifiers):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-            thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
-            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+            display_specifier = data_item.primary_display_specifier
+            display = display_specifier.display
+            if display:
+                thumbnail_data = display.get_processed_data("thumbnail")
+                self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
 
         def remove_data_item(self, data_item):
             container = DataGroup.get_data_item_container(self.container, data_item)
@@ -881,7 +893,9 @@ class DataPanel(Panel.Panel):
         def __data_item_inserted(self, data_item, before_index):
             self.__data_items.insert(before_index, data_item)
             data_item.add_listener(self)  # for data_item_content_changed
-            data_item.displays[0].add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
+            display_specifier = data_item.primary_display_specifier
+            if display_specifier.display:
+                display_specifier.display.add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
             self.selection.insert_index(before_index)
             self.icon_view_canvas_item.update()
 
@@ -891,7 +905,9 @@ class DataPanel(Panel.Panel):
             assert isinstance(data_item, DataItem.DataItem)
             del self.__data_items[index]
             # remove the listener.
-            data_item.displays[0].remove_listener(self)
+            display_specifier = data_item.primary_display_specifier
+            if display_specifier.display:
+                display_specifier.display.remove_listener(self)
             data_item.remove_listener(self)
             self.selection.insert_index(index)
             self.icon_view_canvas_item.update()

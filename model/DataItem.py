@@ -1453,17 +1453,15 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def buffered_data_source_processor_data_updated(self, data_item, processor):
         self.notify_listeners("data_item_processor_data_updated", self, processor)
 
-    # transition methods
-
-    def add_display(self, display):
-        self.maybe_data_source.add_display(display)
-
-    def remove_display(self, display):
-        self.maybe_data_source.remove_display(display)
+    # primary display
 
     @property
-    def displays(self):
-        return self.maybe_data_source.displays if self.maybe_data_source else list()
+    def primary_display_specifier(self):
+        if len(self.data_sources) == 1:
+            DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
+        return DisplaySpecifier()
+
+    # testing methods
 
     def _create_test_data_source(self):
         return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self).buffered_data_source)
