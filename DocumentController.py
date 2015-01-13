@@ -392,10 +392,6 @@ class DocumentController(Observable.Broadcaster):
             the data group or sorting settings.
         """
 
-        def sort_by_date_key(data_item):
-            """ A sort key to for the datetime_original field of a data item. """
-            return data_item.title + str(data_item.uuid) if data_item.is_live else str(), Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-
         with binding.changes():  # change filter and sort together
             if data_group is not None:
                 binding.container = data_group
@@ -406,19 +402,19 @@ class DocumentController(Observable.Broadcaster):
                 def latest_session_filter(data_item):
                     return data_item.session_id == self.document_model.session_id
                 binding.filter = latest_session_filter
-                binding.sort_key = sort_by_date_key
+                binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
                 def none_filter(data_item):
                     return False
                 binding.filter = none_filter
-                binding.sort_key = sort_by_date_key
+                binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
             else:
                 binding.container = self.document_model
                 binding.filter = None
-                binding.sort_key = sort_by_date_key
+                binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
 
     def create_data_item_binding(self, data_group, filter_id):

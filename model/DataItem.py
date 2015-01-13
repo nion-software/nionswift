@@ -1520,6 +1520,11 @@ class DisplaySpecifier(object):
         return BufferedDataSourceSpecifier(self.data_item, self.buffered_data_source)
 
 
+def sort_by_date_key(data_item):
+    """ A sort key to for the datetime_original field of a data item. The sort by uuid makes it determinate. """
+    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), Utility.get_datetime_from_datetime_item(data_item.datetime_original), str(data_item.uuid)
+
+
 _computation_fns = list()
 
 def register_computation(computation_fn):

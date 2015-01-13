@@ -16,7 +16,6 @@ from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
-from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import Image
@@ -1676,11 +1675,7 @@ class LiveImagePanelController(object):
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
             return hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id
 
-        def sort_by_date_key(data_item):
-            """ A sort key to for the datetime_original field of a data item. """
-            return data_item.title + str(data_item.uuid) if data_item.is_live else str(), Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-
-        self.__filtered_data_items_binding.sort_key = sort_by_date_key
+        self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
         self.__filtered_data_items_binding.sort_reverse = True
         self.__filtered_data_items_binding.filter = matches_hardware_source
 
