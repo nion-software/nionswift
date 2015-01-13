@@ -105,17 +105,8 @@ class CalibrationList(object):
 
     *Notifications*
 
-    Data items will emit the following notification to listeners when their data content changes.
-
-    * data_source_content_changed(data_source, data_and_calibration)
-
-    The changes parameter is a set of changes taken from the list DATA, METADATA, DISPLAYS. This
-    notification will be emitted on a thread.
-
-    Listeners should take care to not call functions which result in cycles of notifications. For instance,
-    listeners should not read the computed_data property (although the data property is ok) since calling
-    computed_data will trigger the data to be computed which will emit data_source_content_changed, resulting
-    in a cycle.
+    Data sources provide a get_data_and_calibration_publisher method to return a publisher of
+    DataAndCalibration objects.
 """
 
 
@@ -887,7 +878,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             new_value.set_dependent_data_item(self)
             new_value.set_data_item_manager(self.__data_item_manager)
             new_value.add_listener(self)
-            new_value.notify_data_source_content_changed()
+            def next_value(data_and_calibration):
+                if not self._is_reading:
+                    with self.__pending_data_lock:
+                        self.__pending_data = data_and_calibration
+                    for processor in self.__processors.values():
+                        processor.data_item_changed()
+                    self.notify_listeners("data_item_needs_recompute", self)
+            subscriber = Observable.Subscriber(next_value)
+            publisher = new_value.get_data_and_calibration_publisher()
+            self.__subscription = publisher.subscribex(subscriber)
         self.notify_data_item_content_changed(set([DATA]))
 
     # this message comes from the operation.
@@ -940,16 +940,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # thread safe
     def display_changed(self, display):
         self.notify_data_item_content_changed(set([DISPLAYS]))
-
-    # data_source_content_changed comes from data sources to indicate that data
-    # has changed. the connection is established via add_listener.
-    def data_source_content_changed(self, data_source, pending_data):
-        if not self._is_reading:
-            with self.__pending_data_lock:
-                self.__pending_data = pending_data
-            for processor in self.__processors.values():
-                processor.data_item_changed()
-            self.notify_listeners("data_item_needs_recompute", self)
 
     def __get_master_data(self):
         with self.__master_data_lock:
@@ -1088,6 +1078,24 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             traceback.print_exc()
             traceback.print_stack()
             raise
+
+    @property
+    def data_and_calibration(self):
+        """Return the cached data and calibration for this data item.
+
+        The data returned from this method may not be the latest data if a computation
+        is in progress.
+
+        This method will never block and can be called from the main thread.
+
+        Multiple calls to access data should be bracketed in a data_ref context to
+        avoid loading and unloading from disk."""
+        data = self.data
+        data_fn = lambda: data
+        data_shape_and_dtype = self.data_shape_and_dtype
+        intensity_calibration = self.intensity_calibration
+        dimensional_calibrations = self.dimensional_calibrations
+        return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
 
     def recompute_data(self):
         """Ensures that the master data is synchronized with the sources/operation by recomputing if necessary."""

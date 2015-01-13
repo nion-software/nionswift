@@ -29,8 +29,28 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
-DataAndCalibration = collections.namedtuple("DataAndCalibration", ["data_fn", "data_shape_and_dtype", "intensity_calibration", "dimensional_calibrations"])
 RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
+
+
+class DataAndCalibration(object):
+
+    def __init__(self, data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations):
+        self.data_fn = data_fn
+        self.data_shape_and_dtype = data_shape_and_dtype
+        self.intensity_calibration = intensity_calibration
+        self.dimensional_calibrations = dimensional_calibrations
+
+    @property
+    def data(self):
+        return self.data_fn()
+
+    @property
+    def data_shape(self):
+        return self.data_shape_and_dtype[0]
+
+    @property
+    def data_dtype(self):
+        return self.data_shape_and_dtype[1]
 
 
 class _UuidToStringConverter(object):
@@ -51,6 +71,8 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__data_item_manager_lock = threading.RLock()
         self.__data_item = None
         self.__weak_dependent_data_item = None
+        self.__publisher = Observable.Publisher()
+        self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
         self.set_data_item(data_item)
 
     def about_to_be_removed(self):
@@ -140,7 +162,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             if dependent_data_item:
                 self.__data_item.add_dependent_data_item(dependent_data_item)
         if not is_reading:  # notify of changes if a data source was connected
-            self.notify_data_source_content_changed()
+            self.__notify_next_data_and_calibration()
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
@@ -154,20 +176,17 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
                 self.__data_item_manager.add_data_item_listener(self.data_item_uuid, self)
 
     def data_item_content_changed(self, data_item, changes):
+        """Message from data item when the content of data item changes."""
         DATA = 1
         if DATA in changes:
-            self.notify_data_source_content_changed()
+            self.__notify_next_data_and_calibration()
 
-    def notify_data_source_content_changed(self):
-        if self.__data_item:
-            data_fn = lambda: self.__data_item.data
-            data_shape_and_dtype = self.__data_item.data_shape_and_dtype
-            intensity_calibration = self.__data_item.intensity_calibration
-            dimensional_calibrations = self.__data_item.dimensional_calibrations
-            data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
-        else:
-            data_and_calibration = None
-        self.notify_listeners("data_source_content_changed", self, data_and_calibration)
+    def __notify_next_data_and_calibration(self):
+        data_and_calibration = self.__data_item.data_and_calibration if self.__data_item else None
+        self.__publisher.notify_next_value(data_and_calibration)
+
+    def get_data_and_calibration_publisher(self):
+        return self.__publisher
 
 
 def data_source_list_factory(lookup_id):
@@ -214,7 +233,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
 
-        self.__stop_notify = False
+        self.__data_source_publisher = Observable.Publisher()
+        def send_data_sources():
+            self.__data_source_publisher.notify_next_value(self.data_sources)
+        self.__data_source_publisher.on_subscribe = send_data_sources
 
         class UuidMapToStringConverter(object):
             def convert(self, value):
@@ -294,6 +316,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         for data_source in self.data_sources:
             data_source.set_dependent_data_item(data_item)
 
+    def get_data_source_publisher(self):
+        return self.__data_source_publisher
+
     # add a reference to the given data source
     def add_data_source(self, data_source):
         assert isinstance(data_source, DataItemDataSource) or isinstance(data_source, OperationItem)
@@ -305,48 +330,86 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def __data_source_inserted(self, name, before_index, data_source):
         dependent_data_item = self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
-        data_source.add_listener(self)
         data_source.set_dependent_data_item(dependent_data_item)
         data_source.set_data_item_manager(self.__data_item_manager)
-        self.__stop_notify = True
-        try:
-            self.__update_data_shapes_and_dtypes()
-        finally:
-            self.__stop_notify = False
-            self.notify_data_source_content_changed()
+        self.__update_data_shapes_and_dtypes()
+        self.__data_source_publisher.notify_next_value(self.data_sources)
 
     def __data_source_removed(self, name, index, data_source):
-        data_source.remove_listener(self)
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
-        self.__stop_notify = True
-        try:
-            self.__update_data_shapes_and_dtypes()
-        finally:
-            self.__stop_notify = False
-            self.notify_data_source_content_changed()
+        self.__update_data_shapes_and_dtypes()
+        self.__data_source_publisher.notify_next_value(self.data_sources)
 
-    def notify_data_source_content_changed(self):
-        if self.__stop_notify:  # argh
-            return
-        if len(self.data_sources) > 0:
-            data_fn = lambda: self.data
-            data_shape_and_dtype = self.data_shape_and_dtype
-            intensity_calibration = self.intensity_calibration
-            dimensional_calibrations = self.dimensional_calibrations
-            data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
-        else:
-            data_and_calibration = None
-        self.notify_listeners("data_source_content_changed", self, data_and_calibration)
+    class OperationPublisher(Observable.Publisher):
 
-    # data_source_content_changed comes from data sources to indicate that data
-    # has changed. the connection is established via add_listener.
-    def data_source_content_changed(self, data_source, data_and_calibration):
-        self.notify_data_source_content_changed()
+        def __init__(self, operation_item):
+            super(OperationItem.OperationPublisher, self).__init__()
+            self.__operation_item = operation_item
+            self.__operation_item.add_observer(self)
+            self.__subscriptions = list()
+            self.__data_and_calibrations = list()
+
+            # subscribe to the data sources list
+            def data_sources_changed(data_sources):
+                old_subscriptions = self.__subscriptions
+
+                self.__subscriptions = list()
+                self.__data_and_calibrations = list()
+
+                for index, data_source in enumerate(data_sources):
+
+                    def next_value(value_index, value):
+                        self.__data_and_calibrations[value_index] = value
+                        self.notify_next_data()
+
+                    self.__data_and_calibrations.append(None)  # must be valid when subscribex is called since next_value will be called immediately.
+                    subscriber = Observable.Subscriber(functools.partial(next_value, index))
+                    subscription = data_source.get_data_and_calibration_publisher().subscribex(subscriber)
+                    self.__subscriptions.append(subscription)
+
+                for subscription in old_subscriptions:
+                    subscription.close()
+
+            self.__data_sources_subscription = self.__operation_item.get_data_source_publisher().subscribex(Observable.Subscriber(data_sources_changed))
+
+        def close(self):
+            for subscription in self.__subscriptions:
+                subscription.close()
+            self.__subscriptions = list()
+            self.__operation_item.remove_observer(self)
+            super(OperationItem.OperationPublisher, self).close()
+
+        def subscribex(self, subscriber):
+            # override from Publisher
+            subscription = super(OperationItem.OperationPublisher, self).subscribex(subscriber)
+            self.notify_next_data()
+            return subscription
+
+        def notify_next_data(self):
+            """Send out the next value message."""
+            if all(self.__data_and_calibrations) and len(self.__data_and_calibrations) > 0:
+                operation = self.__operation_item.operation
+                if operation:
+                    values = copy.deepcopy(self.__operation_item.values)
+                    def get_data():
+                        return operation.get_processed_data(self.__data_and_calibrations, values)
+                    data_fn = get_data
+                    data_shape_and_dtype = operation.get_processed_data_shape_and_dtype(self.__data_and_calibrations, values)
+                    intensity_calibration = operation.get_processed_intensity_calibration(self.__data_and_calibrations, values)
+                    dimensional_calibrations = operation.get_processed_dimensional_calibrations(self.__data_and_calibrations, values)
+                    data_and_calibration = DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+                    self.notify_next_value(data_and_calibration)
+
+        def property_changed(self, sender, property, property_value):
+            if sender == self.__operation_item and property == "values":
+                self.notify_next_data()
+
+    def get_data_and_calibration_publisher(self):
+        return OperationItem.OperationPublisher(self)
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
-        self.notify_data_source_content_changed()
 
     def __set_region(self, region_connection_id, region):
         # When region becomes available, establish bindings. Also add listener to watch for its deletion.
