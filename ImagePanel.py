@@ -1750,9 +1750,13 @@ class ImagePanel(object):
 
         self.__weak_workspace = None
 
+        self.__data_item = None
+        self.__buffered_data_source = None
         self.__display = None
 
-        self.__pending_display_update_lock = threading.RLock()
+        self.__pending_update_lock = threading.RLock()
+        self.__pending_data_item_update = None
+        self.__pending_buffered_data_source_update = None
         self.__pending_display_update = None
 
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
@@ -1813,20 +1817,20 @@ class ImagePanel(object):
             self.__image_panel_controller = None
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_image_panel(self)
-        self.__set_display(None)  # required before destructing display thread
+        self.__set_display(None, None, None)  # required before destructing display thread
         # release references
         self.workspace_controller = None
         self.__content_canvas_item = None
         self.__overlay_canvas_item = None
         self.__header_canvas_item = None
 
-    def __get_workspace(self):
+    @property
+    def workspace(self):
         return self.__weak_workspace() if self.__weak_workspace else None
 
-    def __set_workspace(self, workspace):
+    @workspace.setter
+    def workspace(self, workspace):
         self.__weak_workspace = weakref.ref(workspace) if workspace else None
-
-    workspace = property(__get_workspace, __set_workspace)
 
     @property
     def header_canvas_item(self):
@@ -1897,15 +1901,23 @@ class ImagePanel(object):
 
     # gets the data item that this panel displays
     def get_displayed_data_item(self):
-        return self.__display.data_item if self.__display else None
+        return self.__data_item
 
     # sets the data item that this panel displays
     # not thread safe
-    def set_displayed_data_item(self, data_item):
-        assert data_item is None or isinstance(data_item, DataItem.DataItem), data_item
-        self.__set_display(data_item.displays[0] if data_item else None)
+    def set_displayed_data_item_and_display(self, data_item, buffered_data_source, display):
+        assert data_item is None or isinstance(data_item, DataItem.DataItem)
+        assert buffered_data_source is None or isinstance(buffered_data_source, DataItem.BufferedDataSource)
+        assert display is None or isinstance(display, Display.Display)
+        self.__set_display(data_item, buffered_data_source, display)
 
-    def replace_displayed_data_item(self, data_item):
+    # set the default display for the data item. just a simpler method to call.
+    def set_displayed_data_item(self, data_item):
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        display = buffered_data_source.displays[0] if buffered_data_source else None
+        self.set_displayed_data_item_and_display(data_item, buffered_data_source, display)
+
+    def replace_displayed_data_item_and_display(self, data_item, buffered_data_source, display):
         """
         Replace the displayed data item. This method differs from set_display_data_item
         in that it will recognize when it is receiving a live acquisition and automatically
@@ -1919,46 +1931,51 @@ class ImagePanel(object):
             hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
             if hardware_source_id:
                 self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
-        self.set_displayed_data_item(data_item)
+        self.set_displayed_data_item_and_display(data_item, buffered_data_source, display)
 
-    def __get_display(self):
+    @property
+    def buffered_data_source(self):
+        return self.__buffered_data_source
+
+    @property
+    def display(self):
         return self.__display
 
     # not thread safe
-    def __set_display(self, display):
-        if display:
-            assert isinstance(display, Display.Display)
+    def __set_display(self, data_item, buffered_data_source, display):
+        if buffered_data_source:
+            assert isinstance(buffered_data_source, DataItem.BufferedDataSource)
             # keep new data in memory. if new and old values are the same, putting
             # this here will prevent the data from unloading and then reloading.
-            display.buffered_data_source.increment_data_ref_count()
+            buffered_data_source.increment_data_ref_count()
         # track data item in this class to report changes
+        if self.__buffered_data_source:
+            self.__buffered_data_source.decrement_data_ref_count()  # don't keep data in memory anymore
         if self.__display:
-            self.__display.buffered_data_source.decrement_data_ref_count()  # don't keep data in memory anymore
             self.__display.remove_listener(self)
+        self.__data_item = data_item
+        self.__buffered_data_source = buffered_data_source
         self.__display = display
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display:
             self.__display.add_listener(self)  # for display_changed
-        self.update_display_canvas(self.__display)
-
-    display = property(__get_display)  # read only, for tests only
+        self.__update_display_canvas(self.__data_item, self.__buffered_data_source, self.__display)
 
     # this message comes from the document model.
     def data_item_deleted(self, deleted_data_item):
         data_item = self.get_displayed_data_item()
         # if our item gets deleted, clear the selection
         if deleted_data_item == data_item:
-            self.__set_display(None)
+            self.__set_display(None, None, None)
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __begin_drag(self):
-        data_item = self.get_displayed_data_item()
-        if data_item is not None:
+        if self.__data_item is not None:
             mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            mime_data.set_data_as_string("text/data_item_uuid", str(self.__data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
-            thumbnail_data = data_item.displays[0].get_processed_data("thumbnail")
+            thumbnail_data = self.__display.get_processed_data("thumbnail")
             def drag_finished(action):
                 if action == "move" and self.document_controller.replaced_data_item is not None:
                     self.__set_display(self.document_controller.replaced_data_item.displays[0])
@@ -1966,9 +1983,8 @@ class ImagePanel(object):
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
 
     def __sync_data_item(self):
-        data_item = self.get_displayed_data_item()
-        if data_item is not None:
-            self.document_controller.select_data_item_in_data_panel(data_item)
+        if self.__data_item is not None:
+            self.document_controller.select_data_item_in_data_panel(self.__data_item)
 
     def __close_image_panel(self):
         if len(self.workspace_controller.image_panels) > 1:
@@ -1980,22 +1996,23 @@ class ImagePanel(object):
     # like graphics or the data itself.
     # thread safe (may be called from data_item_content_changed).
     def display_changed(self, display):
-        with self.__pending_display_update_lock:
+        with self.__pending_update_lock:
+            self.__pending_data_item_update = self.__data_item
+            self.__pending_buffered_data_source_update = self.__buffered_data_source
             self.__pending_display_update = display
         def update_display_canvas_task():
             # if there is a pending display update, do it.
             # update_display_canvas will clear pending updates.
             # this ensures only the latest one is done.
-            with self.__pending_display_update_lock:
+            with self.__pending_update_lock:
                 if self.__pending_display_update:
-                    self.update_display_canvas(self.__pending_display_update)
+                    self.__update_display_canvas(self.__pending_data_item_update, self.__pending_buffered_data_source_update, self.__pending_display_update)
         self.queue_task(update_display_canvas_task)
 
     # update the display canvas, etc.
     # clear any pending display update at the end
     # not thread safe
-    def update_display_canvas(self, display):
-        data_item = display.data_item if display else None
+    def __update_display_canvas(self, data_item, buffered_data_source, display):
         if self.__header_canvas_item:  # may be closed
             self.__header_canvas_item.title = self.document_controller.get_displayed_title_for_data_item(data_item)
         display_type = None
@@ -2027,7 +2044,9 @@ class ImagePanel(object):
         selected = self.document_controller.selected_image_panel == self
         if self.__overlay_canvas_item:  # may be closed
             self.__overlay_canvas_item.selected = display is not None and selected
-        with self.__pending_display_update_lock:
+        with self.__pending_update_lock:
+            self.__pending_data_item_update = None
+            self.__pending_buffered_data_source_update = None
             self.__pending_display_update = None
 
     # ths message comes from the canvas item via the delegate.

@@ -655,7 +655,7 @@ class TestImagePanelClass(unittest.TestCase):
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
-        buffered_data_source = self.image_panel.display.buffered_data_source
+        buffered_data_source = self.image_panel.buffered_data_source
         # adjust image panel display and trigger layout
         intensity_calibration = buffered_data_source.intensity_calibration
         intensity_calibration.offset = -0.2

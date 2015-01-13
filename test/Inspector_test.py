@@ -74,13 +74,15 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_calibration_inspector_section_binds_initially(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = data_item.displays[0]
-        Inspector.CalibrationsInspectorSection(self.app.ui, display)
+        buffered_data_source = data_item.maybe_data_source
+        display = buffered_data_source.displays[0]
+        Inspector.CalibrationsInspectorSection(self.app.ui, data_item, buffered_data_source, display)
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = data_item.displays[0]
-        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display)
+        buffered_data_source = data_item.maybe_data_source
+        display = buffered_data_source.displays[0]
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, data_item, buffered_data_source, display)
         data_item.maybe_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         data_item.maybe_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
 

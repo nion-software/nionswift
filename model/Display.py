@@ -399,8 +399,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
+        super(Display, self).notify_set_property(key, value)
         if not self._is_reading:
-            super(Display, self).notify_set_property(key, value)
             for processor in self.__processors.values():
                 processor.item_property_changed(key, value)
 

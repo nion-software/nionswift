@@ -1042,8 +1042,8 @@ class DocumentController(Observable.Broadcaster):
             return receive_files_on_thread(file_paths, data_group, index, completion_fn)
 
     # this helps avoid circular imports
-    def create_selected_data_item_binding(self):
-        return SelectedDataItemBinding(self)
+    def create_selected_display_binding(self):
+        return SelectedDisplayBinding(self)
 
     def show_context_menu_for_data_item(self, container, data_item, gx, gy):
         if data_item:
@@ -1070,18 +1070,23 @@ class DocumentController(Observable.Broadcaster):
             menu.popup(gx, gy)
 
 
-# binding to the selected data item in the document controller
-# the selected data item may be in an image panel, in the data panel,
-# or in another user interface element. the document controller will
-# send selected_data_item_changed when the data item changes.
-# this object will listen to the data item to know when its data
-# changes or when it gets deleted.
-class SelectedDataItemBinding(Observable.Broadcaster):
+class SelectedDisplayBinding(Observable.Broadcaster):
+    """A binding to the selected display in the document controller.
 
+    The selected display may be in an image panel, in the data panel,
+    or in another user interface element. The document controller will
+    send selected_data_item_changed when the data item changes.
+    This object will listen to the data item to know when its data
+    changes or when it gets deleted.
+
+    It will emit a data_item_binding_display_changed message when a new
+    display is selected or when the display changes internally.
+    """
     def __init__(self, document_controller):
-        super(SelectedDataItemBinding, self).__init__()
-        self.__weak_data_item = None
-        self.display = None
+        super(SelectedDisplayBinding, self).__init__()
+        self.__data_item = None
+        self.__buffered_data_source = None
+        self.__display = None
         self.document_controller = document_controller
         # connect self as listener. this will result in calls to selected_data_item_changed
         self.document_controller.add_listener(self)
@@ -1092,43 +1097,37 @@ class SelectedDataItemBinding(Observable.Broadcaster):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # disconnect data item
-        if self.data_item:
-            self.data_item.remove_listener(self)
-        self.__weak_data_item = None
-
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
+        if self.__display:
+            self.__display.remove_listener(self)
+        # release references
+        self.__data_item = None
+        self.__buffered_data_source = None
+        self.__display = None
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def selected_data_item_changed(self, data_item):
-        old_data_item = self.data_item
-        if data_item != old_data_item:
-            # attach to the new item
-            if data_item:
-                data_item.add_listener(self)
-            if self.display:
-                self.display.remove_listener(self)
-            # save the new data item
-            self.__weak_data_item = weakref.ref(data_item) if data_item else None
-            self.display = data_item.displays[0] if data_item else None
-            if self.display:
-                self.display.add_listener(self)
-            # notify our listeners
-            self.notify_listeners("data_item_binding_display_changed", self.display)
-            # and detach from the old item
-            if old_data_item:
-                old_data_item.remove_listener(self)
+    def notify_display_changed(self):
+        self.notify_listeners("data_item_binding_display_changed", self.__data_item, self.__buffered_data_source, self.__display)
 
-    # this message is received from the display, if there is one.
+    def selected_data_item_changed(self, data_item):
+        buffered_data_source = data_item.maybe_data_source if data_item else None
+        display = buffered_data_source.displays[0] if buffered_data_source else None
+        if self.__data_item != data_item or self.__buffered_data_source != buffered_data_source or self.__display != display:
+            # disconnect listener from display
+            if self.__display:
+                self.__display.remove_listener(self)
+            # save the new state
+            self.__data_item = data_item
+            self.__buffered_data_source = buffered_data_source
+            self.__display = display
+            # connect listener to display
+            if self.__display:
+                self.__display.add_listener(self)
+            # notify our listeners
+            self.notify_display_changed()
+
+    # this message is received from the display (if there is one) when it changes.
     # it is established using add_listener
     # thread safe
     def display_changed(self, display):
-        self.notify_listeners("data_item_binding_display_changed", self.display)
-
-    # this message is received from the data item, if there is one.
-    # it is established using add_listener
-    def data_item_content_changed(self, data_item, changes):
-        if data_item == self.data_item:
-            self.display_changed(self.display)
+        self.notify_display_changed()

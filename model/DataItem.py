@@ -845,14 +845,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_item_copy = DataItem(create_display=False)
         # metadata
         data_item_copy.copy_metadata_from(self)
-        # displays
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display))
         # data sources
         for data_source in copy.copy(data_item_copy.data_sources):
             data_item_copy.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item_copy.append_data_source(copy.deepcopy(data_source))
+        # displays
+        for display in self.displays:
+            data_item_copy.add_display(copy.deepcopy(display))
         # the data source connection will be established when this copy is inserted.
         memo[id(self)] = data_item_copy
         return data_item_copy
@@ -1046,6 +1046,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     if isinstance(metadata, dict):
                         self.__metadata.setdefault(key, dict()).update(metadata)
             self.__data_item_changes = set()
+
+    def finish_reading(self):
+        super(DataItem, self).finish_reading()
+        # until displays are moved to buffered_data_source, need to fix things up here
+        for display in self.displays:
+            display._set_data_item(self)
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties

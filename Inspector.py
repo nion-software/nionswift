@@ -30,14 +30,18 @@ class InspectorPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
 
+        # these are the currently selected item
+        self.__data_item = None
+        self.__buffered_data_source = None
         self.__display = None
+
         self.__display_inspector = None
         self.request_focus = False
 
         # bind to the selected data item.
         # connect self as listener. this will result in calls to data_item_binding_display_changed.
-        self.__display_binding = document_controller.create_selected_data_item_binding()
-        self.__set_display(None)
+        self.__display_binding = document_controller.create_selected_display_binding()
+        self.__set_data_item_and_display(None, None, None)
         self.__display_binding.add_listener(self)
 
         # top level widget in this inspector is a scroll area.
@@ -57,7 +61,7 @@ class InspectorPanel(Panel.Panel):
         # data item inspector close, which is below.
         self.__display_binding.close()
         self.__display_binding = None
-        self.__set_display(None)
+        self.__set_data_item_and_display(None, None, None)
         # close the data item inspector
         if self.__display_inspector:
             self.__display_inspector.close()
@@ -74,12 +78,14 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
         if self.__display:
-            self.__display_inspector = DataItemInspector(self.ui, self.__display)
+            self.__display_inspector = DataItemInspector(self.ui, self.__data_item, self.__buffered_data_source, self.__display)
             self.column.add(self.__display_inspector.widget)
 
     # not thread safe
-    def __set_display(self, display):
-        if self.__display != display:
+    def __set_data_item_and_display(self, data_item, buffered_data_source, display):
+        if self.__data_item != data_item or self.__buffered_data_source != buffered_data_source or self.__display != display:
+            self.__data_item = data_item
+            self.__buffered_data_source = buffered_data_source
             self.__display = display
             self.__update_display_inspector()
         if self.request_focus:
@@ -92,9 +98,9 @@ class InspectorPanel(Panel.Panel):
     # it is established using add_listener. when it is called
     # mark the data item as needing updating.
     # thread safe.
-    def data_item_binding_display_changed(self, display):
+    def data_item_binding_display_changed(self, data_item, buffered_data_source, display):
         def update_display():
-            self.__set_display(display)
+            self.__set_data_item_and_display(data_item, buffered_data_source, display)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
@@ -325,9 +331,8 @@ class CalibrationsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement calibrations inspector.
     """
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, data_item, buffered_data_source, display):
         super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
-        buffered_data_source = display.buffered_data_source
         # get a data_and_calibration publisher
         data_and_calibration_publisher = buffered_data_source.get_data_and_calibration_publisher()
         # configure the bindings to dimension calibrations
@@ -544,10 +549,8 @@ class SliceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, data_item, buffered_data_source, display):
         super(SliceInspectorSection, self).__init__(ui, _("Display"))
-
-        buffered_data_source = display.buffered_data_source
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
@@ -780,10 +783,10 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, data_item, buffered_data_source, display):
         super(GraphicsInspectorSection, self).__init__(ui, _("Graphics"))
-        self.__image_size = display.buffered_data_source.dimensional_shape
-        self.__calibrations = display.buffered_data_source.dimensional_calibrations
+        self.__image_size = buffered_data_source.dimensional_shape
+        self.__calibrations = buffered_data_source.dimensional_calibrations
         self.__graphics = display.drawn_graphics
         self.__display = display
         # ui
@@ -937,27 +940,24 @@ class OperationsInspectorSection(InspectorSection):
 
 class DataItemInspector(object):
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, data_item, buffered_data_source, display):
         self.ui = ui
-
-        data_item = display.data_item
-        buffered_data_source = display.buffered_data_source
 
         self.__inspectors = list()
         content_widget = self.ui.create_column_widget()
         content_widget.add_spacing(6)
 
         self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
-        self.__inspectors.append(CalibrationsInspectorSection(self.ui, display))
+        self.__inspectors.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
         if buffered_data_source and buffered_data_source.is_data_1d:
             self.__inspectors.append(LinePlotInspectorSection(self.ui, display))
         elif buffered_data_source and buffered_data_source.is_data_2d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, display))
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
         elif buffered_data_source and buffered_data_source.is_data_3d:
             self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, display))
-            self.__inspectors.append(SliceInspectorSection(self.ui, display))
+            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            self.__inspectors.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
         self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
 
         for inspector in self.__inspectors:

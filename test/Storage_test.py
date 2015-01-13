@@ -206,6 +206,19 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_reload_data_item_initializes_display_data_range(self):
+        storage_cache = Storage.DbStorageCache(":memory:")
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data_range)
+        self.assertIsNotNone(document_model.data_items[0].maybe_data_source.displays[0].data_range)
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data_range)
+        self.assertIsNotNone(document_model.data_items[0].maybe_data_source.displays[0].data_range)
+
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")

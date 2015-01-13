@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import logging
 import unittest
 
@@ -93,6 +94,12 @@ class TestDisplayClass(unittest.TestCase):
             dr.data = irow / 2 + 4
         self.assertEqual(o.data_range, (4, 11))
         self.assertEqual(o.display_range, (4, 11))
+
+    def test_data_item_copy_initialized_display_data_range(self):
+        source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
+        data_item = copy.deepcopy(source_data_item)
+        display = data_item.maybe_data_source.displays[0]
+        self.assertIsNotNone(display.data_range)
 
 
 if __name__ == '__main__':
