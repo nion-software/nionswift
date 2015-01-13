@@ -309,6 +309,9 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def data_for_processor(self):
         return self.data
 
+    def will_remove_operation_region(self, region):
+        self.remove_region(region)
+
     def request_remove_data_item_because_operation_removed(self, region):
         """Notification from the data source, if any. Just pass it on."""
         self.notify_listeners("request_remove_data_item_because_operation_removed", self)
@@ -1457,9 +1460,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def remove_display(self, display):
         self.maybe_data_source.remove_display(display)
-
-    def remove_region(self, region):
-        self.maybe_data_source.remove_region(region)
 
     @property
     def displays(self):

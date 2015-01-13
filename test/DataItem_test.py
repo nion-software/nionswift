@@ -827,10 +827,11 @@ class TestDataItemClass(unittest.TestCase):
         listener = Listener()
         data_item.displays[0].add_listener(listener)
         crop_region = Region.RectRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
+        buffered_data_source = DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source
+        buffered_data_source.add_region(crop_region)
         self.assertTrue(listener._display_changed)
         listener.reset()
-        data_item.remove_region(crop_region)
+        buffered_data_source.remove_region(crop_region)
         self.assertTrue(listener._display_changed)
 
     def test_data_source_connects_if_added_after_data_item_is_already_in_document(self):

@@ -189,9 +189,9 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
     def about_to_be_removed(self):
         pass
 
-    def remove_region(self, region):
+    def will_remove_operation_region(self, region):
         if self.__buffered_data_source and region in self.__buffered_data_source.regions:
-            self.__buffered_data_source.remove_region(region)
+            self.__buffered_data_source.will_remove_operation_region(region)
 
     @property
     def ordered_operation_data_sources(self):
@@ -370,11 +370,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             # various ways, but there is probably a better way to handle this
             # in the long run.
             if region:
-                self.remove_region(region)
+                self.will_remove_operation_region(region)
 
-    def remove_region(self, region):
+    def will_remove_operation_region(self, region):
         for data_source in self.data_sources:
-            data_source.remove_region(region)
+            data_source.will_remove_operation_region(region)
 
     def managed_object_context_changed(self):
         """ Override from ManagedObject. """
