@@ -52,9 +52,15 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__weak_dependent_data_item = None
         self.set_data_item(data_item)
 
+    def about_to_be_removed(self):
+        pass
+
     def remove_region(self, region):
         if self.__data_item and region in self.__data_item.regions:
             self.__data_item.remove_region(region)
+
+    def update_data_shapes_and_dtypes(self):
+        pass
 
     @property
     def data_shape_and_dtype(self):
@@ -235,6 +241,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def about_to_be_removed(self):
         """ When the operation is about to be removed, remove the region on data source, if any. """
+        for data_source in self.data_sources:
+            data_source.about_to_be_removed()
         for region in [weak_region() for weak_region in self.__weak_regions]:
             # this is a hack because graphics can cause operations to be
             # deleted in multiple ways. there are tests to account for the
@@ -446,6 +454,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     # default value handling.
     def update_data_shapes_and_dtypes(self):
+        for data_source in self.data_sources:
+            data_source.update_data_shapes_and_dtypes()
         if self.operation:
             default_values = self.operation.property_defaults_for_data_shape_and_dtype(self.data_sources)
             for property, default_value in default_values.iteritems():

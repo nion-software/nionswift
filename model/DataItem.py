@@ -77,6 +77,8 @@ class CalibrationList(object):
 """
     Data sources are interfaces to get data and metadata.
 
+    Data sources should support deep copy.
+
     *Primary Properties*
 
     * data_shape_and_dtype
@@ -87,6 +89,7 @@ class CalibrationList(object):
     *Derived Properties*
     * data_shape
     * data_dtype
+    * ordered_data_item_data_sources
 
     *Secondary Functionality*
 
@@ -94,6 +97,12 @@ class CalibrationList(object):
     keeps track of that so as to maintain the dependent_data_item list on data items.
 
     set_dependent_data_item(data_item)
+
+    remove_region(region)
+
+    Data sources can subscribe to other data items becoming available via the data item manager.
+
+    set_data_item_manager(data_item_manager)
 
     *Notifications*
 
@@ -127,6 +136,25 @@ DATA = 1
 METADATA = 2
 DISPLAYS = 3
 SOURCE = 4
+
+
+class DtypeToStringConverter(object):
+    def convert(self, value):
+        return str(value) if value is not None else None
+    def convert_back(self, value):
+        return numpy.dtype(value) if value is not None else None
+
+
+def data_source_factory(lookup_id):
+    type = lookup_id("type")
+    if type == "data-item-data-source":
+        return Operation.DataItemDataSource()
+    elif type == "operation":
+        return Operation.operation_item_factory(lookup_id)
+    elif type == "buffered-data_source":
+        return BufferedDataSource()
+    else:
+        return None
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -260,15 +288,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         master_data_dtype = data.dtype if has_master_data else None
         current_datetime_item = Utility.get_current_datetime_item()
         dimensional_calibrations = CalibrationList()
-        class DtypeToStringConverter(object):
-            def convert(self, value):
-                return str(value) if value is not None else None
-            def convert_back(self, value):
-                return numpy.dtype(value) if value is not None else None
         self.define_property("master_data_shape", master_data_shape, changed=self.__property_changed)
         self.define_property("master_data_dtype", master_data_dtype, converter=DtypeToStringConverter(), changed=self.__property_changed)
-        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__intensity_calibration_changed)
-        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
+        self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
+        self.define_property("dimensional_calibrations", dimensional_calibrations, hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
         self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)
@@ -277,7 +300,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
-        self.define_item("operation", Operation.operation_item_factory, item_changed=self.__operation_item_changed)
+        self.define_item("operation", data_source_factory, item_changed=self.__operation_item_changed)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__insert_connection, remove=self.__remove_connection)
@@ -725,14 +748,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         dimensional_calibrations[dimension] = calibration
         self.set_dimensional_calibrations(dimensional_calibrations)
 
-    def __intensity_calibration_changed(self, name, value):
-        self.notify_set_property(name, value)
-        self.notify_data_source_content_changed(set([METADATA]))
-
-    def __dimensional_calibrations_changed(self, name, value):
-        self.notify_set_property(name, value)
-        self.notify_data_source_content_changed(set([METADATA]))
-
     # call this when data changes. this makes sure that the right number
     # of dimensional_calibrations exist in this object.
     def __sync_dimensional_calibrations(self, ndim):
@@ -858,13 +873,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_connection(self, connection):
         self.remove_item("connections", connection)
 
-    # call this when the operation changes or data source changes
-    # this allows the operation tree to update default values
-    def __sync_operation(self):
-        # apply the operation
-        if self.operation:
-            self.operation.update_data_shapes_and_dtypes()
-
     def set_operation(self, operation):
         self.set_item("operation", operation)
 
@@ -902,7 +910,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             new_value.add_observer(self)
             new_value.set_dependent_data_item(self)
             new_value.set_data_item_manager(self.__data_item_manager)
-        self.__sync_operation()
+            new_value.update_data_shapes_and_dtypes()
         self.notify_data_source_content_changed(set([DATA]))
         if not self._is_reading:
             self.__mark_data_stale()
@@ -1144,12 +1152,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                                         self.set_dimensional_calibration(index, dimensional_calibration)
                         self.__is_master_data_stale = False
 
-    def __get_data_shape_and_dtype(self):
+    @property
+    def data_shape_and_dtype(self):
         if self.is_data_stale:
             if self.operation:
                 return self.operation.data_shape_and_dtype
         return self.master_data_shape, self.master_data_dtype
-    data_shape_and_dtype = property(__get_data_shape_and_dtype)
 
     def __get_size_and_data_format_as_string(self):
         spatial_shape = self.spatial_shape
