@@ -1102,7 +1102,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertIsNotNone(data_item.operation)
         self.assertEqual(len(data_item.operation.data_sources), 1)
-        self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
+        self.assertEqual(str(data_item.operation.data_sources[0].source_data_item.uuid), data_item_dict["uuid"])
         # calibration renaming
         data_item = document_model.data_items[0]
         self.assertEqual(len(data_item.maybe_data_source.dimensional_calibrations), 2)
@@ -1146,7 +1146,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertIsNotNone(data_item.operation)
         self.assertEqual(len(data_item.operation.data_sources), 1)
-        self.assertEqual(str(data_item.operation.data_sources[0].data_item.uuid), data_item_dict["uuid"])
+        self.assertEqual(str(data_item.operation.data_sources[0].source_data_item.uuid), data_item_dict["uuid"])
         # calibration renaming
         data_item = document_model.data_items[0]
         self.assertEqual(len(data_item.maybe_data_source.dimensional_calibrations), 2)

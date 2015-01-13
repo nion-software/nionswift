@@ -277,6 +277,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def __get_dependent_data_item(self):
         return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
 
+    @property
+    def _data_item(self):
+        return self.__get_dependent_data_item()
+
     def about_to_be_removed(self):
         with self.__recompute_lock:
             self.__recompute_allowed = False
@@ -1473,7 +1477,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.maybe_data_source.regions if self.maybe_data_source else list()
 
     def _create_test_data_source(self):
-        return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self))
+        return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self).buffered_data_source)
 
 
 class BufferedDataSourceSpecifier(object):

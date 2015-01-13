@@ -119,7 +119,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_model.append_data_item(data_item2)  # add this first
         document_model.append_data_item(data_item2a)  # add this second
         # verify
-        self.assertEqual(data_item2a.operation.data_sources[0].data_item, data_item2)
+        self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
 
     def test_removing_data_item_with_dependent_data_item_removes_them_both(self):
         document_model = DocumentModel.DocumentModel()

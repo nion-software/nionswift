@@ -163,13 +163,13 @@ class TestDataItemClass(unittest.TestCase):
         document_model.append_data_item(data_item2)  # add this first
         document_model.append_data_item(data_item2a)  # add this second
         # verify
-        self.assertEqual(data_item2a.operation.data_sources[0].data_item, data_item2)
+        self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
         # copy the dependent item
         data_item2a_copy = copy.deepcopy(data_item2a)
         document_model.append_data_item(data_item2a_copy)
         # verify data source
-        self.assertEqual(data_item2a.operation.data_sources[0].data_item, data_item2)
-        self.assertEqual(data_item2a_copy.operation.data_sources[0].data_item, data_item2)
+        self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
+        self.assertEqual(data_item2a_copy.operation.data_sources[0].source_data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
         source_data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -848,7 +848,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item2.recompute_data()
         # see if the data source got connected
         self.assertIsNotNone(data_item2.maybe_data_source.data)
-        self.assertEqual(data_item2.operation.data_sources[0].data_item, data_item)
+        self.assertEqual(data_item2.operation.data_sources[0].source_data_item, data_item)
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
         document_model = DocumentModel.DocumentModel()

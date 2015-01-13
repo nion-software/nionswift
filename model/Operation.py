@@ -164,15 +164,15 @@ class _UuidToStringConverter(object):
 
 class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
 
-    def __init__(self, maybe_buffered_data_source_specifier=None):
+    def __init__(self, buffered_data_source=None):
         super(DataItemDataSource, self).__init__()
         self.define_type("data-item-data-source")
-        if maybe_buffered_data_source_specifier:
-            data_item_uuid = maybe_buffered_data_source_specifier.data_item.uuid if maybe_buffered_data_source_specifier.data_item else None
+        if buffered_data_source:
+            data_item_uuid = buffered_data_source._data_item.uuid if buffered_data_source._data_item else None
         else:
             data_item_uuid = None
         self.define_property("data_item_uuid", data_item_uuid, converter=_UuidToStringConverter())
-        self.__maybe_buffered_data_source_specifier = None
+        self.__buffered_data_source = None
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
         self.__weak_dependent_data_item = None
@@ -181,7 +181,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
         # set the data item
-        self.set_buffered_data_source_specifier(maybe_buffered_data_source_specifier)
+        self.set_buffered_data_source(buffered_data_source)
 
     def close(self):
         pass
@@ -190,9 +190,8 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         pass
 
     def remove_region(self, region):
-        if self.__maybe_buffered_data_source_specifier:
-            if self.__maybe_buffered_data_source_specifier.buffered_data_source and region in self.__maybe_buffered_data_source_specifier.buffered_data_source.regions:
-                self.__maybe_buffered_data_source_specifier.buffered_data_source.remove_region(region)
+        if self.__buffered_data_source and region in self.__buffered_data_source.regions:
+            self.__buffered_data_source.remove_region(region)
 
     @property
     def ordered_operation_data_sources(self):
@@ -200,29 +199,29 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
 
     @property
     def ordered_data_item_data_sources(self):
-        return [self.data_item]
+        return [self.source_data_item]
 
-    def set_dependent_data_item(self, data_item):
+    def set_dependent_data_item(self, new_dependent_data_item):
         """Set the dependent data item. The dependent data item depends on this data source."""
-        dependent_data_item = self.__get_dependent_data_item()
-        self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
-        if self.__maybe_buffered_data_source_specifier:
-            if self.__maybe_buffered_data_source_specifier.data_item:
-                if data_item:
-                    self.__maybe_buffered_data_source_specifier.data_item.add_dependent_data_item(data_item)
-                elif dependent_data_item:
-                    self.__maybe_buffered_data_source_specifier.data_item.remove_dependent_data_item(dependent_data_item)
+        old_dependent_data_item = self.__get_dependent_data_item()
+        self.__weak_dependent_data_item = weakref.ref(new_dependent_data_item) if new_dependent_data_item else None
+        source_data_item = self.source_data_item
+        if source_data_item:
+            if new_dependent_data_item:
+                source_data_item.add_dependent_data_item(new_dependent_data_item)
+            elif old_dependent_data_item:
+                source_data_item.remove_dependent_data_item(old_dependent_data_item)
 
     def __get_dependent_data_item(self):
         return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
 
     @property
-    def data_item(self):
-        if self.__maybe_buffered_data_source_specifier:
-            return self.__maybe_buffered_data_source_specifier.data_item
+    def source_data_item(self):
+        if self.__buffered_data_source:
+            return self.__buffered_data_source._data_item
         return None
 
-    def set_buffered_data_source_specifier(self, buffered_data_source_specifier):
+    def set_buffered_data_source(self, buffered_data_source):
         """Set the actual data item associated with this reference.
 
         This object stores a data_item_uuid. When it is inserted into a container, it will get get a data_item_manager.
@@ -230,17 +229,17 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         The data_item_manager will call this method when that happens.
         """
         dependent_data_item = self.__get_dependent_data_item()
-        if self.__maybe_buffered_data_source_specifier:
-            if self.__maybe_buffered_data_source_specifier.data_item:
-                self.__maybe_buffered_data_source_specifier.data_item.remove_listener(self)
-                if dependent_data_item:
-                    self.__maybe_buffered_data_source_specifier.data_item.remove_dependent_data_item(dependent_data_item)
-        self.__maybe_buffered_data_source_specifier = buffered_data_source_specifier
-        if self.__maybe_buffered_data_source_specifier:
-            if self.__maybe_buffered_data_source_specifier.data_item:
-                self.__maybe_buffered_data_source_specifier.data_item.add_listener(self)
-                if dependent_data_item:
-                    self.__maybe_buffered_data_source_specifier.data_item.add_dependent_data_item(dependent_data_item)
+        source_data_item = self.source_data_item
+        if source_data_item:
+            source_data_item.remove_listener(self)
+            if dependent_data_item:
+                source_data_item.remove_dependent_data_item(dependent_data_item)
+        self.__buffered_data_source = buffered_data_source
+        source_data_item = self.source_data_item
+        if source_data_item:
+            source_data_item.add_listener(self)
+            if dependent_data_item:
+                source_data_item.add_dependent_data_item(dependent_data_item)
         self.__notify_next_data_and_calibration()
 
     def set_data_item_manager(self, data_item_manager):
@@ -262,9 +261,8 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
 
     def __notify_next_data_and_calibration(self):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
-        if self.__maybe_buffered_data_source_specifier:
-            data_and_calibration = self.__maybe_buffered_data_source_specifier.buffered_data_source.data_and_calibration if self.__maybe_buffered_data_source_specifier.buffered_data_source else None
-            self.__publisher.notify_next_value(data_and_calibration)
+        data_and_calibration = self.__buffered_data_source.data_and_calibration if self.__buffered_data_source else None
+        self.__publisher.notify_next_value(data_and_calibration)
 
     def get_data_and_calibration_publisher(self):
         """Return the data and calibration publisher. This is a required method for data sources."""

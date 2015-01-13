@@ -180,7 +180,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.operation.data_sources[0].data_item, data_item)
+        self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
@@ -200,7 +200,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.operation.data_sources[0].data_item, data_item)
+        self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
@@ -357,7 +357,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertNotEqual(data_item_dup.operation, data_item.operation)
         self.assertNotEqual(data_item_dup.operation.data_sources[0], data_item.operation.data_sources[0])
         self.assertEqual(data_item_dup.operation.data_sources[0].data_item_uuid, data_item.operation.data_sources[0].data_item_uuid)
-        self.assertEqual(data_item_dup.operation.data_sources[0].data_item, data_item.operation.data_sources[0].data_item)
+        self.assertEqual(data_item_dup.operation.data_sources[0].source_data_item, data_item.operation.data_sources[0].source_data_item)
 
 
 if __name__ == '__main__':

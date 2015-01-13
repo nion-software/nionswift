@@ -85,7 +85,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -121,7 +121,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -144,7 +144,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -178,7 +178,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -212,7 +212,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -235,7 +235,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
@@ -258,7 +258,7 @@ class TestOperationClass(unittest.TestCase):
             self.document_model.append_data_item(data_item)
             data_item.recompute_data()
             with data_item.maybe_data_source.data_ref() as data_ref:
-                self.assertEqual(data_item.operation.data_sources[0].data_item, source_data_item)
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(data_item.maybe_data_source.dimensional_calibrations)
                 self.assertEqual(data_item.maybe_data_source.data_shape_and_dtype[0], data_ref.data.shape)
