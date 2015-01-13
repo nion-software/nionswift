@@ -40,7 +40,7 @@ class DataReferenceMemoryHandler(object):
 
     def find_data_item_tuples(self):
         tuples = []
-        for key in self.properties:
+        for key in sorted(self.properties):
             properties = self.properties[key]
             tuples.append((properties.setdefault("uuid", str(uuid.uuid4())), copy.deepcopy(properties), "relative_file", key))
         return tuples
@@ -399,6 +399,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     buffered_data_source_dict = dict()
                     buffered_data_source_dict["type"] = "buffered-data-source"
                     buffered_data_source_dict["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                    include_data = "master_data_shape" in properties and "master_data_dtype" in properties
                     data_shape = properties.get("master_data_shape")
                     data_dtype = properties.get("master_data_dtype")
                     if "intensity_calibration" in properties:
@@ -413,10 +414,16 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     if "master_data_dtype" in properties:
                         buffered_data_source_dict["data_dtype"] = data_dtype
                         del properties["master_data_dtype"]
+                    if "displays" in properties:
+                        buffered_data_source_dict["displays"] = properties["displays"]
+                        del properties["displays"]
+                    if "regions" in properties:
+                        buffered_data_source_dict["regions"] = properties["regions"]
+                        del properties["regions"]
                     operation_dict = properties.pop("operation", None)
                     if operation_dict is not None:
                         buffered_data_source_dict["data_source"] = operation_dict
-                    if (data_shape is not None and data_dtype is not None) or operation_dict is not None:
+                    if include_data or operation_dict is not None:
                         properties["data_sources"] = [buffered_data_source_dict]
                     properties["version"] = 7
                     self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
@@ -426,7 +433,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py
-                data_item = DataItem.DataItem(item_uuid=data_item_uuid, create_display=False)
+                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
                 if version <= data_item.writer_version:
                     data_item.begin_reading()
                     persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)

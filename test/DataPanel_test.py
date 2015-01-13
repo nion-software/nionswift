@@ -451,7 +451,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.display_filter = lambda data_item: data_item.title == "Y"
         self.assertEqual(len(data_panel.data_item_model_controller.data_items), 1)
 
-    def test_changing_display_limits_causes_data_item_display_changed_message(self):
+    def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         class Listener(object):
@@ -459,10 +459,10 @@ class TestDataPanelClass(unittest.TestCase):
                 self.reset()
             def reset(self):
                 self._changed = False
-            def data_item_content_changed(self, data_item, changes):
+            def display_changed(self, display):
                 self._changed = True
         listener = Listener()
-        data_item.add_listener(listener)
+        data_item.displays[0].add_listener(listener)
         data_item.displays[0].display_limits = (0.25, 0.75)
         self.assertTrue(listener._changed)
 

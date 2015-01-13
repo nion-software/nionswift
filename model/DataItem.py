@@ -145,7 +145,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     the stored data when the data_source is updated.
     """
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, create_display=True):
         super(BufferedDataSource, self).__init__()
         self.__weak_dependent_data_item = None
         self.__data_item_manager = None
@@ -158,6 +158,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
+        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
+        self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.__data = None
         self.__data_lock = threading.RLock()
         self.__change_count = 0
@@ -177,6 +179,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_data(data)
+        if create_display:
+            self.add_display(Display.Display())  # always have one display, for now
 
     def close(self):
         for processor in self.__processors.values():
@@ -185,6 +189,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
+        for display in self.displays:
+            display.close()
+        for region in self.regions:
+            region.remove_listener(self)
         if self.data_source:
             self.data_source.close()
         self.__publisher.close()
@@ -198,10 +206,23 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def deepcopy_from(self, buffered_data_source, memo):
         super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
+        # calibrations
         self.set_intensity_calibration(buffered_data_source.intensity_calibration)
         self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
+        # displays
+        for display in self.displays:
+            self.remove_display(display)
+        for display in buffered_data_source.displays:
+            self.add_display(copy.deepcopy(display))
+        # regions
+        for region in self.regions:
+            self.remove_display(region)
+        for region in buffered_data_source.regions:
+            self.add_region(copy.deepcopy(region))
+        # data source
         if buffered_data_source.data_source:
             self.set_item("data_source", copy.deepcopy(buffered_data_source.data_source))
+        # data
         if buffered_data_source.has_data:
             self.__set_data(numpy.copy(buffered_data_source.data))
         else:
@@ -216,9 +237,18 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         buffered_data_source_copy = BufferedDataSource()
         buffered_data_source_copy.set_intensity_calibration(self.intensity_calibration)
         buffered_data_source_copy.set_dimensional_calibrations(self.dimensional_calibrations)
+        for display in self.displays:
+            buffered_data_source_copy.add_display(copy.deepcopy(display))
         if self.has_data:
             buffered_data_source_copy.__set_data(numpy.copy(self.data))
         return buffered_data_source_copy
+
+    def read_from_dict(self, properties):
+        for display in self.displays:
+            self.remove_display(display)
+        for region in self.regions:
+            self.remove_display(region)
+        super(BufferedDataSource, self).read_from_dict(properties)
 
     def finish_reading(self):
         # called when reading is finished. gives the data item a chance to
@@ -227,6 +257,11 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             with self.__pending_data_lock:
                 self.__pending_data = None
         super(BufferedDataSource, self).finish_reading()
+        # display properties need to be updated after storage_cache is initialized.
+        # this is where to do it.
+        for display in self.displays:
+            display.update_properties(self.data_properties)
+            display.update_data(self.data_and_calibration)
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
@@ -245,6 +280,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def about_to_be_removed(self):
         with self.__recompute_lock:
             self.__recompute_allowed = False
+        for region in self.regions:
+            region.about_to_be_removed()
+        for display in self.displays:
+            display.about_to_be_removed()
         if self.data_source:
             self.data_source.about_to_be_removed()
 
@@ -342,11 +381,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             return list()
 
     @property
-    def displays(self):
-        data_item = self.__get_dependent_data_item()
-        return data_item.displays if data_item else list()
-
-    @property
     def data_and_calibration(self):
         try:
             data_fn = lambda: self.data
@@ -411,6 +445,64 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
         self.__validate_data_stats()
+        for display in self.displays:
+            display.storage_cache = storage_cache
+        for region in self.regions:
+            region.storage_cache = storage_cache
+
+    def __insert_display(self, name, before_index, display):
+        # listen
+        display.update_properties(self.data_properties)
+        display.update_data(self.data_and_calibration)
+        # connect the regions
+        for region in self.regions:
+            region_graphic = region.graphic
+            if region_graphic:
+                display.add_region_graphic(region_graphic)
+
+    def __remove_display(self, name, index, display):
+        # disconnect the regions
+        for region in self.regions:
+            region_graphic = region.graphic
+            if region_graphic:
+                display.remove_region_graphic(region_graphic)
+        # close the display
+        display.close()
+
+    def add_display(self, display):
+        self.append_item("displays", display)
+
+    def remove_display(self, display):
+        self.remove_item("displays", display)
+
+    def __insert_region(self, name, before_index, region):
+        # listen
+        region.add_listener(self)  # remove_region_because_graphic_removed
+        # connect to the displays
+        region_graphic = region.graphic
+        if region_graphic:
+            for display in self.displays:
+                display.add_region_graphic(region_graphic)
+
+    def __remove_region(self, name, index, region):
+        # disconnect from displays
+        region_graphic = region.graphic
+        if region_graphic:
+            for display in self.displays:
+                display.remove_region_graphic(region_graphic)
+        # and unlisten
+        region.remove_listener(self)
+
+    def add_region(self, region):
+        self.append_item("regions", region)
+
+    def remove_region(self, region):
+        self.remove_item("regions", region)
+
+    # this message comes from the region.
+    # it is generated when the user deletes a graphic.
+    def remove_region_because_graphic_removed(self, region):
+        self.remove_region(region)
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -806,7 +898,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
      The next two coordinates are y, x with 0, 0 at the top left of each layer.
     """
 
-    def __init__(self, data=None, item_uuid=None, create_display=True):
+    def __init__(self, data=None, item_uuid=None):
         super(DataItem, self).__init__()
         self.uuid = item_uuid if item_uuid else self.uuid
         self.writer_version = 7  # writes this version
@@ -823,8 +915,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
-        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.define_relationship("connections", Connection.connection_factory)
         self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
@@ -841,15 +931,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if data is not None:
             data_source = BufferedDataSource(data)
             self.append_data_source(data_source)
-        # create a display if requested
-        if create_display:
-            self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.datetime_original_as_string)
 
     def __deepcopy__(self, memo):
-        data_item_copy = DataItem(create_display=False)
+        data_item_copy = DataItem()
         # metadata
         data_item_copy.copy_metadata_from(self)
         # data sources
@@ -857,9 +944,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_item_copy.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item_copy.append_data_source(copy.deepcopy(data_source))
-        # displays
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display))
         # the data source connection will be established when this copy is inserted.
         memo[id(self)] = data_item_copy
         return data_item_copy
@@ -869,10 +953,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for subscription in self.__subscriptions:
             subscription.close()
         self.__subscriptions = list()
-        for display in self.displays:
-            display.close()
-        for region in self.regions:
-            region.remove_listener(self)
         for data_source in self.data_sources:
             data_source.close()
 
@@ -896,7 +976,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             except the data and operation which are replaced by new data with the operation
             applied or "burned in".
         """
-        data_item_copy = DataItem(create_display=False)
+        data_item_copy = DataItem()
         # metadata
         data_item_copy.copy_metadata_from(self)
         # data sources
@@ -904,9 +984,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             data_item_copy.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item_copy.append_data_source(data_source.snapshot())
-        # displays
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display))
         return data_item_copy
 
     def about_to_be_removed(self):
@@ -915,17 +992,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             connection.about_to_be_removed()
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
-        for region in self.regions:
-            region.about_to_be_removed()
-        for display in self.displays:
-            display.about_to_be_removed()
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable to update the children that need updating
         for data_source in self.data_sources:
             data_source.storage_cache = storage_cache
-        for display in self.displays:
-            display.storage_cache = storage_cache
 
     def _is_cache_delayed(self):
         """ Override from Cacheable base class to indicate when caching is delayed. """
@@ -1050,14 +1121,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                     if isinstance(metadata, dict):
                         self.__metadata.setdefault(key, dict()).update(metadata)
             self.__data_item_changes = set()
-
-    def finish_reading(self):
-        super(DataItem, self).finish_reading()
-        # until displays are moved to buffered_data_source, need to fix things up here
-        for display in self.displays:
-            if self.maybe_data_source:
-                display.update_properties(self.maybe_data_source.data_properties)
-                display.update_data(self.maybe_data_source.data_and_calibration)
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties
@@ -1280,63 +1343,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def remove_data_source(self, data_source):
         self.remove_item("data_sources", data_source)
 
-    def __insert_display(self, name, before_index, display):
-        # listen
-        if self.maybe_data_source:
-            display.update_properties(self.maybe_data_source.data_properties)
-            display.update_data(self.maybe_data_source.data_and_calibration)
-        # connect the regions
-        for region in self.regions:
-            region_graphic = region.graphic
-            if region_graphic:
-                display.add_region_graphic(region_graphic)
-
-    def __remove_display(self, name, index, display):
-        # disconnect the regions
-        for region in self.regions:
-            region_graphic = region.graphic
-            if region_graphic:
-                display.remove_region_graphic(region_graphic)
-        # close the display
-        display.close()
-
-    def add_display(self, display):
-        self.append_item("displays", display)
-
-    def remove_display(self, display):
-        self.remove_item("displays", display)
-
-    def __insert_region(self, name, before_index, region):
-        # listen
-        region.add_listener(self)  # remove_region_because_graphic_removed
-        self.notify_data_item_content_changed(set([DISPLAYS]))
-        # connect to the displays
-        region_graphic = region.graphic
-        if region_graphic:
-            for display in self.displays:
-                display.add_region_graphic(region_graphic)
-
-    def __remove_region(self, name, index, region):
-        # disconnect from displays
-        region_graphic = region.graphic
-        if region_graphic:
-            for display in self.displays:
-                display.remove_region_graphic(region_graphic)
-        # and unlisten
-        self.notify_data_item_content_changed(set([DISPLAYS]))
-        region.remove_listener(self)
-
-    def add_region(self, region):
-        self.append_item("regions", region)
-
-    def remove_region(self, region):
-        self.remove_item("regions", region)
-
-    # this message comes from the region.
-    # it is generated when the user deletes a graphic.
-    def remove_region_because_graphic_removed(self, region):
-        self.remove_region(region)
-
     def add_connection(self, connection):
         self.append_item("connections", connection)
 
@@ -1467,6 +1473,28 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # notification from buffered_data_source
     def buffered_data_source_processor_data_updated(self, data_item, processor):
         self.notify_listeners("data_item_processor_data_updated", self, processor)
+
+    # transition methods
+
+    def add_display(self, display):
+        self.maybe_data_source.add_display(display)
+
+    def remove_display(self, display):
+        self.maybe_data_source.remove_display(display)
+
+    def add_region(self, region):
+        self.maybe_data_source.add_region(region)
+
+    def remove_region(self, region):
+        self.maybe_data_source.remove_region(region)
+
+    @property
+    def displays(self):
+        return self.maybe_data_source.displays if self.maybe_data_source else list()
+
+    @property
+    def regions(self):
+        return self.maybe_data_source.regions if self.maybe_data_source else list()
 
 
 _computation_fns = list()

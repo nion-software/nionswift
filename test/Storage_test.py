@@ -70,7 +70,9 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
         data_item2a = DataItem.DataItem()
+        data_item2a.append_data_source(DataItem.BufferedDataSource())
         data_item2b = DataItem.DataItem()
+        data_item2b.append_data_source(DataItem.BufferedDataSource())
         data_group.append_data_item(data_item2a)
         data_group.append_data_item(data_item2b)
         document_controller.document_model.append_data_item(data_item2a)
@@ -452,6 +454,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
         with data_item.transaction():
             data_item.datetime_original = reference_date
@@ -1024,8 +1027,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 1)
         data_item = document_model.data_items[0]
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
-        self.assertTrue("uuid" in data_item.properties["displays"][0])
-        self.assertTrue("uuid" in data_item.properties["displays"][0]["graphics"][0])
+        self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0])
+        self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0]["graphics"][0])
         self.assertTrue("uuid" in data_item.properties["data_sources"][0]["data_source"])
 
     def test_data_items_v3_migration(self):
@@ -1125,12 +1128,21 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operation"] = {"type": "operation", "operation_id": "invert-operation", "data_sources": [{"type": "data-item-data-source", "data_item_uuid": data_item_dict["uuid"]}]}
         data_item2_dict["version"] = 6
+        data_item3_dict = data_reference_handler.properties.setdefault("C", dict())
+        data_item3_dict["uuid"] = str(uuid.uuid4())
+        data_item3_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_item3_dict["master_data_dtype"] = None
+        data_item3_dict["master_data_shape"] = None
+        data_item3_dict["dimensional_calibrations"] = []
+        data_item3_dict["intensity_calibration"] = {}
+        data_item3_dict["version"] = 6
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         # # check it
-        self.assertEqual(len(document_model.data_items), 2)
+        self.assertEqual(len(document_model.data_items), 3)
         self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
         self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
+        self.assertEqual(str(document_model.data_items[2].uuid), data_item3_dict["uuid"])
         data_item = document_model.data_items[1]
         self.assertEqual(data_item.properties["version"], data_item.writer_version)
         self.assertIsNotNone(data_item.operation)
