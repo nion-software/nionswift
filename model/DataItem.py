@@ -216,7 +216,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             self.add_display(copy.deepcopy(display))
         # regions
         for region in self.regions:
-            self.remove_display(region)
+            self.remove_region(region)
         for region in buffered_data_source.regions:
             self.add_region(copy.deepcopy(region))
         # data source
@@ -247,7 +247,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         for display in self.displays:
             self.remove_display(display)
         for region in self.regions:
-            self.remove_display(region)
+            self.remove_region(region)
         super(BufferedDataSource, self).read_from_dict(properties)
 
     def finish_reading(self):

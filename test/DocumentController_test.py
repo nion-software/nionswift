@@ -343,8 +343,21 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_processing_duplicate_does_copy(self):
         document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        document_model.append_data_item(data_item)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = document_controller.selected_image_panel
+        image_panel.set_displayed_data_item(data_item)
+        document_controller.processing_duplicate()
+
+    def test_processing_duplicate_with_region_does_copy(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
+        document_model.append_data_item(data_item)
+        crop_region = Region.RectRegion()
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.buffered_data_source.add_region(crop_region)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         image_panel = document_controller.selected_image_panel
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
