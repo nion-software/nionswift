@@ -105,7 +105,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __init__(self):
         super(Display, self).__init__()
-        self.__weak_data_item = None
         self.__graphics = list()
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
@@ -144,14 +143,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def get_processor(self, processor_id):
         return self.__processors[processor_id]
 
-    def __get_data_item(self):
-        return self.__weak_data_item() if self.__weak_data_item else None
-    data_item = property(__get_data_item)
-
-    @property
-    def buffered_data_source(self):
-        return self.data_item.maybe_data_source if self.data_item else None
-
     @property
     def data_and_calibration(self):
         return self.__data_and_calibration
@@ -159,21 +150,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     @property
     def data_for_processor(self):
         return self.__data_and_calibration.data if self.__data_and_calibration else None
-
-    # called from data item when added/removed.
-    def _set_data_item(self, data_item):
-        if self.data_item:
-            self.storage_cache = None
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        if self.data_item:
-            # establish the initial data_and_calibration; this will go away once display becomes
-            # a subscriber to a more generic publisher.
-            buffered_data_source = data_item.maybe_data_source
-            if buffered_data_source:
-                self.__data_and_calibration = buffered_data_source.data_and_calibration
-                self.__data_properties["data_range"] = buffered_data_source.data_range
-                self.__data_properties["data_sample"] = buffered_data_source.data_sample
-            self.storage_cache = self.data_item.storage_cache
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
@@ -308,6 +284,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.display_limits = display_range
     # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
     display_range = property(__get_display_range, __set_display_range)
+
+    # message sent from buffered_data_source to initialize properties
+    def update_properties(self, properties):
+        self.__data_properties.update(properties)
 
     # message sent from buffered_data_source data_range or data_sample changes.
     def update_property(self, property, value):

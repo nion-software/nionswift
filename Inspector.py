@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import functools
 import gettext
@@ -18,6 +19,9 @@ from nion.ui import Converter
 from nion.ui import Observable
 
 _ = gettext.gettext
+
+
+DisplaySpecifier = collections.namedtuple("DisplaySpecifier", ["data_item", "buffered_data_source", "display"])
 
 
 class InspectorPanel(Panel.Panel):
@@ -588,15 +592,15 @@ class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, display, index, data_size):
-        self.__display = display
+    def __init__(self, buffered_data_source, index, data_size):
+        self.__buffered_data_source = buffered_data_source
         self.__index = index
         self.__data_size = data_size
     def convert(self, value):
-        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
-        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -604,15 +608,15 @@ class CalibratedSizeFloatToStringConverter(object):
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, display, index, data_size):
-        self.__display = display
+    def __init__(self, buffered_data_source, index, data_size):
+        self.__buffered_data_source = buffered_data_source
         self.__index = index
         self.__data_size = data_size
     def convert(self, size):
-        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
-        calibration = self.__display.buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
         return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
 
 
@@ -650,12 +654,12 @@ class CalibratedValueBinding(Binding.Binding):
         return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
 
 
-def make_point_type_inspector(ui, graphic_widget, display, image_size, graphic):
+def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display, "display_calibrated_values")
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
     # calculate values from rectangle type graphic
-    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
     position_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
     position_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
     # create the ui
@@ -675,12 +679,12 @@ def make_point_type_inspector(ui, graphic_widget, display, image_size, graphic):
     graphic_widget.add_spacing(4)
 
 
-def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
+def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display, "display_calibrated_values")
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
     # configure the bindings
-    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
+    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
     start_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
     start_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
     end_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
@@ -715,12 +719,12 @@ def make_line_type_inspector(ui, graphic_widget, display, image_size, graphic):
     graphic_widget.add_spacing(4)
 
 
-def make_line_profile_inspector(ui, graphic_widget, display, image_size, graphic):
+def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display, "display_calibrated_values")
-    make_line_type_inspector(ui, graphic_widget, display, image_size, graphic)
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+    make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic)
     # configure the bindings
-    width_converter = CalibratedValueFloatToStringConverter(display, 0, 1.0)
+    width_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, 1.0)
     width_binding = CalibratedValueBinding(Binding.PropertyBinding(graphic, "width"), new_display_calibrated_values_binding(), width_converter)
     # create the ui
     graphic_width_row = ui.create_row_widget()
@@ -735,14 +739,14 @@ def make_line_profile_inspector(ui, graphic_widget, display, image_size, graphic
     graphic_widget.add_spacing(4)
 
 
-def make_rectangle_type_inspector(ui, graphic_widget, display, image_size, graphic):
+def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
     def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display, "display_calibrated_values")
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
     # calculate values from rectangle type graphic
-    x_converter = CalibratedValueFloatToStringConverter(display, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display, 0, image_size[0])
-    width_converter = CalibratedSizeFloatToStringConverter(display, 1, image_size[1])
-    height_converter = CalibratedSizeFloatToStringConverter(display, 0, image_size[0])
+    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+    width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+    height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
     center_x_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
     center_y_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
     size_width_binding = CalibratedValueBinding(Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
@@ -788,7 +792,7 @@ class GraphicsInspectorSection(InspectorSection):
         self.__image_size = buffered_data_source.dimensional_shape
         self.__calibrations = buffered_data_source.dimensional_calibrations
         self.__graphics = display.drawn_graphics
-        self.__display = display
+        self.__display_specifier = DisplaySpecifier(data_item, buffered_data_source, display)
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -817,19 +821,19 @@ class GraphicsInspectorSection(InspectorSection):
         graphic_widget.add(graphic_title_row)
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_title_type_label.text = _("Point")
-            make_point_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_point_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         if isinstance(graphic, Graphics.LineGraphic):
             graphic_title_type_label.text = _("Line")
-            make_line_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         if isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_title_type_label.text = _("Line Profile")
-            make_line_profile_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_line_profile_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         if isinstance(graphic, Graphics.RectangleGraphic):
             graphic_title_type_label.text = _("Rectangle")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         if isinstance(graphic, Graphics.EllipseGraphic):
             graphic_title_type_label.text = _("Ellipse")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)

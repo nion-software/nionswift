@@ -450,6 +450,13 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         return self.get_cached_value("data_sample")
 
     @property
+    def data_properties(self):
+        data_properties = dict()
+        data_properties["data_range"] = self.data_range
+        data_properties["data_sample"] = self.data_sample
+        return data_properties
+
+    @property
     def has_data(self):
         return self.data_shape is not None and self.data_dtype is not None
 
@@ -864,7 +871,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__subscriptions = list()
         for display in self.displays:
             display.remove_listener(self)
-            display._set_data_item(None)
             display.close()
         for region in self.regions:
             region.remove_listener(self)
@@ -1051,7 +1057,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         super(DataItem, self).finish_reading()
         # until displays are moved to buffered_data_source, need to fix things up here
         for display in self.displays:
-            display._set_data_item(self)
+            if self.maybe_data_source:
+                display.update_properties(self.maybe_data_source.data_properties)
+                display.update_data(self.maybe_data_source.data_and_calibration)
 
     def write_to_dict(self):
         # override from Observable to add the metadata to the properties
@@ -1277,7 +1285,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __insert_display(self, name, before_index, display):
         # listen
         display.add_listener(self)
-        display._set_data_item(self)
+        if self.maybe_data_source:
+            display.update_properties(self.maybe_data_source.data_properties)
+            display.update_data(self.maybe_data_source.data_and_calibration)
         self.notify_data_item_content_changed(set([DISPLAYS]))
         # connect the regions
         for region in self.regions:
@@ -1294,7 +1304,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         # unlisten
         self.notify_data_item_content_changed(set([DISPLAYS]))
         display.remove_listener(self)
-        display._set_data_item(None)
         display.close()
 
     def add_display(self, display):

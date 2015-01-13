@@ -45,10 +45,9 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = data_item.displays[0]
-        converter = Inspector.CalibratedValueFloatToStringConverter(display, 0, 256)
+        converter = Inspector.CalibratedValueFloatToStringConverter(data_item.maybe_data_source, 0, 256)
         converter.convert(0.5)
-        converter = Inspector.CalibratedSizeFloatToStringConverter(display, 0, 256)
+        converter = Inspector.CalibratedSizeFloatToStringConverter(data_item.maybe_data_source, 0, 256)
         converter.convert(0.5)
 
     # necessary to make inspector display updated values properly
@@ -61,9 +60,8 @@ class TestInspectorClass(unittest.TestCase):
                 super(BoolModel, self).__init__()
                 self.display_calibrated_values = False
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        display = data_item.displays[0]
-        y_converter = Inspector.CalibratedValueFloatToStringConverter(display, 0, 256)
-        height_converter = Inspector.CalibratedSizeFloatToStringConverter(display, 0, 256)
+        y_converter = Inspector.CalibratedValueFloatToStringConverter(data_item.maybe_data_source, 0, 256)
+        height_converter = Inspector.CalibratedSizeFloatToStringConverter(data_item.maybe_data_source, 0, 256)
         bool_model = BoolModel()
         display_calibrated_values_binding = Binding.PropertyBinding(bool_model, "display_calibrated_values")
         display_calibrated_values_binding2 = Binding.PropertyBinding(bool_model, "display_calibrated_values")
