@@ -880,8 +880,8 @@ class DataPanel(Panel.Panel):
             data_items = self.data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
-        # data_item_content_changed is received from data items tracked in this model.
-        # the connection is established in add_data_item using add_listener.
+        # data_item_content_changed is received from data items tracked in this model. the connection is established
+        # in add_data_item using add_listener.
         def data_item_content_changed(self, data_item, changes):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items = True
@@ -890,11 +890,17 @@ class DataPanel(Panel.Panel):
         # not thread safe
         def __data_item_inserted(self, data_item, before_index):
             self.__data_items.insert(before_index, data_item)
-            data_item.add_listener(self)  # for data_item_content_changed
+            # add listener for data_item_content_changed, which handles items not handled by thumbnail, such as the
+            # reference display
+            data_item.add_listener(self)
+            # grab the display specifier and if there is a display, add a listener to that also for
+            # display_processor_needs_recompute, display_processor_data_updated, which handle thumbnail updating.
             display_specifier = data_item.primary_display_specifier
             if display_specifier.display:
-                display_specifier.display.add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
+                display_specifier.display.add_listener(self)
+            # update the selection object. this won't change the selection; only adjust the existing indexes.
             self.selection.insert_index(before_index)
+            # tell the icon view to update.
             self.icon_view_canvas_item.update()
 
         # this method if called when one of our listened to items changes

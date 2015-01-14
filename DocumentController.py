@@ -927,7 +927,7 @@ class DocumentController(Observable.Broadcaster):
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
-        weak_data_item().temp_metadata_changed()  # this triggers the update of the title
+        weak_data_item().r_value_changed()  # this triggers the update of the title
 
     def __get_data_item_vars(self):
         return self.__data_item_vars

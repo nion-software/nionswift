@@ -714,6 +714,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
                 for processor in self.__processors.values():
                     processor.mark_data_dirty()
 
+    def r_value_changed(self):
+        with self._changes():
+            self.__change_changed = True
+
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
         super(BufferedDataSource, self).notify_set_property(key, value)
@@ -1236,8 +1240,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
 
-    def temp_metadata_changed(self):
+    def r_value_changed(self):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
+        for data_source in self.data_sources:
+            data_source.r_value_changed()
         self.notify_data_item_content_changed(set([METADATA]))
 
     # call this when the listeners need to be updated (via data_item_content_changed).
