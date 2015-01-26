@@ -139,6 +139,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source_manager._reset()
         source = SimpleHardwareSource()
         hardware_source_manager.register_hardware_source(source)
+        self.assertEqual(len(document_model.data_items), 0)
         hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
         hardware_source.start_playing(document_controller.workspace_controller)
         self.assertTrue(hardware_source.is_playing)
@@ -149,6 +150,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         hardware_source.abort_playing()
         self.assertFalse(hardware_source.is_playing)
+        document_controller.periodic()  # data items queued to be added from background thread get added here
+        self.assertEqual(len(document_model.data_items), 1)
         document_controller.close()
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):

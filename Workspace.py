@@ -610,11 +610,24 @@ class WorkspaceController(object):
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
                 data_item.session_id = session_id  # immediately update the session id
+                buffered_data_source = data_item.data_sources[0]
+                metadata = buffered_data_source.metadata
+                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+                hardware_source_metadata["hardware_source_id"] = hardware_source.hardware_source_id
+                hardware_source_metadata["hardware_source_channel_id"] = channel
+                buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = "%s.%s" % (hardware_source.display_name, channel)
+                buffered_data_source = DataItem.BufferedDataSource()
+                data_item.append_data_source(buffered_data_source)
+                metadata = buffered_data_source.metadata
+                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+                hardware_source_metadata["hardware_source_id"] = hardware_source.hardware_source_id
+                hardware_source_metadata["hardware_source_channel_id"] = channel
+                buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
                 with self.__mutex:
                     self.__channel_activations.discard(channel_key)

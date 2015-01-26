@@ -1647,7 +1647,7 @@ class LiveImagePanelController(object):
                 "partial": _("Acquiring"), "marked": _("Stopping")}
             for data_item_state in data_item_states:
                 if data_item_state["data_item"] == image_panel.display_specifier.data_item:
-                    buffered_data_source = image_panel.display_specifier.buffered_data_item
+                    buffered_data_source = image_panel.display_specifier.buffered_data_source
                     channel_state = data_item_state["channel_state"]
                     partial_str = str()
                     hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
