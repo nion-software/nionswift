@@ -1,3 +1,4 @@
+import datetime
 import logging
 import threading
 import time
@@ -197,6 +198,13 @@ class TestHardwareSourceClass(unittest.TestCase):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         metadata = data_item.data_sources[0].metadata
         self.assertTrue(isinstance(metadata.get("hardware_source"), dict))
+
+    def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
+        data_element = SimpleHardwareSource().make_data_element()
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        data_item.created = datetime.datetime(2000, 06, 30)
+        ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+        self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
 
 if __name__ == '__main__':
     unittest.main()

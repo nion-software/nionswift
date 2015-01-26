@@ -291,13 +291,16 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-        if "datetime_modified" in data_element:
-            dst_value = data_element["datetime_modified"].get("dst", "+00")
-            tz_value = data_element["datetime_modified"].get("tz", "+0000")
+        datetime_item = data_element.get("datetime_modified")
+        if not datetime_item:
+            datetime_item = Utility.get_datetime_item_from_datetime(datetime.datetime.now())
+        if datetime_item:
+            dst_value = datetime_item.get("dst", "+00")
+            tz_value = datetime_item.get("tz", "+0000")
             time_zone = { "dst": dst_value, "tz": tz_value}
             dst_adjust = int(dst_value)
             tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
-            local_datetime = Utility.get_datetime_from_datetime_item(data_element["datetime_modified"])
+            local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
             utc_datetime = local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)
             data_item.created = utc_datetime
             buffered_data_source = data_item.maybe_data_source
