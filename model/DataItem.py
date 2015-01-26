@@ -141,8 +141,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     """
     A data source that stores the data directly, with optional source data that gets updated as necessary.
 
-    The buffered data source stores data directly. If the optional data_source is present, it will update
-    the stored data when the data_source is updated.
+    The buffered data source stores data directly. If the optional data_source is present, it will update the stored
+    data when the data_source is updated.
+
+    Coordinate system. The coordinate system of the pixels refers to the position within the numpy array. For 1d data,
+    this means that channel 0 is the first channel. For 2d data, this means that the pixel coordinate 0, 0 is at the top
+    left, within increasing y moving downward and increasing x moving right. For 3d data, this means that the first
+    coordinate specifies the depth with 0 considered to be the "top". The next two coordinates are y, x with 0, 0 at the
+    top left of each layer.
     """
 
     def __init__(self, data=None, create_display=True):
@@ -157,6 +163,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
+        self.define_property("metadata", dict(), hidden=True)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
@@ -209,6 +216,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         # calibrations
         self.set_intensity_calibration(buffered_data_source.intensity_calibration)
         self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
+        # metadata
+        self.set_metadata(buffered_data_source.metadata)
         # displays
         for display in self.displays:
             self.remove_display(display)
@@ -237,6 +246,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         buffered_data_source_copy = BufferedDataSource()
         buffered_data_source_copy.set_intensity_calibration(self.intensity_calibration)
         buffered_data_source_copy.set_dimensional_calibrations(self.dimensional_calibrations)
+        buffered_data_source_copy.set_metadata(self.metadata)
         for display in self.displays:
             buffered_data_source_copy.add_display(copy.deepcopy(display))
         if self.has_data:
@@ -391,7 +401,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             data_shape_and_dtype = self.data_shape_and_dtype
             intensity_calibration = self.intensity_calibration
             dimensional_calibrations = self.dimensional_calibrations
-            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations)
+            metadata = self.metadata
+            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -445,6 +456,13 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             while len(dimensional_calibrations) > ndim:
                 dimensional_calibrations.remove(dimensional_calibrations[-1])
             self.set_dimensional_calibrations(dimensional_calibrations)
+
+    @property
+    def metadata(self):
+        return copy.deepcopy(self._get_managed_property("metadata"))
+
+    def set_metadata(self, metadata):
+        self._set_managed_property("metadata", copy.deepcopy(metadata))
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
@@ -804,24 +822,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
 
     """
-    Data items represent data + metadata, a description of how that data is derived, and machinery to calculate it.
+    Data items represent a set of data sources + metadata.
 
-    Data is represented by ndarrays; and metadata consists of things such as dimensional and intensity
-     calibrations, creation and modification dates, titles, captions, etc.
-
-    The derivation description includes a list of source data items, operation, regions, and relationships
-     between data/metadata (connections).
-
-    The following direct properties are available:
-
-    * *data* an ndarray. see note about accessing data below.
-    * *data_shape* an ndarray shape
-    * *data_dtype* an ndarray shape
-
-    and
-
-    * *dimension_calibrations* a list of calibrations
-    * *intensity_calibration* a calibration
     * *datetime_created* a datetime item
     * *datetime_modified* a datetime item
     * *title* a string (single line)
@@ -829,81 +831,34 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *rating* an integer star rating (0 to 5)
     * *flag* a flag (-1, 0, 1)
     * *session_id* a string representing the session
-    * *regions* a list of regions
     * *connections* a list of connections between objects
     * *operation* an operation describing how to compute this data item
 
-    In addition to the properties above, data items may contain a list of displays. By convention, displays
-     are only associated with "top level" data items.
-
-    * *displays* a list of displays associated with the data item.
-
-    Accessing data can be done directly via the data property. However, this may cause data to be loaded
-     into memory from disk and unloaded every time the data property is used.
-
-    A better way to access data if it will be used more than once is to ask for a data reference via the
-     data_ref() method which returns a context manager object. When the context manager object is released,
-     the data will be unloaded from memory if it is not used somewhere else. The context manager has a
-     master_data property to access the data.
-
-    Furthermore, data accessed via the computed_data property will always return the fully computed data. If data
-     sources are out of date, they will be updated and accessing the data property will not return until
-     all data sources have valid data. This can cause lengthy blocks on the calling thread.
-
     *Notifications*
 
-    Data items will emit the following notifications to listeners. Listeners should take care to not call
-     functions which result in cycles of notifications. For instance, functions handling data_item_content_changed
-     should not use functions that will trigger the data to be computed which will emit data_item_content_changed,
-     resulting in a cycle.
+    Data items will emit the following notifications to listeners. Listeners should take care to not call functions
+    which result in cycles of notifications. For instance, functions handling data_item_content_changed should not use
+    functions that will trigger the data to be computed which will emit data_item_content_changed, resulting in a cycle.
 
     * data_item_content_changed(data_item, changes)
 
-    data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set
-    of changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
+    data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set of
+    changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
 
-    request_remove_data_item is invoked when a region associated with an operation is removed by the user. This
-    message can be used to remove the associated dependent data item. This will not be called from a thread.
-
-    *Stale Data*
-
-    Cached data can be stale. When a data source or becomes stale or has its data changed, this data item
-     will be marked as having stale data. When this items data becomes stale, the
-     data_needs_recompute notification will be sent to listeners. In addition, processors will be marked
-     as having stale data.
-
-    Data stale-ness propagates to all listeners. This ensures that if a data changed notification is
-     not sent out for some reason then the dependent still knows to update.
-
-    *Processors*
-
-    Data stale-ness propagates to processors.
+    request_remove_data_item is invoked when a region associated with an operation is removed by the user. This message
+    can be used to remove the associated dependent data item. This will not be called from a thread.
 
     *Miscellaneous*
 
-    Operation. An OperationItem describing how to compute data for this data item.
-
     Transactions.
 
-    Live-ness.
+    Live state.
 
     Snapshots and deep copies.
 
     Properties.
 
     Metadata.
-
-    Data range. Cached value for data min/max. Calculated when data is requested, or on demand.
-
-    Data values.
-
-    Calibrations.
-
-    Coordinate system. The coordinate system of the pixels refers to the position within the numpy array.
-     For 1d data, this means that channel 0 is the first channel. For 2d data, this means that the pixel
-     coordinate 0, 0 is at the top left, within increasing y moving downward and increasing x moving right.
-     For 3d data, this means that the first coordinate specifies the depth with 0 considered to be the "top".
-     The next two coordinates are y, x with 0, 0 at the top left of each layer.
     """
 
     def __init__(self, data=None, item_uuid=None):
