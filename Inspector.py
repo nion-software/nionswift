@@ -237,7 +237,7 @@ class InfoInspectorSection(InspectorSection):
         self.info_section_datetime_row = self.ui.create_row_widget()
         self.info_section_datetime_row.add(self.ui.create_label_widget(_("Date"), properties={"width": 60}))
         self.info_datetime_label = self.ui.create_label_widget(properties={"width": 240})
-        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item, "modified_local_as_string"))
+        self.info_datetime_label.bind_text(Binding.PropertyBinding(data_item, "created_local_as_string"))
         self.info_section_datetime_row.add(self.info_datetime_label)
         self.info_section_datetime_row.add_stretch()
         # format (size, datatype)

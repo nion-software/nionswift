@@ -113,7 +113,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
     def test_sorted_binding_updates_when_transaction_started(self):
         def sort_by_date_key(data_item):
             """ A sort key to for the modification date field of a data item. """
-            return data_item.is_live, data_item.modified
+            return data_item.is_live, data_item.created
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.sort_key = sort_by_date_key
         binding.sort_reverse = True
@@ -131,7 +131,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
         def is_live_filter(data_item):
             return data_item.is_live
         def sort_by_date_key(data_item):
-            return data_item.modified
+            return data_item.created
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.filter = is_live_filter
         binding.sort_key = sort_by_date_key
@@ -171,7 +171,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
         def is_not_live_filter(data_item):
             return not data_item.is_live
         def sort_by_date_key(data_item):
-            return data_item.modified
+            return data_item.created
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.filter = is_not_live_filter
         binding.sort_key = sort_by_date_key

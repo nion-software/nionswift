@@ -175,7 +175,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
-        self.define_property("modified", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
@@ -231,7 +231,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
         # metadata
         self.set_metadata(buffered_data_source.metadata)
-        self.modified = buffered_data_source.modified
+        self.created = buffered_data_source.created
         # displays
         for display in self.displays:
             self.remove_display(display)
@@ -261,7 +261,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         buffered_data_source_copy.set_intensity_calibration(self.intensity_calibration)
         buffered_data_source_copy.set_dimensional_calibrations(self.dimensional_calibrations)
         buffered_data_source_copy.set_metadata(self.metadata)
-        buffered_data_source_copy.modified = self.modified
+        buffered_data_source_copy.created = self.created
         for display in self.displays:
             buffered_data_source_copy.add_display(copy.deepcopy(display))
         if self.has_data:
@@ -417,8 +417,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             intensity_calibration = self.intensity_calibration
             dimensional_calibrations = self.dimensional_calibrations
             metadata = self.metadata
-            modified = self.modified
-            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, modified)
+            created = self.created
+            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, created)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -840,7 +840,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     """
     Data items represent a set of data sources + metadata.
 
-    * *modified* a datetime item
+    * *created* a datetime item
     * *session_id* a string representing the session
     * *connections* a list of connections between objects
     * *operation* an operation describing how to compute this data item
@@ -886,7 +886,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None
-        self.define_property("modified", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
@@ -909,13 +909,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.append_data_source(data_source)
 
     def __str__(self):
-        return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.modified_local_as_string)
+        return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.created_local_as_string)
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         # metadata
         data_item_copy.set_metadata(self.metadata)
-        data_item_copy.modified = self.modified
+        data_item_copy.created = self.created
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
         # data sources
@@ -944,7 +944,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         data_item_copy = DataItem()
         # metadata
         data_item_copy.set_metadata(self.metadata)
-        data_item_copy.modified = self.modified
+        data_item_copy.created = self.created
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
         # data sources
@@ -1172,8 +1172,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
-        # if not self._is_reading and name != "modified":
-        #     self.modified = datetime.datetime.utcnow()
 
     def r_value_changed(self):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
@@ -1191,14 +1189,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # date times
 
     @property
-    def modified_local_as_string(self):
-        return self.modified_local.strftime("%c")
+    def created_local_as_string(self):
+        return self.created_local.strftime("%c")
 
     @property
-    def modified_local(self):
-        modified_utc = self.modified
+    def created_local(self):
+        created_utc = self.created
         tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
-        return modified_utc + datetime.timedelta(minutes=tz_minutes)
+        return created_utc + datetime.timedelta(minutes=tz_minutes)
 
     # access metadata
 
@@ -1493,8 +1491,8 @@ class DisplaySpecifier(object):
 
 
 def sort_by_date_key(data_item):
-    """ A sort key to for the modified field of a data item. The sort by uuid makes it determinate. """
-    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.modified, str(data_item.uuid)
+    """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
+    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.created, str(data_item.uuid)
 
 
 _computation_fns = list()

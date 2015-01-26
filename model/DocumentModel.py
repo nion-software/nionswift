@@ -177,7 +177,7 @@ class DataItemPersistentStorage(object):
     def update_properties(self):
         if not self.write_delayed:
             self.__ensure_reference_valid(self.data_item)
-            file_datetime = self.data_item.modified_local
+            file_datetime = self.data_item.created_local
             with self.__data_reference_handler_lock:
                 self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
 
@@ -212,7 +212,7 @@ class DataItemPersistentStorage(object):
 
     def get_default_reference(self, data_item):
         uuid_ = data_item.uuid
-        modified_local = data_item.modified_local
+        created_local = data_item.created_local
         session_id = data_item.session_id
         # uuid_.bytes.encode('base64').rstrip('=\n').replace('/', '_')
         # and back: uuid_ = uuid.UUID(bytes=(slug + '==').replace('_', '/').decode('base64'))
@@ -225,8 +225,8 @@ class DataItemPersistentStorage(object):
                 result += alphabet[digit]
             return result
         encoded_uuid_str = encode(uuid_, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")  # 25 character results
-        path_components = modified_local.strftime("%Y-%m-%d").split('-')
-        session_id = session_id if session_id else modified_local.strftime("%Y%m%d-000000")
+        path_components = created_local.strftime("%Y-%m-%d").split('-')
+        session_id = session_id if session_id else created_local.strftime("%Y%m%d-000000")
         path_components.append(session_id)
         path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
@@ -239,7 +239,7 @@ class DataItemPersistentStorage(object):
     def update_data(self, data_shape, data_dtype, data=None):
         if not self.write_delayed:
             self.__ensure_reference_valid(self.data_item)
-            file_datetime = self.data_item.modified_local
+            file_datetime = self.data_item.created_local
             if data is not None:
                 with self.__data_reference_handler_lock:
                     self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
@@ -456,8 +456,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     local_datetime = Utility.get_datetime_from_datetime_item(datetime_original)
                     if not local_datetime:
                         local_datetime = datetime.datetime.utcnow()
-                    data_source_dict["modified"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
-                    properties["modified"] = data_source_dict["modified"]
+                    data_source_dict["created"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
+                    properties["created"] = data_source_dict["created"]
                     time_zone_dict = description_metadata.setdefault("time_zone", dict())
                     time_zone_dict["dst"] = dst_value
                     time_zone_dict["tz"] = tz_value
@@ -487,7 +487,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 traceback.print_exc()
                 traceback.print_stack()
         def sort_by_date_key(data_item):
-            return data_item.modified
+            return data_item.created
         data_items.sort(key=sort_by_date_key)
         return data_items
 

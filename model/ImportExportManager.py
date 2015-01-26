@@ -298,10 +298,10 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
             local_datetime = Utility.get_datetime_from_datetime_item(data_element["datetime_modified"])
             utc_datetime = local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)
-            data_item.modified = utc_datetime
+            data_item.created = utc_datetime
             buffered_data_source = data_item.maybe_data_source
             if buffered_data_source:
-                buffered_data_source.modified = utc_datetime
+                buffered_data_source.created = utc_datetime
             metadata = data_item.metadata
             metadata.setdefault("description", dict())["time_zone"] = time_zone
             data_item.set_metadata(metadata)
@@ -347,8 +347,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
         data_element["properties"] = dict(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
-        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.modified)
-        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.modified)
+        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created)
+        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created)
         data_element["uuid"] = str(data_item.uuid)
         # operation
         # graphics

@@ -326,24 +326,24 @@ class TestStorageClass(unittest.TestCase):
                     'uuid': '0d0d47a5-2a35-4391-b7a1-a237f90bf432'}], 'operation_id': 'inverse-fft-operation',
                 'type': 'operation', 'uuid': '23b6f59f-e054-47f0-94b7-10e75c652400'}, 'dimensional_calibrations': [],
                 'displays': [{'uuid': '7eaddefe-22ca-4a7a-b53f-b1c07f3f8553'}],
-                'modified': '2015-01-22T17:16:12.421290', 'type': 'buffered-data-source',
+                'created': '2015-01-22T17:16:12.421290', 'type': 'buffered-data-source',
                 'uuid': '66128bc9-2fd5-47b8-8122-5b57fbfe58d7'}], 'metadata': {},
-            'modified': '2015-01-22T17:16:12.120937', 'uuid': '86d982d1-6d81-46fa-b19e-574e904902de', 'version': 8},
+            'created': '2015-01-22T17:16:12.120937', 'uuid': '86d982d1-6d81-46fa-b19e-574e904902de', 'version': 8},
             '2015/01/22/20150122-000000/data2': {'data_sources': [
                 {'data_dtype': 'int64', 'data_shape': (512, 512), 'dimensional_calibrations': [{}, {}],
                     'displays': [{'uuid': '106c5711-e8cd-4fc4-9f9d-9268b35359a2'}],
-                    'modified': '2015-01-22T17:16:12.319959', 'type': 'buffered-data-source',
+                    'created': '2015-01-22T17:16:12.319959', 'type': 'buffered-data-source',
                     'uuid': '0a5db801-04d4-4b10-945d-c751b5127950'}], 'metadata': {},
-                'modified': '2015-01-22T17:16:12.219730', 'uuid': '71ab9215-c6ae-4c36-aaf5-92ce78db02b6', 'version': 8},
+                'created': '2015-01-22T17:16:12.219730', 'uuid': '71ab9215-c6ae-4c36-aaf5-92ce78db02b6', 'version': 8},
             '2015/01/22/20150122-000000/data3': {'data_sources': [{'data_dtype': None, 'data_shape': None,
                 'data_source': {'data_sources': [{'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950',
                     'type': 'data-item-data-source', 'uuid': '183316ac-6cdf-4f74-a4f2-85982e4c63c2'}],
                     'operation_id': 'fft-operation', 'type': 'operation',
                     'uuid': 'b856672f-9d48-46a4-9a48-b0c9847b59a7'}, 'dimensional_calibrations': [],
                 'displays': [{'uuid': '7e01b8d6-3f3b-4234-9176-c57dbf2bc029'}],
-                'modified': '2015-01-22T17:16:12.408454', 'type': 'buffered-data-source',
+                'created': '2015-01-22T17:16:12.408454', 'type': 'buffered-data-source',
                 'uuid': 'd02f93be-e79a-4b2c-8fe2-0b0d27219251'}], 'metadata': {},
-                'modified': '2015-01-22T17:16:12.308003', 'uuid': '7d3b374e-e48b-460f-91de-7ff4e1a1a63c', 'version': 8}}
+                'created': '2015-01-22T17:16:12.308003', 'uuid': '7d3b374e-e48b-460f-91de-7ff4e1a1a63c', 'version': 8}}
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
@@ -527,7 +527,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].modified, modified)
 
     def test_data_item_should_store_modifications_within_transactions(self):
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -536,11 +536,11 @@ class TestStorageClass(unittest.TestCase):
         data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
         with document_model.data_item_transaction(data_item):
-            data_item.modified = modified
+            data_item.created = created
         # make sure it reloads
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
-        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[0].created, created)
 
     def test_data_writes_to_and_reloads_from_file(self):
         cache_name = ":memory:"
@@ -553,7 +553,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
-            data_item.modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+            data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -643,7 +643,7 @@ class TestStorageClass(unittest.TestCase):
             shutil.rmtree(workspace_dir)
 
     def test_data_removes_file_after_original_date_and_session_change(self):
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
@@ -654,7 +654,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
-            data_item.modified = modified
+            data_item.created = created
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -665,7 +665,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
             # change the original date
-            data_item.modified = datetime.datetime.utcnow()
+            data_item.created = datetime.datetime.utcnow()
             data_item.session_id = "20000531-000000"
             document_model.remove_data_item(data_item)
             # make sure it get removed from disk
@@ -1314,8 +1314,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].flag, flag)
         self.assertEqual(document_model.data_items[0].rating, rating)
         self.assertEqual(document_model.data_items[0].title, title)
-        self.assertEqual(document_model.data_items[0].modified, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
-        self.assertEqual(document_model.data_items[0].data_sources[0].modified, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
+        self.assertEqual(document_model.data_items[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
+        self.assertEqual(document_model.data_items[0].data_sources[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
 
 
 if __name__ == '__main__':

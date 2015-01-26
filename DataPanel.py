@@ -509,7 +509,7 @@ class DataPanel(Panel.Panel):
             thumbnail_data = display.get_processed_data("thumbnail")
             title_str = self.document_controller.get_displayed_title_for_data_item(data_item)
             format_str = data_and_calibration.size_and_data_format_as_string
-            datetime_str = data_item.modified_local_as_string
+            datetime_str = data_item.created_local_as_string
             def get_live_status_as_string():
                 if data_item.is_live:
                     live_metadata = buffered_data_source.metadata.get("hardware_source", dict())
