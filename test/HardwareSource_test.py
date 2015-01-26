@@ -8,7 +8,7 @@ import numpy as np
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
-from nion.swift.model import Storage
+from nion.swift.model import ImportExportManager
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.ui import Test
@@ -23,10 +23,15 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
         self.event = threading.Event()
         self.image = np.zeros(256)
 
+    def make_data_element(self):
+        return {"version": 1, "data": self.image,
+            "properties": {"exposure": 0.5, "extra_high_tension": 140000, "hardware_source": "hardware source",
+                "hardware_source_id": "simple_hardware_source"}}
+
     def acquire_data_elements(self):
         self.image += 1.0
         time.sleep(self.sleep)
-        data_element = { "version": 1, "data": self.image }
+        data_element = self.make_data_element()
         self.event.set()
         return [data_element]
 
@@ -184,6 +189,11 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertFalse(hardware_source.is_playing)
         document_controller.close()
 
+    def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
+        data_element = SimpleHardwareSource().make_data_element()
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        metadata = data_item.data_sources[0].metadata
+        self.assertTrue(isinstance(metadata.get("hardware_source"), dict))
 
 if __name__ == '__main__':
     unittest.main()

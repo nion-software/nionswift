@@ -277,7 +277,8 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             buffered_data_source = data_item.maybe_data_source
             if buffered_data_source:
                 metadata = buffered_data_source.metadata
-                metadata.update(clean_dict(data_element.get("properties")))
+                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+                hardware_source_metadata.update(clean_dict(data_element.get("properties")))
                 buffered_data_source.set_metadata(metadata)
         # title
         if "title" in data_element:
