@@ -267,7 +267,7 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
-    def write_read_db_storage(self):
+    def test_db_storage(self):
         cache_name = ":memory:"
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -278,40 +278,81 @@ class TestStorageClass(unittest.TestCase):
         document_model_uuid = document_controller.document_model.uuid
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
-        read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        data_item0_calibration_len = len(read_display_specifier.buffered_data_source.dimensional_calibrations)
-        data_item0_uuid = read_data_item.uuid
-        data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
+        data_item0 = document_controller.document_model.data_items[0]
+        data_item1 = document_controller.document_model.data_items[1]
+        data_item0_uuid = data_item0.uuid
+        data_item1_uuid = data_item1.uuid
+        data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item0)
+        data_item0_calibration_len = len(data_item0_display_specifier.buffered_data_source.dimensional_calibrations)
+        data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(data_item1))
         document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+        new_data_item0 = document_controller.document_model.get_data_item_by_uuid(data_item0_uuid)
+        new_data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item0)
+        self.assertIsNotNone(new_data_item0)
         self.assertEqual(document_model_uuid, document_controller.document_model.uuid)
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
-        self.assertIsNotNone(read_data_item)
-        with read_display_specifier.buffered_data_source.data_ref() as data_ref:
+        with new_data_item0_display_specifier.buffered_data_source.data_ref() as data_ref:
             self.assertIsNotNone(data_ref.data)
-        self.assertEqual(data_item0_uuid, read_data_item.uuid)
-        self.assertEqual(data_item0_calibration_len, len(read_display_specifier.buffered_data_source.dimensional_calibrations))
-        new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(document_controller.document_model.data_items[1]))
+        self.assertEqual(data_item0_uuid, new_data_item0.uuid)
+        self.assertEqual(data_item0_calibration_len, len(new_data_item0_display_specifier.buffered_data_source.dimensional_calibrations))
+        new_data_item1 = document_controller.document_model.get_data_item_by_uuid(data_item1_uuid)
+        new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
+        self.assertEqual(data_item1_uuid, new_data_item1.uuid)
         self.assertEqual(data_item1_data_items_len, new_data_item1_data_items_len)
         # check over the data item
-        data_item = document_controller.document_model.data_items[0]
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertEqual(display_specifier.display.display_limits, (500, 1000))
-        self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.offset, 1.0)
-        self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.scale, 2.0)
-        self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.units, "three")
-        self.assertEqual(data_item.metadata.get("test")["one"], 1)
+        self.assertEqual(new_data_item0_display_specifier.display.display_limits, (500, 1000))
+        self.assertEqual(new_data_item0_display_specifier.buffered_data_source.intensity_calibration.offset, 1.0)
+        self.assertEqual(new_data_item0_display_specifier.buffered_data_source.intensity_calibration.scale, 2.0)
+        self.assertEqual(new_data_item0_display_specifier.buffered_data_source.intensity_calibration.units, "three")
+        self.assertEqual(new_data_item0.metadata.get("test")["one"], 1)
         document_controller.close()
 
-    def test_db_storage(self):
-        self.write_read_db_storage()
+    def test_dependencies_load_correctly_when_initially_loaded(self):
+        cache_name = ":memory:"
+        library_storage = DocumentModel.FilePersistentStorage()
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
+        # configure list of data items so that after sorted (on modification) they will still be listed in this order.
+        # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
+        # this tests the get_dependent_data_items after reading data.
+        data_reference_handler.properties = {'2015/01/22/20150122-000000/data1': {'data_sources': [
+            {'data_dtype': None, 'data_shape': None, 'data_source': {'data_sources': [
+                {'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950', 'type': 'data-item-data-source',
+                    'uuid': '0d0d47a5-2a35-4391-b7a1-a237f90bf432'}], 'operation_id': 'inverse-fft-operation',
+                'type': 'operation', 'uuid': '23b6f59f-e054-47f0-94b7-10e75c652400'}, 'dimensional_calibrations': [],
+                'displays': [{'uuid': '7eaddefe-22ca-4a7a-b53f-b1c07f3f8553'}],
+                'modified': '2015-01-22T17:16:12.421290', 'type': 'buffered-data-source',
+                'uuid': '66128bc9-2fd5-47b8-8122-5b57fbfe58d7'}], 'metadata': {},
+            'modified': '2015-01-22T17:16:12.120937', 'uuid': '86d982d1-6d81-46fa-b19e-574e904902de', 'version': 8},
+            '2015/01/22/20150122-000000/data2': {'data_sources': [
+                {'data_dtype': 'int64', 'data_shape': (512, 512), 'dimensional_calibrations': [{}, {}],
+                    'displays': [{'uuid': '106c5711-e8cd-4fc4-9f9d-9268b35359a2'}],
+                    'modified': '2015-01-22T17:16:12.319959', 'type': 'buffered-data-source',
+                    'uuid': '0a5db801-04d4-4b10-945d-c751b5127950'}], 'metadata': {},
+                'modified': '2015-01-22T17:16:12.219730', 'uuid': '71ab9215-c6ae-4c36-aaf5-92ce78db02b6', 'version': 8},
+            '2015/01/22/20150122-000000/data3': {'data_sources': [{'data_dtype': None, 'data_shape': None,
+                'data_source': {'data_sources': [{'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950',
+                    'type': 'data-item-data-source', 'uuid': '183316ac-6cdf-4f74-a4f2-85982e4c63c2'}],
+                    'operation_id': 'fft-operation', 'type': 'operation',
+                    'uuid': 'b856672f-9d48-46a4-9a48-b0c9847b59a7'}, 'dimensional_calibrations': [],
+                'displays': [{'uuid': '7e01b8d6-3f3b-4234-9176-c57dbf2bc029'}],
+                'modified': '2015-01-22T17:16:12.408454', 'type': 'buffered-data-source',
+                'uuid': 'd02f93be-e79a-4b2c-8fe2-0b0d27219251'}], 'metadata': {},
+                'modified': '2015-01-22T17:16:12.308003', 'uuid': '7d3b374e-e48b-460f-91de-7ff4e1a1a63c', 'version': 8}}
+        # read it back
+        storage_cache = Storage.DbStorageCache(cache_name)
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        new_data_item1 = document_controller.document_model.get_data_item_by_uuid(data_item1_uuid)
+        new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
+        self.assertEqual(data_item1_uuid, new_data_item1.uuid)
+        self.assertEqual(2, new_data_item1_data_items_len)
+        document_controller.close()
 
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
@@ -632,6 +673,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         read_data_item = document_model.data_items[0]
+        read_data_item_uuid = read_data_item.uuid
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         self.assertEqual(len(read_display_specifier.display.drawn_graphics), 9)  # verify assumptions
         document_controller.close()
@@ -639,7 +681,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        read_data_item = document_model.data_items[0]
+        read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         # verify drawn_graphics reload
         self.assertEqual(len(read_display_specifier.display.drawn_graphics), 9)

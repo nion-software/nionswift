@@ -486,8 +486,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
-        # all sorts of interconnections may occur between data items and other objects.
-        # give the data item a chance to mark itself clean after reading all of them in.
         def sort_by_date_key(data_item):
             return data_item.modified
         data_items.sort(key=sort_by_date_key)
@@ -565,8 +563,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_item.storage_cache = self.storage_cache
             data_item.add_observer(self)  # watch for data_sources being added/removed
             data_item.add_listener(self)
-            self.__buffered_data_source_set.update(set(data_item.data_sources))
             data_item.set_data_item_manager(self)
+            self.__buffered_data_source_set.update(set(data_item.data_sources))
+            self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
+        # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
+        # mark itself clean after reading all of them in.
         for data_item in data_items:
             data_item.finish_reading()
         # all data items will already have a managed_object_context
