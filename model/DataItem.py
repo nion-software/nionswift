@@ -826,13 +826,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     * *datetime_created* a datetime item
     * *datetime_modified* a datetime item
+    * *session_id* a string representing the session
+    * *connections* a list of connections between objects
+    * *operation* an operation describing how to compute this data item
+
+    *Descriptive Metadata*
+
     * *title* a string (single line)
     * *caption* a string (multiple lines)
     * *rating* an integer star rating (0 to 5)
     * *flag* a flag (-1, 0, 1)
-    * *session_id* a string representing the session
-    * *connections* a list of connections between objects
-    * *operation* an operation describing how to compute this data item
 
     *Notifications*
 
@@ -871,10 +874,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         current_datetime_item = Utility.get_current_datetime_item()
         self.define_property("datetime_original", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
         self.define_property("datetime_modified", current_datetime_item, validate=self.__validate_datetime, changed=self.__metadata_property_changed)
-        self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__metadata_property_changed)
-        self.define_property("caption", unicode(), validate=self.__validate_caption, changed=self.__metadata_property_changed)
-        self.define_property("rating", 0, validate=self.__validate_rating, changed=self.__metadata_property_changed)
-        self.define_property("flag", 0, validate=self.__validate_flag, changed=self.__metadata_property_changed)
+        self.define_property("metadata", dict(), hidden=True)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
@@ -901,7 +901,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         # metadata
-        data_item_copy.copy_metadata_from(self)
+        data_item_copy.set_metadata(self.metadata)
+        data_item_copy.datetime_original = self.datetime_original
+        data_item_copy.datetime_modified = self.datetime_modified
+        data_item_copy.session_id = self.session_id
+        data_item_copy.source_file_path = self.source_file_path
         # data sources
         for data_source in copy.copy(data_item_copy.data_sources):
             data_item_copy.remove_data_source(data_source)
@@ -919,20 +923,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for data_source in self.data_sources:
             data_source.close()
 
-    def copy_metadata_from(self, data_item):
-        self.datetime_original = data_item.datetime_original
-        self.datetime_modified = data_item.datetime_modified
-        self.title = data_item.title
-        self.caption = data_item.caption
-        self.rating = data_item.rating
-        self.flag = data_item.flag
-        self.session_id = data_item.session_id
-        self.source_file_path = data_item.source_file_path
-        for key in data_item.__metadata.keys():
-            with self.open_metadata(key) as metadata:
-                metadata.clear()
-                metadata.update(data_item.get_metadata(key))
-
     def snapshot(self):
         """
             Take a snapshot and return a new data item. A snapshot is a copy of everything
@@ -941,7 +931,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         """
         data_item_copy = DataItem()
         # metadata
-        data_item_copy.copy_metadata_from(self)
+        data_item_copy.set_metadata(self.metadata)
+        data_item_copy.datetime_original = self.datetime_original
+        data_item_copy.datetime_modified = self.datetime_modified
+        data_item_copy.session_id = self.session_id
+        data_item_copy.source_file_path = self.source_file_path
         # data sources
         for data_source in copy.copy(data_item_copy.data_sources):
             data_item_copy.remove_data_source(data_source)
@@ -1066,19 +1060,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             for data_source in copy.copy(self.data_sources):
                 self.remove_data_source(data_source)
             super(DataItem, self).read_from_dict(properties)
-            for key in properties.keys():
-                if key not in self.key_names and key not in self.relationship_names and key not in ("uuid", "reader_version", "version"):
-                    metadata = properties[key]
-                    if isinstance(metadata, dict):
-                        self.__metadata.setdefault(key, dict()).update(metadata)
             self.__data_item_changes = set()
-
-    def write_to_dict(self):
-        # override from Observable to add the metadata to the properties
-        properties = super(DataItem, self).write_to_dict()
-        for key in self.__metadata:
-            properties[key] = self.__metadata[key]
-        return properties
 
     @property
     def properties(self):
@@ -1167,18 +1149,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __validate_datetime(self, value):
         return copy.deepcopy(value)
 
-    def __validate_title(self, value):
-        return unicode(value)
-
-    def __validate_caption(self, value):
-        return unicode(value)
-
-    def __validate_flag(self, value):
-        return max(min(int(value), 1), -1)
-
-    def __validate_rating(self, value):
-        return min(max(int(value), 0), 5)
-
     def __validate_source_file_path(self, value):
         value = unicode(value)
         if value:
@@ -1222,32 +1192,12 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     # access metadata
 
-    def get_metadata(self, name):
-        with self.__metadata_lock:
-            return copy.deepcopy(self.__metadata.get(name, dict()))
+    @property
+    def metadata(self):
+        return copy.deepcopy(self._get_managed_property("metadata"))
 
-    def replace_metadata(self, name, metadata):
-        with self.__metadata_lock:
-            metadata_group = self.__metadata.setdefault(name, dict())
-            metadata_group.clear()
-            metadata_group.update(metadata)
-            metadata_group_copy = copy.deepcopy(metadata_group)
-        if self.managed_object_context:
-            self.managed_object_context.property_changed(self, name, metadata_group_copy)
-        self.__metadata_changed()
-
-    def open_metadata(self, name):
-        class MetadataContextManager(object):
-            def __init__(self, data_item, name):
-                self.__data_item = data_item
-                self.__metadata_copy = data_item.get_metadata(name)
-                self.__name = name
-            def __enter__(self):
-                return self.__metadata_copy
-            def __exit__(self, type, value, traceback):
-                if self.__metadata_copy is not None:
-                    self.__data_item.replace_metadata(self.__name, self.__metadata_copy)
-        return MetadataContextManager(self, name)
+    def set_metadata(self, metadata):
+        self._set_managed_property("metadata", copy.deepcopy(metadata))
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.add_listener(self)
@@ -1433,6 +1383,52 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def _create_test_data_source(self):
         return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self).buffered_data_source)
+
+    # descriptive metadata
+
+    @property
+    def title(self):
+        return self.metadata.get("description", dict()).get("title", _("Untitled"))
+
+    @title.setter
+    def title(self, value):
+        metadata = self.metadata
+        metadata.setdefault("description", dict())["title"] = unicode(value)
+        self.set_metadata(metadata)
+        self.__metadata_property_changed("title", value)
+
+    @property
+    def caption(self):
+        return self.metadata.get("description", dict()).get("caption", unicode())
+
+    @caption.setter
+    def caption(self, value):
+        metadata = self.metadata
+        metadata.setdefault("description", dict())["caption"] = unicode(value)
+        self.set_metadata(metadata)
+        self.__metadata_property_changed("caption", value)
+
+    @property
+    def flag(self):
+        return self.metadata.get("description", dict()).get("flag", 0)
+
+    @flag.setter
+    def flag(self, value):
+        metadata = self.metadata
+        metadata.setdefault("description", dict())["flag"] = max(min(int(value), 1), -1)
+        self.set_metadata(metadata)
+        self.__metadata_property_changed("flag", value)
+
+    @property
+    def rating(self):
+        return self.metadata.get("description", dict()).get("rating", 0)
+
+    @rating.setter
+    def rating(self, value):
+        metadata = self.metadata
+        metadata.setdefault("description", dict())["rating"] = min(max(int(value), 0), 5)
+        self.set_metadata(metadata)
+        self.__metadata_property_changed("rating", value)
 
 
 class BufferedDataSourceSpecifier(object):

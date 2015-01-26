@@ -120,9 +120,10 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         data_item.title = "data_item"
-        with data_item.open_metadata("test") as metadata:
-            metadata["one"] = 1
-            metadata["two"] = 22
+        metadata = data_item.metadata
+        metadata.setdefault("test", dict())["one"] = 1
+        metadata.setdefault("test", dict())["two"] = 22
+        data_item.set_metadata(metadata)
         display_specifier.display.display_limits = (100, 900)
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(source_data_item._create_test_data_source())
@@ -138,8 +139,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
         self.assertEqual(data_item.writer_version, data_item_copy.writer_version)
         # metadata get copied?
-        self.assertEqual(len(data_item.get_metadata("test")), 2)
-        self.assertIsNot(data_item.get_metadata("test"), data_item_copy.get_metadata("test"))
+        self.assertEqual(len(data_item.metadata.get("test")), 2)
+        self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))
         # make sure display counts match
         self.assertEqual(len(display_specifier.buffered_data_source.displays), len(display_specifier2.buffered_data_source.displays))
         self.assertEqual(data_item.operation.operation_id, data_item_copy.operation.operation_id)
@@ -821,10 +822,11 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        with data_item.open_metadata("test") as metadata:
-            metadata["one"] = 1
+        metadata = data_item.metadata
+        metadata.setdefault("test", dict())["one"] = 1
+        data_item.set_metadata(metadata)
         data_item_copy = data_item.snapshot()
-        self.assertEqual(data_item_copy.get_metadata("test")["one"], 1)
+        self.assertEqual(data_item_copy.metadata.get("test")["one"], 1)
 
     def test_data_item_allows_adding_of_two_data_sources(self):
         document_model = DocumentModel.DocumentModel()

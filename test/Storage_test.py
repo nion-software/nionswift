@@ -53,8 +53,9 @@ class TestStorageClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.display_limits = (500, 1000)
         display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
-        with data_item.open_metadata("test") as metadata:
-            metadata["one"] = 1
+        metadata = data_item.metadata
+        metadata.setdefault("test", dict())["one"] = 1
+        data_item.set_metadata(metadata)
         buffered_data_source = DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source
         buffered_data_source.add_region(Region.PointRegion())
         buffered_data_source.add_region(Region.LineRegion())
@@ -305,7 +306,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.offset, 1.0)
         self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.scale, 2.0)
         self.assertEqual(display_specifier.buffered_data_source.intensity_calibration.units, "three")
-        self.assertEqual(data_item.get_metadata("test")["one"], 1)
+        self.assertEqual(data_item.metadata.get("test")["one"], 1)
         document_controller.close()
 
     def test_db_storage(self):
@@ -1230,6 +1231,11 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict = data_reference_handler.properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["version"] = 7
+        caption, flag, rating, title = "caption", -1, 3, "title"
+        data_item_dict["caption"] = caption
+        data_item_dict["flag"] = flag
+        data_item_dict["rating"] = rating
+        data_item_dict["title"] = title
         data_source_dict = dict()
         data_source_dict["uuid"] = str(uuid.uuid4())
         data_source_dict["type"] = "buffered-data-source"
@@ -1245,8 +1251,12 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         # check metadata transferred to data source
         self.assertEqual(len(document_model.data_items), 1)
-        self.assertEqual(document_model.data_items[0].get_metadata("hardware_source"), dict())
+        self.assertEqual(document_model.data_items[0].metadata.get("hardware_source", dict()), dict())
         self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source"), metadata)
+        self.assertEqual(document_model.data_items[0].caption, caption)
+        self.assertEqual(document_model.data_items[0].flag, flag)
+        self.assertEqual(document_model.data_items[0].rating, rating)
+        self.assertEqual(document_model.data_items[0].title, title)
 
 
 if __name__ == '__main__':

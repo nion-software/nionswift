@@ -446,6 +446,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                             if key not in excluded:
                                 data_source_dict.setdefault("metadata", dict())[key] = properties[key]
                                 del properties[key]
+                        for key in ["caption", "flag", "rating", "title"]:
+                            if key in properties:
+                                properties.setdefault("metadata", dict()).setdefault("description", dict())[key] = properties[key]
+                                del properties[key]
                     properties["version"] = 8
                     # no rewrite needed
                     # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
