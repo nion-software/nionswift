@@ -274,8 +274,11 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             units = unicode(intensity_calibration.get("units", ""))
         # properties (general tags)
         if "properties" in data_element:
-            with data_item.open_metadata("hardware_source") as metadata:
+            buffered_data_source = data_item.maybe_data_source
+            if buffered_data_source:
+                metadata = buffered_data_source.metadata
                 metadata.update(clean_dict(data_element.get("properties")))
+                buffered_data_source.set_metadata(metadata)
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
@@ -331,27 +334,29 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element = dict()
     data_element["version"] = 1
     data_element["reader_version"] = 1
-    if include_data and data_item.maybe_data_source:
-        data_element["data"] = data_item.maybe_data_source.data
-    dimensional_calibrations = data_item.maybe_data_source.dimensional_calibrations
-    if dimensional_calibrations is not None:
-        calibrations_element = list()
-        for calibration in dimensional_calibrations:
-            calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
-            calibrations_element.append(calibration_element)
-        data_element["spatial_calibrations"] = calibrations_element
-    intensity_calibration = data_item.maybe_data_source.intensity_calibration
-    if intensity_calibration is not None:
-        intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
-        data_element["intensity_calibration"] = intensity_calibration_element
-    data_element["properties"] = dict(data_item.get_metadata("hardware_source"))
-    data_element["title"] = data_item.title
-    data_element["source_file_path"] = data_item.source_file_path
-    data_element["datetime_modified"] = copy.deepcopy(data_item.datetime_modified)
-    data_element["datetime_original"] = copy.deepcopy(data_item.datetime_original)
-    data_element["uuid"] = str(data_item.uuid)
-    # operation
-    # graphics
+    buffered_data_source = data_item.maybe_data_source
+    if buffered_data_source:
+        if include_data:
+            data_element["data"] = buffered_data_source.data
+        dimensional_calibrations = buffered_data_source.dimensional_calibrations
+        if dimensional_calibrations is not None:
+            calibrations_element = list()
+            for calibration in dimensional_calibrations:
+                calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
+                calibrations_element.append(calibration_element)
+            data_element["spatial_calibrations"] = calibrations_element
+        intensity_calibration = buffered_data_source.intensity_calibration
+        if intensity_calibration is not None:
+            intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
+            data_element["intensity_calibration"] = intensity_calibration_element
+        data_element["properties"] = dict(buffered_data_source.metadata.get("hardware_source", dict()))
+        data_element["title"] = data_item.title
+        data_element["source_file_path"] = data_item.source_file_path
+        data_element["datetime_modified"] = copy.deepcopy(data_item.datetime_modified)
+        data_element["datetime_original"] = copy.deepcopy(data_item.datetime_original)
+        data_element["uuid"] = str(data_item.uuid)
+        # operation
+        # graphics
     return data_element
 
 

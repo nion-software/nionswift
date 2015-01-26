@@ -500,6 +500,7 @@ class DataPanel(Panel.Panel):
                 # not sure of the best solution here, but I expect that it will present itself over time.
                 return
             display_specifier = data_item.primary_display_specifier
+            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
             if not display:
                 return
@@ -511,7 +512,7 @@ class DataPanel(Panel.Panel):
             datetime_str = data_item.datetime_original_as_string
             def get_live_status_as_string():
                 if data_item.is_live:
-                    live_metadata = data_item.get_metadata("hardware_source")
+                    live_metadata = buffered_data_source.metadata.get("hardware_source", dict())
                     frame_index_str = str(live_metadata.get("frame_index", str()))
                     partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_and_calibration.dimensional_shape[-1]) if "valid_rows" in live_metadata else str()
                     return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)

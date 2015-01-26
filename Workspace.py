@@ -589,20 +589,23 @@ class WorkspaceController(object):
             with self.__mutex:
                 data_item = self.__channel_data_items.get(channel_key)
 
+            buffered_data_source = data_item.maybe_data_source if data_item else None
+
             # to reuse, first verify that the hardware source id, if any, matches
-            if data_item:
-                hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
-                hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
+            if buffered_data_source:
+                hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+                hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
                 if hardware_source_id != hardware_source.hardware_source_id or hardware_source_channel_id != channel:
                     data_item = None
             # if everything but session or live state matches, copy it and re-use. this keeps the users display
             # preferences intact.
-            if data_item and data_item.maybe_data_source and data_item.maybe_data_source.has_data and data_item.session_id != session_id:
+            if data_item and buffered_data_source and buffered_data_source.has_data and data_item.session_id != session_id:
                 do_copy = True
             # finally, verify that this data item is live. if it isn't live, copy it and add the copy to the group,
             # but re-use the original. this helps preserve the users display choices. for the copy, delete derived data.
             # keep only the master.
-            if data_item and data_item.maybe_data_source and data_item.maybe_data_source.has_data and not data_item.is_live:
+            if data_item and buffered_data_source and buffered_data_source.has_data and not data_item.is_live:
                 do_copy = True
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
@@ -612,9 +615,6 @@ class WorkspaceController(object):
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = "%s.%s" % (hardware_source.display_name, channel)
-                with data_item.open_metadata("hardware_source") as metadata:
-                    metadata["hardware_source_id"] = hardware_source.hardware_source_id
-                    metadata["hardware_source_channel_id"] = channel
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
                 with self.__mutex:
                     self.__channel_activations.discard(channel_key)

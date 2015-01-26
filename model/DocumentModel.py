@@ -434,6 +434,25 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     version = 7
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (buffered data sources)", reference, version)
+                if version == 7:
+                    # version 7 -> 8 changes metadata to be stored in buffered_data_source
+                    data_source_dicts = properties.get("data_sources", list())
+                    if len(data_source_dicts) == 1:
+                        data_source_dict = data_source_dicts[0]
+                        excluded = ["rating", "datetime_original", "title", "source_file_path", "session_id", "caption",
+                            "flag", "datetime_modified", "connections", "data_sources", "uuid", "reader_version",
+                            "version"]
+                        for key in properties.keys():
+                            if key not in excluded:
+                                data_source_dict.setdefault("metadata", dict())[key] = properties[key]
+                                del properties[key]
+                    properties["version"] = 8
+                    # no rewrite needed
+                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    version = 8
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (metadata to data source)", reference, version)
+
 
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py

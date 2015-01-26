@@ -209,6 +209,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
         self.data_item = None
+        self.buffered_data_source = None
         self.display = None
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
@@ -233,7 +234,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
 
-        data_item = self.data_item
+        buffered_data_source = self.buffered_data_source
         display = self.display
 
         if display:
@@ -273,7 +274,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
                     drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = data_item.get_metadata("hardware_source")
+                    data_item_properties = buffered_data_source.metadata.get("hardware_source", dict())
                     info_items = list()
                     voltage = data_item_properties.get("extra_high_tension", 0)
                     if voltage:
@@ -912,6 +913,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.graphics_canvas_item.display = None
             self.graphics_canvas_item.update()
             self.info_overlay_canvas_item.data_item = None
+            self.info_overlay_canvas_item.buffered_data_source = None
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
         else:
@@ -1283,8 +1285,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # data is calculated and then sent to the image canvas item.
     def prepare_display_on_thread(self):
 
-        data_item = self.__display_specifier.data_item
-        display = self.__display_specifier.display
+        display_specifier = self.__display_specifier
+
+        data_item = display_specifier.data_item
+        buffered_data_source = display_specifier.buffered_data_source
+        display = display_specifier.display
 
         if display:
             # grab the data item too
@@ -1304,6 +1309,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.graphics_canvas_item.update()
                 # update the info overlay
                 self.info_overlay_canvas_item.data_item = data_item
+                self.info_overlay_canvas_item.buffered_data_source = buffered_data_source
                 self.info_overlay_canvas_item.display = display
                 self.info_overlay_canvas_item.update()
 
@@ -1641,12 +1647,13 @@ class LiveImagePanelController(object):
                 "partial": _("Acquiring"), "marked": _("Stopping")}
             for data_item_state in data_item_states:
                 if data_item_state["data_item"] == image_panel.display_specifier.data_item:
+                    buffered_data_source = image_panel.display_specifier.buffered_data_item
                     channel_state = data_item_state["channel_state"]
                     partial_str = str()
-                    data_item = data_item_state.get("data_item")
-                    scan_position = data_item.get_metadata("hardware_source").get("scan_position")
+                    hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                    scan_position = hardware_source_metadata.get("scan_position")
                     if scan_position is not None:
-                        partial_str = " " + str(int(100 * scan_position["y"] / data_item.maybe_data_source.dimensional_shape[0])) + "%"
+                        partial_str = " " + str(int(100 * scan_position["y"] / buffered_data_source.dimensional_shape[0])) + "%"
                     state_text_canvas_item.text = map_channel_state_to_text[channel_state] + partial_str
                     state_text_canvas_item.size_to_content(image_panel.image_panel_get_font_metrics)
                     self.__playback_controls_composition.refresh_layout()
@@ -1671,8 +1678,10 @@ class LiveImagePanelController(object):
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__image_panel.document_controller.data_items_binding)
 
         def matches_hardware_source(data_item):
-            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
-            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
+            buffered_data_source = data_item.maybe_data_source
+            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+            hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
             return hardware_source_id == self.__hardware_source_id and hardware_source_channel_id == self.__hardware_source_channel_id
 
         self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
@@ -1924,10 +1933,13 @@ class ImagePanel(object):
             self.__image_panel_controller = None
         data_item = display_specifier.data_item
         if data_item.is_live:
-            hardware_source_id = data_item.get_metadata("hardware_source").get("hardware_source_id")
-            hardware_source_channel_id = data_item.get_metadata("hardware_source").get("hardware_source_channel_id")
-            if hardware_source_id:
-                self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
+            buffered_data_source = display_specifier.buffered_data_source
+            if buffered_data_source:
+                hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+                hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
+                if hardware_source_id:
+                    self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
         self.set_displayed_data_item_and_display(display_specifier)
 
     @property
@@ -2057,7 +2069,7 @@ class ImagePanel(object):
         return ImagePanelManager().key_pressed(self, key)
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
-        ImagePanelManager().mouse_clicked(self, self.display_specifier.data_item, image_position, modifiers)
+        ImagePanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
 
     def image_panel_get_font_metrics(self, font, text):
         return self.ui.get_font_metrics(font, text)
@@ -2122,8 +2134,8 @@ class ImagePanelManager(Observable.Broadcaster):
         self.notify_listeners("image_panel_key_pressed", image_panel, key)
         return False
 
-    def mouse_clicked(self, image_panel, data_item, image_position, modifiers):
-        self.notify_listeners("image_panel_mouse_clicked", image_panel, data_item, image_position, modifiers)
+    def mouse_clicked(self, image_panel, display_specifier, image_position, modifiers):
+        self.notify_listeners("image_panel_mouse_clicked", image_panel, display_specifier, image_position, modifiers)
         return False
 
     def register_image_panel_controller(self, controller_type, make_fn):

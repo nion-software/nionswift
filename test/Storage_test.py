@@ -1071,8 +1071,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(display_specifier.buffered_data_source.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
-        self.assertEqual(data_item.get_metadata("hardware_source")["voltage"], 200.0)
-        self.assertFalse("session_uuid" in data_item.get_metadata("hardware_source"))
+        self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["voltage"], 200.0)
+        self.assertFalse("session_uuid" in data_item.maybe_data_source.metadata.get("hardware_source"))
         self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
         self.assertEqual(display_specifier.buffered_data_source.data_dtype, numpy.uint32)
         self.assertEqual(display_specifier.buffered_data_source.data_shape, (256, 256))
@@ -1223,6 +1223,30 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
         self.assertEqual(display_specifier.buffered_data_source.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
+
+    def test_data_items_v7_migration(self):
+        # construct v7 data item
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        data_item_dict = data_reference_handler.properties.setdefault("A", dict())
+        data_item_dict["uuid"] = str(uuid.uuid4())
+        data_item_dict["version"] = 7
+        data_source_dict = dict()
+        data_source_dict["uuid"] = str(uuid.uuid4())
+        data_source_dict["type"] = "buffered-data-source"
+        data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_source_dict["data_shape"] = (256, 256)
+        data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["data_sources"] = [data_source_dict]
+        metadata = {"instrument": "a big screwdriver"}
+        data_item_dict["hardware_source"] = metadata
+        # read it back
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        # check metadata transferred to data source
+        self.assertEqual(len(document_model.data_items), 1)
+        self.assertEqual(document_model.data_items[0].get_metadata("hardware_source"), dict())
+        self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source"), metadata)
 
 
 if __name__ == '__main__':
