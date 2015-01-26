@@ -271,10 +271,10 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             # initialize with existing buffered_data_sources
             buffered_data_source_set_changed(data_item_manager.buffered_data_source_set, set())
 
-    def __notify_next_data_and_calibration(self):
+    def __notify_next_data_and_calibration(self, subscriber=None):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
         data_and_calibration = self.__buffered_data_source.data_and_calibration if self.__buffered_data_source else None
-        self.__publisher.notify_next_value(data_and_calibration)
+        self.__publisher.notify_next_value(data_and_calibration, subscriber)
 
     def get_data_and_calibration_publisher(self):
         """Return the data and calibration publisher. This is a required method for data sources."""
@@ -326,8 +326,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.__data_item_manager_lock = threading.RLock()
 
         self.__data_source_publisher = Observable.Publisher()
-        def send_data_sources():
-            self.__data_source_publisher.notify_next_value(self.data_sources)
+        def send_data_sources(subscriber):
+            self.__data_source_publisher.notify_next_value(self.data_sources, subscriber)
         self.__data_source_publisher.on_subscribe = send_data_sources
 
         class UuidMapToStringConverter(object):

@@ -22,6 +22,7 @@ from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import Binding
+from nion.ui import Observable
 from nion.ui import Test
 
 
@@ -1348,6 +1349,30 @@ class TestDataItemClass(unittest.TestCase):
         modified = data_item.modified
         data_item.data_sources[0].displays[0].display_calibrated_values = False
         self.assertGreater(data_item.modified, modified)
+
+    def test_data_item_with_connected_crop_region_should_not_update_modification_when_subscribed_to(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        data_item_cropped = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.add_data_source(data_item._create_test_data_source())
+        data_item_cropped.set_operation(crop_operation)
+        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
+        document_model.append_data_item(data_item_cropped)
+        data_item_cropped.recompute_data()
+        data_item._set_modified(modified)
+        data_item_cropped._set_modified(modified)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+        def handle_next(x): pass
+        data_item.data_sources[0].get_data_and_calibration_publisher().subscribex(Observable.Subscriber(handle_next))
+        document_model.recompute_all()
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

@@ -194,7 +194,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
         self.__publisher = Observable.Publisher()
-        self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
+        self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -356,6 +356,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
         with self._changes() as changes:
             self.__change_changed = True
+
+    def __notify_next_data_and_calibration_after_subscribe(self, subscriber):
+        data_and_calibration = self.data_and_calibration
+        self.__publisher.notify_next_value(data_and_calibration, subscriber)
 
     def get_data_and_calibration_publisher(self):
         """Return the data and calibration publisher. This is a required method for data sources."""
