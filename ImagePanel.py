@@ -21,7 +21,6 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
@@ -208,7 +207,6 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
-        self.data_item = None
         self.buffered_data_source = None
         self.display = None
         self.__image_canvas_size = None  # this will be updated by the container
@@ -274,16 +272,16 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.text_baseline = "bottom"
                     drawing_context.fill_style = "#FFF"
                     drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    data_item_properties = buffered_data_source.metadata.get("hardware_source", dict())
                     info_items = list()
-                    voltage = data_item_properties.get("extra_high_tension", 0)
+                    hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                    voltage = hardware_source_metadata.get("extra_high_tension", 0)
                     if voltage:
                         units = "V"
                         if voltage % 1000 == 0:
                             voltage /= 1000
                             units = "kV"
                         info_items.append("{0} {1}".format(voltage, units))
-                    source = data_item_properties.get("hardware_source")
+                    source = hardware_source_metadata.get("hardware_source")
                     if source:
                         info_items.append(str(source))
                     drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
@@ -389,7 +387,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def update_display(self, display_specifier):
         """ Update the display (model) associated with this canvas item. """
-        data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
+        display = display_specifier.display
         # first take care of listeners and update the __display field
         old_display = self.__display_specifier.display
         if old_display and display != old_display:
@@ -899,7 +897,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # doing this will queue an item in the paint thread to repaint.
     def update_display(self, display_specifier):
         # first take care of listeners and update the __display field
-        data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
+        display = display_specifier.display
         old_display = self.__display_specifier.display
         if old_display and display != old_display:
             old_display.remove_listener(self)
@@ -912,7 +910,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.bitmap_canvas_item.update()
             self.graphics_canvas_item.display = None
             self.graphics_canvas_item.update()
-            self.info_overlay_canvas_item.data_item = None
             self.info_overlay_canvas_item.buffered_data_source = None
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
@@ -1287,7 +1284,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         display_specifier = self.__display_specifier
 
-        data_item = display_specifier.data_item
         buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
 
@@ -1308,7 +1304,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 self.graphics_canvas_item.display = display
                 self.graphics_canvas_item.update()
                 # update the info overlay
-                self.info_overlay_canvas_item.data_item = data_item
                 self.info_overlay_canvas_item.buffered_data_source = buffered_data_source
                 self.info_overlay_canvas_item.display = display
                 self.info_overlay_canvas_item.update()

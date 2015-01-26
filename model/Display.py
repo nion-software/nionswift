@@ -229,12 +229,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             slice_interval_end = slice_interval_start + self.slice_width
             return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
         return None
+
     def __set_slice_interval(self, slice_interval):
         depth = self.__data_and_calibration.dimensional_shape[0]
         slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
         slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
         self.slice_center = slice_interval_center
         self.slice_width = slice_interval_width
+
     slice_interval = property(__get_slice_interval, __set_slice_interval)
 
     def __slice_interval_changed(self, name, value):
@@ -251,11 +253,13 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def __get_lookup_table(self):
         return self.__lookup
+
     def __set_lookup_table(self, lookup):
         self.__lookup = lookup
         self.__preview_data = None
         self.__preview = None
         self.notify_listeners("display_changed", self)
+
     lookup_table = property(__get_lookup_table, __set_lookup_table)
 
     @property
@@ -281,8 +285,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                 return data_range
         else:
             return self.display_limits if self.display_limits else data_range
+
     def __set_display_range(self, display_range):
         self.display_limits = display_range
+
     # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
     display_range = property(__get_display_range, __set_display_range)
 
@@ -359,12 +365,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
         self.extend_items("graphics", graphics)
-
-    # drawn graphics and the regular graphic items, plus those derived from the operation classes
-    def __get_drawn_graphics(self):
-        """ List of drawn graphics """
-        return self.__drawn_graphics
-    drawn_graphics = property(__get_drawn_graphics)
 
     def remove_drawn_graphic(self, drawn_graphic):
         """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
