@@ -1314,7 +1314,9 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].rating, rating)
         self.assertEqual(document_model.data_items[0].title, title)
         self.assertEqual(document_model.data_items[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
+        self.assertEqual(document_model.data_items[0].modified, document_model.data_items[0].created)
         self.assertEqual(document_model.data_items[0].data_sources[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
+        self.assertEqual(document_model.data_items[0].data_sources[0].modified, document_model.data_items[0].data_sources[0].created)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)

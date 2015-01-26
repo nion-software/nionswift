@@ -477,7 +477,9 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     if not local_datetime:
                         local_datetime = datetime.datetime.utcnow()
                     data_source_dict["created"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
+                    data_source_dict["modified"] = data_source_dict["created"]
                     properties["created"] = data_source_dict["created"]
+                    properties["modified"] = properties["created"]
                     time_zone_dict = description_metadata.setdefault("time_zone", dict())
                     time_zone_dict["dst"] = dst_value
                     time_zone_dict["tz"] = tz_value
@@ -489,7 +491,6 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     version = 8
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (metadata to data source)", reference, version)
-
 
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py
