@@ -92,34 +92,41 @@ class FilePersistentStorage(object):
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
             return object.get_accessor_in_parent()(parent_storage_dict)
 
+    def __update_modified_and_get_storage_dict(self, object):
+        storage_dict = self.__get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict["modified"] = object.modified.isoformat()
+        managed_parent = object.managed_parent
+        parent = managed_parent.parent if managed_parent else None
+        if parent:
+            self.__update_modified_and_get_storage_dict(parent)
+        return storage_dict
+
     def update_properties(self):
         if self.__filepath:
             with open(self.__filepath, "w") as fp:
                 properties = json.dump(self.__properties, fp)
 
-    def insert_item(self, parent, name, before_index, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def insert_item(self, parent, name, before_index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             item_list = storage_dict.setdefault(name, list())
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.managed_object_context = parent.managed_object_context
         self.update_properties()
 
-    def remove_item(self, parent, name, index, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def remove_item(self, parent, name, index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
         item.managed_object_context = None
 
-    def set_item(self, parent, name, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def set_item(self, parent, name, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
@@ -129,10 +136,9 @@ class FilePersistentStorage(object):
                     del storage_dict[name]
         self.update_properties()
 
-    def set_value(self, object, name, value, modified):
-        storage_dict = self.__get_storage_dict(object)
+    def set_value(self, object, name, value):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             storage_dict[name] = value
         self.update_properties()
 
@@ -178,6 +184,16 @@ class DataItemPersistentStorage(object):
             parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
             return object.get_accessor_in_parent()(parent_storage_dict)
 
+    def __update_modified_and_get_storage_dict(self, object):
+        storage_dict = self.__get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict["modified"] = object.modified.isoformat()
+        managed_parent = object.managed_parent
+        parent = managed_parent.parent if managed_parent else None
+        if parent:
+            self.__update_modified_and_get_storage_dict(parent)
+        return storage_dict
+
     def update_properties(self):
         if not self.write_delayed:
             self.__ensure_reference_valid(self.data_item)
@@ -185,29 +201,26 @@ class DataItemPersistentStorage(object):
             with self.__data_reference_handler_lock:
                 self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
 
-    def insert_item(self, parent, name, before_index, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def insert_item(self, parent, name, before_index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             item_list = storage_dict.setdefault(name, list())
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.managed_object_context = parent.managed_object_context
         self.update_properties()
 
-    def remove_item(self, parent, name, index, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def remove_item(self, parent, name, index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
         item.managed_object_context = None
 
-    def set_item(self, parent, name, item, modified):
-        storage_dict = self.__get_storage_dict(parent)
+    def set_item(self, parent, name, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
@@ -256,10 +269,9 @@ class DataItemPersistentStorage(object):
         with self.__data_reference_handler_lock:
             return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
 
-    def set_value(self, object, name, value, modified):
-        storage_dict = self.__get_storage_dict(object)
+    def set_value(self, object, name, value):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.properties_lock:
-            storage_dict["modified"] = modified.isoformat()
             storage_dict[name] = value
         self.update_properties()
 
@@ -505,8 +517,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
         self.set_persistent_storage_for_object(data_item, persistent_storage)
         # write the uuid and version explicitly
-        self.property_changed(data_item, "uuid", str(data_item.uuid), data_item.modified)
-        self.property_changed(data_item, "version", data_item.writer_version, data_item.modified)
+        self.property_changed(data_item, "uuid", str(data_item.uuid))
+        self.property_changed(data_item, "version", data_item.writer_version)
         if data_item.maybe_data_source:
             self.rewrite_data_item_data(data_item.maybe_data_source)
 
@@ -560,8 +572,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.session_id = None
         self.start_new_session()
         self.__read()
-        self.__library_storage.set_value(self, "uuid", str(self.uuid), self.modified)
-        self.__library_storage.set_value(self, "version", 0, self.modified)
+        self.__library_storage.set_value(self, "uuid", str(self.uuid))
+        self.__library_storage.set_value(self, "version", 0)
 
     def __read(self):
         # first read the items

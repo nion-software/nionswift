@@ -1314,8 +1314,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(inserted_operation_item, [invert_operation])
         self.assertEqual(inserted_before_index, [0])
 
-    def test_modifying_data_item_modification_works(self):
-        # disabled until support for modified is implemented
+    def test_modifying_data_item_modified_property_works(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
         document_model.append_data_item(data_item)
@@ -1323,8 +1322,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item._set_modified(modified)
         self.assertEqual(data_item.modified, modified)
 
-    def test_modifying_data_item_metadata_updates_modification(self):
-        # disabled until support for modified is implemented
+    def test_modifying_data_item_metadata_updates_modified(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
         document_model.append_data_item(data_item)
@@ -1333,14 +1331,22 @@ class TestDataItemClass(unittest.TestCase):
         data_item.set_metadata(data_item.metadata)
         self.assertGreater(data_item.modified, modified)
 
-    def test_adding_data_source_updated_modification(self):
-        # disabled until support for modified is implemented
+    def test_adding_data_source_updated_modified(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
         document_model.append_data_item(data_item)
         data_item._set_modified(datetime.datetime(2000, 1, 1))
         modified = data_item.modified
         data_item.append_data_source(DataItem.BufferedDataSource())
+        self.assertGreater(data_item.modified, modified)
+
+    def test_changing_property_on_display_updates_modified(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item._set_modified(datetime.datetime(2000, 1, 1))
+        modified = data_item.modified
+        data_item.data_sources[0].displays[0].display_calibrated_values = False
         self.assertGreater(data_item.modified, modified)
 
     # modify property/item/relationship on data source, display, region, etc.
