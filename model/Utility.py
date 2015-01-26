@@ -1,9 +1,10 @@
 # standard libraries
 import datetime
+import logging
 import time
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 # None
@@ -53,3 +54,104 @@ class Singleton(type):
         if cls.instance is None:
             cls.instance = super(Singleton, cls).__call__(*args, **kw)
         return cls.instance
+
+
+def clean_dict(d0, clean_item_fn=None):
+    """
+        Return a json-clean dict. Will log info message for failures.
+    """
+    clean_item_fn = clean_item_fn if clean_item_fn else clean_item
+    d = dict()
+    for key in d0:
+        cleaned_item = clean_item_fn(d0[key])
+        if cleaned_item is not None:
+            d[key] = cleaned_item
+    return d
+
+
+def clean_list(l0, clean_item_fn=None):
+    """
+        Return a json-clean list. Will log info message for failures.
+    """
+    clean_item_fn = clean_item_fn if clean_item_fn else clean_item
+    l = list()
+    for index, item in enumerate(l0):
+        cleaned_item = clean_item_fn(item)
+        if cleaned_item is None:
+            logging.info("  in list at original index %s", index)
+        else:
+            l.append(cleaned_item)
+    return l
+
+
+def clean_tuple(t0, clean_item_fn=None):
+    """
+        Return a json-clean tuple. Will log info message for failures.
+    """
+    clean_item_fn = clean_item_fn if clean_item_fn else clean_item
+    l = list()
+    for index, item in enumerate(t0):
+        cleaned_item = clean_item_fn(item)
+        if cleaned_item is None:
+            logging.info("  in tuple at original index %s", index)
+        else:
+            l.append(cleaned_item)
+    return tuple(l)
+
+
+def clean_item(i):
+    """
+        Return a json-clean item or None. Will log info message for failure.
+    """
+    itype = type(i)
+    if itype == dict:
+        return clean_dict(i)
+    elif itype == list:
+        return clean_list(i)
+    elif itype == tuple:
+        return clean_tuple(i)
+    elif itype == numpy.float32:
+        return float(i)
+    elif itype == numpy.float64:
+        return float(i)
+    elif itype == float:
+        return i
+    elif itype == str or itype == unicode:
+        return i
+    elif itype == int or itype == long:
+        return i
+    elif itype == bool:
+        return i
+    elif itype == type(None):
+        return i
+    logging.info("Unable to handle type %s", itype)
+    return None
+
+
+def clean_item_no_list(i):
+    """
+        Return a json-clean item or None. Will log info message for failure.
+    """
+    itype = type(i)
+    if itype == dict:
+        return clean_dict(i, clean_item_no_list)
+    elif itype == list:
+        return clean_tuple(i, clean_item_no_list)
+    elif itype == tuple:
+        return clean_tuple(i, clean_item_no_list)
+    elif itype == numpy.float32:
+        return float(i)
+    elif itype == numpy.float64:
+        return float(i)
+    elif itype == float:
+        return i
+    elif itype == str or itype == unicode:
+        return i
+    elif itype == int or itype == long:
+        return i
+    elif itype == bool:
+        return i
+    elif itype == type(None):
+        return i
+    logging.info("Unable to handle type %s", itype)
+    return None

@@ -199,7 +199,7 @@ class RectangleTypeGraphic(Graphic):
             value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
         if value[1][1] < 0:  # width is negative
             value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
-        return copy.deepcopy(value)
+        return tuple(copy.deepcopy(value))
     def __bounds_changed(self, name, value):
         self._property_changed(name, value)
         self._property_changed("center", self.center)
@@ -362,9 +362,9 @@ class LineTypeGraphic(Graphic):
             properties["start"] = value[0]
             properties["end"] = value[1]
         # vector is stored in image normalized coordinates
-        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector)
-        self.define_property("start_arrow_enabled", False, changed=self._property_changed)
-        self.define_property("end_arrow_enabled", False, changed=self._property_changed)
+        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda value: (tuple(value[0]), tuple(value[1])))
+        self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
+        self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
     # accessors
     def __get_start(self):
         return self.vector[0]
@@ -498,7 +498,7 @@ class LineGraphic(LineTypeGraphic):
 class LineProfileGraphic(LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
-        self.define_property("width", 1.0, changed=self._property_changed)
+        self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
     # accessors
     def draw(self, ctx, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -542,7 +542,7 @@ class PointTypeGraphic(Graphic):
         super(PointTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property("position", (0.5, 0.5), changed=self._property_changed)
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
     # test is required for Graphic interface
     def test(self, mapping, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -619,7 +619,7 @@ class IntervalGraphic(Graphic):
             properties["start"] = value[0]
             properties["end"] = value[1]
         # interval is stored in image normalized coordinates
-        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval)
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda value: tuple(value))
     # accessors
     def __get_start(self):
         return self.interval[0]

@@ -23,6 +23,7 @@ import scipy.signal
 from nion.swift.model import Calibration
 from nion.swift.model import Image
 from nion.swift.model import Region
+from nion.swift.model import Utility
 from nion.ui import Binding
 from nion.ui import Geometry
 from nion.ui import Observable
@@ -345,7 +346,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         self.define_type("operation")
 
         self.define_property("operation_id", operation_id, read_only=True)
-        self.define_property("values", dict(), changed=self.__property_changed)
+        self.define_property("values", dict(), changed=self.__property_changed, validate=self.__validate_values)
         self.define_property("region_connections", dict(), converter=UuidMapToStringConverter())
         self.define_relationship("data_sources", data_source_list_factory, insert=self.__data_source_inserted, remove=self.__data_source_removed)
 
@@ -414,6 +415,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def get_data_source_publisher(self):
         return self.__data_source_publisher
+
+    def __validate_values(self, values):
+        return Utility.clean_item_no_list(values)
 
     # add a reference to the given data source
     def add_data_source(self, data_source):
@@ -507,10 +511,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         if self.operation:
             for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 self.__bindings.append(OperationPropertyToRegionBinding(self, operation_property, region, region_property))
-                old_value = self.get_property(operation_property)
-                new_value = getattr(region, region_property)
-                if new_value != old_value:
-                    self.set_property(operation_property, new_value)
+                self.set_property(operation_property, getattr(region, region_property))
             assert region.type == self.operation.region_types[region_connection_id]
             region.add_listener(self)
             # save this to remove region if this object gets removed.
@@ -574,9 +575,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     # set a property.
     def set_property(self, property_id, value):
-        values = self.values
-        values[property_id] = value
-        self.values = values
+        old_value = self.get_property(property_id)
+        if isinstance(old_value, list) or isinstance(old_value, tuple) or isinstance(value, list) or isinstance(value, tuple):
+            old_value = Utility.clean_item_no_list(old_value)
+            value = Utility.clean_item_no_list(value)
+        if value != old_value:
+            values = self.values
+            values[property_id] = value
+            self.values = values
 
     def get_realized_values(self, data_sources):
         values = copy.deepcopy(self.values)

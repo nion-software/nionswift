@@ -1,11 +1,8 @@
 # standard libraries
-import copy
 import cStringIO
 import datetime
 import json
-import logging
 import os
-import re
 import string
 import zipfile
 
@@ -18,75 +15,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Utility
-
-
-def clean_dict(d0):
-    """
-        Return a json-clean dict. Will log info message for failures.
-    """
-    d = dict()
-    for key in d0:
-        cleaned_item = clean_item(d0[key])
-        if cleaned_item is not None:
-            d[key] = cleaned_item
-    return d
-
-
-def clean_list(l0):
-    """
-        Return a json-clean list. Will log info message for failures.
-    """
-    l = list()
-    for index, item in enumerate(l0):
-        cleaned_item = clean_item(item)
-        if cleaned_item is None:
-            logging.info("  in list at original index %s", index)
-        else:
-            l.append(cleaned_item)
-    return l
-
-
-def clean_tuple(t0):
-    """
-        Return a json-clean tuple. Will log info message for failures.
-    """
-    t = []
-    for index, item in enumerate(t0):
-        cleaned_item = clean_item(item)
-        if cleaned_item is None:
-            logging.info("  in tuple at original index %s", index)
-        else:
-            t.append(cleaned_item)
-    return tuple(t)
-
-
-def clean_item(i):
-    """
-        Return a json-clean item or None. Will log info message for failure.
-    """
-    itype = type(i)
-    if itype == dict:
-        return clean_dict(i)
-    elif itype == list:
-        return clean_list(i)
-    elif itype == tuple:
-        return clean_tuple(i)
-    elif itype == numpy.float32:
-        return float(i)
-    elif itype == numpy.float64:
-        return float(i)
-    elif itype == float:
-        return i
-    elif itype == str or itype == unicode:
-        return i
-    elif itype == int or itype == long:
-        return i
-    elif itype == bool:
-        return i
-    elif itype == type(None):
-        return i
-    logging.info("Unable to handle type %s", itype)
-    return None
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -278,7 +206,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             if buffered_data_source:
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata.update(clean_dict(data_element.get("properties")))
+                hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
                 buffered_data_source.set_metadata(metadata)
         # title
         if "title" in data_element:

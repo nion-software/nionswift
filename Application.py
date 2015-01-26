@@ -33,7 +33,6 @@ from nion.swift import SessionPanel
 from nion.swift import NDataHandler
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
@@ -530,7 +529,7 @@ class Application(object):
             for parent_uuid in parent_uuids:
                 properties = all_properties[parent_uuid]
                 existing_reference = existing_references[parent_uuid]
-                properties = ImportExportManager.clean_dict(properties)
+                properties = Utility.clean_dict(properties)
                 if existing_reference:
                     data_file_path = existing_reference
                 else:

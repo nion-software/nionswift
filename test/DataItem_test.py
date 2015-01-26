@@ -1374,6 +1374,29 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].modified, modified)
         self.assertEqual(document_model.data_items[1].modified, modified)
 
+    def test_data_item_with_operation_with_malformed_values_does_not_changed_when_values_are_updated_with_same_value(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        data_item_cropped = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+        crop_operation.add_data_source(data_item._create_test_data_source())
+        data_item_cropped.set_operation(crop_operation)
+        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
+        document_model.append_data_item(data_item_cropped)
+        data_item_cropped.recompute_data()
+        data_item._set_modified(modified)
+        data_item_cropped._set_modified(modified)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+        crop_operation.set_property("bounds", [[0.25, 0.25], [0.5, 0.5]])
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
