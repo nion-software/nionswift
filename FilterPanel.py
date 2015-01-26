@@ -66,8 +66,8 @@ class FilterController(object):
             """
             def perform_insertion():
                 with self.__data_item_tree_mutex:
-                    data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                    indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                    modified_local = data_item.modified_local
+                    indexes = modified_local.year, modified_local.month, modified_local.day
                     self.__data_item_tree.insert_value(indexes, data_item)
             self.document_controller.queue_task(perform_insertion)
 
@@ -81,8 +81,8 @@ class FilterController(object):
             """
             def perform_removal():
                 with self.__data_item_tree_mutex:
-                    data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-                    indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+                    modified = data_item.modified_local
+                    indexes = modified.year, modified.month, modified.day
                     self.__data_item_tree.remove_value(indexes, data_item)
             self.document_controller.queue_task(perform_removal)
 
@@ -204,8 +204,8 @@ class FilterController(object):
 
         def date_filter(data_item):
             """ A bound function to filter data items based on the key_list bound variable. """
-            data_item_datetime = Utility.get_datetime_from_datetime_item(data_item.datetime_original)
-            indexes = data_item_datetime.year, data_item_datetime.month, data_item_datetime.day
+            modified_local = data_item.modified_local
+            indexes = modified_local.year, modified_local.month, modified_local.day
 
             def matches(match_keys):
                 """ Whether match_keys match indexes, in order. """

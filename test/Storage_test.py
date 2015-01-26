@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import datetime
 import logging
 import os
 import shutil
@@ -472,7 +473,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.end_data_item_transaction(data_item2)
 
     def test_data_item_should_store_modifications_within_transactions(self):
-        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -481,14 +482,13 @@ class TestStorageClass(unittest.TestCase):
         data_item.append_data_source(DataItem.BufferedDataSource())
         document_model.append_data_item(data_item)
         with document_model.data_item_transaction(data_item):
-            data_item.datetime_original = reference_date
+            data_item.modified = modified
         # make sure it reloads
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
-        self.assertEqual(document_model.data_items[0].datetime_original, reference_date)
+        self.assertEqual(document_model.data_items[0].modified, modified)
 
     def test_data_writes_to_and_reloads_from_file(self):
-        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
@@ -499,7 +499,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
-            data_item.datetime_original = reference_date
+            data_item.modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -589,7 +589,7 @@ class TestStorageClass(unittest.TestCase):
             shutil.rmtree(workspace_dir)
 
     def test_data_removes_file_after_original_date_and_session_change(self):
-        reference_date = {'dst': '+00', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
@@ -600,7 +600,7 @@ class TestStorageClass(unittest.TestCase):
             document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
-            data_item.datetime_original = reference_date
+            data_item.modified = modified
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
@@ -611,7 +611,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(os.path.exists(data_file_path))
             self.assertTrue(os.path.isfile(data_file_path))
             # change the original date
-            data_item.datetime_original = Utility.get_current_datetime_item()
+            data_item.modified = datetime.datetime.utcnow()
             data_item.session_id = "20000531-000000"
             document_model.remove_data_item(data_item)
             # make sure it get removed from disk
@@ -1236,6 +1236,8 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["flag"] = flag
         data_item_dict["rating"] = rating
         data_item_dict["title"] = title
+        reference_date = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
+        data_item_dict["datetime_original"] = reference_date
         data_source_dict = dict()
         data_source_dict["uuid"] = str(uuid.uuid4())
         data_source_dict["type"] = "buffered-data-source"
@@ -1257,6 +1259,8 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].flag, flag)
         self.assertEqual(document_model.data_items[0].rating, rating)
         self.assertEqual(document_model.data_items[0].title, title)
+        self.assertEqual(document_model.data_items[0].modified, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
+        self.assertEqual(document_model.data_items[0].data_sources[0].modified, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
 
 
 if __name__ == '__main__':

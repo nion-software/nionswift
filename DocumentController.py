@@ -566,7 +566,7 @@ class DocumentController(Observable.Broadcaster):
                 for index, data_item in enumerate(selected_data_items):
                     try:
                         pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape])
-                        date_str = Utility.get_datetime_from_datetime_item(data_item.datetime_original).isoformat().replace(':', '')
+                        date_str = data_item.modified_local.isoformat().replace(':', '')
                         path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
                         ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
                     except Exception as e:

@@ -152,8 +152,8 @@ class TestDataItemClass(unittest.TestCase):
         display_specifier.display.display_limits = (150, 200)
         self.assertNotEqual(display_specifier.display.display_limits, display_specifier2.display.display_limits)
         # make sure dates are independent
-        self.assertIsNot(data_item.datetime_modified, data_item_copy.datetime_modified)
-        self.assertIsNot(data_item.datetime_original, data_item_copy.datetime_original)
+        self.assertIsNot(data_item.modified, data_item_copy.modified)
+        self.assertIsNot(display_specifier.buffered_data_source.modified, display_specifier2.buffered_data_source.modified)
         # make sure calibrations, operations, nor graphics are not shared
         self.assertNotEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], display_specifier2.buffered_data_source.dimensional_calibrations[0])
         self.assertNotEqual(data_item.operation, data_item_copy.operation)

@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import functools
 import gettext
 import logging
@@ -35,11 +36,12 @@ RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "
 class DataAndCalibration(object):
     """Represent the ability to calculate data and provide immediate calibrations."""
 
-    def __init__(self, data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata):
+    def __init__(self, data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, modified):
         self.data_fn = data_fn
         self.data_shape_and_dtype = data_shape_and_dtype
         self.intensity_calibration = intensity_calibration
         self.dimensional_calibrations = dimensional_calibrations
+        self.modified = modified
         self.metadata = copy.deepcopy(metadata)
 
     @property
@@ -639,8 +641,9 @@ class Operation(object):
         intensity_calibration = self.get_processed_intensity_calibration(data_and_calibrations, values)
         dimensional_calibrations = self.get_processed_dimensional_calibrations(data_and_calibrations, values)
         metadata = self.get_processed_metadata(data_and_calibrations, values)
+        modified = self.get_processed_datetime(data_and_calibrations, values)
         data_and_calibration = DataAndCalibration(get_data, data_shape_and_dtype, intensity_calibration,
-                                                  dimensional_calibrations, metadata)
+                                                  dimensional_calibrations, metadata, modified)
 
         return data_and_calibration
 
@@ -685,6 +688,9 @@ class Operation(object):
         if len(data_sources) > 0:
             return data_sources[0].metadata
         return None
+
+    def get_processed_datetime(self, data_sources, values):
+        return datetime.datetime.utcnow()
 
 
 class FFTOperation(Operation):

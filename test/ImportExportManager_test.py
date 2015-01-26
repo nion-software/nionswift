@@ -10,6 +10,7 @@ import numpy
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 
 
 class TestImportExportManagerClass(unittest.TestCase):
@@ -24,17 +25,16 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element = dict()
         data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element["datetime_modified"] = Utility.get_current_datetime_item()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertIsNotNone(data_item.datetime_original)
-        self.assertIsNotNone(data_item.datetime_modified)
-        self.assertEqual(len(data_item.datetime_original["local_datetime"]), 26)
-        self.assertEqual(len(data_item.datetime_original["tz"]), 5)
-        self.assertEqual(len(data_item.datetime_original["dst"]), 3)
+        self.assertIsNotNone(data_item.modified)
+        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["tz"]), 5)
+        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
 
     def test_date_formats(self):
         data_item = DataItem.DataItem()
-        data_item.datetime_original = {"local_datetime": datetime.datetime(2013, 11, 18, 14, 5, 4, 0).isoformat(), "tz": "+0000", "dst": "+00"}
-        data_item.datetime_original_as_string
+        data_item.modified = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)
+        data_item.modified_local_as_string
 
     def test_sub_area_size_change(self):
         data_element = dict()

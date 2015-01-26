@@ -290,26 +290,21 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-        def parse_datetime_keys(key, default=None):
-            if key in data_element:
-                datetime_element = data_element[key]
-                datetime_item = dict()
-                datetime_item["local_datetime"] = Utility.get_datetime_from_datetime_item(datetime_element).isoformat()
-                if "tz" in datetime_element:
-                    tz_match = re.compile("([-+])(\d{4})").match(datetime_element["tz"])
-                    if tz_match:
-                        datetime_item["tz"] = tz_match.group(0)
-                if "dst" in datetime_element:
-                    dst_match = re.compile("([-+])(\d{2})").match(datetime_element["dst"])
-                    if dst_match:
-                        datetime_item["dst"] = dst_match.group(0)
-                if "tzname" in datetime_element:
-                    datetime_item["tzname"] = datetime_element["tzname"]
-                return datetime_item
-            return default
-        current_datetime_item = Utility.get_current_datetime_item()  # get this once to be consistent
-        data_item.datetime_modified = parse_datetime_keys("datetime_modified", current_datetime_item)
-        data_item.datetime_original = parse_datetime_keys("datetime_original", data_item.datetime_modified)
+        if "datetime_modified" in data_element:
+            dst_value = data_element["datetime_modified"].get("dst", "+00")
+            tz_value = data_element["datetime_modified"].get("tz", "+0000")
+            time_zone = { "dst": dst_value, "tz": tz_value}
+            dst_adjust = int(dst_value)
+            tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
+            local_datetime = Utility.get_datetime_from_datetime_item(data_element["datetime_modified"])
+            utc_datetime = local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)
+            data_item.modified = utc_datetime
+            buffered_data_source = data_item.maybe_data_source
+            if buffered_data_source:
+                buffered_data_source.modified = utc_datetime
+            metadata = data_item.metadata
+            metadata.setdefault("description", dict())["time_zone"] = time_zone
+            data_item.set_metadata(metadata)
         # author
         # sample
         # facility
@@ -352,8 +347,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
         data_element["properties"] = dict(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
-        data_element["datetime_modified"] = copy.deepcopy(data_item.datetime_modified)
-        data_element["datetime_original"] = copy.deepcopy(data_item.datetime_original)
+        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.modified)
+        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.modified)
         data_element["uuid"] = str(data_item.uuid)
         # operation
         # graphics
