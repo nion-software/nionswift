@@ -153,7 +153,7 @@ class DataItemPersistentStorage(object):
     def __init__(self, data_reference_handler=None, data_item=None, properties=None, reference_type=None, reference=None):
         self.__data_reference_handler = data_reference_handler
         self.__data_reference_handler_lock = threading.RLock()
-        self.__properties = copy.deepcopy(properties) if properties else dict()
+        self.__properties = ImportExportManager.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         # reference type and reference indicate how to save/load data and properties
@@ -502,7 +502,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     data_item.managed_object_context = self
                     data_items.append(data_item)
             except Exception as e:
-                logging.info("Error reading %s (uuid=%s)", reference, data_item_uuid)
+                logging.debug("Error reading %s (uuid=%s)", reference, data_item_uuid)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()

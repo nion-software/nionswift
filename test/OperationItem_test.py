@@ -535,7 +535,7 @@ class TestOperationClass(unittest.TestCase):
 
     class Dummy2Operation(Operation.Operation):
         def __init__(self):
-            description = [ { "name": "A", "property": "a", "type": "point", "default": 0.0 }, { "name": "B", "property": "b", "type": "point", "default": 1.0 } ]
+            description = [ { "name": "A", "property": "a", "type": "point", "default": (0.0, 0.0) }, { "name": "B", "property": "b", "type": "point", "default": (1.0, 1.0) } ]
             super(TestOperationClass.Dummy2Operation, self).__init__("Dummy", "dummy-operation", description)
             self.region_types = {"a": "point-region", "b": "point-region"}
             self.region_bindings = {"a": [Operation.RegionBinding("a", "position")], "b": [Operation.RegionBinding("b", "position")]}

@@ -44,7 +44,7 @@ class PointRegion(Region):
 
     def __init__(self):
         super(PointRegion, self).__init__("point-region")
-        self.define_property("position", (0.5, 0.5), changed=self._property_changed)
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda s: tuple(s))
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
@@ -70,8 +70,8 @@ class LineRegion(Region):
             properties["start"] = value[0]
             properties["end"] = value[1]
         # vector is stored in image normalized coordinates
-        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector)
-        self.define_property("width", 1.0, changed=self._property_changed)
+        self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda s: (tuple(s[0]), tuple(s[1])))
+        self.define_property("width", 1.0, changed=self._property_changed, validate=lambda s: float(s))
         self.__graphic = Graphics.LineProfileGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
@@ -106,8 +106,8 @@ class RectRegion(Region):
 
     def __init__(self):
         super(RectRegion, self).__init__("rectangle-region")
-        self.define_property("center", (0.0, 0.0), changed=self._property_changed)
-        self.define_property("size", (1.0, 1.0), changed=self._property_changed)
+        self.define_property("center", (0.0, 0.0), changed=self._property_changed, validate=lambda s: tuple(s))
+        self.define_property("size", (1.0, 1.0), changed=self._property_changed, validate=lambda s: tuple(s))
         # TODO: add rotation property to rect region
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.set_region(self)
@@ -139,9 +139,9 @@ class EllipseRegion(Region):
 
     def __init__(self):
         super(EllipseRegion, self).__init__("ellipse-region")
-        self.define_property("center", (0.0, 0.0), changed=self._property_changed)
-        self.define_property("size", (1.0, 1.0), changed=self._property_changed)
-        self.define_property("angle", 0.0, changed=self._property_changed)
+        self.define_property("center", (0.0, 0.0), changed=self._property_changed, validate=lambda s: tuple(s))
+        self.define_property("size", (1.0, 1.0), changed=self._property_changed, validate=lambda s: tuple(s))
+        self.define_property("angle", 0.0, changed=self._property_changed, validate=lambda s: float(s))
         self.__graphic = Graphics.EllipseGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
@@ -181,7 +181,7 @@ class IntervalRegion(Region):
             # write the interval (value) defined by managed_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
-        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval)
+        self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda s: tuple(s))
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"

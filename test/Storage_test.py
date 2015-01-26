@@ -1316,6 +1316,33 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
         self.assertEqual(document_model.data_items[0].data_sources[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
 
+    def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        data_item_cropped = DataItem.DataItem()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_operation.add_data_source(data_item._create_test_data_source())
+        data_item_cropped.set_operation(crop_operation)
+        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
+        document_model.append_data_item(data_item_cropped)
+        data_item_cropped.recompute_data()
+        data_item._set_modified(modified)
+        data_item_cropped._set_modified(modified)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+        document_model.close()
+        # make sure it reloads without changing modification
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+        document_model.recompute_all()  # try recomputing too
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        self.assertEqual(document_model.data_items[1].modified, modified)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

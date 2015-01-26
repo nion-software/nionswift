@@ -507,7 +507,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         if self.operation:
             for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 self.__bindings.append(OperationPropertyToRegionBinding(self, operation_property, region, region_property))
-                self.set_property(operation_property, getattr(region, region_property))
+                old_value = self.get_property(operation_property)
+                new_value = getattr(region, region_property)
+                if new_value != old_value:
+                    self.set_property(operation_property, new_value)
             assert region.type == self.operation.region_types[region_connection_id]
             region.add_listener(self)
             # save this to remove region if this object gets removed.

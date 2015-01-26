@@ -27,9 +27,7 @@ def clean_dict(d0):
     d = dict()
     for key in d0:
         cleaned_item = clean_item(d0[key])
-        if cleaned_item is None:
-            logging.info("  in dict for key %s", key)
-        else:
+        if cleaned_item is not None:
             d[key] = cleaned_item
     return d
 
@@ -84,6 +82,8 @@ def clean_item(i):
     elif itype == int or itype == long:
         return i
     elif itype == bool:
+        return i
+    elif itype == type(None):
         return i
     logging.info("Unable to handle type %s", itype)
     return None
