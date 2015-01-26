@@ -513,6 +513,19 @@ class TestStorageClass(unittest.TestCase):
         document_model.end_data_item_transaction(data_item3)
         document_model.end_data_item_transaction(data_item2)
 
+    def disabled_test_data_item_modification_should_not_change_when_reading(self):
+        # disabled until support for modified is implemented
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
+        document_model.append_data_item(data_item)
+        data_item.modified = modified
+        # make sure it reloads
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+
     def test_data_item_should_store_modifications_within_transactions(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"

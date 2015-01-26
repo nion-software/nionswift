@@ -1,5 +1,6 @@
 # standard libraries
 import copy
+import datetime
 import gc
 import logging
 import math
@@ -1313,6 +1314,37 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(inserted_operation_item, [invert_operation])
         self.assertEqual(inserted_before_index, [0])
 
+    def disabled_test_modifying_data_item_modification_works(self):
+        # disabled until support for modified is implemented
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        modified = datetime.datetime(2000, 1, 1)
+        data_item.modified = modified
+        self.assertEqual(data_item.modified, modified)
+
+    def disabled_test_modifying_data_item_metadata_updates_modification(self):
+        # disabled until support for modified is implemented
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item.modified = datetime.datetime(2000, 1, 1)
+        modified = data_item.modified
+        data_item.set_metadata(data_item.metadata)
+        self.assertGreater(data_item.modified, modified)
+
+    def disabled_test_adding_data_source_updated_modification(self):
+        # disabled until support for modified is implemented
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item.modified = datetime.datetime(2000, 1, 1)
+        modified = data_item.modified
+        data_item.append_data_source(DataItem.BufferedDataSource())
+        self.assertGreater(data_item.modified, modified)
+
+    # modify property/item/relationship on data source, display, region, etc.
+    # copy or snapshot
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

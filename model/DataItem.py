@@ -887,7 +887,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None
         self.define_property("modified", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
-        self.define_property("metadata", dict(), hidden=True)
+        self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
@@ -1172,6 +1172,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
+        # if not self._is_reading and name != "modified":
+        #     self.modified = datetime.datetime.utcnow()
 
     def r_value_changed(self):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
