@@ -362,7 +362,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_calibrated_values = False
 
     def close(self):
-        self.update_display(DataItem.DisplaySpecifier())
         # call super
         super(LinePlotCanvasItem, self).close()
 
@@ -379,9 +378,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         """ Update the display (model) associated with this canvas item. """
         display = display_specifier.display
         # first take care of listeners and update the __display field
-        old_display = self.__display_specifier.display
-        if old_display and display != old_display:
-            old_display.remove_listener(self)
         self.__display_specifier = copy.copy(display_specifier)
         if display:
             self.__data_and_calibration = display.data_and_calibration
@@ -397,47 +393,42 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__left_channel = None
             self.__right_channel = None
             self.__display_calibrated_values = False
-        if display and display != old_display:
-            display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
         if self.__display_specifier.display is None:
             # handle case where display is empty
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
             self.__line_graph_regions_canvas_item.regions = list()
-        else:
-            self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
+            self.__line_graph_regions_canvas_item.update()
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
         self.update()
 
-    def display_graphic_selection_changed(self, display, graphic_selection):
-        # this message will come directly from the display when the graphic selection changes
-        regions = list()
-        display = self.display
-        data_and_calibration = display.data_and_calibration
+    def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
         data_length = data_and_calibration.dimensional_shape[0]
-        spatial_calibration = data_and_calibration.dimensional_calibrations[0] if display.display_calibrated_values else Calibration.Calibration()
-        calibrated_data_left = spatial_calibration.convert_to_calibrated_value(0)
-        calibrated_data_right = spatial_calibration.convert_to_calibrated_value(data_length)
+        dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display_calibrated_values else Calibration.Calibration()
+        calibrated_data_left = dimensional_calibration.convert_to_calibrated_value(0)
+        calibrated_data_right = dimensional_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
         graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
 
         def convert_to_calibrated_value_str(f):
-            return (u"{0:0." + u"{0:d}".format(precision+2) + "f}").format(f)
+            return (u"{0:0." + u"{0:d}".format(precision + 2) + "f}").format(f)
 
-        for graphic_index, graphic in enumerate(self.__display_specifier.display.drawn_graphics):
+        regions = list()
+        for graphic_index, graphic in enumerate(graphics):
             graphic_start, graphic_end = graphic.start, graphic.end
             graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
             left_channel = graphic_start * data_length
             right_channel = graphic_end * data_length
-            left_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_value(left_channel))
-            right_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_value(right_channel))
-            middle_text = convert_to_calibrated_value_str(spatial_calibration.convert_to_calibrated_size(right_channel - left_channel))
+            left_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(left_channel))
+            right_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(right_channel))
+            middle_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_size(right_channel - left_channel))
             RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text"])
             region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
             regions.append(region)
+
         self.__line_graph_regions_canvas_item.regions = regions
         self.__line_graph_regions_canvas_item.update()
 
@@ -858,8 +849,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
     def close(self):
-        self.update_display(DataItem.DisplaySpecifier())
-        self.delegate.clear_task("prepare")
         # call super
         super(ImageCanvasItem, self).close()
 
@@ -881,20 +870,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # doing this will queue an item in the paint thread to repaint.
     def update_display(self, display_specifier):
         # first take care of listeners and update the __display field
-        display = display_specifier.display
-        old_display = self.__display_specifier.display
-        if old_display and display != old_display:
-            old_display.remove_listener(self)
         self.__display_specifier = copy.copy(display_specifier)
-        if display and display != old_display:
-            display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
         if self.__display_specifier.display is None:
             self.__bitmap_canvas_item.rgba_bitmap_data = None
             self.__graphics_canvas_item.display = None
             self.info_overlay_canvas_item.display = None
         else:
-            self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
+            self.__graphics_canvas_item.update()
         # update the cursor info
         self.__update_cursor_info()
         # trigger updates
@@ -902,8 +885,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__graphics_canvas_item.update()
         self.info_overlay_canvas_item.update()
 
-    def display_graphic_selection_changed(self, display, graphic_selection):
-        # this message will come directly from the display when the graphic selection changes
+    def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
         self.__graphics_canvas_item.update()
 
     def update_image_canvas_zoom(self, new_image_zoom):
@@ -1693,7 +1675,7 @@ class ImagePanel(object):
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display_specifier.display:
-            self.__display_specifier.display.add_listener(self)  # for display_changed
+            self.__display_specifier.display.add_listener(self)  # for display_changed and display_graphic_selection_changed
         self.__update_display_canvas(self.__display_specifier)
 
     # this message comes from the document model.
@@ -1735,6 +1717,14 @@ class ImagePanel(object):
         if display_specifier.display:
             self.__update_display_canvas(display_specifier)
 
+    def display_graphic_selection_changed(self, display, graphic_selection):
+        # this message comes from the display when the graphic selection changes
+        display_calibrated_values = display.display_calibrated_values
+        data_and_calibration = display.data_and_calibration
+        drawn_graphics = display.drawn_graphics
+        if self.display_canvas_item:  # may be closed
+            self.display_canvas_item.update_regions(data_and_calibration, graphic_selection, drawn_graphics, display_calibrated_values)
+
     # update the display canvas, etc.
     # clear any pending display update at the end
     # not thread safe
@@ -1765,6 +1755,7 @@ class ImagePanel(object):
                 self.__content_canvas_item.update()
         if self.display_canvas_item:  # may be closed
             self.display_canvas_item.update_display(display_specifier)
+            self.display_graphic_selection_changed(display_specifier.display, display_specifier.display.graphic_selection)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_image_panel == self
