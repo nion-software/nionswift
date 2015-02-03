@@ -18,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
+from nion.ui import GridCanvasItem
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -532,147 +533,6 @@ class DataPanel(Panel.Panel):
             ctx.restore()
 
 
-    class GridCanvasItem(CanvasItem.AbstractCanvasItem):
-
-        def __init__(self, delegate):
-            super(DataPanel.GridCanvasItem, self).__init__()
-            # store parameters
-            self.__delegate = delegate
-            # configure super
-            self.wants_mouse_events = True
-            self.focusable = True
-            # internal variables
-            self.__mouse_pressed = False
-            self.__mouse_index = None
-            self.__mouse_position = None
-            self.__mouse_dragging = False
-
-        def update_layout(self, canvas_origin, canvas_size):
-            canvas_size = Geometry.IntSize.make(canvas_size)
-            canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(canvas_size.width), width=canvas_size.width)
-            super(DataPanel.GridCanvasItem, self).update_layout(canvas_origin, canvas_size)
-
-        def wheel_changed(self, dx, dy, is_horizontal):
-            dy = dy if not is_horizontal else 0.0
-            new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=0, y=dy)
-            self.update_layout(new_canvas_origin, self.canvas_size)
-            self.update()
-
-        def __calculate_layout_height(self, width):
-            items_per_row = 4
-            item_width = int(width / items_per_row)
-            item_rows = (self.__delegate.item_count + items_per_row - 1) / items_per_row
-            return item_rows * item_width
-
-        def update(self):
-            if self.canvas_origin is not None and self.canvas_size is not None:
-                if self.__calculate_layout_height(self.canvas_size.width) != self.canvas_size.height:
-                    self.refresh_layout()
-            super(DataPanel.GridCanvasItem, self).update()
-
-        def _repaint_visible(self, drawing_context, visible_rect):
-            canvas_bounds = self.canvas_bounds
-
-            items_per_row = 4
-            item_width = int(canvas_bounds.width / items_per_row)
-
-            drawing_context.save()
-            try:
-                max_index = self.__delegate.item_count
-                top_visible_row = visible_rect.top / item_width
-                bottom_visible_row = visible_rect.bottom / item_width
-                for row in xrange(top_visible_row, bottom_visible_row + 1):
-                    for column in xrange(items_per_row):
-                        index = row * items_per_row + column
-                        if index < max_index:
-                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
-                            if rect.intersects_rect(visible_rect):
-                                thumbnail_data = self.__delegate.get_item_thumbnail(index)
-                                is_selected = self.__delegate.is_item_selected(index)
-                                if is_selected:
-                                    drawing_context.save()
-                                    drawing_context.begin_path()
-                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                    drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
-                                    drawing_context.fill()
-                                    drawing_context.restore()
-                                if thumbnail_data is not None:
-                                    draw_rect = rect.inset(6)
-                                    draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                                    drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-            finally:
-                drawing_context.restore()
-
-        def _repaint(self, drawing_context):
-            self._repaint_visible(drawing_context, self.canvas_bounds)
-
-        def context_menu_event(self, x, y, gx, gy):
-            canvas_bounds = self.canvas_bounds
-
-            items_per_row = 4
-            item_width = int(canvas_bounds.width / items_per_row)
-            item_rows = int(canvas_bounds.height / item_width) + 1
-
-            max_index = self.__delegate.item_count
-            mouse_row = int(y / item_width)
-            mouse_column = int(x / item_width)
-            mouse_index = mouse_row * items_per_row + mouse_column
-
-            if mouse_index >= 0 and mouse_index < max_index:
-                if self.__delegate.on_context_menu_event:
-                    self.__delegate.on_context_menu_event(mouse_index, x, y, gx, gy)
-
-        def mouse_pressed(self, x, y, modifiers):
-            canvas_bounds = self.canvas_bounds
-
-            items_per_row = 4
-            item_width = int(canvas_bounds.width / items_per_row)
-            item_rows = int(canvas_bounds.height / item_width) + 1
-
-            max_index = self.__delegate.item_count
-            mouse_row = int(y / item_width)
-            mouse_column = int(x / item_width)
-            mouse_index = mouse_row * items_per_row + mouse_column
-
-            if mouse_index >= 0 and mouse_index < max_index:
-                if modifiers.shift:
-                    self.__delegate.extend_selection(mouse_index)
-                elif modifiers.control:
-                    self.__delegate.toggle_selection(mouse_index)
-                else:
-                    self.__delegate.set_selection(mouse_index)
-                    self.__mouse_pressed = True
-                    self.__mouse_position = Geometry.IntPoint(y=y, x=x)
-                    self.__mouse_index = mouse_index
-                return True
-
-            return super(DataPanel.GridCanvasItem, self).mouse_pressed(x, y, modifiers)
-
-        def mouse_released(self, x, y, modifiers):
-            self.__mouse_pressed = False
-            self.__mouse_index = None
-            self.__mouse_position = None
-            self.__mouse_dragging = False
-            return True
-
-        def mouse_position_changed(self, x, y, modifiers):
-            if self.__mouse_pressed:
-                if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
-                    self.__mouse_dragging = True
-                    if self.__delegate.on_drag_started:
-                        self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
-                        self.mouse_released(x, y, modifiers)  # once a drag starts, mouse release will not be called; call it here instead
-                    return True
-            return super(DataPanel.GridCanvasItem, self).mouse_position_changed(x, y, modifiers)
-
-        def key_pressed(self, key):
-            if key.is_delete:
-                if self.__delegate.on_delete_pressed:
-                    self.__delegate.on_delete_pressed()
-                return True
-            return super(DataPanel.GridCanvasItem, self).key_pressed(key)
-
-
     class DataItemSelection(Observable.Broadcaster):
         def __init__(self):
             super(DataPanel.DataItemSelection, self).__init__()
@@ -817,7 +677,7 @@ class DataPanel(Panel.Panel):
                     data_item = self.__data_grid_controller.data_items[index]
                     self.__data_grid_controller.drag_started(data_item, x, y, modifiers)
 
-            self.icon_view_canvas_item = DataPanel.GridCanvasItem(GridCanvasItemDelegate(self))
+            self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self))
             self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
             self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
             self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
