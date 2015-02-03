@@ -22,7 +22,6 @@ from nion.swift.model import Region
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
-from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -828,10 +827,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
 
-        # thread for drawing
         self.__display_specifier = DataItem.DisplaySpecifier()
-        self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
-        self.__prepare_data_thread.start()
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -843,19 +839,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_in = False
 
     def close(self):
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.close()
-            self.__prepare_data_thread = None
         self.update_display(DataItem.DisplaySpecifier())
         self.delegate.clear_task("prepare")
         # call super
         super(ImageCanvasItem, self).close()
 
     def about_to_close(self):
-        # message received when image panel closes; otherwise thread is shut down when parent canvas item closes
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.close()
-            self.__prepare_data_thread = None
+        pass
 
     def __get_preferred_aspect_ratio(self):
         if self.display:
@@ -882,21 +872,16 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         # next get rid of data associated with canvas items
         if self.__display_specifier.display is None:
             self.__bitmap_canvas_item.rgba_bitmap_data = None
-            self.__bitmap_canvas_item.update()
             self.__graphics_canvas_item.display = None
-            self.__graphics_canvas_item.update()
             self.info_overlay_canvas_item.display = None
-            self.info_overlay_canvas_item.update()
         else:
             self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
         # update the cursor info
         self.__update_cursor_info()
-        # finally, trigger the paint thread (if there still is one) to update
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.trigger()
-
-    def wait_for_prepare_data(self):
-        self.__prepare_data_thread.trigger(wait=True)
+        # trigger updates
+        self.__bitmap_canvas_item.update()
+        self.__graphics_canvas_item.update()
+        self.info_overlay_canvas_item.update()
 
     def display_graphic_selection_changed(self, display, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
@@ -1252,14 +1237,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         else:
             self.delegate.image_panel_cursor_changed(self, None, None, None)
 
+    def _repaint(self, drawing_context):
+        self.prepare_display()
+        super(ImageCanvasItem, self)._repaint(drawing_context)
+
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
-    def prepare_display_on_thread(self):
-
-        display_specifier = self.__display_specifier
-
-        buffered_data_source = display_specifier.buffered_data_source
-        display = display_specifier.display
+    def prepare_display(self):
+        display = self.__display_specifier.display
 
         if display:
             # grab the data item too
@@ -1270,18 +1255,15 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             # TODO: fix me 3d
             assert data_and_calibration.is_data_2d or data_and_calibration.is_data_3d
 
-            def update_ui():
-                # grab the bitmap image
-                rgba_image = display.preview_2d
-                self.__bitmap_canvas_item.rgba_bitmap_data = rgba_image
-                # update the graphics canvas
-                self.__graphics_canvas_item.display = display
-                self.__graphics_canvas_item.update()
-                # update the info overlay
-                self.info_overlay_canvas_item.display = display
-                self.info_overlay_canvas_item.update()
-
-            self.delegate.add_task("prepare", update_ui)
+            # grab the bitmap image
+            rgba_image = display.preview_2d
+            self.__bitmap_canvas_item.set_rgba_bitmap_data(rgba_image, trigger_update=False)
+            # update the graphics canvas
+            self.__graphics_canvas_item.display = display
+            # self.__graphics_canvas_item.update()
+            # update the info overlay
+            self.info_overlay_canvas_item.display = display
+            # self.info_overlay_canvas_item.update()
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
