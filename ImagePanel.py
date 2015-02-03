@@ -210,23 +210,23 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
 
-    def __get_image_canvas_size(self):
+    @property
+    def image_canvas_size(self):
         return self.__image_canvas_size
 
-    def __set_image_canvas_size(self, image_canvas_size):
-        self.__image_canvas_size = image_canvas_size
+    @image_canvas_size.setter
+    def image_canvas_size(self, value):
+        self.__image_canvas_size = value
         self.update()
 
-    image_canvas_size = property(__get_image_canvas_size, __set_image_canvas_size)
-
-    def __get_image_canvas_origin(self):
+    @property
+    def image_canvas_origin(self):
         return self.__image_canvas_origin
 
-    def __set_image_canvas_origin(self, image_canvas_origin):
-        self.__image_canvas_origin = image_canvas_origin
+    @image_canvas_origin.setter
+    def image_canvas_origin(self, value):
+        self.__image_canvas_origin = value
         self.update()
-
-    image_canvas_origin = property(__get_image_canvas_origin, __set_image_canvas_origin)
 
     def _repaint(self, drawing_context):
 
@@ -298,56 +298,54 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         font_size = 12
 
-        self.line_graph_canvas_area_item = CanvasItem.CanvasItemComposition()
+        line_graph_canvas_area_item = CanvasItem.CanvasItemComposition()
         self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        self.line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
-        self.line_graph_canvas_area_item.add_canvas_item(self.line_graph_canvas_item)
-        self.line_graph_canvas_area_item.add_canvas_item(self.line_graph_regions_canvas_item)
+        self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
+        line_graph_canvas_area_item.add_canvas_item(self.line_graph_canvas_item)
+        line_graph_canvas_area_item.add_canvas_item(self.__line_graph_regions_canvas_item)
 
-        self.line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
-        self.line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
-        self.line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
-        self.line_graph_vertical_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
-        self.line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
-        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_label_canvas_item)
-        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_scale_canvas_item)
-        self.line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_ticks_canvas_item)
+        self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
+        self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
+        self.__line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
+        self.__line_graph_vertical_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__line_graph_vertical_axis_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+        self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_label_canvas_item)
+        self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_scale_canvas_item)
+        self.__line_graph_vertical_axis_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_ticks_canvas_item)
 
-        self.line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem()
-        self.line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem()
-        self.line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem()
+        self.__line_graph_horizontal_axis_label_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisLabelCanvasItem()
+        self.__line_graph_horizontal_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisScaleCanvasItem()
+        self.__line_graph_horizontal_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphHorizontalAxisTicksCanvasItem()
         self.line_graph_horizontal_axis_group_canvas_item = CanvasItem.CanvasItemComposition()
         self.line_graph_horizontal_axis_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=4)
-        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_ticks_canvas_item)
-        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_scale_canvas_item)
-        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_label_canvas_item)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_ticks_canvas_item)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_scale_canvas_item)
+        self.line_graph_horizontal_axis_group_canvas_item.add_canvas_item(self.__line_graph_horizontal_axis_label_canvas_item)
 
         # create the grid item holding the line graph and each axes label
-        self.line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
+        line_graph_group_canvas_item = CanvasItem.CanvasItemComposition()
         margins = Geometry.Margins(left=6, right=12, top=font_size + 4, bottom=6)
-        self.line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_canvas_area_item, Geometry.IntPoint(x=1, y=0))
-        self.line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
+        line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
+        line_graph_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
+        line_graph_group_canvas_item.add_canvas_item(line_graph_canvas_area_item, Geometry.IntPoint(x=1, y=0))
+        line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
 
         # draw the background
-        self.line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
-        #self.line_graph_background_canvas_item.sizing.minimum_aspect_ratio = 1.5  # note: no maximum aspect ratio; line plot looks nice wider.
-        self.line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
-        self.line_graph_background_canvas_item.add_canvas_item(self.line_graph_group_canvas_item)
+        line_graph_background_canvas_item = CanvasItem.CanvasItemComposition()
+        #line_graph_background_canvas_item.sizing.minimum_aspect_ratio = 1.5  # note: no maximum aspect ratio; line plot looks nice wider.
+        line_graph_background_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#FFF"))
+        line_graph_background_canvas_item.add_canvas_item(line_graph_group_canvas_item)
 
         # canvas items get added back to front
         # create the child canvas items
         # the background
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
-        self.add_canvas_item(self.line_graph_background_canvas_item)
+        self.add_canvas_item(line_graph_background_canvas_item)
 
         # thread for drawing
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
         self.__prepare_data_thread.start()
-
-        self.preferred_aspect_ratio = 1.618  # the golden ratio
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -379,9 +377,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def __get_display(self):
+    @property
+    def display(self):
         return self.__display_specifier.display
-    display = property(__get_display)
 
     def update_display(self, display_specifier):
         """ Update the display (model) associated with this canvas item. """
@@ -398,7 +396,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             # handle case where display is empty
             data_info = LineGraphCanvasItem.LineGraphDataInfo()
             self.__update_data_info(data_info)
-            self.line_graph_regions_canvas_item.regions = list()
+            self.__line_graph_regions_canvas_item.regions = list()
         else:
             self.display_graphic_selection_changed(self.__display_specifier.display, self.__display_specifier.display.graphic_selection)
         # update the cursor info
@@ -436,8 +434,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text"])
             region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
             regions.append(region)
-        self.line_graph_regions_canvas_item.regions = regions
-        self.line_graph_regions_canvas_item.update()
+        self.__line_graph_regions_canvas_item.regions = regions
+        self.__line_graph_regions_canvas_item.update()
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the line graph canvas items.
@@ -492,23 +490,23 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # this method stores the data_info into each line plot canvas item and updates the canvas item.
         self.line_graph_canvas_item.data_info = data_info
         # self.line_graph_canvas_item.update()  # unused, setting data_info handles this automatically
-        self.line_graph_regions_canvas_item.data_info = data_info
-        self.line_graph_regions_canvas_item.update()
-        self.line_graph_vertical_axis_label_canvas_item.data_info = data_info
-        self.line_graph_vertical_axis_label_canvas_item.size_to_content()
-        self.line_graph_vertical_axis_label_canvas_item.update()
-        self.line_graph_vertical_axis_scale_canvas_item.data_info = data_info
-        self.line_graph_vertical_axis_scale_canvas_item.size_to_content(self.delegate.image_panel_get_font_metrics)
-        self.line_graph_vertical_axis_scale_canvas_item.update()
-        self.line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
-        self.line_graph_vertical_axis_ticks_canvas_item.update()
-        self.line_graph_horizontal_axis_label_canvas_item.data_info = data_info
-        self.line_graph_horizontal_axis_label_canvas_item.size_to_content()
-        self.line_graph_horizontal_axis_label_canvas_item.update()
-        self.line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
-        self.line_graph_horizontal_axis_scale_canvas_item.update()
-        self.line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-        self.line_graph_horizontal_axis_ticks_canvas_item.update()
+        self.__line_graph_regions_canvas_item.data_info = data_info
+        self.__line_graph_regions_canvas_item.update()
+        self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
+        self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
+        self.__line_graph_vertical_axis_label_canvas_item.update()
+        self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
+        self.__line_graph_vertical_axis_scale_canvas_item.size_to_content(self.delegate.image_panel_get_font_metrics)
+        self.__line_graph_vertical_axis_scale_canvas_item.update()
+        self.__line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
+        self.__line_graph_vertical_axis_ticks_canvas_item.update()
+        self.__line_graph_horizontal_axis_label_canvas_item.data_info = data_info
+        self.__line_graph_horizontal_axis_label_canvas_item.size_to_content()
+        self.__line_graph_horizontal_axis_label_canvas_item.update()
+        self.__line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
+        self.__line_graph_horizontal_axis_scale_canvas_item.update()
+        self.__line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
+        self.__line_graph_horizontal_axis_ticks_canvas_item.update()
         self.refresh_layout()
         self.__data_info = data_info
 
@@ -533,7 +531,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                 self.reset_horizontal()
                 return True
-            elif self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_vertical_axis_group_canvas_item)):
+            elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
                 self.reset_vertical()
                 return True
         return False
@@ -561,17 +559,17 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             return False
         self.delegate.document_controller.document_model.begin_data_item_transaction(self.__display_specifier.data_item)
         if self.delegate.image_panel_get_tool_mode() == "pointer":
-            if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
+            if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
                 self.begin_tracking_regions(pos, modifiers)
                 return True
             elif self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                 self.begin_tracking_horizontal(pos, rescale=modifiers.control)
                 return True
-            elif self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_vertical_axis_group_canvas_item)):
+            elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
                 self.begin_tracking_vertical(pos, rescale=modifiers.control)
                 return True
         elif self.delegate.image_panel_get_tool_mode() == "interval":
-            if self.line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_regions_canvas_item)):
+            if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
                 data_size = self.__get_data_size()
                 if data_size and len(data_size) == 1:
                     widget_mapping = self.__get_mouse_mapping()
@@ -638,8 +636,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_mouse_mapping(self):
         data_size = self.__get_data_size()
-        plot_origin = self.line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_rect = self.line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
+        plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         left_channel = self.__data_info.drawn_left_channel
         right_channel = self.__data_info.drawn_right_channel
         return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
@@ -703,8 +701,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_start_drawn_data_per_pixel = self.__data_info.get_drawn_data_per_pixel(plot_height)
         self.__tracking_start_calibrated_data_min = self.__data_info.calibrated_data_min
         self.__tracking_start_calibrated_data_max = self.__data_info.calibrated_data_max
-        plot_origin = self.line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-        plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
+        plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:
             calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1)
             origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
@@ -728,7 +726,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                         widget_mapping = self.__get_mouse_mapping()
                         graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
                         self.graphic_drag_changed = True
-                        self.line_graph_regions_canvas_item.update()
+                        self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if self.__tracking_rescale:
                 plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
@@ -745,8 +743,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         elif self.__tracking_vertical:
             if self.__tracking_rescale:
-                plot_origin = self.line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
-                plot_rect = self.line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
+                plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+                plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
                 origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
                 data_offset = self.__tracking_start_drawn_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
                 pixel_offset = origin_y - pos.y
@@ -833,21 +831,21 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
         # create the child canvas items
         # the background
-        self.background_canvas_item = CanvasItem.BackgroundCanvasItem()
+        background_canvas_item = CanvasItem.BackgroundCanvasItem()
         # next the zoomable items
-        self.bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888")
-        self.graphics_canvas_item = GraphicsCanvasItem()
+        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888")
+        self.__graphics_canvas_item = GraphicsCanvasItem()
         # put the zoomable items into a composition
         self.composite_canvas_item = CanvasItem.CanvasItemComposition()
-        self.composite_canvas_item.add_canvas_item(self.bitmap_canvas_item)
-        self.composite_canvas_item.add_canvas_item(self.graphics_canvas_item)
+        self.composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
+        self.composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.composite_canvas_item)
         self.scroll_area_canvas_item.on_layout_updated = lambda canvas_origin, canvas_size: self.scroll_area_canvas_item_layout_updated(canvas_size)
         # info overlay (scale marker, etc.)
         self.info_overlay_canvas_item = InfoOverlayCanvasItem()
         # canvas items get added back to front
-        self.add_canvas_item(self.background_canvas_item)
+        self.add_canvas_item(background_canvas_item)
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.info_overlay_canvas_item)
 
@@ -904,10 +902,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
         if self.__display_specifier.display is None:
-            self.bitmap_canvas_item.rgba_bitmap_data = None
-            self.bitmap_canvas_item.update()
-            self.graphics_canvas_item.display = None
-            self.graphics_canvas_item.update()
+            self.__bitmap_canvas_item.rgba_bitmap_data = None
+            self.__bitmap_canvas_item.update()
+            self.__graphics_canvas_item.display = None
+            self.__graphics_canvas_item.update()
             self.info_overlay_canvas_item.buffered_data_source = None
             self.info_overlay_canvas_item.display = None
             self.info_overlay_canvas_item.update()
@@ -924,7 +922,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def display_graphic_selection_changed(self, display, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
-        self.graphics_canvas_item.update()
+        self.__graphics_canvas_item.update()
 
     def update_image_canvas_zoom(self, new_image_zoom):
         if self.display:
@@ -1135,7 +1133,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     widget_mapping = self.__get_mouse_mapping()
                     graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
                     self.graphic_drag_changed = True
-                    self.graphics_canvas_item.update()
+                    self.__graphics_canvas_item.update()
         elif self.__is_dragging:
             delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
             self.update_image_canvas_position((-delta[0], -delta[1]))
@@ -1297,10 +1295,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             def update_ui():
                 # grab the bitmap image
                 rgba_image = display.preview_2d
-                self.bitmap_canvas_item.rgba_bitmap_data = rgba_image
+                self.__bitmap_canvas_item.rgba_bitmap_data = rgba_image
                 # update the graphics canvas
-                self.graphics_canvas_item.display = display
-                self.graphics_canvas_item.update()
+                self.__graphics_canvas_item.display = display
+                self.__graphics_canvas_item.update()
                 # update the info overlay
                 self.info_overlay_canvas_item.buffered_data_source = buffered_data_source
                 self.info_overlay_canvas_item.display = display
