@@ -368,12 +368,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def about_to_close(self):
         pass
 
-    # when the display changes, set the data using this property.
-    # doing this will queue an item in the paint thread to repaint.
-    @property
-    def display(self):
-        return self.__display_specifier.display
-
     def update_display(self, display_specifier):
         """ Update the display (model) associated with this canvas item. """
         display = display_specifier.display
@@ -591,7 +585,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if key.is_delete:
             self.delegate.image_panel_delete_key_pressed()
             return True
-        display = self.display
+        display = self.__display_specifier.display
         if display:
             #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
             all_graphics = display.drawn_graphics
@@ -628,7 +622,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def begin_tracking_regions(self, pos, modifiers):
         data_size = self.__get_data_size()
-        display = self.display
+        display = self.__display_specifier.display
         if display and data_size and len(data_size) == 1:
             self.__tracking_selections = True
             drawn_graphics = display.drawn_graphics
@@ -707,7 +701,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if self.graphic_drag_items:
                 with self.__display_specifier.data_item.data_item_changes():
                     for graphic in self.graphic_drag_items:
-                        index = self.display.drawn_graphics.index(graphic)
+                        index = self.__display_specifier.display.drawn_graphics.index(graphic)
                         part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
                         widget_mapping = self.__get_mouse_mapping()
                         graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
@@ -752,7 +746,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def end_tracking(self, modifiers):
         if self.__tracking_selections:
-            display = self.display
+            display = self.__display_specifier.display
             if display:
                 drawn_graphics = display.drawn_graphics
                 for index in self.graphic_drag_indexes:
@@ -783,7 +777,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.prepare_display()
 
     def __get_data_size(self):
-        data_and_calibration = self.display.data_and_calibration if self.display else None
+        display = self.__display_specifier.display
+        data_and_calibration = display.data_and_calibration if display else None
         data_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
         if not data_shape:
             return None
@@ -799,7 +794,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             if data_size and len(data_size) == 1:
                 last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
                 pos = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
-            self.delegate.image_panel_cursor_changed(self, self.display, pos, data_size)
+            self.delegate.image_panel_cursor_changed(self, self.__display_specifier.display, pos, data_size)
         else:
             self.delegate.image_panel_cursor_changed(self, None, None, None)
 
@@ -856,15 +851,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         pass
 
     def __get_preferred_aspect_ratio(self):
-        if self.display:
-            dimensional_shape = self.display.preview_2d_shape
+        display = self.__display_specifier.display
+        if display:
+            dimensional_shape = display.preview_2d_shape
             return dimensional_shape[1] / dimensional_shape[0] if dimensional_shape[0] != 0 else 1.0
         return 1.0
     preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
-
-    @property
-    def display(self):
-        return self.__display_specifier.display
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -889,16 +881,17 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__graphics_canvas_item.update()
 
     def update_image_canvas_zoom(self, new_image_zoom):
-        if self.display:
+        if self.__display_specifier.display:
             self.image_canvas_mode = "custom"
             self.__last_image_zoom = new_image_zoom
             self.update_image_canvas_size()
 
     # update the image canvas position by the widget delta amount
     def update_image_canvas_position(self, widget_delta):
-        if self.display:
+        display = self.__display_specifier.display
+        if display:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = ImageCanvasItemMapping(self.display.preview_2d_shape, (0, 0), self.composite_canvas_item.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, (0, 0), self.composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -916,14 +909,15 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     # update the image canvas origin and size
     def scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_layout):
-        if not self.display:
+        display = self.__display_specifier.display
+        if not display:
             self.__last_image_norm_center = (0.5, 0.5)
             self.__last_image_zoom = 1.0
             self.info_overlay_canvas_item.image_canvas_origin = None
             self.info_overlay_canvas_item.image_canvas_size = None
             return
         if self.image_canvas_mode == "fill":
-            dimensional_shape = self.display.preview_2d_shape
+            dimensional_shape = display.preview_2d_shape
             scale_h = float(dimensional_shape[1]) / scroll_area_canvas_size[1]
             scale_v = float(dimensional_shape[0]) / scroll_area_canvas_size[0]
             if scale_v < scale_h:
@@ -937,12 +931,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (0, 0)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         elif self.image_canvas_mode == "1:1":
-            image_canvas_size = self.display.preview_2d_shape
+            image_canvas_size = display.preview_2d_shape
             image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         else:
             c = self.__last_image_norm_center
-            dimensional_shape = self.display.preview_2d_shape
+            dimensional_shape = display.preview_2d_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
             canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
@@ -951,13 +945,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
             self.composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         # the image will be drawn centered within the canvas size
-        dimensional_shape = self.display.preview_2d_shape
+        dimensional_shape = display.preview_2d_shape
         #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
         #logging.debug("image_canvas_origin %s", image_canvas_origin)
         #logging.debug("image_canvas_size %s", image_canvas_size)
         #logging.debug("dimensional_shape %s", dimensional_shape)
         #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / dimensional_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / dimensional_shape[1])
-        widget_mapping = ImageCanvasItemMapping(self.display.preview_2d_shape, (0, 0), image_canvas_size)
+        widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
         canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
@@ -1092,7 +1086,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if self.graphic_drag_items:
             with self.__display_specifier.data_item.data_item_changes():
                 for graphic in self.graphic_drag_items:
-                    index = self.display.drawn_graphics.index(graphic)
+                    index = self.__display_specifier.display.drawn_graphics.index(graphic)
                     part_data = (self.graphic_drag_part, ) + self.graphic_part_data[index]
                     widget_mapping = self.__get_mouse_mapping()
                     graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
@@ -1130,7 +1124,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if key.is_delete:
             self.delegate.image_panel_delete_key_pressed()
             return True
-        display = self.display
+        display = self.__display_specifier.display
         if display:
             #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
             all_graphics = display.drawn_graphics
@@ -1193,7 +1187,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return self.delegate.image_panel_key_pressed(key)
 
     def __get_image_size(self):
-        data_shape = self.display.preview_2d_shape if self.display else None
+        display = self.__display_specifier.display
+        data_shape = display.preview_2d_shape if display else None
         if not data_shape:
             return None
         for d in data_shape:
@@ -1234,7 +1229,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__mouse_in and self.__last_mouse:
             if image_size and len(image_size) > 1:
                 pos = self.map_widget_to_image(self.__last_mouse)
-            self.delegate.image_panel_cursor_changed(self, self.display, pos, image_size)
+            self.delegate.image_panel_cursor_changed(self, self.__display_specifier.display, pos, image_size)
         else:
             self.delegate.image_panel_cursor_changed(self, None, None, None)
 
