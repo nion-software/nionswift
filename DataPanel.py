@@ -15,12 +15,10 @@ import weakref
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
-from nion.ui import Process
 
 _ = gettext.gettext
 
@@ -538,14 +536,16 @@ class DataPanel(Panel.Panel):
 
         def __init__(self, delegate):
             super(DataPanel.GridCanvasItem, self).__init__()
+            # store parameters
+            self.__delegate = delegate
+            # configure super
             self.wants_mouse_events = True
             self.focusable = True
+            # internal variables
             self.__mouse_pressed = False
             self.__mouse_index = None
             self.__mouse_position = None
             self.__mouse_dragging = False
-            self.__delegate = delegate
-            self.__item_count = 0
 
         def update_layout(self, canvas_origin, canvas_size):
             canvas_size = Geometry.IntSize.make(canvas_size)
@@ -561,7 +561,7 @@ class DataPanel(Panel.Panel):
         def __calculate_layout_height(self, width):
             items_per_row = 4
             item_width = int(width / items_per_row)
-            item_rows = (len(self.__delegate.data_items) + items_per_row - 1) / items_per_row
+            item_rows = (self.__delegate.item_count + items_per_row - 1) / items_per_row
             return item_rows * item_width
 
         def update(self):
@@ -578,34 +578,28 @@ class DataPanel(Panel.Panel):
 
             drawing_context.save()
             try:
-                max_index = len(self.__delegate.data_items)
+                max_index = self.__delegate.item_count
                 top_visible_row = visible_rect.top / item_width
                 bottom_visible_row = visible_rect.bottom / item_width
-                index = top_visible_row * items_per_row
                 for row in xrange(top_visible_row, bottom_visible_row + 1):
                     for column in xrange(items_per_row):
+                        index = row * items_per_row + column
                         if index < max_index:
-                            data_item = self.__delegate.data_items[index]
-                            is_selected = self.__delegate.selection.contains(index)
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_width, x=column * item_width), size=Geometry.IntSize(width=item_width, height=item_width))
-                            draw_rect = rect.inset(6)
                             if rect.intersects_rect(visible_rect):
-                                display_specifier = data_item.primary_display_specifier
-                                display = display_specifier.display
-                                if display:
-                                    display.get_processor("thumbnail").recompute_if_necessary(self.__delegate.document_controller.document_model.dispatch_task, self.__delegate.ui)
-                                    thumbnail_data = display.get_processed_data("thumbnail")
-                                    if is_selected:
-                                        drawing_context.save()
-                                        drawing_context.begin_path()
-                                        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                        drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
-                                        drawing_context.fill()
-                                        drawing_context.restore()
-                                    if thumbnail_data is not None:
-                                        draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                                        drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-                        index += 1
+                                thumbnail_data = self.__delegate.get_item_thumbnail(index)
+                                is_selected = self.__delegate.is_item_selected(index)
+                                if is_selected:
+                                    drawing_context.save()
+                                    drawing_context.begin_path()
+                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                    drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
+                                    drawing_context.fill()
+                                    drawing_context.restore()
+                                if thumbnail_data is not None:
+                                    draw_rect = rect.inset(6)
+                                    draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                                    drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             finally:
                 drawing_context.restore()
 
@@ -619,15 +613,14 @@ class DataPanel(Panel.Panel):
             item_width = int(canvas_bounds.width / items_per_row)
             item_rows = int(canvas_bounds.height / item_width) + 1
 
-            max_index = len(self.__delegate.data_items)
+            max_index = self.__delegate.item_count
             mouse_row = int(y / item_width)
             mouse_column = int(x / item_width)
             mouse_index = mouse_row * items_per_row + mouse_column
 
             if mouse_index >= 0 and mouse_index < max_index:
-                data_item = self.__delegate.data_items[mouse_index]
                 if self.__delegate.on_context_menu_event:
-                    self.__delegate.on_context_menu_event(data_item, x, y, gx, gy)
+                    self.__delegate.on_context_menu_event(mouse_index, x, y, gx, gy)
 
         def mouse_pressed(self, x, y, modifiers):
             canvas_bounds = self.canvas_bounds
@@ -636,18 +629,18 @@ class DataPanel(Panel.Panel):
             item_width = int(canvas_bounds.width / items_per_row)
             item_rows = int(canvas_bounds.height / item_width) + 1
 
-            max_index = len(self.__delegate.data_items)
+            max_index = self.__delegate.item_count
             mouse_row = int(y / item_width)
             mouse_column = int(x / item_width)
             mouse_index = mouse_row * items_per_row + mouse_column
 
             if mouse_index >= 0 and mouse_index < max_index:
                 if modifiers.shift:
-                    self.__delegate.selection.extend(mouse_index)
+                    self.__delegate.extend_selection(mouse_index)
                 elif modifiers.control:
-                    self.__delegate.selection.toggle(mouse_index)
+                    self.__delegate.toggle_selection(mouse_index)
                 else:
-                    self.__delegate.selection.set(mouse_index)
+                    self.__delegate.set_selection(mouse_index)
                     self.__mouse_pressed = True
                     self.__mouse_position = Geometry.IntPoint(y=y, x=x)
                     self.__mouse_index = mouse_index
@@ -664,17 +657,18 @@ class DataPanel(Panel.Panel):
 
         def mouse_position_changed(self, x, y, modifiers):
             if self.__mouse_pressed:
-                data_item = self.__delegate.data_items[self.__mouse_index]
                 if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
                     self.__mouse_dragging = True
-                    self.__delegate.drag_started(data_item, x, y, modifiers)
-                    self.mouse_released(x, y, modifiers)  # once a drag starts, mouse release will not be called; call it here instead
+                    if self.__delegate.on_drag_started:
+                        self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
+                        self.mouse_released(x, y, modifiers)  # once a drag starts, mouse release will not be called; call it here instead
                     return True
             return super(DataPanel.GridCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
         def key_pressed(self, key):
             if key.is_delete:
-                self.__delegate.delete_pressed()
+                if self.__delegate.on_delete_pressed:
+                    self.__delegate.on_delete_pressed()
                 return True
             return super(DataPanel.GridCanvasItem, self).key_pressed(key)
 
@@ -781,7 +775,49 @@ class DataPanel(Panel.Panel):
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.ui = document_controller.ui
             self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
-            self.icon_view_canvas_item = DataPanel.GridCanvasItem(self)
+
+            class GridCanvasItemDelegate(object):
+                def __init__(self, data_grid_controller):
+                    self.__data_grid_controller = data_grid_controller
+
+                @property
+                def item_count(self):
+                    return len(self.__data_grid_controller.data_items)
+
+                def get_item_thumbnail(self, index):
+                    display = self.__data_grid_controller.data_items[index].primary_display_specifier.display
+                    if display:
+                        display.get_processor("thumbnail").recompute_if_necessary(
+                            self.__data_grid_controller.document_controller.document_model.dispatch_task,
+                            self.__data_grid_controller.ui)
+                        return display.get_processed_data("thumbnail")
+                    return None
+
+                def is_item_selected(self, index):
+                    return self.__data_grid_controller.selection.contains(index)
+
+                def extend_selection(self, index):
+                    self.__data_grid_controller.selection.extend(index)
+
+                def toggle_selection(self, index):
+                    self.__data_grid_controller.selection.toggle(index)
+
+                def set_selection(self, index):
+                    self.__data_grid_controller.selection.set(index)
+
+                def on_content_menu_event(self, index, x, y, gx, gy):
+                    data_item = self.__data_grid_controller.data_items[index]
+                    if self.__data_grid_controller.on_context_menu_event:
+                        self.__data_grid_controller.on_context_menu_event(data_item, x, y, gx, gy)
+
+                def on_delete_pressed(self):
+                    self.__data_grid_controller.delete_pressed()
+
+                def on_drag_started(self, index, x, y, modifiers):
+                    data_item = self.__data_grid_controller.data_items[index]
+                    self.__data_grid_controller.drag_started(data_item, x, y, modifiers)
+
+            self.icon_view_canvas_item = DataPanel.GridCanvasItem(GridCanvasItemDelegate(self))
             self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
             self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
             self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
@@ -831,13 +867,13 @@ class DataPanel(Panel.Panel):
             self.document_controller.queue_task(task)
 
         # container is either a data group or a document model
-        def __get_container(self):
+        @property
+        def container(self):
             return self.document_controller.data_items_binding.container
-        container = property(__get_container)
 
-        def __get_document_controller(self):
+        @property
+        def document_controller(self):
             return self.__document_controller_weakref()
-        document_controller = property(__get_document_controller)
 
         # this message comes from the data_item_selection and is set up in add_listener
         def data_item_selection_changed(self, data_item_selection):
@@ -1039,7 +1075,7 @@ class DataPanel(Panel.Panel):
             self.__set_focused(focused)
 
         def data_grid_context_menu_event(data_item, x, y, gx, gy):
-            container = DataGroup.get_data_item_container(self.data_item_model_controller.container, data_item)
+            container = DataGroup.get_data_item_container(self.data_grid_controller.container, data_item)
             self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
 
         self.data_grid_controller = DataPanel.DataGridController(document_controller)
