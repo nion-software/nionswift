@@ -163,7 +163,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             display_limit_high = self.data_range[1]
             self.display_limits = display_limit_low, display_limit_high
 
-    def __get_preview_2d(self):
+    @property
+    def preview_2d(self):
         if self.__preview is None:
             data_2d = self.preview_2d_data
             if data_2d is not None:
@@ -171,7 +172,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                 display_limits = self.display_limits
                 self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
         return self.__preview
-    preview_2d = property(__get_preview_2d)
 
     @property
     def preview_2d_data(self):

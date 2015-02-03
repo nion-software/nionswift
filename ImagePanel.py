@@ -1,13 +1,14 @@
 # standard libraries
 import collections
 import copy
+import datetime
 import gettext
 import math
 import uuid
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import Decorators
@@ -17,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
+from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import CanvasItem
 from nion.ui import Geometry
@@ -586,9 +588,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             mapping = self.__get_mouse_mapping()
             amount = 10.0 if key.modifiers.shift else 1.0
             if key.is_left_arrow:
-                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint.make(0, -amount))
+                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=-amount))
             elif key.is_right_arrow:
-                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint.make(0, amount))
+                self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=amount))
             return True
         return self.delegate.key_pressed(key)
 
@@ -605,9 +607,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         data_size = self.__get_dimensional_shape()
         if self.__data_and_calibration and data_size and len(data_size) == 1:
             self.__tracking_selections = True
-            drawn_graphics = self.__graphics
+            graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
-            for graphic_index, graphic in enumerate(drawn_graphics):
+            for graphic_index, graphic in enumerate(graphics):
                 start_drag_pos = Geometry.IntPoint.make(pos)
                 already_selected = graphic_index in selection_indexes
                 multiple_items_selected = len(selection_indexes) > 1
@@ -626,15 +628,15 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                             selection_indexes.clear()
                             selection_indexes.add(graphic_index)
                     # keep track of general drag information
-                    self.graphic_drag_start_pos = start_drag_pos
-                    self.graphic_drag_changed = False
+                    self.__graphic_drag_start_pos = start_drag_pos
+                    self.__graphic_drag_changed = False
                     # keep track of info for the specific item that was clicked
-                    self.__graphic_drag_item = drawn_graphics[graphic_index]
-                    self.graphic_drag_part = part
+                    self.__graphic_drag_item = graphics[graphic_index]
+                    self.__graphic_drag_part = part
                     # keep track of drag information for each item in the set
                     self.__graphic_drag_indexes = selection_indexes
                     for index in self.__graphic_drag_indexes:
-                        graphic = drawn_graphics[index]
+                        graphic = graphics[index]
                         self.__graphic_drag_items.append(graphic)
                         self.__graphic_part_data[index] = graphic.begin_drag()
                     break
@@ -684,9 +686,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__update_cursor_info()
             if self.__graphic_drag_items:
                 widget_mapping = self.__get_mouse_mapping()
-                self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.graphic_drag_part,
-                                              self.__graphic_part_data, self.graphic_drag_start_pos, pos, modifiers)
-                self.graphic_drag_changed = True
+                self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+                                              self.__graphic_part_data, self.__graphic_drag_start_pos, pos, modifiers)
+                self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
             if self.__tracking_rescale:
@@ -729,12 +731,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def end_tracking(self, modifiers):
         if self.__tracking_selections:
             if self.__data_and_calibration:
-                drawn_graphics = self.__graphics
+                graphics = self.__graphics
                 for index in self.__graphic_drag_indexes:
-                    graphic = drawn_graphics[index]
+                    graphic = graphics[index]
                     graphic.end_drag(self.__graphic_part_data[index])
-                if self.__graphic_drag_items and not self.graphic_drag_changed:
-                    graphic_index = drawn_graphics.index(self.__graphic_drag_item)
+                if self.__graphic_drag_items and not self.__graphic_drag_changed:
+                    graphic_index = graphics.index(self.__graphic_drag_item)
                     # user didn't move graphic
                     if not modifiers.shift:
                         # user clicked on a single graphic
@@ -808,7 +810,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
-        self.__display_specifier = DataItem.DisplaySpecifier()
         self.__data_and_calibration = None
         self.__graphics = list()
         self.__graphic_selection = set()
@@ -831,45 +832,41 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def update_display(self, display_specifier):
+    def update_display_state(self, data_and_calibration):
         # first take care of listeners and update the __display field
-        self.__display_specifier = copy.copy(display_specifier)
         # next get rid of data associated with canvas items
-        display = self.__display_specifier.display
-        if display is None:
+        if data_and_calibration:
+            self.__data_and_calibration = data_and_calibration
+            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+            self.__info_overlay_canvas_item.set_data_and_calibration(data_and_calibration)
+        else:
             self.__data_and_calibration = None
             self.__graphics = list()
             self.__graphic_selection = set()
             self.__bitmap_canvas_item.rgba_bitmap_data = None
             self.__graphics_canvas_item.update_graphics(None, None, None)
             self.__info_overlay_canvas_item.set_data_and_calibration(None)
-        else:
-            self.__data_and_calibration = display.data_and_calibration
-            self.__graphics = display.graphics
-            self.__graphic_selection = display.graphic_selection
-            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-            self.__graphics_canvas_item.update_graphics(display.preview_2d_shape, display.drawn_graphics, display.graphic_selection)
-            self.__info_overlay_canvas_item.set_data_and_calibration(display.data_and_calibration)
         # update the cursor info
         self.__update_cursor_info()
         # trigger updates
         self.__bitmap_canvas_item.update()
 
     def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
-        self.__graphics_canvas_item.update_graphics(data_and_calibration.dimensional_shape, graphics, graphic_selection)
+        self.__graphics = copy.copy(graphics)
+        self.__graphic_selection = copy.copy(graphic_selection)
+        self.__graphics_canvas_item.update_graphics(data_and_calibration.dimensional_shape, self.__graphics, self.__graphic_selection)
 
     def __update_image_canvas_zoom(self, new_image_zoom):
-        if self.__display_specifier.display:
+        if self.__data_and_calibration:
             self.__image_canvas_mode = "custom"
             self.__last_image_zoom = new_image_zoom
             self.__update_image_canvas_size()
 
     # update the image canvas position by the widget delta amount
     def __update_image_canvas_position(self, widget_delta):
-        display = self.__display_specifier.display
-        if display:
+        if self.__data_and_calibration:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, (0, 0), self.__composite_canvas_item.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.__data_and_calibration.dimensional_shape, (0, 0), self.__composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -887,15 +884,15 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     # update the image canvas origin and size
     def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_layout):
-        display = self.__display_specifier.display
-        if not display:
+        if not self.__data_and_calibration:
             self.__last_image_norm_center = (0.5, 0.5)
             self.__last_image_zoom = 1.0
             self.__info_overlay_canvas_item.image_canvas_origin = None
             self.__info_overlay_canvas_item.image_canvas_size = None
             return
+        dimensional_shape = self.__data_and_calibration.dimensional_shape
         if self.__image_canvas_mode == "fill":
-            dimensional_shape = display.preview_2d_shape
+            dimensional_shape = dimensional_shape
             scale_h = float(dimensional_shape[1]) / scroll_area_canvas_size[1]
             scale_v = float(dimensional_shape[0]) / scroll_area_canvas_size[0]
             if scale_v < scale_h:
@@ -909,12 +906,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (0, 0)
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         elif self.__image_canvas_mode == "1:1":
-            image_canvas_size = display.preview_2d_shape
+            image_canvas_size = dimensional_shape
             image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         else:
             c = self.__last_image_norm_center
-            dimensional_shape = display.preview_2d_shape
+            dimensional_shape = dimensional_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
             canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
@@ -923,13 +920,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_layout)
         # the image will be drawn centered within the canvas size
-        dimensional_shape = display.preview_2d_shape
+        dimensional_shape = dimensional_shape
         #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
         #logging.debug("image_canvas_origin %s", image_canvas_origin)
         #logging.debug("image_canvas_size %s", image_canvas_size)
         #logging.debug("dimensional_shape %s", dimensional_shape)
         #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / dimensional_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / dimensional_shape[1])
-        widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, (0, 0), image_canvas_size)
+        widget_mapping = ImageCanvasItemMapping(dimensional_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
         canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
@@ -960,8 +957,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
-        display = self.__display_specifier.display
-        if not display:
+        if not self.__data_and_calibration:
             return False
         self.delegate.begin_mouse_tracking()
         # figure out clicked graphic
@@ -971,11 +967,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__graphic_part_data = {}
         self.__graphic_drag_indexes = []
         if self.delegate.tool_mode == "pointer":
-            drawn_graphics = display.drawn_graphics
-            for graphic_index, graphic in enumerate(drawn_graphics):
+            graphics = self.__graphics
+            selection_indexes = self.__graphic_selection.indexes
+            for graphic_index, graphic in enumerate(graphics):
                 start_drag_pos = Geometry.IntPoint(y=y, x=x)
-                already_selected = display.graphic_selection.contains(graphic_index)
-                multiple_items_selected = len(display.graphic_selection.indexes) > 1
+                already_selected = graphic_index in selection_indexes
+                multiple_items_selected = len(selection_indexes) > 1
                 move_only = not already_selected or multiple_items_selected
                 widget_mapping = self.__get_mouse_mapping()
                 part = graphic.test(widget_mapping, start_drag_pos, move_only)
@@ -984,24 +981,27 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     self.graphic_drag_item_was_selected = already_selected
                     if not self.graphic_drag_item_was_selected:
                         if modifiers.shift:
-                            display.graphic_selection.add(graphic_index)
+                            self.delegate.add_index_to_selection(graphic_index)
+                            selection_indexes.add(graphic_index)
                         elif not already_selected:
-                            display.graphic_selection.set(graphic_index)
+                            self.delegate.set_selection(graphic_index)
+                            selection_indexes.clear()
+                            selection_indexes.add(graphic_index)
                     # keep track of general drag information
-                    self.graphic_drag_start_pos = start_drag_pos
-                    self.graphic_drag_changed = False
+                    self.__graphic_drag_start_pos = start_drag_pos
+                    self.__graphic_drag_changed = False
                     # keep track of info for the specific item that was clicked
-                    self.__graphic_drag_item = drawn_graphics[graphic_index]
-                    self.graphic_drag_part = part
+                    self.__graphic_drag_item = graphics[graphic_index]
+                    self.__graphic_drag_part = part
                     # keep track of drag information for each item in the set
-                    self.__graphic_drag_indexes = display.graphic_selection.indexes
+                    self.__graphic_drag_indexes = selection_indexes
                     for index in self.__graphic_drag_indexes:
-                        graphic = drawn_graphics[index]
+                        graphic = graphics[index]
                         self.__graphic_drag_items.append(graphic)
                         self.__graphic_part_data[index] = graphic.begin_drag()
                     break
             if not self.__graphic_drag_items and not modifiers.shift:
-                display.graphic_selection.clear()
+                self.delegate.clear_selection()
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -1011,25 +1011,24 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_released(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
             return True
-        display = self.__display_specifier.display
-        if display:
-            drawn_graphics = display.drawn_graphics
+        if self.__data_and_calibration:
+            graphics = self.__graphics
             for index in self.__graphic_drag_indexes:
-                graphic = drawn_graphics[index]
+                graphic = graphics[index]
                 graphic.end_drag(self.__graphic_part_data[index])
-            if self.__graphic_drag_items and not self.graphic_drag_changed:
-                graphic_index = drawn_graphics.index(self.__graphic_drag_item)
+            if self.__graphic_drag_items and not self.__graphic_drag_changed:
+                graphic_index = graphics.index(self.__graphic_drag_item)
                 # user didn't move graphic
                 if not modifiers.shift:
                     # user clicked on a single graphic
-                    display.graphic_selection.set(graphic_index)
+                    self.delegate.set_selection(graphic_index)
                 else:
                     # user shift clicked. toggle selection
                     # if shift is down and item is already selected, toggle selection of item
                     if self.graphic_drag_item_was_selected:
-                        display.graphic_selection.remove(graphic_index)
+                        self.delegate.remove_index_from_selection(graphic_index)
                     else:
-                        display.graphic_selection.add(graphic_index)
+                        self.delegate.add_index_to_selection(graphic_index)
             self.delegate.end_mouse_tracking()
         self.__graphic_drag_items = []
         self.__graphic_drag_item = None
@@ -1060,13 +1059,11 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.__graphic_drag_items:
-            with self.__display_specifier.data_item.data_item_changes():
-                for graphic in self.__graphic_drag_items:
-                    index = self.__display_specifier.display.drawn_graphics.index(graphic)
-                    part_data = (self.graphic_drag_part, ) + self.__graphic_part_data[index]
-                    widget_mapping = self.__get_mouse_mapping()
-                    graphic.adjust_part(widget_mapping, self.graphic_drag_start_pos, (y, x), part_data, modifiers)
-                    self.graphic_drag_changed = True
+            widget_mapping = self.__get_mouse_mapping()
+            self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
+                                          self.__graphic_part_data, self.__graphic_drag_start_pos,
+                                          Geometry.FloatPoint(y=y, x=x), modifiers)
+            self.__graphic_drag_changed = True
         elif self.__is_dragging:
             delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
             self.__update_image_canvas_position((-delta[0], -delta[1]))
@@ -1097,27 +1094,19 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if key.is_delete:
             self.delegate.delete_key_pressed()
             return True
-        display = self.__display_specifier.display
-        if display:
-            #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
-            all_graphics = display.drawn_graphics
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
-            if len(graphics):
+        if self.__data_and_calibration:
+            if self.__graphic_selection.has_selection():
                 if key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
                     amount = 10.0 if key.modifiers.shift else 1.0
                     if key.is_left_arrow:
-                        for graphic in graphics:
-                            graphic.nudge(widget_mapping, (0, -amount))
+                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=0, x=-amount))
                     elif key.is_up_arrow:
-                        for graphic in graphics:
-                            graphic.nudge(widget_mapping, (-amount, 0))
+                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=-amount, x=0))
                     elif key.is_right_arrow:
-                        for graphic in graphics:
-                            graphic.nudge(widget_mapping, (0, amount))
+                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=0, x=amount))
                     elif key.is_down_arrow:
-                        for graphic in graphics:
-                            graphic.nudge(widget_mapping, (amount, 0))
+                        self.delegate.nudge_selected_graphics(widget_mapping, Geometry.FloatPoint(y=amount, x=0))
                     return True
             if key.is_arrow:
                 amount = 100.0 if key.modifiers.shift else 10.0
@@ -1160,14 +1149,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return self.delegate.key_pressed(key)
 
     def __get_image_size(self):
-        display = self.__display_specifier.display
-        data_shape = display.preview_2d_shape if display else None
-        if not data_shape:
-            return None
-        for d in data_shape:
-            if not d > 0:
-                return None
-        return data_shape
+        if self.__data_and_calibration:
+            return self.__data_and_calibration.dimensional_shape
+        return None
 
     def __get_mouse_mapping(self):
         image_size = self.__get_image_size()
@@ -1213,19 +1197,13 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
     def prepare_display(self):
-        display = self.__display_specifier.display
-
-        if display:
+        data_and_calibration = self.__data_and_calibration
+        if data_and_calibration:
             # grab the data item too
-            data_and_calibration = display.data_and_calibration
-
-            # make sure we have the correct data
-            assert data_and_calibration is not None
-            # TODO: fix me 3d
-            assert data_and_calibration.is_data_2d or data_and_calibration.is_data_3d
-
+            assert data_and_calibration.is_data_2d
+            assert data_and_calibration.data_dtype == numpy.uint32
             # grab the bitmap image
-            self.__bitmap_canvas_item.set_rgba_bitmap_data(display.preview_2d, trigger_update=False)
+            self.__bitmap_canvas_item.set_rgba_bitmap_data(data_and_calibration.data, trigger_update=False)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
@@ -1793,17 +1771,24 @@ class ImagePanel(object):
             self.__display_type = display_type
             if self.__content_canvas_item:
                 self.__content_canvas_item.update()
-        if self.display_canvas_item:  # may be closed
+        display = display_specifier.display
+        if display and self.display_canvas_item:  # may be closed
             if display_type == "image":
-                self.display_canvas_item.update_display(display_specifier)
-            else:
-                display = display_specifier.display
-                if display:
-                    display_properties = {"y_min": display.y_min, "y_max": display.y_max,
-                        "left_channel": display.left_channel, "right_channel": display.right_channel}
-                    self.display_canvas_item.update_display_state(data_and_calibration, display_properties,
-                                                                  display.display_calibrated_values)
-            self.display_graphic_selection_changed(display_specifier.display, display_specifier.display.graphic_selection)
+                data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
+                intensity_calibration = Calibration.Calibration()
+                dimensional_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
+                preview_data_and_calibration = Operation.DataAndCalibration(lambda: display.preview_2d,
+                                                                            data_shape_and_dtype, intensity_calibration,
+                                                                            dimensional_calibrations, dict(),
+                                                                            datetime.datetime.utcnow())
+                self.display_canvas_item.update_display_state(preview_data_and_calibration)
+            elif display_type == "line_plot":
+                display_properties = {"y_min": display.y_min, "y_max": display.y_max,
+                    "left_channel": display.left_channel, "right_channel": display.right_channel}
+                self.display_canvas_item.update_display_state(data_and_calibration, display_properties,
+                                                              display.display_calibrated_values)
+            self.display_graphic_selection_changed(display_specifier.display,
+                                                   display_specifier.display.graphic_selection)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_image_panel == self

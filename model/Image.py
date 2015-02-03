@@ -250,7 +250,7 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
         array = array.reshape((1,) + array.shape)
     if numpy.ndim(array) == 2:
-        rgba_image = numpy.empty(array.shape, 'uint32')
+        rgba_image = numpy.empty(array.shape, numpy.uint32)
         if normalize:
             if display_limits and len(display_limits) == 2:
                 nmin_new = display_limits[0]
