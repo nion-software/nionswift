@@ -91,7 +91,7 @@ _ = gettext.gettext
 # tbd
 
 
-class WidgetChannelMapping(object):
+class LinePlotCanvasItemMapping(object):
 
     def __init__(self, data_size, plot_rect, left_channel, right_channel):
         self.__data_size = data_size
@@ -110,7 +110,7 @@ class WidgetChannelMapping(object):
         return x * self.__data_size[0]
 
 
-class WidgetImageMapping(object):
+class ImageCanvasItemMapping(object):
 
     def __init__(self, data_shape, canvas_origin, canvas_size):
         self.data_shape = data_shape
@@ -192,7 +192,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         if display:
 
-            widget_mapping = WidgetImageMapping(display.preview_2d_shape, (0, 0), self.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, (0, 0), self.canvas_size)
 
             drawing_context.save()
             for graphic_index, graphic in enumerate(display.drawn_graphics):
@@ -247,7 +247,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 origin = (canvas_height - 30, 20)
                 scale_marker_width = 120
                 scale_marker_height = 6
-                widget_mapping = WidgetImageMapping(display.preview_2d_shape, image_canvas_origin, image_canvas_size)
+                widget_mapping = ImageCanvasItemMapping(display.preview_2d_shape, image_canvas_origin, image_canvas_size)
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / display.preview_2d_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
@@ -641,7 +641,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         plot_rect = self.line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         left_channel = self.__data_info.drawn_left_channel
         right_channel = self.__data_info.drawn_right_channel
-        return WidgetChannelMapping(data_size, plot_rect, left_channel, right_channel)
+        return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
         data_size = self.__get_data_size()
@@ -935,7 +935,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
     def update_image_canvas_position(self, widget_delta):
         if self.display:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = WidgetImageMapping(self.display.preview_2d_shape, (0, 0), self.composite_canvas_item.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.display.preview_2d_shape, (0, 0), self.composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -994,7 +994,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         #logging.debug("image_canvas_size %s", image_canvas_size)
         #logging.debug("dimensional_shape %s", dimensional_shape)
         #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / dimensional_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / dimensional_shape[1])
-        widget_mapping = WidgetImageMapping(self.display.preview_2d_shape, (0, 0), image_canvas_size)
+        widget_mapping = ImageCanvasItemMapping(self.display.preview_2d_shape, (0, 0), image_canvas_size)
         #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
         self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
         canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
@@ -1240,7 +1240,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __get_mouse_mapping(self):
         image_size = self.__get_image_size()
-        return WidgetImageMapping(image_size, self.composite_canvas_item.canvas_origin, self.composite_canvas_item.canvas_size)
+        return ImageCanvasItemMapping(image_size, self.composite_canvas_item.canvas_origin, self.composite_canvas_item.canvas_size)
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):
