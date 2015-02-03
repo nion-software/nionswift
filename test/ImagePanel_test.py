@@ -500,13 +500,13 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
-        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.drawn_left_channel, 0)
-        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.drawn_right_channel, 1024)
+        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.x_properties.drawn_left_channel, 0)
+        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.x_properties.drawn_right_channel, 1024)
 
     def test_line_plot_initially_displays_entire_data_in_vertical_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
-        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.drawn_data_min, 0.0)
-        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.drawn_data_max, 1.0)
+        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.drawn_data_min, 0.0)
+        self.assertEqual(line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.drawn_data_max, 1.0)
 
     def test_mouse_tracking_moves_horizontal_scale(self):
         line_plot_canvas_item = self.setup_line_plot()

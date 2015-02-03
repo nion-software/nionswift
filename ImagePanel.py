@@ -446,21 +446,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             # grab the data item
             data_and_calibration = display.data_and_calibration
 
-            # make sure we have the correct data
-            assert display is not None
-            assert data_and_calibration.is_data_1d
-
-            # grab the data values
-            data = data_and_calibration.data
-
-            if data is not None:
-                # make sure complex becomes scalar
-                data = Image.scalar_from_array(data)
-                assert data is not None
-
-                # make sure RGB becomes scalar
-                data = Image.convert_to_grayscale(data)
-                assert data is not None
+            if data_and_calibration:
+                # make sure we have the correct data
+                assert data_and_calibration.is_data_1d
 
                 # update the line graph data
                 y_min = display.y_min
@@ -468,14 +456,27 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_channel = display.left_channel
                 right_channel = display.right_channel
                 left_channel = left_channel if left_channel is not None else 0
-                right_channel = right_channel if right_channel is not None else data.shape[0]
+                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
                 dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display.display_calibrated_values else None
                 intensity_calibration = data_and_calibration.intensity_calibration if display.display_calibrated_values else None
-                data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_min, y_max, left_channel, right_channel,
+
+                def get_data():
+                    data = data_and_calibration.data
+                    # make sure complex becomes scalar
+                    data = Image.scalar_from_array(data)
+                    assert data is not None
+                    # make sure RGB becomes scalar
+                    data = Image.convert_to_grayscale(data)
+                    assert data is not None
+                    return data
+
+                data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
                                                                   dimensional_calibration, intensity_calibration)
             else:
                 data_info = LineGraphCanvasItem.LineGraphDataInfo()
+
+            data_info.data  # trigger data loading here, on the thread
 
             def update_data_info():
                 self.__update_data_info(data_info)
@@ -636,8 +637,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         data_size = self.__get_data_size()
         plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
-        left_channel = self.__data_info.drawn_left_channel
-        right_channel = self.__data_info.drawn_right_channel
+        x_properties = self.__data_info.x_properties
+        left_channel = x_properties.drawn_left_channel
+        right_channel = x_properties.drawn_right_channel
         return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
@@ -680,25 +682,27 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def begin_tracking_horizontal(self, pos, rescale):
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
+        x_properties = self.__data_info.x_properties
         self.__tracking_horizontal = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_left_channel = self.__data_info.drawn_left_channel
-        self.__tracking_start_right_channel = self.__data_info.drawn_right_channel
+        self.__tracking_start_left_channel = x_properties.drawn_left_channel
+        self.__tracking_start_right_channel = x_properties.drawn_right_channel
         self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / plot_rect.width
         self.__tracking_start_origin_pixel = self.__tracking_start_pos.x - plot_rect.left
         self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
     def begin_tracking_vertical(self, pos, rescale):
         plot_height = self.line_graph_canvas_item.canvas_bounds.height - 1
+        y_properties = self.__data_info.y_properties
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_drawn_data_min = self.__data_info.drawn_data_min
-        self.__tracking_start_drawn_data_max = self.__data_info.drawn_data_max
+        self.__tracking_start_drawn_data_min = y_properties.drawn_data_min
+        self.__tracking_start_drawn_data_max = y_properties.drawn_data_max
         self.__tracking_start_drawn_data_per_pixel = self.__data_info.get_drawn_data_per_pixel(plot_height)
-        self.__tracking_start_calibrated_data_min = self.__data_info.calibrated_data_min
-        self.__tracking_start_calibrated_data_max = self.__data_info.calibrated_data_max
+        self.__tracking_start_calibrated_data_min = y_properties.calibrated_data_min
+        self.__tracking_start_calibrated_data_max = y_properties.calibrated_data_max
         plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:

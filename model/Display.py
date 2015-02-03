@@ -8,7 +8,6 @@ import copy
 import logging
 import gettext
 import numbers
-import weakref
 
 # third party libraries
 import numpy
@@ -453,7 +452,7 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         line_graph_canvas_item.draw_frame = True
         line_graph_canvas_item.background_color = "#EEEEEE"
         line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data_info = LineGraphCanvasItem.LineGraphDataInfo(data, data_left=0, data_right=data.shape[0])
+        line_graph_canvas_item.data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, data_left=0, data_right=data.shape[0])
         line_graph_canvas_item.update_layout(((height - width / 1.618) * 0.5, 0), (width / 1.618, width))
         drawing_context = ui.create_offscreen_drawing_context()
         drawing_context.save()
