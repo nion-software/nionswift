@@ -3,7 +3,6 @@ import copy
 import functools
 import gettext
 import logging
-import numbers
 import threading
 import uuid
 import weakref
@@ -19,7 +18,7 @@ from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import GridCanvasItem
-from nion.ui import Observable
+from nion.ui import Selection
 
 _ = gettext.gettext
 
@@ -533,101 +532,6 @@ class DataPanel(Panel.Panel):
             ctx.restore()
 
 
-    class DataItemSelection(Observable.Broadcaster):
-        def __init__(self):
-            super(DataPanel.DataItemSelection, self).__init__()
-            self.__indexes = set()
-            self.__anchor_index = None
-        # manage selection
-        def has_selection(self):
-            return len(self.__indexes) > 0
-        def contains(self, index):
-            return index in self.__indexes
-        def __get_indexes(self):
-            return self.__indexes
-        indexes = property(__get_indexes)
-        def clear(self):
-            old_index = self.__indexes.copy()
-            self.__indexes = set()
-            self.__anchor_index = None
-            if old_index != self.__indexes:
-                self.notify_listeners("data_item_selection_changed", self)
-        def __update_anchor_index(self):
-            for index in self.__indexes:
-                if self.__anchor_index is None or index < self.__anchor_index:
-                    self.__anchor_index = index
-        def add(self, index):
-            assert isinstance(index, numbers.Integral)
-            old_index = self.__indexes.copy()
-            self.__indexes.add(index)
-            if len(old_index) == 0:
-                self.__anchor_index = index
-            if old_index != self.__indexes:
-                self.notify_listeners("data_item_selection_changed", self)
-        def remove(self, index):
-            assert isinstance(index, numbers.Integral)
-            old_index = self.__indexes.copy()
-            self.__indexes.remove(index)
-            if not self.__anchor_index in self.__indexes:
-                self.__update_anchor_index()
-            if old_index != self.__indexes:
-                self.notify_listeners("data_item_selection_changed", self)
-        def set(self, index):
-            assert isinstance(index, numbers.Integral)
-            old_index = self.__indexes.copy()
-            self.__indexes = set()
-            self.__indexes.add(index)
-            self.__anchor_index = index
-            if old_index != self.__indexes:
-                self.notify_listeners("data_item_selection_changed", self)
-        def toggle(self, index):
-            assert isinstance(index, numbers.Integral)
-            if index in self.__indexes:
-                self.remove(index)
-            else:
-                self.add(index)
-        def extend(self, index):
-            assert isinstance(index, numbers.Integral)
-            old_index = self.__indexes.copy()
-            if index > self.__anchor_index:
-                for new_index in range(self.__anchor_index, index + 1):
-                    self.__indexes.add(new_index)
-            elif index < self.__anchor_index:
-                for new_index in range(index, self.__anchor_index + 1):
-                    self.__indexes.add(new_index)
-            if old_index != self.__indexes:
-                self.notify_listeners("data_item_selection_changed", self)
-        def insert_index(self, new_index):
-            new_indexes = set()
-            for index in self.__indexes:
-                if index < new_index:
-                    new_indexes.add(index)
-                else:
-                    new_indexes.add(index+1)
-            if self.__anchor_index is not None:
-                if new_index <= self.__anchor_index:
-                    self.__anchor_index += 1
-            if self.__indexes != new_indexes:
-                self.__indexes = new_indexes
-                self.notify_listeners("data_item_selection_changed", self)
-        def remove_index(self, remove_index):
-            new_indexes = set()
-            for index in self.__indexes:
-                if index != remove_index:
-                    if index > remove_index:
-                        new_indexes.add(index-1)
-                    else:
-                        new_indexes.add(index)
-            if self.__anchor_index is not None:
-                if remove_index == self.__anchor_index:
-                    self.__update_anchor_index()
-                elif remove_index < self.__anchor_index:
-                    self.__anchor_index -= 1
-            if self.__indexes != new_indexes:
-                self.__indexes = new_indexes
-                self.notify_listeners("data_item_selection_changed", self)
-
-
     class DataGridController(object):
 
         def __init__(self, document_controller):
@@ -687,8 +591,13 @@ class DataPanel(Panel.Panel):
             self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
             self.widget = self.root_canvas_item.canvas_widget
             self.__binding = document_controller.filtered_data_items_binding
-            self.selection = DataPanel.DataItemSelection()
-            self.selection.add_listener(self)
+            self.selection = Selection.IndexedSelection()
+            def selection_changed():
+                self.selected_indexes = list(self.selection.indexes)
+                if self.on_selection_changed:
+                    self.on_selection_changed(list(self.selection.indexes))
+                self.icon_view_canvas_item.update()
+            self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
             self.selected_indexes = list()
             self.on_selection_changed = None
             self.on_context_menu_event = None
@@ -706,6 +615,8 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items_mutex = threading.RLock()
 
         def close(self):
+            self.__selection_changed_listener.close()
+            self.__selection_changed_listener = None
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
             self.__data_items = None
@@ -734,13 +645,6 @@ class DataPanel(Panel.Panel):
         @property
         def document_controller(self):
             return self.__document_controller_weakref()
-
-        # this message comes from the data_item_selection and is set up in add_listener
-        def data_item_selection_changed(self, data_item_selection):
-            self.selected_indexes = list(data_item_selection.indexes)
-            if self.on_selection_changed:
-                self.on_selection_changed(list(data_item_selection.indexes))
-            self.icon_view_canvas_item.update()
 
         # this message comes from the canvas item when delete key is pressed
         def delete_pressed(self):
