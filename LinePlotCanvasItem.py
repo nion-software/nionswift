@@ -37,6 +37,37 @@ class LinePlotCanvasItemMapping(object):
 
 class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
+    """Display a line plot.
+
+    Callers are expected to pass in a font metrics function and a delegate.
+
+    They are expected to call the following functions to update the display:
+        update_display_state(data_and_calibration, display_properties, display_calibrated_values)
+        update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
+
+    The delegate is expected to handle the following events:
+        add_index_to_selection(index)
+        remove_index_from_selection(index)
+        set_selection(index)
+        clear_selection()
+        add_and_select_region(region)
+        nudge_selected_graphics(mapping, delta)
+        update_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
+        tool_mode (property)
+        show_context_menu(gx, gy)
+        begin_mouse_tracking(self)
+        end_mouse_tracking()
+        mouse_clicked(image_position, modifiers)
+        delete_key_pressed()
+        key_pressed(key)
+        cursor_changed(source, pos, image_size)
+        update_display_properties(display_properties)
+
+    The line plot display layout is dependent on the data of the line plot since the width of the vertical axis is
+    dependent on the data. This display currently handles that within the _repaint method, but care must be taken to
+    not trigger another repaint from within the existing repaint.
+    """
+
     def __init__(self, get_font_metrics_fn, delegate):
         super(LinePlotCanvasItem, self).__init__()
 

@@ -698,9 +698,9 @@ class Application(object):
         self.register_document_controller(document_controller)
         # attempt to set data item / group
         if data_panel_selection:
-            image_panel = document_controller.selected_display_panel
-            if image_panel:
-                image_panel.set_displayed_data_item(data_panel_selection.data_item)
+            display_panel = document_controller.selected_display_panel
+            if display_panel:
+                display_panel.set_displayed_data_item(data_panel_selection.data_item)
         document_controller.document_window.show()
         return document_controller
 

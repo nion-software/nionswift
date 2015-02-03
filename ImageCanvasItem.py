@@ -192,6 +192,33 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
+    """Display an image.
+
+    Callers are expected to pass in a delegate.
+
+    They are expected to call the following functions to update the display:
+        update_display_state(data_and_calibration)
+        update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
+
+    The delegate is expected to handle the following events:
+        add_index_to_selection(index)
+        remove_index_from_selection(index)
+        set_selection(index)
+        clear_selection()
+        add_and_select_region(region)
+        nudge_selected_graphics(mapping, delta)
+        update_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
+        tool_mode (property)
+        show_context_menu(gx, gy)
+        begin_mouse_tracking(self)
+        end_mouse_tracking()
+        mouse_clicked(image_position, modifiers)
+        delete_key_pressed()
+        key_pressed(key)
+        cursor_changed(source, pos, image_size)
+        update_display_properties(display_properties)
+    """
+
     def __init__(self, delegate):
         super(ImageCanvasItem, self).__init__()
 

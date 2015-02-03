@@ -433,11 +433,11 @@ class DocumentController(Observable.Broadcaster):
             self.__filtered_data_items_binding.filter = display_filter
     display_filter = property(__get_display_filter, __set_display_filter)
 
-    def register_display_panel(self, image_panel):
+    def register_display_panel(self, display_panel):
         pass
 
-    def unregister_display_panel(self, image_panel):
-        if self.selected_display_panel == image_panel:
+    def unregister_display_panel(self, display_panel):
+        if self.selected_display_panel == display_panel:
             self.selected_display_panel = None
 
     @property
