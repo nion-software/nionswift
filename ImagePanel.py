@@ -342,8 +342,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         # thread for drawing
         self.__display_specifier = DataItem.DisplaySpecifier()
-        self.__prepare_data_thread = ThreadPool.ThreadDispatcher(lambda: self.prepare_display_on_thread())
-        self.__prepare_data_thread.start()
 
         # used for dragging graphic items
         self.graphic_drag_items = []
@@ -359,19 +357,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__data_info = None
 
     def close(self):
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.close()
-            self.__prepare_data_thread = None
         self.update_display(DataItem.DisplaySpecifier())
-        self.delegate.clear_task("prepare")
         # call super
         super(LinePlotCanvasItem, self).close()
 
     def about_to_close(self):
-        # message received when image panel closes; otherwise thread is shut down when parent canvas item closes
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.close()
-            self.__prepare_data_thread = None
+        pass
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -400,11 +391,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
-        if self.__prepare_data_thread:
-            self.__prepare_data_thread.trigger()
-
-    def wait_for_prepare_data(self):
-        self.__prepare_data_thread.trigger(wait=True)
+        self.update()
 
     def display_graphic_selection_changed(self, display, graphic_selection):
         # this message will come directly from the display when the graphic selection changes
@@ -435,14 +422,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__line_graph_regions_canvas_item.regions = regions
         self.__line_graph_regions_canvas_item.update()
 
-    # this method will be invoked from the paint thread.
-    # data is calculated and then sent to the line graph canvas items.
-    def prepare_display_on_thread(self):
-
+    def prepare_display(self):
         display = self.__display_specifier.display
-
         if display:
-
             # grab the data item
             data_and_calibration = display.data_and_calibration
 
@@ -456,9 +438,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 left_channel = display.left_channel
                 right_channel = display.right_channel
                 left_channel = left_channel if left_channel is not None else 0
-                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[0]
+                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[
+                    0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display.display_calibrated_values else None
+                dimensional_calibration = data_and_calibration.dimensional_calibrations[
+                    0] if display.display_calibrated_values else None
                 intensity_calibration = data_and_calibration.intensity_calibration if display.display_calibrated_values else None
 
                 def get_data():
@@ -476,37 +460,30 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             else:
                 data_info = LineGraphCanvasItem.LineGraphDataInfo()
 
-            data_info.data  # trigger data loading here, on the thread
+            self.__update_data_info(data_info)
+        else:
+            self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo())
 
-            def update_data_info():
-                self.__update_data_info(data_info)
-
-            self.delegate.add_task("prepare", update_data_info)
+    def _repaint(self, drawing_context):
+        self.prepare_display()
+        super(LinePlotCanvasItem, self)._repaint(drawing_context)
 
     def __update_data_info(self, data_info):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
         # data_info is a new copy of data info. it will be owned by this line plot after calling this method.
         # this method stores the data_info into each line plot canvas item and updates the canvas item.
         self.line_graph_canvas_item.data_info = data_info
-        # self.line_graph_canvas_item.update()  # unused, setting data_info handles this automatically
         self.__line_graph_regions_canvas_item.data_info = data_info
-        self.__line_graph_regions_canvas_item.update()
         self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
-        self.__line_graph_vertical_axis_label_canvas_item.update()
         self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_scale_canvas_item.size_to_content(self.delegate.image_panel_get_font_metrics)
-        self.__line_graph_vertical_axis_scale_canvas_item.update()
         self.__line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
-        self.__line_graph_vertical_axis_ticks_canvas_item.update()
         self.__line_graph_horizontal_axis_label_canvas_item.data_info = data_info
         self.__line_graph_horizontal_axis_label_canvas_item.size_to_content()
-        self.__line_graph_horizontal_axis_label_canvas_item.update()
         self.__line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
-        self.__line_graph_horizontal_axis_scale_canvas_item.update()
         self.__line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-        self.__line_graph_horizontal_axis_ticks_canvas_item.update()
-        self.refresh_layout()
+        self.refresh_layout(trigger_update=False)
         self.__data_info = data_info
 
     def mouse_entered(self):

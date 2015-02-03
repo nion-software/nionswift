@@ -493,9 +493,7 @@ class TestImagePanelClass(unittest.TestCase):
         self.image_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
         self.image_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
         # trigger layout
-        self.image_panel.display_canvas_item.wait_for_prepare_data()  # force prepare_display_on_thread to finish before _repaint
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         return self.image_panel.display_canvas_item
 
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
@@ -615,9 +613,7 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.display_canvas_item.prepare_display_on_thread()
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -638,9 +634,7 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.2
         self.image_panel.display.y_max = 0.8
-        self.image_panel.display_canvas_item.prepare_display_on_thread()
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -663,8 +657,7 @@ class TestImagePanelClass(unittest.TestCase):
         intensity_calibration = buffered_data_source.intensity_calibration
         intensity_calibration.offset = -0.2
         buffered_data_source.set_intensity_calibration(intensity_calibration)
-        self.image_panel.display_canvas_item.wait_for_prepare_data()  # force prepare_display_on_thread to finish before _repaint
-        self.document_controller.periodic()
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
         modifiers = Test.KeyboardModifiers()
@@ -685,9 +678,7 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.display_canvas_item.prepare_display_on_thread()
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
         modifiers = Test.KeyboardModifiers()
@@ -709,9 +700,7 @@ class TestImagePanelClass(unittest.TestCase):
         # adjust image panel display and trigger layout
         self.image_panel.display.y_min = -0.5
         self.image_panel.display.y_max = 0.5
-        self.image_panel.display_canvas_item.prepare_display_on_thread()
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
         modifiers = Test.KeyboardModifiers()
@@ -734,9 +723,7 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_pressed(plot_left, v, Test.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers(control=True))
         # trigger layout. necessary so that drawn values get updated. bad architecture!
-        self.image_panel.display_canvas_item.prepare_display_on_thread()
-        self.document_controller.periodic()
-        self.image_panel.display_canvas_item.line_graph_canvas_item._repaint(self.image_panel_drawing_context)
+        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # continue
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, Test.KeyboardModifiers())

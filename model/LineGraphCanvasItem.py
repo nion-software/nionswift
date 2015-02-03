@@ -240,7 +240,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     @data_info.setter
     def data_info(self, value):
         self.__data_info = value
-        self.update()
+        self.__needs_update = True
 
     def map_mouse_to_position(self, mouse, data_size):
         """ Map the mouse to the 1-d position within the line graph. """
