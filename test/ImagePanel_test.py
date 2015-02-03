@@ -891,6 +891,14 @@ class TestImagePanelClass(unittest.TestCase):
         overlay.drop(mime_data, int(width*0.5), int(height*0.5))
         self.assertEqual(image_panel.drop_region, "middle")
 
+    def test_replacing_display_actually_does_it(self):
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
+        self.image_panel.replace_displayed_data_item_and_display(self.display_specifier)
+        data_item_1d = DataItem.DataItem(create_1d_data())
+        self.document_model.append_data_item(data_item_1d)
+        self.image_panel.replace_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item_1d))
+        self.assertEqual(self.image_panel.display_specifier.data_item, data_item_1d)
+
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
         image_panel = TestImagePanel()
@@ -904,6 +912,7 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
         self.image_panel.replace_displayed_data_item_and_display(self.display_specifier)
+        self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
 
 
 if __name__ == '__main__':

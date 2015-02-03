@@ -1693,6 +1693,7 @@ class ImagePanel(object):
             self.__image_panel_controller.close()
             self.__image_panel_controller = None
         self.__image_panel_controller = ImagePanelManager().detect_image_panel_controller(self, display_specifier)
+        self.set_displayed_data_item_and_display(display_specifier)
 
     @property
     def buffered_data_source(self):
