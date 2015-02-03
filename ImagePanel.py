@@ -339,9 +339,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(line_graph_background_canvas_item)
 
-        # thread for drawing
-        self.__display_specifier = DataItem.DisplaySpecifier()
-
         # used for dragging graphic items
         self.graphic_drag_items = []
         self.graphic_drag_item = None
@@ -362,6 +359,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__right_channel = None
         self.__display_calibrated_values = False
 
+        self.__graphics = list()
+        self.__graphic_selection = set()
+
     def close(self):
         # call super
         super(LinePlotCanvasItem, self).close()
@@ -369,18 +369,15 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def about_to_close(self):
         pass
 
-    def update_display(self, display_specifier):
-        """ Update the display (model) associated with this canvas item. """
-        display = display_specifier.display
-        # first take care of listeners and update the __display field
-        self.__display_specifier = copy.copy(display_specifier)
-        if display:
-            self.__data_and_calibration = display.data_and_calibration
-            self.__y_min = display.y_min
-            self.__y_max = display.y_max
-            self.__left_channel = display.left_channel
-            self.__right_channel = display.right_channel
-            self.__display_calibrated_values = display.display_calibrated_values
+    def update_display_state(self, data_and_calibration, display_properties, display_calibrated_values):
+        """ Update the display state. """
+        if data_and_calibration:
+            self.__data_and_calibration = data_and_calibration
+            self.__y_min = display_properties["y_min"]
+            self.__y_max = display_properties["y_max"]
+            self.__left_channel = display_properties["left_channel"]
+            self.__right_channel = display_properties["right_channel"]
+            self.__display_calibrated_values = display_calibrated_values
         else:
             self.__data_and_calibration = None
             self.__y_min = None
@@ -388,19 +385,19 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__left_channel = None
             self.__right_channel = None
             self.__display_calibrated_values = False
-        # next get rid of data associated with canvas items
-        if self.__display_specifier.display is None:
-            # handle case where display is empty
-            data_info = LineGraphCanvasItem.LineGraphDataInfo()
-            self.__update_data_info(data_info)
             self.__line_graph_regions_canvas_item.regions = list()
             self.__line_graph_regions_canvas_item.update()
+            data_info = LineGraphCanvasItem.LineGraphDataInfo()
+            self.__update_data_info(data_info)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
         self.update()
 
     def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
+        self.__graphics = copy.copy(graphics)
+        self.__graphic_selection = copy.copy(graphic_selection)
+
         data_length = data_and_calibration.dimensional_shape[0]
         dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = dimensional_calibration.convert_to_calibrated_value(0)
@@ -507,11 +504,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if self.delegate.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
             if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
-                self.delegate.reset_axes_pressed(True, False)
+                self.delegate.update_display_properties({"left_channel": None, "right_channel": None})
                 return True
             elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
-                self.delegate.reset_axes_pressed(False, True)
-                self.reset_vertical()
+                self.delegate.update_display_properties({"y_min": None, "y_max": None})
                 return True
         return False
 
@@ -532,9 +528,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
     def mouse_pressed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
-        pos = Geometry.IntPoint(x=x, y=y)
-        display = self.__display_specifier.display
-        if not display:
+        if not self.__data_and_calibration:
             return False
         pos = Geometry.IntPoint(x=x, y=y)
         self.delegate.begin_mouse_tracking()
@@ -550,7 +544,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         elif self.delegate.tool_mode == "interval":
             if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
-                data_size = self.__get_data_size()
+                data_size = self.__get_dimensional_shape()
                 if data_size and len(data_size) == 1:
                     widget_mapping = self.__get_mouse_mapping()
                     x = widget_mapping.map_point_widget_to_channel_norm(pos)
@@ -578,8 +572,6 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if super(LinePlotCanvasItem, self).key_pressed(key):
             return True
         # only handle keys if we're directly embedded in an image panel
-        if not self.delegate:
-            return False
         if key.is_delete:
             self.delegate.delete_key_pressed()
             return True
@@ -594,7 +586,7 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return self.delegate.key_pressed(key)
 
     def __get_mouse_mapping(self):
-        data_size = self.__get_data_size()
+        data_size = self.__get_dimensional_shape()
         plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         x_properties = self.__data_info.x_properties
@@ -603,12 +595,11 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
-        data_size = self.__get_data_size()
-        display = self.__display_specifier.display
-        if display and data_size and len(data_size) == 1:
+        data_size = self.__get_dimensional_shape()
+        if self.__data_and_calibration and data_size and len(data_size) == 1:
             self.__tracking_selections = True
-            drawn_graphics = display.drawn_graphics
-            selection_indexes = display.graphic_selection.indexes
+            drawn_graphics = self.__graphics
+            selection_indexes = self.__graphic_selection.indexes
             for graphic_index, graphic in enumerate(drawn_graphics):
                 start_drag_pos = Geometry.IntPoint.make(pos)
                 already_selected = graphic_index in selection_indexes
@@ -699,13 +690,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 new_drawn_channel_per_pixel = self.__tracking_start_drawn_channel_per_pixel / scaling
                 left_channel = int(round(self.__tracking_start_channel - new_drawn_channel_per_pixel * self.__tracking_start_origin_pixel))
                 right_channel = int(round(self.__tracking_start_channel + new_drawn_channel_per_pixel * (plot_rect.width - self.__tracking_start_origin_pixel)))
-                self.delegate.update_channels(left_channel, right_channel)
+                self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
                 left_channel = int(self.__tracking_start_left_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
                 right_channel = int(self.__tracking_start_right_channel - self.__tracking_start_drawn_channel_per_pixel * delta.x)
-                self.delegate.update_channels(left_channel, right_channel)
+                self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
         elif self.__tracking_vertical:
             if self.__tracking_rescale:
@@ -718,21 +709,20 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 new_drawn_data_per_pixel = data_offset / pixel_offset
                 data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * self.__tracking_start_origin_y
                 data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                self.delegate.update_y_axis(data_min, data_max)
+                self.delegate.update_display_properties({"y_min": data_min, "y_max": data_max})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
                 data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
                 data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
-                self.delegate.update_y_axis(data_min, data_max)
+                self.delegate.update_display_properties({"y_min": data_min, "y_max": data_max})
                 return True
         return False
 
     def end_tracking(self, modifiers):
         if self.__tracking_selections:
-            display = self.__display_specifier.display
-            if display:
-                drawn_graphics = display.drawn_graphics
+            if self.__data_and_calibration:
+                drawn_graphics = self.__graphics
                 for index in self.graphic_drag_indexes:
                     graphic = drawn_graphics[index]
                     graphic.end_drag(self.graphic_part_data[index])
@@ -757,24 +747,19 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
-        self.update_display(self.__display_specifier)
         self.prepare_display()
 
-    def __get_data_size(self):
-        display = self.__display_specifier.display
-        data_and_calibration = display.data_and_calibration if display else None
-        data_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
-        if not data_shape:
+    def __get_dimensional_shape(self):
+        data_and_calibration = self.__data_and_calibration
+        dimensional_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
+        if not dimensional_shape:
             return None
-        for d in data_shape:
-            if not d > 0:
-                return None
-        return data_shape
+        return dimensional_shape
 
     def __update_cursor_info(self):
-        pos = None
-        data_size = self.__get_data_size()
         if self.__mouse_in and self.__last_mouse:
+            pos = None
+            data_size = self.__get_dimensional_shape()
             if data_size and len(data_size) == 1:
                 last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
                 pos = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
@@ -833,14 +818,6 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
     def about_to_close(self):
         pass
-
-    def __get_preferred_aspect_ratio(self):
-        display = self.__display_specifier.display
-        if display:
-            dimensional_shape = display.preview_2d_shape
-            return dimensional_shape[1] / dimensional_shape[0] if dimensional_shape[0] != 0 else 1.0
-        return 1.0
-    preferred_aspect_ratio = property(__get_preferred_aspect_ratio)
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -956,7 +933,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         # now let the image panel handle mouse clicking if desired
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        self.delegate.image_panel_mouse_clicked(image_position, modifiers)
+        self.delegate.mouse_clicked(image_position, modifiers)
         return True
 
     def mouse_double_clicked(self, x, y, modifiers):
@@ -970,14 +947,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         display = self.__display_specifier.display
         if not display:
             return False
-        self.delegate.document_controller.document_model.begin_data_item_transaction(data_item)
+        self.delegate.begin_mouse_tracking()
         # figure out clicked graphic
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_drag_item_was_selected = False
         self.graphic_part_data = {}
         self.graphic_drag_indexes = []
-        if self.delegate.image_panel_get_tool_mode() == "pointer":
+        if self.delegate.tool_mode == "pointer":
             drawn_graphics = display.drawn_graphics
             for graphic_index, graphic in enumerate(drawn_graphics):
                 start_drag_pos = Geometry.IntPoint(y=y, x=x)
@@ -1009,7 +986,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     break
             if not self.graphic_drag_items and not modifiers.shift:
                 display.graphic_selection.clear()
-        elif self.delegate.image_panel_get_tool_mode() == "hand":
+        elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
             self.__is_dragging = True
@@ -1038,7 +1015,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                         display.graphic_selection.remove(graphic_index)
                     else:
                         display.graphic_selection.add(graphic_index)
-            self.delegate.document_controller.document_model.end_data_item_transaction(data_item)
+            self.delegate.end_mouse_tracking()
         self.graphic_drag_items = []
         self.graphic_drag_item = None
         self.graphic_part_data = {}
@@ -1095,7 +1072,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def context_menu_event(self, x, y, gx, gy):
-        self.delegate.image_panel_show_context_menu(gx, gy)
+        self.delegate.show_context_menu(gx, gy)
         return True
 
     # ths message comes from the widget
@@ -1103,10 +1080,8 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if super(ImageCanvasItem, self).key_pressed(key):
             return True
         # only handle keys if we're directly embedded in an image panel
-        if not self.delegate:
-            return False
         if key.is_delete:
-            self.delegate.image_panel_delete_key_pressed()
+            self.delegate.delete_key_pressed()
             return True
         display = self.__display_specifier.display
         if display:
@@ -1168,7 +1143,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             if key.text == ")":
                 self.set_fill_mode()
                 return True
-        return self.delegate.image_panel_key_pressed(key)
+        return self.delegate.key_pressed(key)
 
     def __get_image_size(self):
         display = self.__display_specifier.display
@@ -1213,9 +1188,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__mouse_in and self.__last_mouse:
             if image_size and len(image_size) > 1:
                 pos = self.map_widget_to_image(self.__last_mouse)
-            self.delegate.image_panel_cursor_changed(self, self.__display_specifier.display, pos, image_size)
+            self.delegate.cursor_changed(self, pos, image_size)
         else:
-            self.delegate.image_panel_cursor_changed(self, None, None, None)
+            self.delegate.cursor_changed(self, None, None)
 
     def _repaint(self, drawing_context):
         self.prepare_display()
@@ -1721,103 +1696,91 @@ class ImagePanel(object):
             if self.display_canvas_item:
                 self.__content_canvas_item.remove_canvas_item(self.display_canvas_item)
                 self.display_canvas_item = None
+
+            class DisplayCanvasItemDelegate(object):
+                def __init__(self, image_panel):
+                    self.__image_panel = image_panel
+
+                def add_index_to_selection(self, index):
+                    self.__image_panel.display_specifier.display.graphic_selection.add(index)
+
+                def remove_index_from_selection(self, index):
+                    self.__image_panel.display_specifier.display.graphic_selection.remove(index)
+
+                def set_selection(self, index):
+                    self.__image_panel.display_specifier.display.graphic_selection.set(index)
+
+                def clear_selection(self):
+                    self.__image_panel.display_specifier.display.graphic_selection.clear()
+
+                def add_and_select_region(self, region):
+                    self.__image_panel.display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
+                    # hack to select it. it will be the last item.
+                    self.__image_panel.display_specifier.display.graphic_selection.set(len(self.__image_panel.display_specifier.display.drawn_graphics) - 1)
+
+                def nudge_selected_graphics(self, mapping, delta):
+                    display = self.__image_panel.display_specifier.display
+                    if display:
+                        all_graphics = display.drawn_graphics
+                        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
+                        for graphic in graphics:
+                            graphic.nudge(mapping, delta)
+
+                def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
+                    with self.__image_panel.display_specifier.data_item.data_item_changes():
+                        for graphic in graphic_drag_items:
+                            index = self.__image_panel.display_specifier.display.drawn_graphics.index(graphic)
+                            part_data = (graphic_drag_part, ) + graphic_part_data[index]
+                            graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
+
+                @property
+                def tool_mode(self):
+                    return self.__image_panel.document_controller.tool_mode
+
+                @tool_mode.setter
+                def tool_mode(self, value):
+                    self.__image_panel.document_controller.tool_mode = value
+
+                def show_context_menu(self, gx, gy):
+                    self.__image_panel.document_controller.show_context_menu_for_data_item(self.__image_panel.document_controller.document_model, self.__image_panel.display_specifier.data_item, gx, gy)
+
+                def begin_mouse_tracking(self):
+                    self.__image_panel.document_controller.document_model.begin_data_item_transaction(
+                        self.__image_panel.display_specifier.data_item)
+
+                def end_mouse_tracking(self):
+                    data_item = self.__image_panel.display_specifier.data_item
+                    display = self.__image_panel.display_specifier.display
+                    if display:
+                        self.__image_panel.document_controller.document_model.end_data_item_transaction(data_item)
+
+                def mouse_clicked(self, image_position, modifiers):
+                    return self.__image_panel.image_panel_mouse_clicked(image_position, modifiers)
+
+                def delete_key_pressed(self):
+                    if self.__image_panel.document_controller.remove_graphic():
+                        return True
+                    self.__image_panel.set_displayed_data_item(None)
+                    return False
+
+                def key_pressed(self, key):
+                    return self.__image_panel.image_panel_key_pressed(key)
+
+                def cursor_changed(self, source, pos, image_size):
+                    display = self.__image_panel.display_specifier.display
+                    data_and_calibration = display.data_and_calibration if display else None
+                    display_calibrated_values = display.display_calibrated_values if display else False
+                    self.__image_panel.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos, image_size)
+
+                def update_display_properties(self, display_properties):
+                    for key, value in display_properties.iteritems():
+                        setattr(self.__image_panel.display_specifier.display, key, value)
+
             if display_type == "line_plot":
-
-                class LinePlotCanvasItemDelegate(object):
-                    def __init__(self, image_panel):
-                        self.__image_panel = image_panel
-
-                    def add_index_to_selection(self, index):
-                        self.__image_panel.display_specifier.display.graphic_selection.add(index)
-
-                    def remove_index_from_selection(self, index):
-                        self.__image_panel.display_specifier.display.graphic_selection.remove(index)
-
-                    def set_selection(self, index):
-                        self.__image_panel.display_specifier.display.graphic_selection.set(index)
-
-                    def clear_selection(self):
-                        self.__image_panel.display_specifier.display.graphic_selection.clear()
-
-                    def add_and_select_region(self, region):
-                        self.__image_panel.display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
-                        # hack to select it. it will be the last item.
-                        self.__image_panel.display_specifier.display.graphic_selection.set(len(self.__image_panel.display_specifier.display.drawn_graphics) - 1)
-
-                    def nudge_selected_graphics(self, mapping, delta):
-                        display = self.__image_panel.display_specifier.display
-                        if display:
-                            all_graphics = display.drawn_graphics
-                            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
-                            for graphic in graphics:
-                                graphic.nudge(mapping, delta)
-
-                    def reset_axes_pressed(self, horizontal, vertical):
-                        if horizontal:
-                            self.__image_panel.display_specifier.display.left_channel = None
-                            self.__image_panel.display_specifier.display.right_channel = None
-                        if vertical:
-                            self.__image_panel.display_specifier.display.y_min = None
-                            self.__image_panel.display_specifier.display.y_max = None
-
-                    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-                        with self.__image_panel.display_specifier.data_item.data_item_changes():
-                            for graphic in graphic_drag_items:
-                                index = self.__image_panel.display_specifier.display.drawn_graphics.index(graphic)
-                                part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
-
-                    def update_channels(self, left_channel, right_channel):
-                        self.__image_panel.display_specifier.display.left_channel = left_channel
-                        self.__image_panel.display_specifier.display.right_channel = right_channel
-
-                    def update_y_axis(self, data_min, data_max):
-                        self.__image_panel.display_specifier.display.y_min = data_min
-                        self.__image_panel.display_specifier.display.y_max = data_max
-
-                    @property
-                    def tool_mode(self):
-                        return self.__image_panel.document_controller.tool_mode
-
-                    @tool_mode.setter
-                    def tool_mode(self, value):
-                        self.__image_panel.document_controller.tool_mode = value
-
-                    def show_context_menu(self, gx, gy):
-                        self.__image_panel.document_controller.show_context_menu_for_data_item(self.__image_panel.document_controller.document_model, self.__image_panel.display_specifier.data_item, gx, gy)
-
-                    def begin_mouse_tracking(self):
-                        self.__image_panel.document_controller.document_model.begin_data_item_transaction(
-                            self.__image_panel.display_specifier.data_item)
-
-                    def end_mouse_tracking(self):
-                        data_item = self.__image_panel.display_specifier.data_item
-                        display = self.__image_panel.display_specifier.display
-                        if display:
-                            self.__image_panel.document_controller.document_model.end_data_item_transaction(data_item)
-
-                    def mouse_clicked(self, image_position, modifiers):
-                        return self.__image_panel.image_panel_mouse_clicked(image_position, modifiers)
-
-                    def delete_key_pressed(self):
-                        if self.__image_panel.document_controller.remove_graphic():
-                            return True
-                        self.__image_panel.set_displayed_data_item(None)
-                        return False
-
-                    def key_pressed(self, key):
-                        return self.__image_panel.image_panel_key_pressed(key)
-
-                    def cursor_changed(self, source, pos, image_size):
-                        display = self.__image_panel.display_specifier.display
-                        data_and_calibration = display.data_and_calibration if display else None
-                        display_calibrated_values = display.display_calibrated_values if display else False
-                        self.__image_panel.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos, image_size)
-
-                self.display_canvas_item = LinePlotCanvasItem(self.ui.get_font_metrics, LinePlotCanvasItemDelegate(self))
+                self.display_canvas_item = LinePlotCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
-                self.display_canvas_item = ImageCanvasItem(self)
+                self.display_canvas_item = ImageCanvasItem(DisplayCanvasItemDelegate(self))
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.image_canvas_mode = "fit"
                 self.display_canvas_item.update_image_canvas_size()
@@ -1825,7 +1788,15 @@ class ImagePanel(object):
             if self.__content_canvas_item:
                 self.__content_canvas_item.update()
         if self.display_canvas_item:  # may be closed
-            self.display_canvas_item.update_display(display_specifier)
+            if display_type == "image":
+                self.display_canvas_item.update_display(display_specifier)
+            else:
+                display = display_specifier.display
+                if display:
+                    display_properties = {"y_min": display.y_min, "y_max": display.y_max,
+                        "left_channel": display.left_channel, "right_channel": display.right_channel}
+                    self.display_canvas_item.update_display_state(data_and_calibration, display_properties,
+                                                                  display.display_calibrated_values)
             self.display_graphic_selection_changed(display_specifier.display, display_specifier.display.graphic_selection)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
@@ -1849,6 +1820,9 @@ class ImagePanel(object):
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
         ImagePanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
+
+    def image_panel_get_font_metrics(self, font, text):
+        return self.ui.get_font_metrics(font, text)
 
     def image_panel_get_tool_mode(self):
         return self.document_controller.tool_mode

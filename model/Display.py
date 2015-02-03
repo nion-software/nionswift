@@ -26,9 +26,11 @@ _ = gettext.gettext
 
 
 class GraphicSelection(Observable.Broadcaster):
-    def __init__(self):
+    def __init__(self, indexes=None):
         super(GraphicSelection, self).__init__()
-        self.__indexes = set()
+        self.__indexes = copy.copy(indexes) if indexes else set()
+    def __copy__(self):
+        return type(self)(self.__indexes)
     # manage selection
     def __get_current_index(self):
         if len(self.__indexes) == 1:
