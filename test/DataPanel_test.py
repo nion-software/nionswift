@@ -9,7 +9,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DataPanel
 from nion.swift import DocumentController
-from nion.swift import ImagePanel
+from nion.swift import DisplayPanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
@@ -65,12 +65,12 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        image_panel = ImagePanel.ImagePanel(document_controller)
+        image_panel = DisplayPanel.DisplayPanel(document_controller)
         image_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         data_panel.periodic()
-        document_controller.selected_image_panel = image_panel
+        document_controller.selected_display_panel = image_panel
         # first delete a child of a data item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)

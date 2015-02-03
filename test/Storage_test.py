@@ -15,7 +15,7 @@ import scipy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import ImagePanel
+from nion.swift import DisplayPanel
 from nion.swift import NDataHandler
 from nion.swift.model import Calibration
 from nion.swift.model import DataGroup
@@ -80,8 +80,8 @@ class TestStorageClass(unittest.TestCase):
         data_group.append_data_item(data_item2b)
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
-        image_panel = ImagePanel.ImagePanel(document_controller)
-        document_controller.selected_image_panel = image_panel
+        image_panel = DisplayPanel.DisplayPanel(document_controller)
+        document_controller.selected_display_panel = image_panel
         image_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
         document_controller.add_line_region()
@@ -983,7 +983,7 @@ class TestStorageClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)

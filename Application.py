@@ -22,7 +22,7 @@ from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
 from nion.swift import HistogramPanel
-from nion.swift import ImagePanel
+from nion.swift import DisplayPanel
 from nion.swift import Inspector
 from nion.swift import Panel
 from nion.swift import Task
@@ -664,8 +664,8 @@ class Application(object):
         self.ui.set_persistent_string("workspace_location", workspace_dir)
         logging.info("Welcome to Nion Swift.")
         if create_new_document and len(document_model.data_items) > 0:
-            document_controller.selected_image_panel.set_displayed_data_item(document_model.data_items[0])
-            document_controller.selected_image_panel.display_canvas_item.set_fill_mode()
+            document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
+            document_controller.selected_display_panel.display_canvas_item.set_fill_mode()
         return True
 
     def get_recent_workspace_file_paths(self):
@@ -698,7 +698,7 @@ class Application(object):
         self.register_document_controller(document_controller)
         # attempt to set data item / group
         if data_panel_selection:
-            image_panel = document_controller.selected_image_panel
+            image_panel = document_controller.selected_display_panel
             if image_panel:
                 image_panel.set_displayed_data_item(data_panel_selection.data_item)
         document_controller.document_window.show()

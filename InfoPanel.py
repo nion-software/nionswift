@@ -6,7 +6,7 @@ import gettext
 
 # local libraries
 from nion.swift import Panel
-from nion.swift.ImagePanel import _
+from nion.swift.DisplayPanel import _
 from nion.swift.model import Calibration
 
 _ = gettext.gettext

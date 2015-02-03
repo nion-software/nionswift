@@ -9,7 +9,7 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import ImagePanel
+from nion.swift import DisplayPanel
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import Display
@@ -43,7 +43,7 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
     return data
 
 
-class TestImagePanel(object):
+class TestDisplayPanel(object):
     def __init__(self):
         self.drop_region = None
     def handle_drag_enter(self, mime_data):
@@ -55,13 +55,13 @@ class TestImagePanel(object):
         return "copy"
 
 
-class TestImagePanelClass(unittest.TestCase):
+class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
-        self.image_panel = self.document_controller.selected_image_panel
+        self.image_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
@@ -89,7 +89,7 @@ class TestImagePanelClass(unittest.TestCase):
     def test_image_panel_gets_destructed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = ImagePanel.ImagePanel(document_controller)
+        image_panel = DisplayPanel.DisplayPanel(document_controller)
         # add some extra refs for fun
         canvas_item = image_panel.canvas_item
         container = CanvasItem.SplitterCanvasItem()
@@ -862,8 +862,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
-        image_panel = TestImagePanel()
-        overlay = ImagePanel.ImagePanelOverlayCanvasItem(image_panel)
+        image_panel = TestDisplayPanel()
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(image_panel)
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)
@@ -881,8 +881,8 @@ class TestImagePanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
-        image_panel = TestImagePanel()
-        overlay = ImagePanel.ImagePanelOverlayCanvasItem(image_panel)
+        image_panel = TestDisplayPanel()
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(image_panel)
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)

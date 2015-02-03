@@ -10,7 +10,7 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import ImagePanel
+from nion.swift import DisplayPanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -77,7 +77,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
-        image_panel = ImagePanel.ImagePanel(document_controller)
+        image_panel = DisplayPanel.DisplayPanel(document_controller)
         image_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
         image_panel.canvas_item.close()
@@ -154,7 +154,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         line_graphic = document_controller.add_line_region()
         # make sure assumptions are correct
@@ -174,7 +174,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
         image_panel.set_displayed_data_item(data_item)
@@ -196,7 +196,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
         image_panel.display.graphic_selection.clear()
@@ -234,7 +234,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
         inverted_data_item = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
@@ -252,7 +252,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
@@ -268,7 +268,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         cropped_data_item = document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region).data_item
@@ -334,7 +334,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
         data_item_result = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
@@ -346,7 +346,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
 
@@ -358,7 +358,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
 
@@ -371,7 +371,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(source_data_item._create_test_data_source())
         data_item.set_operation(invert_operation)
-        image_panel = document_controller.selected_image_panel
+        image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         data_item_dup = document_controller.processing_duplicate().data_item
         self.assertIsNotNone(data_item_dup.operation)

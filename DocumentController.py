@@ -74,7 +74,7 @@ class DocumentController(Observable.Broadcaster):
         self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
-        self.__weak_selected_image_panel = None
+        self.__weak_selected_display_panel = None
         self.weak_data_panel = None
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
@@ -230,16 +230,16 @@ class DocumentController(Observable.Broadcaster):
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
-            if self.selected_image_panel is not None:
-                self.selected_image_panel.display_canvas_item.set_fit_mode()
+            if self.selected_display_panel is not None:
+                self.selected_display_panel.display_canvas_item.set_fit_mode()
         self.fit_view_action = self.view_menu.add_menu_item(_("Fit to View"), lambda: fit_to_view(), key_sequence="0")
         def fill_view():
-            if self.selected_image_panel is not None:
-                self.selected_image_panel.display_canvas_item.set_fill_mode()
+            if self.selected_display_panel is not None:
+                self.selected_display_panel.display_canvas_item.set_fill_mode()
         self.fill_view_action = self.view_menu.add_menu_item(_("Fill View"), lambda: fill_view(), key_sequence="Shift+0")
         def one_to_one_view():
-            if self.selected_image_panel is not None:
-                self.selected_image_panel.display_canvas_item.set_one_to_one_mode()
+            if self.selected_display_panel is not None:
+                self.selected_display_panel.display_canvas_item.set_one_to_one_mode()
         self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), lambda: one_to_one_view(), key_sequence="1")
         self.view_menu.add_separator()
         self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
@@ -433,27 +433,29 @@ class DocumentController(Observable.Broadcaster):
             self.__filtered_data_items_binding.filter = display_filter
     display_filter = property(__get_display_filter, __set_display_filter)
 
-    def register_image_panel(self, image_panel):
+    def register_display_panel(self, image_panel):
         pass
 
-    def unregister_image_panel(self, image_panel):
-        if self.selected_image_panel == image_panel:
-            self.selected_image_panel = None
+    def unregister_display_panel(self, image_panel):
+        if self.selected_display_panel == image_panel:
+            self.selected_display_panel = None
 
-    def __get_selected_image_panel(self):
-        return self.__weak_selected_image_panel() if self.__weak_selected_image_panel else None
-    def __set_selected_image_panel(self, selected_image_panel):
-        weak_selected_image_panel = weakref.ref(selected_image_panel) if selected_image_panel else None
-        if weak_selected_image_panel != self.__weak_selected_image_panel:
+    @property
+    def selected_display_panel(self):
+        return self.__weak_selected_display_panel() if self.__weak_selected_display_panel else None
+
+    @selected_display_panel.setter
+    def selected_display_panel(self, selected_display_panel):
+        weak_selected_display_panel = weakref.ref(selected_display_panel) if selected_display_panel else None
+        if weak_selected_display_panel != self.__weak_selected_display_panel:
             # save the selected panel
-            self.__weak_selected_image_panel = weak_selected_image_panel
+            self.__weak_selected_display_panel = weak_selected_display_panel
             # tell the workspace the selected image panel changed so that it can update the focus/selected rings
-            self.workspace_controller.selected_image_panel_changed(self.selected_image_panel)
+            self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            selected_display_specifier = selected_image_panel.display_specifier if selected_image_panel else DataItem.DisplaySpecifier()
+            selected_display_specifier = selected_display_panel.display_specifier if selected_display_panel else DataItem.DisplaySpecifier()
             self.notify_selected_display_specifier_changed(selected_display_specifier)
-    selected_image_panel = property(__get_selected_image_panel, __set_selected_image_panel)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
@@ -495,8 +497,8 @@ class DocumentController(Observable.Broadcaster):
             if data_panel and data_panel.focused:
                 return DataItem.DisplaySpecifier.from_data_item(data_panel.data_item)
         # if not found, check for focused or selected image panel
-        if self.selected_image_panel:
-            return self.selected_image_panel.display_specifier
+        if self.selected_display_panel:
+            return self.selected_display_panel.display_specifier
         return DataItem.DisplaySpecifier()
 
     # this can be called from any user interface element that wants to update the cursor info
