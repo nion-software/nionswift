@@ -58,95 +58,53 @@ class DataPanelSelection(object):
 
 class DataPanel(Panel.Panel):
 
-    class LibraryItemController(object):
-
-        def __init__(self, document_controller, binding):
-            self.document_controller = document_controller
-            self.__count = 0
-            self.title_updater = None
-            self.__binding = binding
-            def data_item_inserted(data_item, before_index):
-                self.__count += 1
-                if self.title_updater:
-                    self.title_updater(self.__count)
-            def data_item_removed(data_item, index):
-                self.__count -= 1
-                if self.title_updater:
-                    self.title_updater(self.__count)
-            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            def update_count():
-                self.__count = len(self.__binding.data_items)
-                if self.title_updater:
-                    self.title_updater(self.__count)
-            # make sure the count gets properly initialized
-            self.add_task("update_count", update_count)
-
-        def close(self):
-            del self.__binding.inserters[id(self)]
-            del self.__binding.removers[id(self)]
-            # binding should not be closed since it isn't created in this object
-            self.clear_task("update_count")
-
-        # thread safe
-        def queue_task(self, task):
-            self.document_controller.queue_task(task)
-
-        def add_task(self, key, task):
-            self.document_controller.add_task(key + str(id(self)), task)
-
-        def clear_task(self, key):
-            self.document_controller.clear_task(key + str(id(self)))
-
-
     class LibraryModelController(object):
+        """Controller for a list of top level library items."""
 
-        def __init__(self, document_controller):
-            self.ui = document_controller.ui
+        def __init__(self, ui, item_controllers):
+            """
+            item_controllers is a list of objects that have a title property and a on_title_changed callback that gets
+            invoked (on the ui thread) when the title changes externally.
+            """
+            self.ui = ui
             self.item_model_controller = self.ui.create_item_model_controller(["display"])
             self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
             self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
-            self.__document_controller_weakref = weakref.ref(document_controller)
             self.on_receive_files = None
             self.__item_controllers = list()
             self.__item_count = 0
             # build the items
-            self.__append_item_controller(_("All"), DataPanel.LibraryItemController(document_controller, document_controller.create_data_item_binding(None, None)))
-            self.__append_item_controller(_("Latest Session"), DataPanel.LibraryItemController(document_controller, document_controller.create_data_item_binding(None, "latest-session")))
+            for item_controller in item_controllers:
+                self.__append_item_controller(item_controller)
 
         def close(self):
-            for item_controller in self.__item_controllers:
-                item_controller.close()
             self.__item_controllers = None
             self.item_model_controller.close()
             self.item_model_controller = None
             self.on_receive_files = None
 
-        def __get_document_controller(self):
-            return self.__document_controller_weakref()
-        document_controller = property(__get_document_controller)
-
-        def __append_item_controller(self, title, item_controller):
+        # not thread safe. must be called on ui thread.
+        def __append_item_controller(self, item_controller):
             parent_item = self.item_model_controller.root
             self.item_model_controller.begin_insert(self.__item_count, self.__item_count, parent_item.row, parent_item.id)
             item = self.item_model_controller.create_item()
             parent_item.insert_child(self.__item_count, item)
             self.item_model_controller.end_insert()
-            def title_updater(count):
-                item.data["display"] = title + (" (%i)" % count)
+            # not thread safe. must be called on ui thread.
+            def title_changed(title):
+                item.data["display"] = title
                 self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
-            item_controller.title_updater = title_updater
-            title_updater(0)
+            item_controller.on_title_changed = title_changed
+            title_changed(item_controller.title)
             self.__item_controllers.append(item_controller)
             self.__item_count += 1
 
         def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            container = self.document_controller.document_model
             if mime_data.has_file_paths:
                 if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                     return self.item_model_controller.NONE
-                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, len(self.document_controller.document_model.data_items)):
+                if self.on_receive_files and self.on_receive_files(mime_data.file_paths):
                     return self.item_model_controller.COPY
             return self.item_model_controller.NONE
 
@@ -582,6 +540,11 @@ class DataPanel(Panel.Panel):
                     self.__data_grid_controller.drag_started(data_item, x, y, modifiers)
 
             self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self))
+            def icon_view_canvas_item_focus_changed(focused):
+                self.icon_view_canvas_item.update()
+                if self.on_focus_changed:
+                    self.on_focus_changed(focused)
+            self.icon_view_canvas_item.on_focus_changed = icon_view_canvas_item_focus_changed
             self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
             self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
             self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
@@ -601,6 +564,7 @@ class DataPanel(Panel.Panel):
             self.selected_indexes = list()
             self.on_selection_changed = None
             self.on_context_menu_event = None
+            self.on_focus_changed = None
             def data_item_inserted(data_item, before_index):
                 self.__data_item_inserted(data_item, before_index)
             def data_item_removed(data_item, index):
@@ -623,6 +587,7 @@ class DataPanel(Panel.Panel):
             # binding should not be closed since it isn't created in this object
             self.on_selection_changed = None
             self.on_context_menu_event = None
+            self.on_focus_changed = None
             self.root_canvas_item.close()
 
         def periodic(self):
@@ -739,8 +704,46 @@ class DataPanel(Panel.Panel):
 
         self.__block1 = False
 
-        self.library_model_controller = DataPanel.LibraryModelController(document_controller)
-        self.library_model_controller.on_receive_files = lambda file_paths, index: self.library_model_receive_files(file_paths, index)
+        class LibraryItemController(object):
+
+            def __init__(self, base_title, binding):
+                self.__base_title = base_title
+                self.__count = 0
+                self.__binding = binding
+                self.on_title_changed = None
+
+                # not thread safe. must be called on ui thread.
+                def data_item_inserted(data_item, before_index):
+                    self.__count += 1
+                    if self.on_title_changed:
+                        document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+
+                # not thread safe. must be called on ui thread.
+                def data_item_removed(data_item, index):
+                    self.__count -= 1
+                    if self.on_title_changed:
+                        document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
+
+                self.__binding.inserters[id(self)] = data_item_inserted
+                self.__binding.removers[id(self)] = data_item_removed
+                self.__count = len(self.__binding.data_items)
+
+            @property
+            def title(self):
+                return self.__base_title + (" (%i)" % self.__count)
+
+            def close(self):
+                del self.__binding.inserters[id(self)]
+                del self.__binding.removers[id(self)]
+
+        all_items_binding = document_controller.create_data_item_binding(None, None)
+        all_items_controller = LibraryItemController(_("All"), all_items_binding)
+        latest_items_binding = document_controller.create_data_item_binding(None, "latest-session")
+        latest_items_controller = LibraryItemController(_("Latest Session"), latest_items_binding)
+        self.__item_controllers = [all_items_controller, latest_items_controller]
+
+        self.library_model_controller = DataPanel.LibraryModelController(document_controller.ui, self.__item_controllers)
+        self.library_model_controller.on_receive_files = self.library_model_receive_files
 
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
@@ -834,10 +837,6 @@ class DataPanel(Panel.Panel):
 
         self.data_item_widget.on_context_menu_event = context_menu_event
 
-        def data_grid_focus_changed(focused):
-            self.data_grid_controller.icon_view_canvas_item.update()
-            self.__set_focused(focused)
-
         def data_grid_context_menu_event(data_item, x, y, gx, gy):
             container = DataGroup.get_data_item_container(self.data_grid_controller.container, data_item)
             self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
@@ -845,7 +844,7 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller = DataPanel.DataGridController(document_controller)
         self.data_grid_controller.on_selection_changed = data_item_widget_selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
-        self.data_grid_controller.icon_view_canvas_item.on_focus_changed = data_grid_focus_changed
+        self.data_grid_controller.on_focus_changed = self.__set_focused
 
         library_label_row = ui.create_row_widget()
         library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
@@ -968,6 +967,8 @@ class DataPanel(Panel.Panel):
         self.data_item_model_controller = None
         self.data_group_model_controller.close()
         self.data_group_model_controller = None
+        for item_controller in self.__item_controllers:
+            item_controller.close()
         self.library_model_controller.close()
         self.library_model_controller = None
         self.data_grid_controller.close()
@@ -1067,12 +1068,13 @@ class DataPanel(Panel.Panel):
         # unblock
         self.__block1 = saved_block1
 
-    def library_model_receive_files(self, file_paths, index, threaded=True):
+    def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
             def select_library_all():
                 self.update_data_panel_selection(DataPanelSelection(data_item=received_data_items[0]))
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
+        index = len(self.document_controller.document_model.data_items)
         self.document_controller.receive_files(file_paths, None, index, threaded, receive_files_complete)
         return True
 
