@@ -14,7 +14,6 @@ import weakref
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import GridCanvasItem
@@ -701,7 +700,6 @@ class DataPanel(Panel.Panel):
         self.__selection = DataPanelSelection()
         self.__selected_data_items = list()
         self.__closing = False
-
         self.__block1 = False
 
         class LibraryItemController(object):
@@ -748,8 +746,6 @@ class DataPanel(Panel.Panel):
         self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
-        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
-
         ui = document_controller.ui
 
         def library_widget_selection_changed(selected_indexes):
@@ -763,7 +759,7 @@ class DataPanel(Panel.Panel):
         self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
         self.library_widget.on_selection_changed = library_widget_selection_changed
-        self.library_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
+        self.library_widget.on_focus_changed = self.__set_focused
 
         def data_group_widget_selection_changed(selected_indexes):
             if not self.__block1:
@@ -787,7 +783,36 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
         self.data_group_widget.on_selection_changed = data_group_widget_selection_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
-        self.data_group_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
+        self.data_group_widget.on_focus_changed = self.__set_focused
+
+        library_label_row = ui.create_row_widget()
+        library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
+        library_label_row.add_spacing(8)
+        library_label_row.add(library_label)
+        library_label_row.add_stretch()
+
+        collections_label_row = ui.create_row_widget()
+        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
+        collections_label_row.add_spacing(8)
+        collections_label_row.add(collections_label)
+        collections_label_row.add_stretch()
+
+        library_section_widget = ui.create_column_widget()
+        library_section_widget.add_spacing(4)
+        library_section_widget.add(library_label_row)
+        library_section_widget.add(self.library_widget)
+
+        collections_section_widget = ui.create_column_widget()
+        collections_section_widget.add_spacing(4)
+        collections_section_widget.add(collections_label_row)
+        collections_section_widget.add(self.data_group_widget)
+
+        master_widget = ui.create_column_widget()
+        master_widget.add(library_section_widget)
+        master_widget.add(collections_section_widget)
+        master_widget.add_stretch()
+
+        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
 
         # this message is received when the current item changes in the widget
         def data_item_widget_selection_changed(indexes):
@@ -826,7 +851,7 @@ class DataPanel(Panel.Panel):
         self.data_item_widget.on_selection_changed = data_item_widget_selection_changed
         self.data_item_widget.on_key_pressed = data_item_widget_key_pressed
         self.data_item_widget.on_item_double_clicked = data_item_double_clicked
-        self.data_item_widget.on_focus_changed = lambda focused: self.__set_focused(focused)
+        self.data_item_widget.on_focus_changed = self.__set_focused
 
         def context_menu_event(x, y, gx, gy):
             index = self.data_item_widget.get_row_at_pos(x, y)
@@ -845,30 +870,6 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller.on_selection_changed = data_item_widget_selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_grid_controller.on_focus_changed = self.__set_focused
-
-        library_label_row = ui.create_row_widget()
-        library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
-        library_label_row.add_spacing(8)
-        library_label_row.add(library_label)
-        library_label_row.add_stretch()
-
-        collections_label_row = ui.create_row_widget()
-        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
-        collections_label_row.add_spacing(8)
-        collections_label_row.add(collections_label)
-        collections_label_row.add_stretch()
-
-        def create_list_item_widget(ui, item):
-            properties = {"stylesheet": "color: white; background-color: #3875D6;"} if item != "All" else None
-            column = ui.create_column_widget(properties=properties)
-            row = ui.create_row_widget()
-            row.add_spacing(25)
-            row.add(ui.create_label_widget(unicode(item)))
-            row.add_stretch()
-            column.add_spacing(1)
-            column.add(row)
-            column.add_spacing(1)
-            return column
 
         self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
         self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
@@ -923,29 +924,9 @@ class DataPanel(Panel.Panel):
         slave_widget.add(search_widget)
         slave_widget.add_spacing(6)
 
-        class StringListBinding(Binding.Binding):
-            def __init__(self, items):
-                super(StringListBinding, self).__init__(None)
-                self.items = items
-
-        library_section_widget = ui.create_column_widget()
-        library_section_widget.add_spacing(4)
-        library_section_widget.add(library_label_row)
-        library_section_widget.add(self.library_widget)
-
-        collections_section_widget = ui.create_column_widget()
-        collections_section_widget.add_spacing(4)
-        collections_section_widget.add(collections_label_row)
-        collections_section_widget.add(self.data_group_widget)
-
-        self.master_widget = ui.create_column_widget()
-        self.master_widget.add(library_section_widget)
-        self.master_widget.add(collections_section_widget)
-        self.master_widget.add_stretch()
-
         self.splitter = ui.create_splitter_widget("vertical", properties)
         self.splitter.orientation = "vertical"
-        self.splitter.add(self.master_widget)
+        self.splitter.add(master_widget)
         self.splitter.add(slave_widget)
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
@@ -963,14 +944,14 @@ class DataPanel(Panel.Panel):
         self.splitter.save_state("window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataPanelSelection())
         # close the models
-        self.data_item_model_controller.close()
-        self.data_item_model_controller = None
         self.data_group_model_controller.close()
         self.data_group_model_controller = None
         for item_controller in self.__item_controllers:
             item_controller.close()
         self.library_model_controller.close()
         self.library_model_controller = None
+        self.data_item_model_controller.close()
+        self.data_item_model_controller = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
         # disconnect self as listener
