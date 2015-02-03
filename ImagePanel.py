@@ -1832,7 +1832,9 @@ class ImagePanel(object):
         self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display_specifier.data_item, gx, gy)
 
     def image_panel_cursor_changed(self, source, display, pos, image_size):
-        self.document_controller.cursor_changed(source, display, pos, image_size)
+        data_and_calibration = display.data_and_calibration if display else None
+        display_calibrated_values = display.display_calibrated_values if display else False
+        self.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos, image_size)
 
     def image_panel_delete_key_pressed(self):
         if self.document_controller.remove_graphic():

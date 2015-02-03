@@ -197,14 +197,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             traceback.print_stack()
             raise
 
-    def __get_preview_2d_shape(self):
+    @property
+    def preview_2d_shape(self):
         if self.__data_and_calibration.is_data_2d:
             return self.__data_and_calibration.dimensional_shape
         elif self.__data_and_calibration.is_data_3d:
             return self.__data_and_calibration.dimensional_shape[1:]
         else:
             return None
-    preview_2d_shape = property(__get_preview_2d_shape)
 
     def get_processed_data(self, processor_id):
         return self.get_processor(processor_id).get_cached_data()

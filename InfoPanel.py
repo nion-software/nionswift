@@ -65,7 +65,7 @@ class InfoPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
-    def cursor_changed(self, source, display, pos, data_size):
+    def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos, data_size):
         def get_value_text(value, intensity_calibration):
             if value is not None:
                 return unicode(intensity_calibration.convert_to_calibrated_value_str(value))
@@ -76,13 +76,12 @@ class InfoPanel(Panel.Panel):
 
         position_text = ""
         value_text = ""
-        data_and_calibration = display.data_and_calibration if display else None
         if data_and_calibration and data_size:
-            if display.display_calibrated_values:
+            if display_calibrated_values:
                 dimensional_calibrations = data_and_calibration.dimensional_calibrations
                 intensity_calibration = data_and_calibration.intensity_calibration
             else:
-                dimensional_calibrations = [Calibration.Calibration() for i in xrange(0, len(display.preview_2d_shape))]
+                dimensional_calibrations = [Calibration.Calibration() for i in xrange(0, len(pos))]
                 intensity_calibration = Calibration.Calibration()
             if pos and len(pos) == 3:
                 # TODO: fix me 3d
