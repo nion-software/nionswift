@@ -3,7 +3,6 @@ import collections
 import copy
 import gettext
 import math
-import threading
 import uuid
 import weakref
 
@@ -355,6 +354,13 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.__data_info = None
 
+        self.__data_and_calibration = None
+        self.__y_min = None
+        self.__y_max = None
+        self.__left_channel = None
+        self.__right_channel = None
+        self.__display_calibrated_values = False
+
     def close(self):
         self.update_display(DataItem.DisplaySpecifier())
         # call super
@@ -377,6 +383,20 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         if old_display and display != old_display:
             old_display.remove_listener(self)
         self.__display_specifier = copy.copy(display_specifier)
+        if display:
+            self.__data_and_calibration = display.data_and_calibration
+            self.__y_min = display.y_min
+            self.__y_max = display.y_max
+            self.__left_channel = display.left_channel
+            self.__right_channel = display.right_channel
+            self.__display_calibrated_values = display.display_calibrated_values
+        else:
+            self.__data_and_calibration = None
+            self.__y_min = None
+            self.__y_max = None
+            self.__left_channel = None
+            self.__right_channel = None
+            self.__display_calibrated_values = False
         if display and display != old_display:
             display.add_listener(self)  # for display_graphic_selection_changed
         # next get rid of data associated with canvas items
@@ -422,27 +442,24 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__line_graph_regions_canvas_item.update()
 
     def prepare_display(self):
-        display = self.__display_specifier.display
-        if display:
-            # grab the data item
-            data_and_calibration = display.data_and_calibration
+        if self.__data_and_calibration:
+            data_and_calibration = self.__data_and_calibration
+            y_min = self.__y_min
+            y_max = self.__y_max
+            left_channel = self.__left_channel
+            right_channel = self.__right_channel
+            display_calibrated_values = self.__display_calibrated_values
 
             if data_and_calibration:
                 # make sure we have the correct data
                 assert data_and_calibration.is_data_1d
 
                 # update the line graph data
-                y_min = display.y_min
-                y_max = display.y_max
-                left_channel = display.left_channel
-                right_channel = display.right_channel
                 left_channel = left_channel if left_channel is not None else 0
-                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[
-                    0]
+                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[0]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_and_calibration.dimensional_calibrations[
-                    0] if display.display_calibrated_values else None
-                intensity_calibration = data_and_calibration.intensity_calibration if display.display_calibrated_values else None
+                dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display_calibrated_values else None
+                intensity_calibration = data_and_calibration.intensity_calibration if display_calibrated_values else None
 
                 def get_data():
                     data = data_and_calibration.data
@@ -771,6 +788,8 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
+        self.update_display(self.__display_specifier)
+        self.prepare_display()
 
     def __get_data_size(self):
         data_and_calibration = self.display.data_and_calibration if self.display else None
@@ -1484,9 +1503,6 @@ class ImagePanel(object):
 
         self.__display_specifier = DataItem.DisplaySpecifier()
 
-        self.__pending_update_lock = threading.RLock()
-        self.__pending_display_specifier = DataItem.DisplaySpecifier()
-
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
 
             def __init__(self, image_panel):
@@ -1715,17 +1731,9 @@ class ImagePanel(object):
     # like graphics or the data itself.
     # thread safe.
     def display_changed(self, display):
-        with self.__pending_update_lock:
-            self.__pending_display_specifier = copy.copy(self.__display_specifier)
-            self.__pending_display_specifier.display = display
-        def update_display_canvas_task():
-            # if there is a pending display update, do it.
-            # update_display_canvas will clear pending updates.
-            # this ensures only the latest one is done.
-            with self.__pending_update_lock:
-                if self.__pending_display_specifier.display:
-                    self.__update_display_canvas(self.__pending_display_specifier)
-        self.queue_task(update_display_canvas_task)
+        display_specifier = copy.copy(self.__display_specifier)
+        if display_specifier.display:
+            self.__update_display_canvas(display_specifier)
 
     # update the display canvas, etc.
     # clear any pending display update at the end
@@ -1762,8 +1770,6 @@ class ImagePanel(object):
         selected = self.document_controller.selected_image_panel == self
         if self.__overlay_canvas_item:  # may be closed
             self.__overlay_canvas_item.selected = display_specifier.display is not None and selected
-        with self.__pending_update_lock:
-            self.__pending_display_specifier = DataItem.DisplaySpecifier()
 
     # ths message comes from the canvas item via the delegate.
     def image_panel_key_pressed(self, key):

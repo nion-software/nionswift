@@ -593,7 +593,6 @@ class TestImagePanelClass(unittest.TestCase):
     def test_mouse_tracking_vertical_shrink_with_origin_at_bottom(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
-        plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         pos = Geometry.IntPoint(x=30, y=plot_bottom - 200)
         modifiers = Test.KeyboardModifiers()
@@ -686,8 +685,6 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        relative_y = (plot_bottom - plot_height/2.0) - pos.y
-        scaling = plot_height
         new_drawn_data_per_pixel = 1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
         self.assertAlmostEqual(self.image_panel.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
         self.assertAlmostEqual(self.image_panel.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
@@ -708,8 +705,6 @@ class TestImagePanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        relative_y = (plot_bottom - plot_height/2.0) - pos.y
-        scaling = plot_height
         new_drawn_data_per_pixel = -1.0/plot_height * (plot_bottom - plot_height*0.5 - pos.y)
         self.assertAlmostEqual(self.image_panel.display.y_min, -new_drawn_data_per_pixel * plot_height*0.5)
         self.assertAlmostEqual(self.image_panel.display.y_max, new_drawn_data_per_pixel * plot_height*0.5)
@@ -722,8 +717,6 @@ class TestImagePanelClass(unittest.TestCase):
         v = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)[0] + 8
         line_plot_canvas_item.mouse_pressed(plot_left, v, Test.KeyboardModifiers(control=True))
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers(control=True))
-        # trigger layout. necessary so that drawn values get updated. bad architecture!
-        self.image_panel.display_canvas_item.prepare_display()  # force layout
         # continue
         line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers())
         line_plot_canvas_item.mouse_position_changed(plot_left+196, v, Test.KeyboardModifiers())
