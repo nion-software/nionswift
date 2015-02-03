@@ -902,6 +902,9 @@ class TestImagePanelClass(unittest.TestCase):
         overlay.drop(mime_data, int(width*0.05), int(height*0.5))
         self.assertEqual(image_panel.drop_region, "left")
 
+    def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
+        self.image_panel.replace_displayed_data_item_and_display(self.display_specifier)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

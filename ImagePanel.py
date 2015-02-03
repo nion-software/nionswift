@@ -2,7 +2,6 @@
 import collections
 import copy
 import gettext
-import logging
 import math
 import threading
 import uuid
@@ -1709,8 +1708,20 @@ class LiveImagePanelController(object):
         hardware_source_id = d.get("hardware_source_id")
         hardware_source_channel_id = d.get("hardware_source_channel_id")
         if hardware_source_id:
-            return LiveImagePanelController(image_panel, hardware_source_id, hardware_source_channel_id)
+            return cls(image_panel, hardware_source_id, hardware_source_channel_id)
         return None
+
+    @classmethod
+    def detect(cls, image_panel, display_specifier):
+        data_item = display_specifier.data_item
+        if data_item.is_live:
+            buffered_data_source = display_specifier.buffered_data_source
+            if buffered_data_source:
+                hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+                hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
+                if hardware_source_id:
+                    return cls(image_panel, hardware_source_id, hardware_source_channel_id)
 
     def save(self, d):
         d["hardware_source_id"] = self.__hardware_source_id
@@ -1741,6 +1752,10 @@ class BrowserImagePanelController(object):
     @classmethod
     def make(cls, image_panel, d):
         return BrowserImagePanelController(image_panel)
+
+    @classmethod
+    def detect(cls, image_panel, display_specifier):
+        return None
 
     def save(self, d):
         pass
@@ -1926,16 +1941,7 @@ class ImagePanel(object):
         if self.__image_panel_controller:
             self.__image_panel_controller.close()
             self.__image_panel_controller = None
-        data_item = display_specifier.data_item
-        if data_item.is_live:
-            buffered_data_source = display_specifier.buffered_data_source
-            if buffered_data_source:
-                hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-                hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-                hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
-                if hardware_source_id:
-                    self.__image_panel_controller = LiveImagePanelController(self, hardware_source_id, hardware_source_channel_id)
-        self.set_displayed_data_item_and_display(display_specifier)
+        self.__image_panel_controller = ImagePanelManager().detect_image_panel_controller(self, display_specifier)
 
     @property
     def buffered_data_source(self):
@@ -2087,10 +2093,6 @@ class ImagePanel(object):
         self.set_displayed_data_item(None)
         return False
 
-    def __replace_displayed_data_item(self, data_item):
-        self.document_controller.replaced_data_item = self.display_specifier.data_item
-        self.set_displayed_data_item(data_item)
-
     def handle_drag_enter(self, mime_data):
         if self.workspace_controller:
             return self.workspace_controller.handle_drag_enter(self, mime_data)
@@ -2142,6 +2144,13 @@ class ImagePanelManager(Observable.Broadcaster):
     def make_image_panel_controller(self, controller_type, image_panel, d):
         if controller_type in self.__image_panel_controllers:
             return self.__image_panel_controllers[controller_type].make(image_panel, d)
+        return None
+
+    def detect_image_panel_controller(self, image_panel, display_specifier):
+        for controller_type in self.__image_panel_controllers:
+            image_panel_controller = self.__image_panel_controllers[controller_type].detect(image_panel, display_specifier)
+            if image_panel_controller:
+                return image_panel_controller
         return None
 
 
