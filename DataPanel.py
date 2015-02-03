@@ -825,7 +825,7 @@ class DataPanel(Panel.Panel):
                     data_item = None
                 self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
                 if self.focused:
-                    self.document_controller.notify_selected_data_item_changed(data_item)
+                    self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
                     self.__selected_data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
                     self.document_controller.set_selected_data_items(self.__selected_data_items)
                 self.document_controller.set_browser_data_item(data_item)
@@ -999,7 +999,7 @@ class DataPanel(Panel.Panel):
         self.__focused = focused
         if not self.__closing:
             if focused:
-                self.document_controller.notify_selected_data_item_changed(self.__selection.data_item)
+                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
                 self.document_controller.set_selected_data_items(self.__selected_data_items)
             else:
                 self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
@@ -1032,13 +1032,17 @@ class DataPanel(Panel.Panel):
         else:
             self.data_group_widget.clear_current_row()
             if filter_id == "latest-session":
-                self.library_widget.set_current_row(1, -1, 0)
+                self.library_widget.set_current_row(1, -1, 0)  # select the 'latest' group
             else:
-                self.library_widget.set_current_row(0, -1, 0)
-        # update the data group that the data item model is tracking
+                self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
+        # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
+        # though this is already on the ui thread.
         self.document_controller.set_data_group_or_filter(data_group, filter_id)
-        self.document_controller.periodic()  # ugh. sync the update so that it occurs before setting the index below.
-        # update the data item selection
+        # when the data group or filter is changed above, it will generate a new list of items to be displayed in the
+        # data browser and that new list will be queued in case it is called on a background thread (it isn't in this
+        # case). call periodic to actually sync the changes to the data browser ui.
+        self.document_controller.periodic()
+        # update the data item selection by determining the new index of the item, if any.
         if self.data_view_widget.current_index == 0:
             self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         else:

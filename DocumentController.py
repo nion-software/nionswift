@@ -461,11 +461,6 @@ class DocumentController(Observable.Broadcaster):
     def notify_selected_display_specifier_changed(self, display_specifier):
         self.notify_listeners("selected_display_specifier_changed", display_specifier)
 
-    def notify_selected_data_item_changed(self, data_item):
-        # DEPRECATED
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.notify_selected_display_specifier_changed(display_specifier)
-
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
 
@@ -699,7 +694,7 @@ class DocumentController(Observable.Broadcaster):
         data_item = display_specifier.data_item
         assert data_item is not None
         self.select_data_item_in_data_panel(data_item)
-        self.notify_selected_data_item_changed(data_item)
+        self.notify_selected_display_specifier_changed(display_specifier)
         inspector_panel = self.find_dock_widget("inspector-panel").panel
         if inspector_panel is not None:
             inspector_panel.request_focus = True
@@ -873,7 +868,7 @@ class DocumentController(Observable.Broadcaster):
             new_data_item.title = _("Clone of ") + data_item.title
             self.document_model.append_data_item(new_data_item)
             self.select_data_item_in_data_panel(new_data_item)
-            self.notify_selected_data_item_changed(new_data_item)
+            self.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(new_data_item))
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -892,7 +887,7 @@ class DocumentController(Observable.Broadcaster):
             data_item_copy.title = _("Snapshot of ") + data_item.title
             self.document_model.append_data_item(data_item_copy)
             self.select_data_item_in_data_panel(data_item_copy)
-            self.notify_selected_data_item_changed(data_item_copy)
+            self.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item_copy))
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
