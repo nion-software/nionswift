@@ -197,6 +197,12 @@ class WorkspaceController(object):
         display_panel.title = _("Image")
         return display_panel
 
+    def get_display_panel(self, display_panel_id):
+        for display_panel in self.display_panels:
+            if display_panel.display_panel_id == display_panel_id:
+                return display_panel
+        return None
+
     def _construct(self, desc, display_panels, lookup_data_item):
         selected_display_panel = None
         type = desc["type"]
@@ -252,7 +258,6 @@ class WorkspaceController(object):
         assert workspace is not None
         # save the current workspace
         if self.__workspace:
-            # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
         # remove existing layout and canvas item
         for display_panel in self.display_panels:
@@ -305,13 +310,25 @@ class WorkspaceController(object):
         workspace_index = (workspace_index + 1) % len(self.document_controller.document_model.workspaces)
         self.change_workspace(self.document_controller.document_model.workspaces[workspace_index])
 
-    def new_workspace(self, name=None, layout=None):
+    def new_workspace(self, name=None, layout=None, workspace_id=None):
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.Workspace()
         self.document_controller.document_model.append_workspace(workspace)
         workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
         workspace.name = name if name is not None else _("Workspace")
+        if workspace_id:
+            workspace.workspace_id = workspace_id
         return workspace
+
+    def ensure_workspace(self, name, layout, workspace_id):
+        """Looks for a workspace with workspace_id.
+
+        If none is found, create a new one, add it, and change to it.
+        """
+        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.workspace_id == workspace_id), None)
+        if not workspace:
+            workspace = self.new_workspace(name=name, layout=layout, workspace_id=workspace_id)
+        self.change_workspace(workspace)
 
     def create_workspace(self):
         """ Pose a dialog to name and create a workspace. """

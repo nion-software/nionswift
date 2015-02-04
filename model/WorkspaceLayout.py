@@ -20,6 +20,7 @@ class Workspace(Observable.ManagedObject):
         self.define_type("workspace")
         self.define_property("name")
         self.define_property("layout")
+        self.define_property("workspace_id")
 
 
 def factory(lookup_id):

@@ -310,6 +310,8 @@ class DisplayPanel(object):
 
         self.__display_panel_controller = None
 
+        self.display_panel_id = None
+
         self.display_canvas_item = None
         self.__display_type = None
 
@@ -368,12 +370,16 @@ class DisplayPanel(object):
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
-        else:
-            data_item = self.display_specifier.data_item
-            if data_item:
-                d["data_item_uuid"] = str(data_item.uuid)
+        if self.display_panel_id:
+            d["display_panel_id"] = str(self.display_panel_id)
+        data_item = self.display_specifier.data_item
+        if data_item:
+            d["data_item_uuid"] = str(data_item.uuid)
 
     def restore_contents(self, d):
+        display_panel_id = d.get("display_panel_id")
+        if display_panel_id:
+            self.display_panel_id = display_panel_id
         controller_type = d.get("controller_type")
         self.__display_panel_controller = DisplayPanelManager().make_display_panel_controller(controller_type, self, d)
         if not self.__display_panel_controller:
