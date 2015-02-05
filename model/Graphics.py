@@ -124,6 +124,7 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         super(Graphic, self).__init__()
         self.define_type(type)
         self.define_property("color", "#F00", changed=self._property_changed)
+        self.define_property("label", changed=self._property_changed)
         self.__region = None
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -256,14 +257,14 @@ class RectangleTypeGraphic(Graphic):
         original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
 
 class RectangleGraphic(RectangleTypeGraphic):
     def __init__(self):
         super(RectangleGraphic, self).__init__("rect-graphic", _("Rectangle"))
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
@@ -310,7 +311,7 @@ class RectangleGraphic(RectangleTypeGraphic):
 class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
         super(EllipseGraphic, self).__init__("ellipse-graphic", _("Ellipse"))
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
@@ -468,14 +469,14 @@ class LineTypeGraphic(Graphic):
         ctx.line_to(p2[1] - arrow_size * math.cos(angle - math.pi / 6), p2[0] - arrow_size * math.sin(angle - math.pi / 6))
         ctx.move_to(p2[1], p2[0])
         ctx.line_to(p2[1] - arrow_size * math.cos(angle + math.pi / 6), p2[0] - arrow_size * math.sin(angle + math.pi / 6))
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
 
 class LineGraphic(LineTypeGraphic):
     def __init__(self):
         super(LineGraphic, self).__init__("line-graphic", _("Line"))
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         ctx.save()
@@ -500,7 +501,7 @@ class LineProfileGraphic(LineTypeGraphic):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
     # accessors
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         ctx.save()
@@ -572,31 +573,48 @@ class PointTypeGraphic(Graphic):
         original = pos_image
         current = original + delta
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
 
 class PointGraphic(PointTypeGraphic):
     def __init__(self):
         super(PointGraphic, self).__init__("point-graphic", _("Point"))
-    def draw(self, ctx, mapping, is_selected=False):
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p = mapping.map_point_image_norm_to_widget(self.position)
         ctx.save()
-        ctx.begin_path()
-        cross_hair_size = 12
-        inner_size = 4
-        ctx.move_to(p.x - cross_hair_size, p.y)
-        ctx.line_to(p.x - inner_size, p.y)
-        ctx.move_to(p.x + inner_size, p.y)
-        ctx.line_to(p.x + cross_hair_size, p.y)
-        ctx.move_to(p.x, p.y - cross_hair_size)
-        ctx.line_to(p.x, p.y - inner_size)
-        ctx.move_to(p.x, p.y + inner_size)
-        ctx.line_to(p.x, p.y + cross_hair_size)
-        ctx.line_width = 1
-        ctx.stroke_style = self.color
-        ctx.stroke()
-        ctx.restore()
+        try:
+            ctx.begin_path()
+            cross_hair_size = 12
+            inner_size = 4
+            ctx.move_to(p.x - cross_hair_size, p.y)
+            ctx.line_to(p.x - inner_size, p.y)
+            ctx.move_to(p.x + inner_size, p.y)
+            ctx.line_to(p.x + cross_hair_size, p.y)
+            ctx.move_to(p.x, p.y - cross_hair_size)
+            ctx.line_to(p.x, p.y - inner_size)
+            ctx.move_to(p.x, p.y + inner_size)
+            ctx.line_to(p.x, p.y + cross_hair_size)
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            if self.label:
+                padding = 4
+                font = "normal 11px serif"
+                font_metrics = get_font_metrics_fn(font, self.label)
+                text_pos = p + Geometry.FloatPoint(-cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
+                ctx.fill_style = "rgba(255, 255, 255, 0.6)"
+                ctx.rect(text_pos.x - font_metrics.width * 0.5 - padding,
+                         text_pos.y - font_metrics.height * 0.5 - padding, font_metrics.width + padding * 2,
+                         font_metrics.height + padding * 2)
+                ctx.fill()
+                ctx.font = font
+                ctx.text_baseline = "middle"
+                ctx.text_align = "center"
+                ctx.fill_style = "#000"
+                ctx.fill_text(self.label, text_pos.x, text_pos.y)
+        finally:
+            ctx.restore()
         if is_selected:
             self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, cross_hair_size))
             self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))

@@ -614,7 +614,7 @@ class DisplayPanel(object):
                 self.display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
-                self.display_canvas_item = ImageCanvasItem.ImageCanvasItem(DisplayCanvasItemDelegate(self))
+                self.display_canvas_item = ImageCanvasItem.ImageCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
                 self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.set_fit_mode()
             self.__display_type = display_type

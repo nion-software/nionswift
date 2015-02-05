@@ -14,12 +14,10 @@ import weakref
 
 # local libraries
 from nion.swift import DisplayPanel
-from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
-from nion.ui import Geometry
 
 
 _ = gettext.gettext

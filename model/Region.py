@@ -23,6 +23,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def __init__(self, type):
         super(Region, self).__init__()
         self.define_type(type)
+        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s))
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def about_to_be_removed(self):
@@ -31,9 +32,9 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return None
-    graphic = property(__get_graphic)
 
     def remove_region_graphic(self, region_graphic):
         # message from the graphic when its being removed
@@ -50,10 +51,11 @@ class PointRegion(Region):
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
+        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return self.__graphic
-    graphic = property(__get_graphic)
 
 
 class LineRegion(Region):
@@ -79,6 +81,7 @@ class LineRegion(Region):
         self.__graphic.add_listener(self)
         self.__vector_binding = RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector")
         self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
+        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
 
     def __vector_changed(self, name, value):
         self._property_changed(name, value)
@@ -97,9 +100,9 @@ class LineRegion(Region):
         self.vector = self.start, end
     end = property(__get_end, __set_end)
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return self.__graphic
-    graphic = property(__get_graphic)
 
 
 class RectRegion(Region):
@@ -115,10 +118,11 @@ class RectRegion(Region):
         self.__graphic.add_listener(self)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
+        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return self.__graphic
-    graphic = property(__get_graphic)
 
     def __get_bounds(self):
         center = self.center
@@ -148,10 +152,11 @@ class EllipseRegion(Region):
         self.__graphic.add_listener(self)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
+        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return self.__graphic
-    graphic = property(__get_graphic)
 
     def __get_bounds(self):
         center = self.center
@@ -187,10 +192,11 @@ class IntervalRegion(Region):
         self.__graphic.color = "#F80"
         self.__graphic.add_listener(self)
         self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
+        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
 
-    def __get_graphic(self):
+    @property
+    def graphic(self):
         return self.__graphic
-    graphic = property(__get_graphic)
 
     def __interval_changed(self, name, value):
         self._property_changed(name, value)

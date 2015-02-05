@@ -81,8 +81,9 @@ class ImageCanvasItemMapping(object):
 
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
-    def __init__(self):
+    def __init__(self, get_font_metrics_fn):
         super(GraphicsCanvasItem, self).__init__()
+        self.__get_font_metrics_fn = get_font_metrics_fn
         self.__dimensional_shape = None
         self.__graphics = None
         self.__graphic_selection = None
@@ -98,7 +99,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
             drawing_context.save()
             for graphic_index, graphic in enumerate(self.__graphics):
-                graphic.draw(drawing_context, widget_mapping, self.__graphic_selection.contains(graphic_index))
+                graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
             drawing_context.restore()
 
 
@@ -219,9 +220,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         update_display_properties(display_properties)
     """
 
-    def __init__(self, delegate):
+    def __init__(self, get_font_metrics_fn, delegate):
         super(ImageCanvasItem, self).__init__()
 
+        self.__get_font_metrics_fn = get_font_metrics_fn
         self.delegate = delegate
 
         self.wants_mouse_events = True
@@ -235,7 +237,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         background_canvas_item = CanvasItem.BackgroundCanvasItem()
         # next the zoomable items
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888")
-        self.__graphics_canvas_item = GraphicsCanvasItem()
+        self.__graphics_canvas_item = GraphicsCanvasItem(get_font_metrics_fn)
         # put the zoomable items into a composition
         self.__composite_canvas_item = CanvasItem.CanvasItemComposition()
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
