@@ -363,14 +363,17 @@ class DataPanel(Panel.Panel):
             return self.document_controller.data_items_binding.container
         container = property(__get_container)
 
+        # TODO: refactor data_items property out of DataItemModelController
         @property
         def data_items(self):
             return self.__data_items
 
+        # TODO: refactor get_data_item_by_index out of DataItemModelController
         def get_data_item_by_index(self, index):
             data_items = self.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
+        # TODO: refactor get_data_item_index out of DataItemModelController
         def get_data_item_index(self, data_item):
             data_items = self.data_items
             return data_items.index(data_item) if data_item in data_items else -1
@@ -381,6 +384,7 @@ class DataPanel(Panel.Panel):
         def _get_model_data_count(self):
             return len(self.list_model_controller.model)
 
+        # remove the data item from the list. called in response to the user hitting the delete key.
         def remove_data_item(self, data_item):
             container = DataGroup.get_data_item_container(self.container, data_item)
             if container and data_item in container.data_items:
@@ -628,19 +632,17 @@ class DataPanel(Panel.Panel):
                 thumbnail_data = display.get_processed_data("thumbnail")
                 self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
 
-        def remove_data_item(self, data_item):
-            container = DataGroup.get_data_item_container(self.container, data_item)
-            if container and data_item in container.data_items:
-                container.remove_data_item(data_item)
-
+        # TODO: refactor data_items property out of DataGridController
         @property
         def data_items(self):
             return self.__data_items
 
+        # TODO: refactor get_data_item_by_index out of DataGridController
         def get_data_item_by_index(self, index):
             data_items = self.data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
+        # TODO: refactor get_data_item_index out of DataGridController
         def get_data_item_index(self, data_item):
             data_items = self.data_items
             return data_items.index(data_item) if data_item in data_items else -1
@@ -1043,6 +1045,7 @@ class DataPanel(Panel.Panel):
         # case). call periodic to actually sync the changes to the data browser ui.
         self.document_controller.periodic()
         # update the data item selection by determining the new index of the item, if any.
+        # TODO: updating the current selection is not done correctly here
         if self.data_view_widget.current_index == 0:
             self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
         else:
