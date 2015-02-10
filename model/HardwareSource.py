@@ -42,6 +42,7 @@ class HardwareSourceManager(Observable.Broadcaster):
         # source is added or removed
         self.hardware_source_added_removed = []
         self.instrument_added_removed = []
+        self.aliases_updated = []
         # aliases are shared between hardware sources and instruments
         self.__aliases = {}
 
@@ -201,6 +202,8 @@ class HardwareSourceManager(Observable.Broadcaster):
             :param str display_name: the display name for the alias
         """
         self.__aliases[alias_instrument_id] = (instrument_id, display_name)
+        for f in self.aliases_updated:
+            f()
 
 
 class HardwareSourcePort(object):

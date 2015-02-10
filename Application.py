@@ -22,7 +22,6 @@ from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
 from nion.swift import HistogramPanel
-from nion.swift import DisplayPanel
 from nion.swift import Inspector
 from nion.swift import Panel
 from nion.swift import Task
