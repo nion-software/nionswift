@@ -3,10 +3,6 @@ This module defines a couple of classes proposed as a framework for handling liv
 sources.
 
 A HardwareSource represents a source of data elements.
-A client accesses data_elements through the create_port function
-which changes the mode of the source, and starts it, and starts notifying the returned
-port object. The port object should not do any significant processing in its new_data_elements
-function but should instead just notify another thread that new data is available.
 """
 
 # system imports
@@ -140,27 +136,6 @@ class HardwareSourceManager(Observable.Broadcaster):
             f()
 
 
-class HardwareSourcePort(object):
-
-    """A one item buffer to allow one thread to put data elements in and another to take them out."""
-
-    def __init__(self, hardware_source):
-        self.hardware_source = hardware_source
-        self.on_new_data_elements = None
-
-    def close(self):
-        self.hardware_source.remove_port(self)
-        self.on_new_data_elements = None
-
-    # receive new data elements, store last data element, and call on_new_data_elements.
-    # set the finished event. this allows synchronization by providing a mechanism by which
-    # get_new_data_elements can verify that the frame has finished.
-    # thread safe.
-    def _set_new_data_elements(self, data_elements):
-        if self.on_new_data_elements:
-            self.on_new_data_elements(data_elements)
-
-
 class NotifyingEvent(object):
 
     def __init__(self):
@@ -209,50 +184,40 @@ class HardwareSource(Observable.Broadcaster):
 
     def __init__(self, hardware_source_id, display_name):
         super(HardwareSource, self).__init__()
-        self.__ports = []
-        self.__portlock = threading.Lock()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.features = dict()
-        self.__hardware_port = None
+        self.__new_data_elements_event_listener = None
         self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
         self.__workspace_controller = None  # the workspace_controller when last started.
         self.frame_index = 0
+        self.__acquire_thread = None
+        self.__acquire_thread_break = False
+        self.new_data_elements_event = NotifyingEvent()
+        self.new_data_elements_event.on_first_listener_added = self.__create_acquisition_thread
+        self.new_data_elements_event.on_last_listener_removed= self.__destroy_acquisition_thread
         self.playing_state_changed_event = Observable.Event()
         self.data_item_state_changed_event = Observable.Event()
 
     def close(self):
-        if self.__hardware_port:
-            self.__close_hardware_port()
-            self.data_elements_changed(list())
-            self.__hardware_port = None
+        self.__close_hardware_port()
 
     # user interfaces using hardware sources should call this periodically
     def periodic(self):
         if self.__should_abort():
             self.abort_playing()
 
-    # ports allow multiple clients to independently grab data out of the data source.
-    # only a single acquisition thread is created per hardware source
-    def create_port(self):
-        with self.__portlock:
-            port = HardwareSourcePort(self)
-            start_thread = len(self.__ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
-            self.__ports.append(port)
-        if start_thread:
-            self.acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
-            self.acquire_thread.start()
-        return port
+    def __create_acquisition_thread(self):
+        self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
+        self.__acquire_thread_break = False
+        self.__acquire_thread.start()
 
-    def remove_port(self, port):
-        """
-        Removes the port. Usually performed via port.close()
-        """
-        with self.__portlock:
-            self.__ports.remove(port)
+    def __destroy_acquisition_thread(self):
+        self.__acquire_thread_break = True
+        self.__acquire_thread = None
 
     def __acquire_thread_loop(self):
         try:
@@ -267,22 +232,11 @@ class HardwareSource(Observable.Broadcaster):
         try:
             new_data_elements = None
 
-            # return whether to break out of loop
-            def update_ports(updated_data_elements):
-                with self.__portlock:
-                    if not self.__ports:
-                        return False
-                    # check to make sure we actually have new data elements,
-                    # since this might be the first time through the loop.
-                    # otherwise the data element list gets cleared and new data elements
-                    # get created when the data elements become available.
-                    for port in self.__ports:
-                        if updated_data_elements is not None:
-                            port._set_new_data_elements(updated_data_elements)
-                    return True
-
             while True:
-                if not update_ports(new_data_elements):
+                if new_data_elements is not None:
+                    self.new_data_elements_event.fire(new_data_elements)
+
+                if self.__acquire_thread_break:
                     break
 
                 # impose maximum frame rate so that acquire_data_elements can't starve main thread
@@ -292,7 +246,7 @@ class HardwareSource(Observable.Broadcaster):
                 try:
                     new_data_elements = self.acquire_data_elements()
                 except Exception as e:
-                    update_ports([])
+                    self.new_data_elements_event.fire(list())
                     self.__abort_signal = True
                     # caller will print stack trace
                     raise
@@ -328,7 +282,7 @@ class HardwareSource(Observable.Broadcaster):
     # return whether acquisition is running
     @property
     def is_playing(self):
-        return self.__hardware_port is not None
+        return self.__new_data_elements_event_listener is not None
 
     # subclasses are expected to implement this function efficiently since it will
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
@@ -345,17 +299,15 @@ class HardwareSource(Observable.Broadcaster):
             self.__abort_signal = False
             self.__workspace_controller = workspace_controller
             self.__workspace_controller.will_start_playing(self)
-            if not self.__hardware_port:
-                self.__hardware_port = self.create_port()
-                self.__hardware_port.on_new_data_elements = self.data_elements_changed
+            if not self.__new_data_elements_event_listener:
+                self.__new_data_elements_event_listener = self.new_data_elements_event.listen(self.data_elements_changed)
                 self.playing_state_changed_event.fire(True)
             self.notify_listeners("hardware_source_started", self)
 
     def __close_hardware_port(self):
-        if self.__hardware_port:
-            self.__hardware_port.on_new_data_elements = None
-            self.__hardware_port.close()
-            self.__hardware_port = None
+        if self.__new_data_elements_event_listener:
+            self.__new_data_elements_event_listener.close()
+            self.__new_data_elements_event_listener = None
             self.data_elements_changed([])
             self.playing_state_changed_event.fire(False)
 
@@ -511,8 +463,7 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0
         new_data_elements[:] = data_elements
         new_data_event.set()
 
-    port = hardware_source.create_port()
-    port.on_new_data_elements = receive_new_data_elements
+    new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(receive_new_data_elements)
 
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
@@ -531,7 +482,7 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0
 
         yield get_last_data_element
     finally:
-        port.close()
+        new_data_elements_event_listener.close()
 
 
 @contextmanager

@@ -73,9 +73,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source = SimpleHardwareSource()
         hardware_source_manager.register_hardware_source(hardware_source)
         self.assertEqual(len(hardware_source_manager.hardware_sources), 1)
-        p = hardware_source.create_port()
-        self.assertIsNotNone(p)
-        p.close()
         hardware_source_manager.unregister_hardware_source(hardware_source)
         self.assertIsNone(hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source"))
 
@@ -88,16 +85,9 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source_manager.make_instrument_alias(simple_hardware_source.hardware_source_id, "testalias2", "Test2")
         hardware_source_manager.make_instrument_alias("testalias", "testalias3", "Test3")
         hardware_source_manager.make_instrument_alias("testalias2", "testalias4", "Test4")
-        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias").create_port()
-        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
-        port.close()
-        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias2").create_port()
-        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
-        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
-        port.close()
-        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias3").create_port()
-        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
-        port.close()
+        self.assertEqual(hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias").hardware_source_id, simple_hardware_source.hardware_source_id)
+        self.assertEqual(hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias2").hardware_source_id, simple_hardware_source.hardware_source_id)
+        self.assertEqual(hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias3").hardware_source_id, simple_hardware_source.hardware_source_id)
         hardware_source_manager.unregister_hardware_source(simple_hardware_source)
 
     def test_events(self):
@@ -106,17 +96,16 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source = SimpleHardwareSource()
         hardware_source_manager.register_hardware_source(hardware_source)
         self.assertEqual(len(hardware_source_manager.hardware_sources), 1)
-        p = hardware_source.create_port()
         new_data_elements = list()
         def handle_new_data_elements(data_elements):
             new_data_elements.extend(data_elements)
-        p.on_new_data_elements = handle_new_data_elements
+        new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(handle_new_data_elements)
         while hardware_source.frame_index < 4:
             time.sleep(0.01)
         tl_pixel = new_data_elements[0]["data"][0]
         # print "got %d images in 1s"%tl_pixel
         self.assertTrue(3.0 < tl_pixel < 7.0)
-        p.close()
+        new_data_elements_event_listener.close()
         hardware_source_manager.unregister_hardware_source(hardware_source)
 
     def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
