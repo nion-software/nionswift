@@ -256,7 +256,7 @@ class HardwareSource(Observable.Broadcaster):
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.features = dict()
-        self.__data_buffer = None
+        self.__hardware_port = None
         self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
         self.__channel_states = {}
         self.__channel_states_mutex = threading.RLock()
@@ -269,22 +269,15 @@ class HardwareSource(Observable.Broadcaster):
         self.playing_state_changed_event = Observable.Event()
 
     def close(self):
-        if self.__data_buffer:
-            self.__data_buffer.remove_listener(self)
-            self.__data_buffer.close()
-            self.__data_buffer = None
+        if self.__hardware_port:
+            self.__close_hardware_port()
+            self.data_elements_changed(list())
+            self.__hardware_port = None
 
     # user interfaces using hardware sources should call this periodically
     def periodic(self):
         if self.__should_abort():
             self.abort_playing()
-
-    def __get_data_buffer(self):
-        if not self.__data_buffer:
-            self.__data_buffer = HardwareSourceDataBuffer(self)
-            self.__data_buffer.add_listener(self)
-        return self.__data_buffer
-    data_buffer = property(__get_data_buffer)
 
     # get mode settings. thread safe.
     def get_mode_settings(self, mode):
@@ -294,7 +287,7 @@ class HardwareSource(Observable.Broadcaster):
     # set mode settings. thread safe.
     def set_mode_settings(self, mode, mode_data):
         with self.__mode_lock:
-            __mode_data[self.__mode] = copy.copy(mode_data)
+            mode_data[self.__mode] = copy.copy(mode_data)
 
     # subclasses may override this to respond to mode changes
     def mode_changed(self, mode):
@@ -404,7 +397,7 @@ class HardwareSource(Observable.Broadcaster):
 
     # return whether acquisition is running
     def __is_playing(self):
-        return self.data_buffer.is_playing
+        return self.__hardware_port is not None
     is_playing = property(__is_playing)
 
     # subclasses are expected to implement this function efficiently since it will
@@ -418,19 +411,30 @@ class HardwareSource(Observable.Broadcaster):
     # call this to start acquisition
     # not thread safe
     def start_playing(self, workspace_controller, mode=None):
-        if not self.data_buffer.is_playing:
+        if not self.is_playing:
             self.__abort_signal = False
             self.__workspace_controller = workspace_controller
             self.__workspace_controller.will_start_playing(self)
-            self.data_buffer.start()
+            if not self.__hardware_port:
+                self.__hardware_port = self.create_port(mode)
+                self.__hardware_port.on_new_data_elements = self.data_elements_changed
+                self.playing_state_changed_event.fire(True)
             self.notify_listeners("hardware_source_started", self)
+
+    def __close_hardware_port(self):
+        if self.__hardware_port:
+            self.__hardware_port.on_new_data_elements = None
+            self.__hardware_port.close()
+            self.__hardware_port = None
+            self.data_elements_changed([])
+            self.playing_state_changed_event.fire(False)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        if self.data_buffer.is_playing:
+        if self.is_playing:
             self.abort_acquisition()
-            self.data_buffer.stop()
+            self.__close_hardware_port()
             self.notify_listeners("hardware_source_stopped", self)
             self.__workspace_controller.did_stop_playing(self)
             # self.__workspace_controller = None  # Do not clear the workspace_controller here.
@@ -488,7 +492,7 @@ class HardwareSource(Observable.Broadcaster):
     # this message comes from the data buffer.
     # data_elements is a list of data_elements; entries may be None
     # thread safe
-    def data_elements_changed(self, hardware_source, data_elements):
+    def data_elements_changed(self, data_elements):
         # TODO: deal wth overrun by asking for latest values.
 
         # build useful data structures (channel -> data)
@@ -548,77 +552,6 @@ class HardwareSource(Observable.Broadcaster):
             for channel in self.__channel_states.keys():
                 if not channel in channels:
                     del self.__channel_states[channel]
-
-    # this message comes from the data buffer. it will always be invoked on the UI thread.
-    def playing_state_changed(self, hardware_source, is_playing):
-        self.playing_state_changed_event.fire(is_playing)
-
-
-class HardwareSourceDataBuffer(Observable.Broadcaster):
-    """
-    For the given HWSource (which can either be an object with a create_port function, or a name. If
-    a name, ports are created using the HardwareSourceManager.create_port_for_hardware_source_id function,
-    and aliases can be supplied), creates a port and listens for any data_elements.
-    Manages a collection of DataItems for all data_elements returned.
-    The DataItems are owned by this, and persist while the acquisition is live,
-    if the user wants to remove the data items, they should stop the acquisition
-    first.
-
-    DataItems are reused if available - we reuse them by searching through all data_elements
-    in the 'Sources' data_group, based on name (could use more advanced metadata in the
-    future f necessary).
-
-    """
-
-    def __init__(self, hardware_source):
-        super(HardwareSourceDataBuffer, self).__init__()
-        assert hardware_source
-        self.hardware_source = hardware_source
-        self.hardware_port = None
-
-    def close(self):
-        # logging.debug("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
-        if self.hardware_port is not None:
-            self.stop()
-            # we should be consistent about how we stop live acquisitions:
-            # stopping should be identical to acquiring with no channels selected
-            # and we should delete/keep data items the same in both cases.
-            # easiest way is to call new_data_elements(None)
-            # now that we've set hardware_port to None
-            # if we do want to keep data items, it should be done in new_data_elements
-            self.new_data_elements([])
-
-    def __get_is_playing(self):
-        return self.hardware_port is not None
-    is_playing = property(__get_is_playing)
-
-    # must be called on the UI thread
-    def start(self, mode=None):
-        # logging.debug("Starting HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
-        if self.hardware_port is None:
-            self.hardware_port = self.hardware_source.create_port(mode)
-            self.hardware_port.on_new_data_elements = self.new_data_elements
-            self.notify_listeners("playing_state_changed", self.hardware_source, True)
-
-    # must be called on the UI thread
-    def stop(self):
-        # logging.debug("Stopping HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
-        if self.hardware_port is not None:
-            self.hardware_port.on_new_data_elements = None
-            self.hardware_port.close()
-            self.hardware_port = None
-            self.new_data_elements([])
-            self.notify_listeners("playing_state_changed", self.hardware_source, False)
-
-    # thread safe
-    # this will typically be called on the acquisition thread
-    # data_elements is a list of data_elements; entries may be None
-    def new_data_elements(self, data_elements):
-        if not self.hardware_port:
-            data_elements = []
-
-        # update the data on the data items
-        self.notify_listeners("data_elements_changed", self.hardware_source, data_elements)
 
 
 @contextmanager
