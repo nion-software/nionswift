@@ -346,30 +346,21 @@ class HardwareSource(Observable.Broadcaster):
     def __update_channel(self, channel, data_item, data_element):
         with self.__channel_states_mutex:
             channel_state = self.__channel_states.get(channel)
-        new_channel_state = self.__update_channel_state(channel_state, data_item, data_element)
+        if channel_state != "stopped":
+            sub_area = data_element.get("sub_area")
+            complete = sub_area is None or data_element.get("state", "complete") == "complete"
+            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            # update channel state
+            if channel_state == "marked":
+                channel_state = "stopped" if complete else "marked"
+            else:
+                channel_state = "complete" if complete else "partial"
         with self.__channel_states_mutex:
             # avoid race condition where 'marked' is set during 'update_channel_state'...
             # i.e. 'marked' can only transition to 'stopped'. leave it as 'marked' if nothing else.
-            if not channel in self.__channel_states or self.__channel_states[channel] != "marked" or new_channel_state == "stopped":
-                self.__channel_states[channel] = new_channel_state
+            if not channel in self.__channel_states or self.__channel_states[channel] != "marked" or channel_state == "stopped":
+                self.__channel_states[channel] = channel_state
         return self.__channel_states[channel]
-
-    # update channel state.
-    # channel state during normal acquisition: started -> (partial -> complete) -> stopped
-    # channel state during stop: started -> (partial -> complete) -> marked -> stopped
-    # thread safe
-    def __update_channel_state(self, channel_state, data_item, data_element):
-        if channel_state == "stopped":
-            return channel_state
-        sub_area = data_element.get("sub_area")
-        complete = sub_area is None or data_element.get("state", "complete") == "complete"
-        ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-        # update channel state
-        if channel_state == "marked":
-            channel_state = "stopped" if complete else "marked"
-        else:
-            channel_state = "complete" if complete else "partial"
-        return channel_state
 
     # this message comes from the hardware port.
     # data_elements is a list of data_elements; entries may be None
