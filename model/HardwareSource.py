@@ -20,6 +20,7 @@ import os
 import threading
 import time
 import traceback
+import weakref
 
 # local imports
 from nion.swift.model import ImportExportManager
@@ -121,14 +122,6 @@ class HardwareSourceManager(Observable.Broadcaster):
             return hardware_source
         return None
 
-    # Create_port, resolving aliases for the hardware_source_id.
-    def create_port_for_hardware_source_id(self, hardware_source_id):
-        info = self.__get_info_for_hardware_source_id(hardware_source_id)
-        if info:
-            hardware_source, display_name = info
-            return hardware_source.create_port()
-        return None
-
     def make_instrument_alias(self, instrument_id, alias_instrument_id, display_name):
         """
             Configure an alias.
@@ -149,36 +142,60 @@ class HardwareSourceManager(Observable.Broadcaster):
 
 class HardwareSourcePort(object):
 
+    """A one item buffer to allow one thread to put data elements in and another to take them out."""
+
     def __init__(self, hardware_source):
         self.hardware_source = hardware_source
         self.on_new_data_elements = None
-        self.last_data_elements = None
-        self.__finished_event = threading.Event()
 
     def close(self):
         self.hardware_source.remove_port(self)
         self.on_new_data_elements = None
 
-    def get_last_data_elements(self):
-        return self.last_data_elements
-
-    # thread safe.
-    def get_new_data_elements(self, sync):
-        if sync:
-            # wait for the last frame to finish
-            self.__finished_event.clear()
-            self.__finished_event.wait()
-        # wait for the new frame to arrive
-        self.__finished_event.clear()
-        self.__finished_event.wait()
-        return self.last_data_elements
-
+    # receive new data elements, store last data element, and call on_new_data_elements.
+    # set the finished event. this allows synchronization by providing a mechanism by which
+    # get_new_data_elements can verify that the frame has finished.
     # thread safe.
     def _set_new_data_elements(self, data_elements):
-        self.last_data_elements = data_elements
         if self.on_new_data_elements:
-            self.on_new_data_elements(self.last_data_elements)
-        self.__finished_event.set()
+            self.on_new_data_elements(data_elements)
+
+
+class NotifyingEvent(object):
+
+    def __init__(self):
+        self.__weak_listeners = []
+        self.__weak_listeners_mutex = threading.RLock()
+        self.on_first_listener_added = None
+        self.on_last_listener_removed = None
+
+    def listen(self, listener_fn):
+        listener = Observable.EventListener(listener_fn)
+        def remove_listener(weak_listener):
+            with self.__weak_listeners_mutex:
+                self.__weak_listeners.remove(weak_listener)
+                last = len(self.__weak_listeners) == 0
+            if last and self.on_last_listener_removed:
+                self.on_last_listener_removed()
+        weak_listener = weakref.ref(listener, remove_listener)
+        with self.__weak_listeners_mutex:
+            first = len(self.__weak_listeners) == 0
+            self.__weak_listeners.append(weak_listener)
+        if first and self.on_first_listener_added:
+            self.on_first_listener_added()
+        return listener
+
+    def fire(self, *args, **keywords):
+        try:
+            with self.__weak_listeners_mutex:
+                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
+            for listener in listeners:
+                listener.call(*args, **keywords)
+        except Exception as e:
+            import traceback
+            logging.debug("Event Error: %s", e)
+            traceback.print_exc()
+            traceback.print_stack()
 
 
 class HardwareSource(Observable.Broadcaster):
@@ -192,7 +209,7 @@ class HardwareSource(Observable.Broadcaster):
 
     def __init__(self, hardware_source_id, display_name):
         super(HardwareSource, self).__init__()
-        self.ports = []
+        self.__ports = []
         self.__portlock = threading.Lock()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
@@ -243,15 +260,14 @@ class HardwareSource(Observable.Broadcaster):
         self.mode_changed(value)
         self.__mode = value
 
+    # ports allow multiple clients to independently grab data out of the data source.
     # only a single acquisition thread is created per hardware source
     def create_port(self, mode=None):
         with self.__portlock:
             port = HardwareSourcePort(self)
-            start_thread = len(self.ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
-            self.ports.append(port)
+            start_thread = len(self.__ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
+            self.__ports.append(port)
         if start_thread:
-            # we should do this a little nicer. Specifically, if we start a new thread
-            # the existing one could carry on two. We should make sure we can only have one
             with self.__mode_lock:
                 mode = mode if mode else self.__mode
                 mode_data = self.get_mode_settings(mode)
@@ -259,12 +275,12 @@ class HardwareSource(Observable.Broadcaster):
             self.acquire_thread.start()
         return port
 
-    def remove_port(self, lst):
+    def remove_port(self, port):
         """
-        Removes the port lst. Usually performed via port.close()
+        Removes the port. Usually performed via port.close()
         """
         with self.__portlock:
-            self.ports.remove(lst)
+            self.__ports.remove(port)
 
     def acquire_thread_loop(self, mode, mode_data):
         try:
@@ -282,13 +298,13 @@ class HardwareSource(Observable.Broadcaster):
             # return whether to break out of loop
             def update_ports(updated_data_elements):
                 with self.__portlock:
-                    if not self.ports:
+                    if not self.__ports:
                         return False
                     # check to make sure we actually have new data elements,
                     # since this might be the first time through the loop.
                     # otherwise the data element list gets cleared and new data elements
                     # get created when the data elements become available.
-                    for port in self.ports:
+                    for port in self.__ports:
                         if updated_data_elements is not None:
                             port._set_new_data_elements(updated_data_elements)
                     return True
@@ -431,7 +447,7 @@ class HardwareSource(Observable.Broadcaster):
             channel_state = "complete" if complete else "partial"
         return channel_state
 
-    # this message comes from the data buffer.
+    # this message comes from the hardware port.
     # data_elements is a list of data_elements; entries may be None
     # thread safe
     def data_elements_changed(self, data_elements):
@@ -504,7 +520,7 @@ class HardwareSource(Observable.Broadcaster):
 
 
 @contextmanager
-def get_data_element_generator_by_id(hardware_source_id, sync=True):
+def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
     """
         Return a generator for data elements.
 
@@ -513,12 +529,34 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True):
         NOTE: data elements may return the same ndarray (with different data) each time it is called.
         Callers should handle appropriately.
     """
-    port = __find_hardware_port_by_id(hardware_source_id)
-    def get_last_data_element():
-        return port.get_new_data_elements(sync)[0]
+
+    hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+
+    new_data_event = threading.Event()
+    new_data_elements = list()
+
+    def receive_new_data_elements(data_elements):
+        new_data_elements[:] = data_elements
+        new_data_event.set()
+
+    port = hardware_source.create_port()
+    port.on_new_data_elements = receive_new_data_elements
+
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
     try:
+        # the port is not guaranteed to return data immediately. wait here.
+        if not new_data_event.wait(timeout):
+            raise Exception("Could not start data_source " + str(hardware_source_id))
+
+        def get_last_data_element():
+            if sync:
+                new_data_event.clear()
+                new_data_event.wait()
+            new_data_event.clear()
+            new_data_event.wait()
+            return new_data_elements[0]
+
         yield get_last_data_element
     finally:
         port.close()
@@ -553,21 +591,6 @@ def get_data_item_generator_by_id(hardware_source_id, sync=True):
         def get_last_data_item():
             return ImportExportManager.create_data_item_from_data_element(data_element_generator())
         yield get_last_data_item
-
-
-# Creates a port for the hardware source, and waits until it has received data
-def __find_hardware_port_by_id(hardware_source_id):
-
-    port = HardwareSourceManager().create_port_for_hardware_source_id(hardware_source_id)
-
-    # our port is not guaranteed to return data straight away. We
-    # can either let the tuning handle this or wait here.
-    max_times = 20
-    while port.get_last_data_elements() is None and max_times > 0:
-        time.sleep(0.1)
-    if port.get_last_data_elements() is None:
-        logging.warn("Could not start data_source %s", image_source_name)
-    return port
 
 
 def parse_hardware_aliases_config_file(config_path):

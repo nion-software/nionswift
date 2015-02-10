@@ -70,67 +70,84 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_registering_and_unregistering_works_as_expected(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
-        source = SimpleHardwareSource()
-        hardware_source_manager.register_hardware_source(source)
+        hardware_source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
         self.assertEqual(len(hardware_source_manager.hardware_sources), 1)
-        p = hardware_source_manager.create_port_for_hardware_source_id("simple_hardware_source")
+        p = hardware_source.create_port()
         self.assertIsNotNone(p)
         p.close()
-        hardware_source_manager.unregister_hardware_source(source)
-        p = hardware_source_manager.create_port_for_hardware_source_id("simple_hardware_source")
-        self.assertIsNone(p)
+        hardware_source_manager.unregister_hardware_source(hardware_source)
+        self.assertIsNone(hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source"))
 
     def test_hardware_source_aliases_works(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
-        source = SimpleHardwareSource()
-        hardware_source_manager.register_hardware_source(source)
-        hardware_source_manager.make_instrument_alias(source.hardware_source_id, "testalias", "Test1")
-        hardware_source_manager.make_instrument_alias(source.hardware_source_id, "testalias2", "Test2")
+        simple_hardware_source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(simple_hardware_source)
+        hardware_source_manager.make_instrument_alias(simple_hardware_source.hardware_source_id, "testalias", "Test1")
+        hardware_source_manager.make_instrument_alias(simple_hardware_source.hardware_source_id, "testalias2", "Test2")
         hardware_source_manager.make_instrument_alias("testalias", "testalias3", "Test3")
         hardware_source_manager.make_instrument_alias("testalias2", "testalias4", "Test4")
-        port = hardware_source_manager.create_port_for_hardware_source_id("testalias")
-        self.assertEqual(port.hardware_source.hardware_source_id, source.hardware_source_id)
+        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias").create_port()
+        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
         port.close()
-        port = hardware_source_manager.create_port_for_hardware_source_id("testalias2")
-        port.hardware_source.hardware_source_id
-        source.hardware_source_id
-        self.assertEqual(port.hardware_source.hardware_source_id, source.hardware_source_id)
+        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias2").create_port()
+        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
+        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
         port.close()
-        port = hardware_source_manager.create_port_for_hardware_source_id("testalias3")
-        self.assertEqual(port.hardware_source.hardware_source_id, source.hardware_source_id)
+        port = hardware_source_manager.get_hardware_source_for_hardware_source_id("testalias3").create_port()
+        self.assertEqual(port.hardware_source.hardware_source_id, simple_hardware_source.hardware_source_id)
         port.close()
-        hardware_source_manager.unregister_hardware_source(source)
+        hardware_source_manager.unregister_hardware_source(simple_hardware_source)
 
     def test_events(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
-        source = SimpleHardwareSource()
-        hardware_source_manager.register_hardware_source(source)
+        hardware_source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
         self.assertEqual(len(hardware_source_manager.hardware_sources), 1)
-        p = hardware_source_manager.create_port_for_hardware_source_id("simple_hardware_source")
-        def handle_new_data_elements(images):
-            pass
+        p = hardware_source.create_port()
+        new_data_elements = list()
+        def handle_new_data_elements(data_elements):
+            new_data_elements.extend(data_elements)
         p.on_new_data_elements = handle_new_data_elements
-        while source.frame_index < 4:
+        while hardware_source.frame_index < 4:
             time.sleep(0.01)
-        tl_pixel = p.get_last_data_elements()[0]["data"][0]
+        tl_pixel = new_data_elements[0]["data"][0]
         # print "got %d images in 1s"%tl_pixel
         self.assertTrue(3.0 < tl_pixel < 7.0)
         p.close()
-        hardware_source_manager.unregister_hardware_source(source)
+        hardware_source_manager.unregister_hardware_source(hardware_source)
 
-    def test_acquiring_three_frames_works(self):
+    def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
         # stopping acquisition should not clear session
         document_model = DocumentModel.DocumentModel()
         workspace_controller = DummyWorkspaceController(document_model)
-        source = SimpleHardwareSource(0.01)
-        self.assertEqual(source.frame_index, 0)
-        source.start_playing(workspace_controller)
-        while source.frame_index < 3:
+        hardware_source = SimpleHardwareSource(0.01)
+        self.assertEqual(hardware_source.frame_index, 0)
+        hardware_source.start_playing(workspace_controller)
+        while hardware_source.frame_index < 3:
             time.sleep(0.01)
-        source.abort_playing()
-        source.close()
+        hardware_source.abort_playing()
+        hardware_source.close()
+
+    def test_data_element_generator_produces_data_elements(self):
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = SimpleHardwareSource(0.02)
+        hardware_source_manager.register_hardware_source(hardware_source)
+        # startup of generator will wait for frame 0
+        # grab the next two (un-synchronized frames) frame 1 and frame 2
+        with HardwareSource.get_data_element_generator_by_id("simple_hardware_source", False) as data_element_generator:
+            frame1 = data_element_generator()["properties"]["frame_index"]
+            frame2 = data_element_generator()["properties"]["frame_index"]
+        # startup of this generator will wait for frame 3
+        # grab the next synchronized frames, frame 5 and frame 7
+        with HardwareSource.get_data_element_generator_by_id("simple_hardware_source", True) as data_element_generator:
+            frame5 = data_element_generator()["properties"]["frame_index"]
+            frame7 = data_element_generator()["properties"]["frame_index"]
+        hardware_source_manager.unregister_hardware_source(hardware_source)
+        self.assertEqual((1, 2, 5, 7), (frame1, frame2, frame5, frame7))
 
     def test_simple_hardware_start_and_wait_acquires_data(self):
         document_model = DocumentModel.DocumentModel()
