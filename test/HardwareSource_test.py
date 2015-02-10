@@ -36,7 +36,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
 class ScanHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self, sleep=0.05):
+    def __init__(self, sleep=0.01):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
         self.sleep = sleep
         self.image = np.zeros((256, 256))
@@ -153,7 +153,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         # stopping acquisition should not clear session
         document_model = DocumentModel.DocumentModel()
         workspace_controller = DummyWorkspaceController(document_model)
-        hardware_source = ScanHardwareSource(0.01)
+        hardware_source = ScanHardwareSource()
         hardware_source.start_playing(workspace_controller)
         frame_index_ref = [0]
         def handle_new_data_elements(data_elements):
@@ -215,6 +215,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertFalse(hardware_source.is_playing)
         document_controller.periodic()  # data items queued to be added from background thread get added here
         self.assertEqual(len(document_model.data_items), 1)
+        hardware_source.close()
         document_controller.close()
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
@@ -235,6 +236,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_playing:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.close()
         document_controller.close()
 
     def test_simple_hardware_start_and_abort_works_as_expected(self):
@@ -251,6 +253,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_playing:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.close()
         document_controller.close()
 
     def test_record_only_acquires_one_item(self):
@@ -268,6 +271,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
         self.assertFalse(hardware_source.is_playing)
+        hardware_source.close()
         document_controller.close()
 
     def test_record_scan_during_view_records_one_item_and_keeps_viewing(self):
@@ -321,6 +325,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         viewed_data_elements_available_event_listener.close()
         recorded_data_elements_available_event_listener.close()
+        hardware_source.close()
         document_controller.close()
 
     def test_view_only_puts_all_frames_into_a_single_data_item(self):
@@ -346,6 +351,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
         self.assertEqual(len(document_model.data_items), 1)
         viewed_data_elements_available_event_listener.close()
+        hardware_source.close()
         document_controller.close()
 
     def test_record_only_put_data_into_a_single_data_item(self):
@@ -362,6 +368,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
         self.assertEqual(len(document_model.data_items), 1)
+        hardware_source.close()
         document_controller.close()
 
     def test_view_with_record_puts_all_frames_into_two_data_items(self):
@@ -396,6 +403,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
         self.assertEqual(len(document_model.data_items), 2)
+        hardware_source.close()
         viewed_data_elements_available_event_listener.close()
         document_controller.close()
 

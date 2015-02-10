@@ -28,7 +28,7 @@ _ = gettext.gettext
 
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
-class HardwareSourceManager(Observable.Broadcaster):
+class HardwareSourceManager(object):
     __metaclass__ = Utility.Singleton
 
     def __init__(self):
@@ -52,12 +52,10 @@ class HardwareSourceManager(Observable.Broadcaster):
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
-        hardware_source.add_listener(self)
         for f in self.hardware_source_added_removed:
             f()
 
     def unregister_hardware_source(self, hardware_source):
-        hardware_source.remove_listener(self)
         self.hardware_sources.remove(hardware_source)
         for f in self.hardware_source_added_removed:
             f()
@@ -255,7 +253,6 @@ class AcquisitionTask(object):
 
     def __stop(self):
         self._stop_acquisition()
-        self.__data_elements_changed(list())
 
     def _start_acquisition(self):
         self.__hardware_source.start_acquisition()
@@ -312,7 +309,7 @@ class AcquisitionTask(object):
             if "sub_area" in data_element:
                 data_item_state["sub_area"] = data_element["sub_area"]
             data_item_states.append(data_item_state)
-        self.__hardware_source.notify_listeners("hardware_source_updated_data_item_states", data_item_states)
+        self.__hardware_source.data_item_states_changed_event.fire(data_item_states)
 
         # these items are no longer live. mark live_data as False.
         for channel, data_item in self.__last_channel_to_data_item_dict.iteritems():
@@ -336,7 +333,7 @@ class AcquisitionTask(object):
             self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
 
 
-class HardwareSource(Observable.Broadcaster):
+class HardwareSource(object):
     """Represent a piece of hardware and provide the means to acquire data from it in view or record mode."""
 
     def __init__(self, hardware_source_id, display_name):
@@ -348,6 +345,7 @@ class HardwareSource(Observable.Broadcaster):
         self.recorded_data_elements_available_event = Observable.Event()
         self.playing_state_changed_event = Observable.Event()
         self.recording_state_changed_event = Observable.Event()
+        self.data_item_states_changed_event = Observable.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
@@ -361,6 +359,7 @@ class HardwareSource(Observable.Broadcaster):
     def close(self):
         self.__acquire_thread_break = True
         self.__acquire_thread_trigger.set()
+        self.__acquire_thread.join()
         self.__acquire_thread = None
 
     def __acquire_thread_loop(self):
