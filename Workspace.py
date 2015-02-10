@@ -550,7 +550,7 @@ class WorkspaceController(object):
             self.__channel_data_items[channel_key] = data_item
             self.__channel_activations.add(channel_key)
 
-    def sync_channels_to_data_items(self, channels, hardware_source):
+    def sync_channels_to_data_items(self, channels, hardware_source_id, display_name):
 
         document_model = self.document_controller.document_model
         assert document_model
@@ -569,7 +569,7 @@ class WorkspaceController(object):
         for channel in channels:
             do_copy = False
 
-            channel_key = hardware_source.hardware_source_id + "_" + str(channel)
+            channel_key = hardware_source_id + "_" + str(channel)
 
             with self.__mutex:
                 data_item = self.__channel_data_items.get(channel_key)
@@ -579,9 +579,9 @@ class WorkspaceController(object):
             # to reuse, first verify that the hardware source id, if any, matches
             if buffered_data_source:
                 hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-                hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+                existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
                 hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
-                if hardware_source_id != hardware_source.hardware_source_id or hardware_source_channel_id != channel:
+                if existing_hardware_source_id != hardware_source_id or hardware_source_channel_id != channel:
                     data_item = None
             # if everything but session or live state matches, copy it and re-use. this keeps the users display
             # preferences intact.
@@ -598,19 +598,19 @@ class WorkspaceController(object):
                 buffered_data_source = data_item.data_sources[0]
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata["hardware_source_id"] = hardware_source.hardware_source_id
+                hardware_source_metadata["hardware_source_id"] = hardware_source_id
                 hardware_source_metadata["hardware_source_channel_id"] = channel
                 buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
-                data_item.title = "%s.%s" % (hardware_source.display_name, channel)
+                data_item.title = "%s.%s" % (display_name, channel)
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata["hardware_source_id"] = hardware_source.hardware_source_id
+                hardware_source_metadata["hardware_source_id"] = hardware_source_id
                 hardware_source_metadata["hardware_source_channel_id"] = channel
                 buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))

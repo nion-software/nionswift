@@ -36,9 +36,6 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
         self.event.set()
         return [data_element]
 
-    def set_from_properties(self, properties):
-        self.properties = properties
-
 
 class ScanHardwareSource(HardwareSource.HardwareSource):
 
@@ -68,9 +65,6 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.event.set()
         return [data_element]
 
-    def set_from_properties(self, properties):
-        self.properties = properties
-
 
 class DummyWorkspaceController(object):
 
@@ -78,7 +72,7 @@ class DummyWorkspaceController(object):
         self.document_controller = self  # hack so that document_controller.document_model works
         self.document_model = document_model
 
-    def sync_channels_to_data_items(self, channels, hardware_source):
+    def sync_channels_to_data_items(self, channels, hardware_source_id, display_name):
         data_item_set = {}
         for channel in channels:
             data_item_set[channel] = DataItem.DataItem()

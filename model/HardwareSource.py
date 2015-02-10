@@ -174,9 +174,9 @@ class NotifyingEvent(object):
             traceback.print_stack()
 
 
-class AcquisitionBlock(object):
+class AcquisitionTask(object):
 
-    """Basic acquisition block carries out acquisition repeatedly during acquisition loop, keeping track of state.
+    """Basic acquisition task carries out acquisition repeatedly during acquisition loop, keeping track of state.
 
     The execute() method is performed repeatedly during the acquisition loop. It keeps track of the acquisition
     state, calling _start(), _abort(), _execute(), and _stop() as required.
@@ -184,8 +184,9 @@ class AcquisitionBlock(object):
     The caller can control the loop by calling abort() and stop().
     """
 
-    def __init__(self, hardware_source):
+    def __init__(self, hardware_source, workspace_controller):
         self.__hardware_source = hardware_source
+        self.__workspace_controller = workspace_controller
         self.__started = False
         self.__finished = False
         self.__aborted = False
@@ -193,19 +194,21 @@ class AcquisitionBlock(object):
         self.__last_acquire_time = None
         self.__minimum_period = 1/20.0
         self.__frame_index = 0
+        self.__last_channel_to_data_item_dict = {}
         self.finished_event = Observable.Event()
 
     def __mark_as_finished(self):
         self.__finished = True
+        self.__data_elements_changed(list())
         self.finished_event.fire()
 
     def execute(self):
-        # first try to start the block
+        # first start the task
         if not self.__started:
             try:
                 self.__start()
             except Exception as e:
-                # the block is finished if it doesn't start
+                # the task is finished if it doesn't start
                 self.__mark_as_finished()
                 raise
             self.__started = True
@@ -218,7 +221,7 @@ class AcquisitionBlock(object):
                     self.__abort_acquisition()
                     self.__stop_acquisition()
                     self.__mark_as_finished()
-                # otherwise execute the block
+                # otherwise execute the task
                 else:
                     complete = self.__execute()
                     # logging.debug("executed %s", complete)
@@ -227,7 +230,7 @@ class AcquisitionBlock(object):
                         self.__stop_acquisition()
                         self.__mark_as_finished()
             except Exception as e:
-                # the block is finished if it doesn't execute
+                # the task is finished if it doesn't execute
                 # logging.debug("exception")
                 self.__mark_as_finished()
                 raise
@@ -271,7 +274,7 @@ class AcquisitionBlock(object):
 
         # data_elements should never be empty
         assert data_elements is not None
-        self.__send_data_elements(data_elements)
+        self.__data_elements_changed(data_elements)
 
         # figure out whether all data elements are complete
         complete = True
@@ -291,45 +294,92 @@ class AcquisitionBlock(object):
 
     def __stop_acquisition(self):
         self.__hardware_source.stop_acquisition()
-        self.__hardware_source.new_data_elements_event.fire(list())
+        self.__data_elements_changed(list())
 
     def __acquire_data_elements(self):
         return self.__hardware_source.acquire_data_elements()
 
-    def __send_data_elements(self, data_elements):
+    # this message comes from the hardware port.
+    # data_elements is a list of data_elements; may be an empty list
+    # thread safe
+    def __data_elements_changed(self, data_elements):
+        # TODO: deal wth overrun by asking for latest values.
+
+        # build useful data structures (channel -> data)
+        channel_to_data_element_map = {}
+        channels = []
+        for channel, data_element in enumerate(data_elements):
+            if data_element is not None:
+                channels.append(channel)
+                channel_to_data_element_map[channel] = data_element
+
+        # sync to data items
+        channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self.__hardware_source.hardware_source_id, self.__hardware_source.display_name)
+
+        # these items are now live if we're playing right now. mark as such.
+        for data_item in channel_to_data_item_dict.values():
+            data_item.increment_data_ref_counts()
+            document_model = self.__workspace_controller.document_model
+            document_model.begin_data_item_transaction(data_item)
+            document_model.begin_data_item_live(data_item)
+
+        # update the data items with the new data.
+        data_item_states = []
+        for channel in channels:
+            data_element = channel_to_data_element_map[channel]
+            data_item = channel_to_data_item_dict[channel]
+            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            channel_state = data_element.get("state", "complete")
+            if channel_state != "complete":
+                channel_state = channel_state if not self.is_finished else "marked"
+            data_item_state = dict()
+            data_item_state["channel"] = channel
+            data_item_state["data_item"] = data_item
+            data_item_state["channel_state"] = channel_state
+            if "sub_area" in data_element:
+                data_item_state["sub_area"] = data_element["sub_area"]
+            data_item_states.append(data_item_state)
+        self.__hardware_source.notify_listeners("hardware_source_updated_data_item_states", data_item_states)
+
+        # these items are no longer live. mark live_data as False.
+        for channel, data_item in self.__last_channel_to_data_item_dict.iteritems():
+            # the order of these two statements is important, at least for now (12/2013)
+            # when the transaction ends, the data will get written to disk, so we need to
+            # make sure it's still in memory. if decrement were to come before the end
+            # of the transaction, the data would be unloaded from memory, losing it forever.
+            document_model = self.__workspace_controller.document_model
+            document_model.end_data_item_transaction(data_item)
+            document_model.end_data_item_live(data_item)
+            data_item.decrement_data_ref_counts()
+
+        # keep the channel to data item map around so that we know what changed between
+        # last iteration and this one. also handle reference counts.
+        self.__last_channel_to_data_item_dict = channel_to_data_item_dict
+
+        # let listeners know too
         self.__hardware_source.new_data_elements_event.fire(data_elements)
 
 
 class HardwareSource(Observable.Broadcaster):
-    """
-    A hardware source provides ports, which in turn provide data_elements.
-
-    A separate acquisition thread is used for acquiring all data and
-    passing on to the ports. When a HardwareSource has no ports, this
-    thread can stop running (when appropriate).
-    """
+    """Represent a piece of hardware and provide the means to acquire data from it in view or record mode."""
 
     def __init__(self, hardware_source_id, display_name):
         super(HardwareSource, self).__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.features = dict()
-        self.__new_data_elements_event_listener = None
-        self.last_channel_to_data_item_dict = {}
-        self.__workspace_controller = None  # the workspace_controller when last started.
         self.new_data_elements_event = Observable.Event()
         self.playing_state_changed_event = Observable.Event()
-        self.data_item_state_changed_event = Observable.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
-        self.__acquire_thread_view = None
-        self.__acquire_thread_record = None
+        self.__view_task = None
+        self.__record_task = None
+        self.__view_task_finished_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
         self.__acquire_thread.start()
 
     def close(self):
-        self.__close_hardware_port()
         self.__acquire_thread_break = True
         self.__acquire_thread_trigger.set()
         self.__acquire_thread = None
@@ -337,34 +387,39 @@ class HardwareSource(Observable.Broadcaster):
     def __acquire_thread_loop(self):
         while self.__acquire_thread_trigger.wait():
             self.__acquire_thread_trigger.clear()
-            if self.__acquire_thread_break:
+            # record task gets highest priority
+            acquire_thread_break = self.__acquire_thread_break
+            if self.__record_task:
+                if acquire_thread_break:
+                    self.__record_task.abort()
+                try:
+                    self.__record_task.execute()
+                except Exception as e:
+                    import traceback
+                    logging.debug("Acquisition Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                if self.__record_task.is_finished:
+                    self.__record_task = None
+                else:
+                    self.__acquire_thread_trigger.set()
+            # view task gets next priority
+            elif self.__view_task:
+                if acquire_thread_break:
+                    self.__view_task.abort()
+                try:
+                    self.__view_task.execute()
+                except Exception as e:
+                    import traceback
+                    logging.debug("Acquisition Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                if self.__view_task.is_finished:
+                    self.__view_task = None
+                else:
+                    self.__acquire_thread_trigger.set()
+            if acquire_thread_break:
                 break
-            # record block gets highest priority
-            if self.__acquire_thread_record:
-                try:
-                    self.__acquire_thread_record.execute()
-                except Exception as e:
-                    import traceback
-                    logging.debug("Acquisition Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                if self.__acquire_thread_record.is_finished:
-                    self.__acquire_thread_record = None
-                else:
-                    self.__acquire_thread_trigger.set()
-            # view block gets next priority
-            if self.__acquire_thread_view:
-                try:
-                    self.__acquire_thread_view.execute()
-                except Exception as e:
-                    import traceback
-                    logging.debug("Acquisition Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                if self.__acquire_thread_view.is_finished:
-                    self.__acquire_thread_view = None
-                else:
-                    self.__acquire_thread_trigger.set()
 
     # subclasses can implement this method which is called when acquisition starts.
     # must be thread safe
@@ -389,120 +444,45 @@ class HardwareSource(Observable.Broadcaster):
     def acquire_data_elements(self):
         raise NotImplementedError()
 
+    # create the view task
+    def create_acquisition_view_task(self, workspace_controller):
+        return AcquisitionTask(self, workspace_controller)
+
     # return whether acquisition is running
     @property
     def is_playing(self):
-        acquire_thread_view = self.__acquire_thread_view  # assignment for lock free thread safety
+        acquire_thread_view = self.__view_task  # assignment for lock free thread safety
         return acquire_thread_view is not None and not acquire_thread_view.is_finished
 
     # call this to start acquisition
     # not thread safe
     def start_playing(self, workspace_controller):
         if not self.is_playing:
-            self.__workspace_controller = workspace_controller
-            acquisition_block = AcquisitionBlock(self)
+            acquisition_task = self.create_acquisition_view_task(workspace_controller)
             def acquire_thread_view_finished():
-                self.__close_hardware_port()
-                self.notify_listeners("hardware_source_stopped", self)
-                self.__acquire_thread_view_finished_event_listener.close()
-                self.__acquire_thread_view_finished_event_listener = None
+                self.playing_state_changed_event.fire(False)
+                self.__view_task_finished_event_listener.close()
+                self.__view_task_finished_event_listener = None
             def queue_acquire_thread():
                 workspace_controller.document_controller.queue_task(acquire_thread_view_finished)
-            self.__acquire_thread_view_finished_event_listener = acquisition_block.finished_event.listen(queue_acquire_thread)
-            if not self.__new_data_elements_event_listener:
-                self.__new_data_elements_event_listener = self.new_data_elements_event.listen(self.data_elements_changed)
-            self.__acquire_thread_view = acquisition_block
+            self.__view_task_finished_event_listener = acquisition_task.finished_event.listen(queue_acquire_thread)
+            self.__view_task = acquisition_task
             self.__acquire_thread_trigger.set()
             self.playing_state_changed_event.fire(True)
-
-    def __close_hardware_port(self):
-        if self.__new_data_elements_event_listener:
-            self.__new_data_elements_event_listener.close()
-            self.__new_data_elements_event_listener = None
-            self.data_elements_changed([])
-            self.playing_state_changed_event.fire(False)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        acquire_thread_view = self.__acquire_thread_view
+        acquire_thread_view = self.__view_task
         if acquire_thread_view:
             acquire_thread_view.abort()
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        acquire_thread_view = self.__acquire_thread_view
+        acquire_thread_view = self.__view_task
         if acquire_thread_view:
             acquire_thread_view.stop()
-
-    # this message comes from the hardware port.
-    # data_elements is a list of data_elements; may be an empty list
-    # thread safe
-    def data_elements_changed(self, data_elements):
-        # TODO: deal wth overrun by asking for latest values.
-
-        # build useful data structures (channel -> data)
-        channel_to_data_element_map = {}
-        channels = []
-        for channel, data_element in enumerate(data_elements):
-            if data_element is not None:
-                channels.append(channel)
-                channel_to_data_element_map[channel] = data_element
-
-        # sync to data items
-        channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self)
-
-        # these items are now live if we're playing right now. mark as such.
-        for data_item in channel_to_data_item_dict.values():
-            data_item.increment_data_ref_counts()
-            document_model = self.__workspace_controller.document_model
-            document_model.begin_data_item_transaction(data_item)
-            was_live = data_item.is_live
-            document_model.begin_data_item_live(data_item)
-            if not was_live:
-                self.data_item_state_changed_event.fire(data_item)
-
-        # update the data items with the new data.
-        completed_data_items = []  # TODO: remove hardware_source_updated_data_items notification
-        data_item_states = []
-        for channel in channels:
-            data_element = channel_to_data_element_map[channel]
-            data_item = channel_to_data_item_dict[channel]
-            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-            channel_state = data_element.get("state", "complete")
-            if channel_state == "complete":
-                completed_data_items.append(data_item)
-            else:
-                channel_state = channel_state if not self.__acquire_thread_view.is_finished else "marked"
-            data_item_state = dict()
-            data_item_state["channel"] = channel
-            data_item_state["data_item"] = data_item
-            data_item_state["channel_state"] = channel_state
-            if "sub_area" in data_element:
-                data_item_state["sub_area"] = data_element["sub_area"]
-            data_item_states.append(data_item_state)
-        if completed_data_items:
-            self.notify_listeners("hardware_source_updated_data_items", self, completed_data_items)
-        self.notify_listeners("hardware_source_updated_data_item_states", self, data_item_states)
-
-        # these items are no longer live. mark live_data as False.
-        for channel, data_item in self.last_channel_to_data_item_dict.iteritems():
-            # the order of these two statements is important, at least for now (12/2013)
-            # when the transaction ends, the data will get written to disk, so we need to
-            # make sure it's still in memory. if decrement were to come before the end
-            # of the transaction, the data would be unloaded from memory, losing it forever.
-            document_model = self.__workspace_controller.document_model
-            document_model.end_data_item_transaction(data_item)
-            document_model.end_data_item_live(data_item)
-            data_item.decrement_data_ref_counts()
-            if not data_item.is_live:
-                self.data_item_state_changed_event.fire(data_item)
-
-        # keep the channel to data item map around so that we know what changed between
-        # last iteration and this one. also handle reference counts.
-        old_channel_to_data_item_dict = self.last_channel_to_data_item_dict
-        self.last_channel_to_data_item_dict = channel_to_data_item_dict
 
 
 @contextmanager
