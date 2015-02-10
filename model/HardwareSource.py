@@ -184,13 +184,14 @@ class AcquisitionTask(object):
     The caller can control the loop by calling abort() and stop().
     """
 
-    def __init__(self, hardware_source, workspace_controller):
+    def __init__(self, hardware_source, workspace_controller, continuous):
         self.__hardware_source = hardware_source
         self.__workspace_controller = workspace_controller
         self.__started = False
         self.__finished = False
         self.__aborted = False
         self.__stopped = False
+        self.__continuous = continuous
         self.__last_acquire_time = None
         self.__minimum_period = 1/20.0
         self.__frame_index = 0
@@ -225,7 +226,7 @@ class AcquisitionTask(object):
                 else:
                     complete = self.__execute()
                     # logging.debug("executed %s", complete)
-                    if self.__stopped and complete:
+                    if complete and (self.__stopped or not self.__continuous):
                         # logging.debug("finished")
                         self.__stop_acquisition()
                         self.__mark_as_finished()
@@ -357,7 +358,10 @@ class AcquisitionTask(object):
         self.__last_channel_to_data_item_dict = channel_to_data_item_dict
 
         # let listeners know too
-        self.__hardware_source.new_data_elements_event.fire(data_elements)
+        if self.__continuous:
+            self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
+        else:
+            self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
 
 
 class HardwareSource(Observable.Broadcaster):
@@ -368,13 +372,16 @@ class HardwareSource(Observable.Broadcaster):
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.features = dict()
-        self.new_data_elements_event = Observable.Event()
+        self.viewed_data_elements_available_event = Observable.Event()
+        self.recorded_data_elements_available_event = Observable.Event()
         self.playing_state_changed_event = Observable.Event()
+        self.recording_state_changed_event = Observable.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
         self.__record_task = None
         self.__view_task_finished_event_listener = None
+        self.__record_task_finished_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
         self.__acquire_thread.start()
@@ -401,8 +408,7 @@ class HardwareSource(Observable.Broadcaster):
                     traceback.print_stack()
                 if self.__record_task.is_finished:
                     self.__record_task = None
-                else:
-                    self.__acquire_thread_trigger.set()
+                self.__acquire_thread_trigger.set()
             # view task gets next priority
             elif self.__view_task:
                 if acquire_thread_break:
@@ -416,8 +422,7 @@ class HardwareSource(Observable.Broadcaster):
                     traceback.print_stack()
                 if self.__view_task.is_finished:
                     self.__view_task = None
-                else:
-                    self.__acquire_thread_trigger.set()
+                self.__acquire_thread_trigger.set()
             if acquire_thread_break:
                 break
 
@@ -446,7 +451,11 @@ class HardwareSource(Observable.Broadcaster):
 
     # create the view task
     def create_acquisition_view_task(self, workspace_controller):
-        return AcquisitionTask(self, workspace_controller)
+        return AcquisitionTask(self, workspace_controller, True)
+
+    # create the view task
+    def create_acquisition_record_task(self, workspace_controller):
+        return AcquisitionTask(self, workspace_controller, False)
 
     # return whether acquisition is running
     @property
@@ -484,6 +493,42 @@ class HardwareSource(Observable.Broadcaster):
         if acquire_thread_view:
             acquire_thread_view.stop()
 
+    # return whether acquisition is running
+    @property
+    def is_recording(self):
+        acquire_thread_record = self.__record_task  # assignment for lock free thread safety
+        return acquire_thread_record is not None and not acquire_thread_record.is_finished
+
+    # call this to start acquisition
+    # not thread safe
+    def start_recording(self, workspace_controller):
+        if not self.is_recording:
+            acquisition_task = self.create_acquisition_record_task(workspace_controller)
+            def acquire_thread_record_finished():
+                self.recording_state_changed_event.fire(False)
+                self.__record_task_finished_event_listener.close()
+                self.__record_task_finished_event_listener = None
+            def queue_acquire_thread():
+                workspace_controller.document_controller.queue_task(acquire_thread_record_finished)
+            self.__record_task_finished_event_listener = acquisition_task.finished_event.listen(queue_acquire_thread)
+            self.__record_task = acquisition_task
+            self.__acquire_thread_trigger.set()
+            self.recording_state_changed_event.fire(True)
+
+    # call this to stop acquisition immediately
+    # not thread safe
+    def abort_recording(self):
+        acquire_thread_record = self.__record_task
+        if acquire_thread_record:
+            acquire_thread_record.abort()
+
+    # call this to stop acquisition gracefully
+    # not thread safe
+    def stop_recording(self):
+        acquire_thread_record = self.__record_task
+        if acquire_thread_record:
+            acquire_thread_record.stop()
+
 
 @contextmanager
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
@@ -505,7 +550,7 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0
         new_data_elements[:] = data_elements
         new_data_event.set()
 
-    new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(receive_new_data_elements)
+    viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(receive_new_data_elements)
 
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
@@ -524,7 +569,7 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0
 
         yield get_last_data_element
     finally:
-        new_data_elements_event_listener.close()
+        viewed_data_elements_available_event_listener.close()
 
 
 @contextmanager

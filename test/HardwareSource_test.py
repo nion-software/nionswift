@@ -62,6 +62,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         else:
             data_element["state"] = "complete"
             data_element["sub_area"] = (0, 0), (256, 256)
+        self.top = not self.top
         self.event.set()
         return [data_element]
 
@@ -128,13 +129,13 @@ class TestHardwareSourceClass(unittest.TestCase):
             new_data_elements[:] = list()
             new_data_elements.extend(data_elements)
             frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
-        new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(handle_new_data_elements)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_new_data_elements)
         while frame_index_ref[0] < 4:
             time.sleep(0.01)
         tl_pixel = new_data_elements[0]["data"][0]
         # print "got %d images in 1s"%tl_pixel
         self.assertTrue(3.0 < tl_pixel < 7.0)
-        new_data_elements_event_listener.close()
+        viewed_data_elements_available_event_listener.close()
         hardware_source.abort_playing()
         hardware_source_manager.unregister_hardware_source(hardware_source)
 
@@ -147,10 +148,10 @@ class TestHardwareSourceClass(unittest.TestCase):
         frame_index_ref = [0]
         def handle_new_data_elements(data_elements):
             frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
-        new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(handle_new_data_elements)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_new_data_elements)
         while frame_index_ref[0] < 4:
             time.sleep(0.01)
-        new_data_elements_event_listener.close()
+        viewed_data_elements_available_event_listener.close()
         hardware_source.abort_playing()
         hardware_source.close()
 
@@ -163,10 +164,10 @@ class TestHardwareSourceClass(unittest.TestCase):
         frame_index_ref = [0]
         def handle_new_data_elements(data_elements):
             frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
-        new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(handle_new_data_elements)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_new_data_elements)
         while frame_index_ref[0] < 4:
             time.sleep(0.01)
-        new_data_elements_event_listener.close()
+        viewed_data_elements_available_event_listener.close()
         hardware_source.abort_playing()
         hardware_source.close()
 
@@ -205,12 +206,12 @@ class TestHardwareSourceClass(unittest.TestCase):
         frame_index_ref = [0]
         def handle_new_data_elements(data_elements):
             frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
-        new_data_elements_event_listener = hardware_source.new_data_elements_event.listen(handle_new_data_elements)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_new_data_elements)
         start_time = time.time()
         while frame_index_ref[0] < 4:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
-        new_data_elements_event_listener.close()
+        viewed_data_elements_available_event_listener.close()
         hardware_source.abort_playing()
         document_controller.periodic()  # data items queued to be added from background thread get added here
         start_time = time.time()
@@ -252,9 +253,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
-        source = SimpleHardwareSource()
-        hardware_source_manager.register_hardware_source(source)
-        hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
+        hardware_source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
         hardware_source.start_playing(document_controller.workspace_controller)
         self.assertTrue(hardware_source.is_playing)
         hardware_source.abort_playing()
@@ -262,6 +262,76 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_playing:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.close()
+
+    def test_record_scan_only_acquires_one_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = SimpleHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
+        hardware_source.start_recording(document_controller.workspace_controller)
+        self.assertFalse(hardware_source.is_playing)
+        self.assertTrue(hardware_source.is_recording)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        self.assertFalse(hardware_source.is_playing)
+        document_controller.close()
+
+    def test_record_scan_during_view_records_one_item_and_keeps_viewing(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
+        hardware_source.start_playing(document_controller.workspace_controller)
+        # start playing, grab a few frames
+        frame_index_ref = [0]
+        def handle_viewed_data_elements(data_elements):
+            if len(data_elements) > 0:
+                if data_elements[0].get("state") == "complete":
+                    frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
+        record_index_ref = [-1]
+        def handle_recorded_data_elements(data_elements):
+            if len(data_elements) > 0:
+                if data_elements[0].get("state") == "complete":
+                    record_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_viewed_data_elements)
+        recorded_data_elements_available_event_listener = hardware_source.recorded_data_elements_available_event.listen(handle_recorded_data_elements)
+        start_time = time.time()
+        while frame_index_ref[0] < 2:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        # now do a record
+        self.assertEqual(record_index_ref[0], -1)
+        hardware_source.start_recording(document_controller.workspace_controller)
+        self.assertTrue(hardware_source.is_playing)
+        self.assertTrue(hardware_source.is_recording)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        self.assertTrue(hardware_source.is_playing)
+        self.assertFalse(hardware_source.is_recording)
+        self.assertEqual(record_index_ref[0], 0)
+        # make sure we're still viewing
+        start_time = time.time()
+        start_index = frame_index_ref[0]
+        while frame_index_ref[0] < start_index + 2:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        # clean up
+        hardware_source.abort_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        viewed_data_elements_available_event_listener.close()
+        recorded_data_elements_available_event_listener.close()
         document_controller.close()
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
