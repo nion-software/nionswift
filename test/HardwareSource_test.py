@@ -108,7 +108,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         new_data_elements_event_listener.close()
         hardware_source_manager.unregister_hardware_source(hardware_source)
 
-    def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
+    def test_acquiring_three_frames_works(self):
         # stopping acquisition should not clear session
         document_model = DocumentModel.DocumentModel()
         workspace_controller = DummyWorkspaceController(document_model)
@@ -120,7 +120,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.abort_playing()
         hardware_source.close()
 
-    def test_data_element_generator_produces_data_elements(self):
+    def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
         hardware_source_manager._reset()
         hardware_source = SimpleHardwareSource(0.02)

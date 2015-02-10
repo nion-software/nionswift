@@ -211,15 +211,15 @@ class HardwareSource(Observable.Broadcaster):
             self.abort_playing()
 
     def __create_acquisition_thread(self):
-        self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
-        self.__acquire_thread_break = False
+        self.__acquire_thread_break = threading.Event()
+        self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop, args=[self.__acquire_thread_break, ])
         self.__acquire_thread.start()
 
     def __destroy_acquisition_thread(self):
-        self.__acquire_thread_break = True
+        self.__acquire_thread_break.set()
         self.__acquire_thread = None
 
-    def __acquire_thread_loop(self):
+    def __acquire_thread_loop(self, thread_break):
         try:
             self.start_acquisition()
             minimum_period = 1/20.0  # don't allow acquisition to starve main thread
@@ -236,7 +236,7 @@ class HardwareSource(Observable.Broadcaster):
                 if new_data_elements is not None:
                     self.new_data_elements_event.fire(new_data_elements)
 
-                if self.__acquire_thread_break:
+                if self.__acquire_thread_break.is_set():
                     break
 
                 # impose maximum frame rate so that acquire_data_elements can't starve main thread
