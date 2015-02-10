@@ -84,65 +84,6 @@ class HardwareSourceManager(Observable.Broadcaster):
         for hardware_source in copy.copy(self.hardware_sources):
             hardware_source.abort_playing()
 
-    # handle acquisition style devices
-
-    # not thread safe
-    def start_hardware_source(self, workspace_controller, hardware_source, mode=None):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        hardware_source.start_playing(workspace_controller, mode)
-
-    # not thread safe
-    def abort_hardware_source(self, hardware_source):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        hardware_source.abort_playing()
-
-    # not thread safe
-    def stop_hardware_source(self, hardware_source):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        hardware_source.stop_playing()
-
-    # not thread safe
-    def get_hardware_source_settings(self, hardware_source, mode):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        return hardware_source.get_mode_settings(mode)
-
-    # not thread safe
-    def set_hardware_source_settings(self, hardware_source, mode, mode_data):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        hardware_source.set_mode_settings(mode, mode_data)
-
-    # not thread safe
-    def get_hardware_source_mode(self, hardware_source):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        return hardware_source.mode
-
-    # not thread safe
-    def set_hardware_source_mode(self, hardware_source, mode):
-        if not isinstance(hardware_source, HardwareSource):
-            hardware_source = self.get_hardware_source_for_hardware_source_id(hardware_source)
-        assert hardware_source is not None
-        hardware_source.mode = mode
-
-    # pass on messages from hardware sources to hardware source manager listeners
-
-    def hardware_source_started(self, hardware_source):
-        self.notify_listeners("hardware_source_started", hardware_source)
-
-    def hardware_source_stopped(self, hardware_source):
-        self.notify_listeners("hardware_source_stopped", hardware_source)
-
     def __get_info_for_instrument_id(self, instrument_id):
         display_name = unicode()
         seen_instrument_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
@@ -267,6 +208,7 @@ class HardwareSource(Observable.Broadcaster):
         self.__mode_data = dict()
         self.__mode_lock = threading.RLock()
         self.playing_state_changed_event = Observable.Event()
+        self.data_item_state_changed_event = Observable.Event()
 
     def close(self):
         if self.__hardware_port:
@@ -294,12 +236,12 @@ class HardwareSource(Observable.Broadcaster):
         pass
 
     # mode property. thread safe.
-    def __get_mode(self):
+    def get_mode(self):
         return self.__mode
-    def __set_mode(self, mode):
-        self.mode_changed(mode)
-        self.__mode = mode
-    mode = property(__get_mode, __set_mode)
+
+    def set_mode(self, value):
+        self.mode_changed(value)
+        self.__mode = value
 
     # only a single acquisition thread is created per hardware source
     def create_port(self, mode=None):
@@ -396,9 +338,9 @@ class HardwareSource(Observable.Broadcaster):
         pass
 
     # return whether acquisition is running
-    def __is_playing(self):
+    @property
+    def is_playing(self):
         return self.__hardware_port is not None
-    is_playing = property(__is_playing)
 
     # subclasses are expected to implement this function efficiently since it will
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
@@ -509,8 +451,12 @@ class HardwareSource(Observable.Broadcaster):
         # these items are now live if we're playing right now. mark as such.
         for data_item in new_channel_to_data_item_dict.values():
             data_item.increment_data_ref_counts()
-            self.__workspace_controller.document_controller.document_model.begin_data_item_transaction(data_item)
-            self.__workspace_controller.document_controller.document_model.begin_data_item_live(data_item)
+            document_model = self.__workspace_controller.document_controller.document_model
+            document_model.begin_data_item_transaction(data_item)
+            was_live = data_item.is_live
+            document_model.begin_data_item_live(data_item)
+            if not was_live:
+                self.data_item_state_changed_event.fire(data_item)
 
         # update the data items with the new data.
         completed_data_items = []  # TODO: remove hardware_source_updated_data_items notification
@@ -538,9 +484,12 @@ class HardwareSource(Observable.Broadcaster):
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
-            self.__workspace_controller.document_model.end_data_item_transaction(data_item)
-            self.__workspace_controller.document_model.end_data_item_live(data_item)
+            document_model = self.__workspace_controller.document_model
+            document_model.end_data_item_transaction(data_item)
+            document_model.end_data_item_live(data_item)
             data_item.decrement_data_ref_counts()
+            if not data_item.is_live:
+                self.data_item_state_changed_event.fire(data_item)
 
         # keep the channel to data item map around so that we know what changed between
         # last iteration and this one. also handle reference counts.
