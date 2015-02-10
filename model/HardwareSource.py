@@ -13,6 +13,7 @@ import copy
 import gettext
 import logging
 import os
+import Queue as queue
 import threading
 import time
 import traceback
@@ -173,6 +174,132 @@ class NotifyingEvent(object):
             traceback.print_stack()
 
 
+class AcquisitionBlock(object):
+
+    """Basic acquisition block carries out acquisition repeatedly during acquisition loop, keeping track of state.
+
+    The execute() method is performed repeatedly during the acquisition loop. It keeps track of the acquisition
+    state, calling _start(), _abort(), _execute(), and _stop() as required.
+
+    The caller can control the loop by calling abort() and stop().
+    """
+
+    def __init__(self, hardware_source):
+        self.__hardware_source = hardware_source
+        self.__started = False
+        self.__finished = False
+        self.__aborted = False
+        self.__stopped = False
+        self.__last_acquire_time = None
+        self.__minimum_period = 1/20.0
+        self.__frame_index = 0
+        self.finished_event = Observable.Event()
+
+    def __mark_as_finished(self):
+        self.__finished = True
+        self.finished_event.fire()
+
+    def execute(self):
+        # first try to start the block
+        if not self.__started:
+            try:
+                self.__start()
+            except Exception as e:
+                # the block is finished if it doesn't start
+                self.__mark_as_finished()
+                raise
+            self.__started = True
+            # logging.debug("started")
+        if not self.__finished:
+            try:
+                # if aborted, abort here
+                if self.__aborted:
+                    # logging.debug("aborted")
+                    self.__abort_acquisition()
+                    self.__stop_acquisition()
+                    self.__mark_as_finished()
+                # otherwise execute the block
+                else:
+                    complete = self.__execute()
+                    # logging.debug("executed %s", complete)
+                    if self.__stopped and complete:
+                        # logging.debug("finished")
+                        self.__stop_acquisition()
+                        self.__mark_as_finished()
+            except Exception as e:
+                # the block is finished if it doesn't execute
+                # logging.debug("exception")
+                self.__mark_as_finished()
+                raise
+
+    @property
+    def is_finished(self):
+        return self.__finished
+
+    def abort(self):
+        self.__aborted = True
+
+    def stop(self):
+        self.__stopped = True
+
+    @property
+    def is_aborted(self):
+        return self.__aborted
+
+    @property
+    def is_stopping(self):
+        return self.__stopped
+
+    def __start(self):
+        self.__start_acquisition()
+        self.__last_acquire_time = time.time() - self.__minimum_period
+
+    def __execute(self):
+        # impose maximum frame rate so that acquire_data_elements can't starve main thread
+        elapsed = time.time() - self.__last_acquire_time
+        time.sleep(max(0.0, self.__minimum_period - elapsed))
+
+        data_elements = self.__acquire_data_elements()
+
+        # update frame_index if not supplied
+        for data_element in data_elements:
+            data_element.setdefault("properties", dict()).setdefault("frame_index", self.__frame_index)
+        self.__frame_index += 1
+
+        # record the last acquisition time
+        self.__last_acquire_time = time.time()
+
+        # data_elements should never be empty
+        assert data_elements is not None
+        self.__send_data_elements(data_elements)
+
+        # figure out whether all data elements are complete
+        complete = True
+        for data_element in data_elements:
+            sub_area = data_element.get("sub_area")
+            state = data_element.get("state", "complete")
+            if not (sub_area is None or state == "complete"):
+                complete = False
+                break
+        return complete
+
+    def __start_acquisition(self):
+        self.__hardware_source.start_acquisition()
+
+    def __abort_acquisition(self):
+        self.__hardware_source.abort_acquisition()
+
+    def __stop_acquisition(self):
+        self.__hardware_source.stop_acquisition()
+        self.__hardware_source.new_data_elements_event.fire(list())
+
+    def __acquire_data_elements(self):
+        return self.__hardware_source.acquire_data_elements()
+
+    def __send_data_elements(self, data_elements):
+        self.__hardware_source.new_data_elements_event.fire(data_elements)
+
+
 class HardwareSource(Observable.Broadcaster):
     """
     A hardware source provides ports, which in turn provide data_elements.
@@ -188,81 +315,56 @@ class HardwareSource(Observable.Broadcaster):
         self.display_name = display_name
         self.features = dict()
         self.__new_data_elements_event_listener = None
-        self.__abort_signal = False  # used by acquisition thread to signal an abort caused by exception
-        self.__channel_states = {}
-        self.__channel_states_mutex = threading.RLock()
         self.last_channel_to_data_item_dict = {}
         self.__workspace_controller = None  # the workspace_controller when last started.
-        self.frame_index = 0
-        self.__acquire_thread = None
-        self.__acquire_thread_break = False
-        self.new_data_elements_event = NotifyingEvent()
-        self.new_data_elements_event.on_first_listener_added = self.__create_acquisition_thread
-        self.new_data_elements_event.on_last_listener_removed= self.__destroy_acquisition_thread
+        self.new_data_elements_event = Observable.Event()
         self.playing_state_changed_event = Observable.Event()
         self.data_item_state_changed_event = Observable.Event()
+        self.__acquire_thread_break = False
+        self.__acquire_thread_trigger = threading.Event()
+        self.__acquire_thread_view = None
+        self.__acquire_thread_record = None
+        self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
+        self.__acquire_thread.daemon = True
+        self.__acquire_thread.start()
 
     def close(self):
         self.__close_hardware_port()
-
-    # user interfaces using hardware sources should call this periodically
-    def periodic(self):
-        if self.__should_abort():
-            self.abort_playing()
-
-    def __create_acquisition_thread(self):
-        self.__acquire_thread_break = threading.Event()
-        self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop, args=[self.__acquire_thread_break, ])
-        self.__acquire_thread.start()
-
-    def __destroy_acquisition_thread(self):
-        self.__acquire_thread_break.set()
+        self.__acquire_thread_break = True
+        self.__acquire_thread_trigger.set()
         self.__acquire_thread = None
 
-    def __acquire_thread_loop(self, thread_break):
-        try:
-            self.start_acquisition()
-            minimum_period = 1/20.0  # don't allow acquisition to starve main thread
-            last_acquire_time = time.time() - minimum_period
-        except Exception as e:
-            logging.debug("Acquire error %s", e)
-            traceback.print_exc()
-            traceback.print_stack()
-            return
-        try:
-            new_data_elements = None
-
-            while True:
-                if new_data_elements is not None:
-                    self.new_data_elements_event.fire(new_data_elements)
-
-                if self.__acquire_thread_break.is_set():
-                    break
-
-                # impose maximum frame rate so that acquire_data_elements can't starve main thread
-                elapsed = time.time() - last_acquire_time
-                time.sleep(max(0.0, minimum_period - elapsed))
-
+    def __acquire_thread_loop(self):
+        while self.__acquire_thread_trigger.wait():
+            self.__acquire_thread_trigger.clear()
+            if self.__acquire_thread_break:
+                break
+            # record block gets highest priority
+            if self.__acquire_thread_record:
                 try:
-                    new_data_elements = self.acquire_data_elements()
+                    self.__acquire_thread_record.execute()
                 except Exception as e:
-                    self.new_data_elements_event.fire(list())
-                    self.__abort_signal = True
-                    # caller will print stack trace
-                    raise
-
-                # update frame_index if not supplied
-                for data_element in new_data_elements:
-                    data_element.setdefault("properties", dict()).setdefault("frame_index", self.frame_index)
-                self.frame_index += 1
-
-                # record the last acquisition time
-                last_acquire_time = time.time()
-
-                # new_data_elements should never be empty
-                assert new_data_elements is not None
-        finally:
-            self.stop_acquisition()
+                    import traceback
+                    logging.debug("Acquisition Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                if self.__acquire_thread_record.is_finished:
+                    self.__acquire_thread_record = None
+                else:
+                    self.__acquire_thread_trigger.set()
+            # view block gets next priority
+            if self.__acquire_thread_view:
+                try:
+                    self.__acquire_thread_view.execute()
+                except Exception as e:
+                    import traceback
+                    logging.debug("Acquisition Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                if self.__acquire_thread_view.is_finished:
+                    self.__acquire_thread_view = None
+                else:
+                    self.__acquire_thread_trigger.set()
 
     # subclasses can implement this method which is called when acquisition starts.
     # must be thread safe
@@ -279,11 +381,6 @@ class HardwareSource(Observable.Broadcaster):
     def stop_acquisition(self):
         pass
 
-    # return whether acquisition is running
-    @property
-    def is_playing(self):
-        return self.__new_data_elements_event_listener is not None
-
     # subclasses are expected to implement this function efficiently since it will
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
     # or indirectly) unless the data is immediately available, which it shouldn't be on
@@ -292,17 +389,31 @@ class HardwareSource(Observable.Broadcaster):
     def acquire_data_elements(self):
         raise NotImplementedError()
 
+    # return whether acquisition is running
+    @property
+    def is_playing(self):
+        acquire_thread_view = self.__acquire_thread_view  # assignment for lock free thread safety
+        return acquire_thread_view is not None and not acquire_thread_view.is_finished
+
     # call this to start acquisition
     # not thread safe
     def start_playing(self, workspace_controller):
         if not self.is_playing:
-            self.__abort_signal = False
             self.__workspace_controller = workspace_controller
-            self.__workspace_controller.will_start_playing(self)
+            acquisition_block = AcquisitionBlock(self)
+            def acquire_thread_view_finished():
+                self.__close_hardware_port()
+                self.notify_listeners("hardware_source_stopped", self)
+                self.__acquire_thread_view_finished_event_listener.close()
+                self.__acquire_thread_view_finished_event_listener = None
+            def queue_acquire_thread():
+                workspace_controller.document_controller.queue_task(acquire_thread_view_finished)
+            self.__acquire_thread_view_finished_event_listener = acquisition_block.finished_event.listen(queue_acquire_thread)
             if not self.__new_data_elements_event_listener:
                 self.__new_data_elements_event_listener = self.new_data_elements_event.listen(self.data_elements_changed)
-                self.playing_state_changed_event.fire(True)
-            self.notify_listeners("hardware_source_started", self)
+            self.__acquire_thread_view = acquisition_block
+            self.__acquire_thread_trigger.set()
+            self.playing_state_changed_event.fire(True)
 
     def __close_hardware_port(self):
         if self.__new_data_elements_event_listener:
@@ -314,56 +425,19 @@ class HardwareSource(Observable.Broadcaster):
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        if self.is_playing:
-            self.abort_acquisition()
-            self.__close_hardware_port()
-            self.notify_listeners("hardware_source_stopped", self)
-            self.__workspace_controller.did_stop_playing(self)
-            # self.__workspace_controller = None  # Do not clear the workspace_controller here.
+        acquire_thread_view = self.__acquire_thread_view
+        if acquire_thread_view:
+            acquire_thread_view.abort()
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        with self.__channel_states_mutex:
-            for channel in self.__channel_states.keys():
-                self.__channel_states[channel] = "marked"
-
-    # if all channels are in stopped state, some controller should abort the acquisition.
-    # thread safe
-    def __should_abort(self):
-        if self.__abort_signal:
-            return True
-        with self.__channel_states_mutex:
-            are_all_channel_stopped = len(self.__channel_states) > 0
-            for state in self.__channel_states.values():
-                if state != "stopped":
-                    are_all_channel_stopped = False
-                    break
-            return are_all_channel_stopped
-
-    # call this to update data items. returns the new channel state.
-    # thread safe
-    def __update_channel(self, channel, data_item, data_element):
-        with self.__channel_states_mutex:
-            channel_state = self.__channel_states.get(channel)
-        if channel_state != "stopped":
-            sub_area = data_element.get("sub_area")
-            complete = sub_area is None or data_element.get("state", "complete") == "complete"
-            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-            # update channel state
-            if channel_state == "marked":
-                channel_state = "stopped" if complete else "marked"
-            else:
-                channel_state = "complete" if complete else "partial"
-        with self.__channel_states_mutex:
-            # avoid race condition where 'marked' is set during 'update_channel_state'...
-            # i.e. 'marked' can only transition to 'stopped'. leave it as 'marked' if nothing else.
-            if not channel in self.__channel_states or self.__channel_states[channel] != "marked" or channel_state == "stopped":
-                self.__channel_states[channel] = channel_state
-        return self.__channel_states[channel]
+        acquire_thread_view = self.__acquire_thread_view
+        if acquire_thread_view:
+            acquire_thread_view.stop()
 
     # this message comes from the hardware port.
-    # data_elements is a list of data_elements; entries may be None
+    # data_elements is a list of data_elements; may be an empty list
     # thread safe
     def data_elements_changed(self, data_elements):
         # TODO: deal wth overrun by asking for latest values.
@@ -377,12 +451,12 @@ class HardwareSource(Observable.Broadcaster):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        new_channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self)
+        channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self)
 
         # these items are now live if we're playing right now. mark as such.
-        for data_item in new_channel_to_data_item_dict.values():
+        for data_item in channel_to_data_item_dict.values():
             data_item.increment_data_ref_counts()
-            document_model = self.__workspace_controller.document_controller.document_model
+            document_model = self.__workspace_controller.document_model
             document_model.begin_data_item_transaction(data_item)
             was_live = data_item.is_live
             document_model.begin_data_item_live(data_item)
@@ -394,14 +468,17 @@ class HardwareSource(Observable.Broadcaster):
         data_item_states = []
         for channel in channels:
             data_element = channel_to_data_element_map[channel]
-            data_item = new_channel_to_data_item_dict[channel]
-            self.__update_channel(channel, data_item, data_element)
-            if self.__channel_states[channel] == "complete":
+            data_item = channel_to_data_item_dict[channel]
+            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            channel_state = data_element.get("state", "complete")
+            if channel_state == "complete":
                 completed_data_items.append(data_item)
+            else:
+                channel_state = channel_state if not self.__acquire_thread_view.is_finished else "marked"
             data_item_state = dict()
             data_item_state["channel"] = channel
             data_item_state["data_item"] = data_item
-            data_item_state["channel_state"] = self.__channel_states[channel]
+            data_item_state["channel_state"] = channel_state
             if "sub_area" in data_element:
                 data_item_state["sub_area"] = data_element["sub_area"]
             data_item_states.append(data_item_state)
@@ -425,13 +502,7 @@ class HardwareSource(Observable.Broadcaster):
         # keep the channel to data item map around so that we know what changed between
         # last iteration and this one. also handle reference counts.
         old_channel_to_data_item_dict = self.last_channel_to_data_item_dict
-        self.last_channel_to_data_item_dict = new_channel_to_data_item_dict
-
-        # remove channel states that are no longer used.
-        with self.__channel_states_mutex:
-            for channel in self.__channel_states.keys():
-                if not channel in channels:
-                    del self.__channel_states[channel]
+        self.last_channel_to_data_item_dict = channel_to_data_item_dict
 
 
 @contextmanager

@@ -550,32 +550,6 @@ class WorkspaceController(object):
             self.__channel_data_items[channel_key] = data_item
             self.__channel_activations.add(channel_key)
 
-    def will_start_playing(self, hardware_source):
-        """
-                Signal that the hardware source has started playing.
-
-                Subclasses should override this to perform any action when the hardware source
-                starts playing.
-
-                This method will only be called from the UI thread.
-
-                :param nion.swift.HardwareSource.HardwareSource: The hardware source.
-            """
-        pass
-
-    def did_stop_playing(self, hardware_source):
-        """
-                Signal that the hardware source has stopped playing.
-
-                Subclasses should override this to perform any action before the hardware source
-                stops playing.
-
-                This method will only be called from the UI thread.
-
-                :param nion.swift.HardwareSource.HardwareSource: The hardware source.
-            """
-        pass
-
     def sync_channels_to_data_items(self, channels, hardware_source):
 
         document_model = self.document_controller.document_model
