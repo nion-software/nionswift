@@ -79,7 +79,6 @@ class WorkspaceController(object):
         self.__workspace = None
 
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_activations = set()  # maps hardware_source_id to a set of activated channels
         self.__channel_data_items = dict()  # maps channel to data item
         self.__mutex = threading.RLock()
 
@@ -109,7 +108,6 @@ class WorkspaceController(object):
         self.filter_panel = None
         self.filter_row = None
         self.image_row = None
-        self.__channel_activations = None
         self.__channel_data_items = None
         self.document_controller.document_model.remove_listener(self)
 
@@ -548,12 +546,15 @@ class WorkspaceController(object):
         with self.__mutex:
             channel_key = hardware_source.hardware_source_id + "_" + str(channel)
             self.__channel_data_items[channel_key] = data_item
-            self.__channel_activations.add(channel_key)
 
-    def sync_channels_to_data_items(self, channels, hardware_source_id, display_name):
+    def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
+
+        # TODO: self.__channel_data_items never gets cleared
+
+        # data items are matched based on hardware_source_id, channel_id, and view_id.
+        # view_id is an extra parameter that can be incremented to trigger new data items. it may be None.
 
         document_model = self.document_controller.document_model
-        assert document_model
         session_id = document_model.session_id
 
         # these functions will be run on the main thread.
@@ -569,7 +570,7 @@ class WorkspaceController(object):
         for channel in channels:
             do_copy = False
 
-            channel_key = hardware_source_id + "_" + str(channel)
+            channel_key = hardware_source_id + "_" + str(channel) + "_" + view_id
 
             with self.__mutex:
                 data_item = self.__channel_data_items.get(channel_key)
@@ -580,8 +581,13 @@ class WorkspaceController(object):
             if buffered_data_source:
                 hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
                 existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-                hardware_source_channel_id = hardware_source_metadata.get("hardware_source_channel_id")
-                if existing_hardware_source_id != hardware_source_id or hardware_source_channel_id != channel:
+                existing_channel_id = hardware_source_metadata.get("channel_id")
+                existing_view_id = hardware_source_metadata.get("view_id")
+                if existing_hardware_source_id != hardware_source_id or existing_channel_id != channel:
+                    logging.debug("channel")
+                    data_item = None
+                if existing_view_id != view_id:
+                    logging.debug("view")
                     data_item = None
             # if everything but session or live state matches, copy it and re-use. this keeps the users display
             # preferences intact.
@@ -599,7 +605,9 @@ class WorkspaceController(object):
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
                 hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["hardware_source_channel_id"] = channel
+                hardware_source_metadata["channel_id"] = channel
+                if view_id:
+                    hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
             # if we still don't have a data item, create it.
@@ -611,20 +619,17 @@ class WorkspaceController(object):
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
                 hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["hardware_source_channel_id"] = channel
+                hardware_source_metadata["channel_id"] = channel
+                if view_id:
+                    hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
-                with self.__mutex:
-                    self.__channel_activations.discard(channel_key)
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
             if data_item.session_id != session_id:
                 data_item.session_id = session_id
             with self.__mutex:
                 self.__channel_data_items[channel_key] = data_item
                 data_items[channel] = data_item
-                # check to see if its been activated. if not, activate it.
-                if channel_key not in self.__channel_activations:
-                    self.__channel_activations.add(channel_key)
 
         return data_items
 

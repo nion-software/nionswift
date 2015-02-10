@@ -19,9 +19,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
-        self.properties = None
         self.sleep = sleep
-        self.event = threading.Event()
         self.image = np.zeros(256)
 
     def make_data_element(self):
@@ -33,7 +31,6 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
         self.image += 1.0
         time.sleep(self.sleep)
         data_element = self.make_data_element()
-        self.event.set()
         return [data_element]
 
 
@@ -41,16 +38,14 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
-        self.properties = None
         self.sleep = sleep
-        self.event = threading.Event()
         self.image = np.zeros((256, 256))
         self.top = True
 
     def make_data_element(self):
         return {"version": 1, "data": self.image,
             "properties": {"exposure": 0.5, "extra_high_tension": 140000, "hardware_source": "hardware source",
-                "hardware_source_id": "simple_hardware_source"}}
+                "hardware_source_id": "scan_hardware_source"}}
 
     def acquire_data_elements(self):
         self.image += 1.0
@@ -63,7 +58,6 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
             data_element["state"] = "complete"
             data_element["sub_area"] = (0, 0), (256, 256)
         self.top = not self.top
-        self.event.set()
         return [data_element]
 
 
@@ -73,7 +67,7 @@ class DummyWorkspaceController(object):
         self.document_controller = self  # hack so that document_controller.document_model works
         self.document_model = document_model
 
-    def sync_channels_to_data_items(self, channels, hardware_source_id, display_name):
+    def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
         data_item_set = {}
         for channel in channels:
             data_item_set[channel] = DataItem.DataItem()
@@ -231,17 +225,12 @@ class TestHardwareSourceClass(unittest.TestCase):
         source = SimpleHardwareSource()
         hardware_source_manager.register_hardware_source(source)
         hardware_source = hardware_source_manager.get_hardware_source_for_hardware_source_id("simple_hardware_source")
-        hardware_source.event.clear()
         hardware_source.start_playing(document_controller.workspace_controller)
-        # we're waiting on the hardware source to trigger a finish event, but the acquisition
-        # machinery still needs to process the result. that's the reason for the extra delays
-        # below after the event is triggered.
-        hardware_source.event.wait()    # wait for first frame
-        time.sleep(0.05)                # and some processing time
-        hardware_source.event.clear()
-        self.assertTrue(hardware_source.is_playing)
+        start_time = time.time()
+        while not hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
         hardware_source.stop_playing()
-        hardware_source.event.wait()    # wait for frame to finish
         start_time = time.time()
         while hardware_source.is_playing:
             time.sleep(0.01)
@@ -264,7 +253,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.close()
 
-    def test_record_scan_only_acquires_one_item(self):
+    def test_record_only_acquires_one_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source_manager = HardwareSource.HardwareSourceManager()
@@ -332,6 +321,82 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         viewed_data_elements_available_event_listener.close()
         recorded_data_elements_available_event_listener.close()
+        document_controller.close()
+
+    def test_view_only_puts_all_frames_into_a_single_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        frame_index_ref = [-1]
+        def handle_viewed_data_elements(data_elements):
+            if len(data_elements) > 0:
+                if data_elements[0].get("state") == "complete":
+                    frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_viewed_data_elements)
+        self.assertEqual(len(document_model.data_items), 0)
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while frame_index_ref[0] < 3:
+            time.sleep(0.01)
+            document_controller.periodic()
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.abort_playing()
+        document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
+        self.assertEqual(len(document_model.data_items), 1)
+        viewed_data_elements_available_event_listener.close()
+        document_controller.close()
+
+    def test_record_only_put_data_into_a_single_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        self.assertEqual(len(document_model.data_items), 0)
+        hardware_source.start_recording(document_controller.workspace_controller)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
+        self.assertEqual(len(document_model.data_items), 1)
+        document_controller.close()
+
+    def test_view_with_record_puts_all_frames_into_two_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        frame_index_ref = [-1]
+        def handle_viewed_data_elements(data_elements):
+            if len(data_elements) > 0:
+                if data_elements[0].get("state") == "complete":
+                    frame_index_ref[0] = data_elements[0].get("properties").get("frame_index", 0)
+        viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(handle_viewed_data_elements)
+        self.assertEqual(len(document_model.data_items), 0)
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while frame_index_ref[0] < 3:
+            time.sleep(0.01)
+            document_controller.periodic()
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_recording(document_controller.workspace_controller)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            document_controller.periodic()
+            self.assertTrue(time.time() - start_time < 3.0)
+        start_time = time.time()
+        while frame_index_ref[0] < 6:
+            time.sleep(0.01)
+            document_controller.periodic()
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
+        self.assertEqual(len(document_model.data_items), 2)
+        viewed_data_elements_available_event_listener.close()
         document_controller.close()
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):

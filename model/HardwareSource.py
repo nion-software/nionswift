@@ -13,11 +13,10 @@ import copy
 import gettext
 import logging
 import os
-import Queue as queue
 import threading
 import time
 import traceback
-import weakref
+import uuid
 
 # local imports
 from nion.swift.model import ImportExportManager
@@ -137,43 +136,6 @@ class HardwareSourceManager(Observable.Broadcaster):
             f()
 
 
-class NotifyingEvent(object):
-
-    def __init__(self):
-        self.__weak_listeners = []
-        self.__weak_listeners_mutex = threading.RLock()
-        self.on_first_listener_added = None
-        self.on_last_listener_removed = None
-
-    def listen(self, listener_fn):
-        listener = Observable.EventListener(listener_fn)
-        def remove_listener(weak_listener):
-            with self.__weak_listeners_mutex:
-                self.__weak_listeners.remove(weak_listener)
-                last = len(self.__weak_listeners) == 0
-            if last and self.on_last_listener_removed:
-                self.on_last_listener_removed()
-        weak_listener = weakref.ref(listener, remove_listener)
-        with self.__weak_listeners_mutex:
-            first = len(self.__weak_listeners) == 0
-            self.__weak_listeners.append(weak_listener)
-        if first and self.on_first_listener_added:
-            self.on_first_listener_added()
-        return listener
-
-    def fire(self, *args, **keywords):
-        try:
-            with self.__weak_listeners_mutex:
-                listeners = [weak_listener() for weak_listener in self.__weak_listeners]
-            for listener in listeners:
-                listener.call(*args, **keywords)
-        except Exception as e:
-            import traceback
-            logging.debug("Event Error: %s", e)
-            traceback.print_exc()
-            traceback.print_stack()
-
-
 class AcquisitionTask(object):
 
     """Basic acquisition task carries out acquisition repeatedly during acquisition loop, keeping track of state.
@@ -195,6 +157,7 @@ class AcquisitionTask(object):
         self.__last_acquire_time = None
         self.__minimum_period = 1/20.0
         self.__frame_index = 0
+        self.__view_id = str(uuid.uuid4())
         self.__last_channel_to_data_item_dict = {}
         self.finished_event = Observable.Event()
 
@@ -219,8 +182,8 @@ class AcquisitionTask(object):
                 # if aborted, abort here
                 if self.__aborted:
                     # logging.debug("aborted")
-                    self.__abort_acquisition()
-                    self.__stop_acquisition()
+                    self._abort_acquisition()
+                    self.__stop()
                     self.__mark_as_finished()
                 # otherwise execute the task
                 else:
@@ -228,7 +191,7 @@ class AcquisitionTask(object):
                     # logging.debug("executed %s", complete)
                     if complete and (self.__stopped or not self.__continuous):
                         # logging.debug("finished")
-                        self.__stop_acquisition()
+                        self.__stop()
                         self.__mark_as_finished()
             except Exception as e:
                 # the task is finished if it doesn't execute
@@ -255,7 +218,7 @@ class AcquisitionTask(object):
         return self.__stopped
 
     def __start(self):
-        self.__start_acquisition()
+        self._start_acquisition()
         self.__last_acquire_time = time.time() - self.__minimum_period
 
     def __execute(self):
@@ -263,12 +226,11 @@ class AcquisitionTask(object):
         elapsed = time.time() - self.__last_acquire_time
         time.sleep(max(0.0, self.__minimum_period - elapsed))
 
-        data_elements = self.__acquire_data_elements()
+        data_elements = self._acquire_data_elements()
 
         # update frame_index if not supplied
         for data_element in data_elements:
             data_element.setdefault("properties", dict()).setdefault("frame_index", self.__frame_index)
-        self.__frame_index += 1
 
         # record the last acquisition time
         self.__last_acquire_time = time.time()
@@ -285,19 +247,26 @@ class AcquisitionTask(object):
             if not (sub_area is None or state == "complete"):
                 complete = False
                 break
+
+        if complete:
+            self.__frame_index += 1
+
         return complete
 
-    def __start_acquisition(self):
-        self.__hardware_source.start_acquisition()
-
-    def __abort_acquisition(self):
-        self.__hardware_source.abort_acquisition()
-
-    def __stop_acquisition(self):
-        self.__hardware_source.stop_acquisition()
+    def __stop(self):
+        self._stop_acquisition()
         self.__data_elements_changed(list())
 
-    def __acquire_data_elements(self):
+    def _start_acquisition(self):
+        self.__hardware_source.start_acquisition()
+
+    def _abort_acquisition(self):
+        self.__hardware_source.abort_acquisition()
+
+    def _stop_acquisition(self):
+        self.__hardware_source.stop_acquisition()
+
+    def _acquire_data_elements(self):
         return self.__hardware_source.acquire_data_elements()
 
     # this message comes from the hardware port.
@@ -315,7 +284,10 @@ class AcquisitionTask(object):
                 channel_to_data_element_map[channel] = data_element
 
         # sync to data items
-        channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, self.__hardware_source.hardware_source_id, self.__hardware_source.display_name)
+        hardware_source_id = self.__hardware_source.hardware_source_id
+        view_id = self.__view_id
+        display_name = self.__hardware_source.display_name
+        channel_to_data_item_dict = self.__workspace_controller.sync_channels_to_data_items(channels, hardware_source_id, view_id, display_name)
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in channel_to_data_item_dict.values():
@@ -332,7 +304,7 @@ class AcquisitionTask(object):
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete":
-                channel_state = channel_state if not self.is_finished else "marked"
+                channel_state = channel_state if not self.is_stopping else "marked"
             data_item_state = dict()
             data_item_state["channel"] = channel
             data_item_state["data_item"] = data_item
