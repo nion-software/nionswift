@@ -221,9 +221,6 @@ class HardwareSource(Observable.Broadcaster):
         self.last_channel_to_data_item_dict = {}
         self.__workspace_controller = None  # the workspace_controller when last started.
         self.frame_index = 0
-        self.__mode = None
-        self.__mode_data = dict()
-        self.__mode_lock = threading.RLock()
         self.playing_state_changed_event = Observable.Event()
         self.data_item_state_changed_event = Observable.Event()
 
@@ -238,40 +235,15 @@ class HardwareSource(Observable.Broadcaster):
         if self.__should_abort():
             self.abort_playing()
 
-    # get mode settings. thread safe.
-    def get_mode_settings(self, mode):
-        with self.__mode_lock:
-            return copy.copy(self.__mode_data.get(self.__mode))
-
-    # set mode settings. thread safe.
-    def set_mode_settings(self, mode, mode_data):
-        with self.__mode_lock:
-            mode_data[self.__mode] = copy.copy(mode_data)
-
-    # subclasses may override this to respond to mode changes
-    def mode_changed(self, mode):
-        pass
-
-    # mode property. thread safe.
-    def get_mode(self):
-        return self.__mode
-
-    def set_mode(self, value):
-        self.mode_changed(value)
-        self.__mode = value
-
     # ports allow multiple clients to independently grab data out of the data source.
     # only a single acquisition thread is created per hardware source
-    def create_port(self, mode=None):
+    def create_port(self):
         with self.__portlock:
             port = HardwareSourcePort(self)
             start_thread = len(self.__ports) == 0  # start a new thread if it's not already running (i.e. there are no current ports)
             self.__ports.append(port)
         if start_thread:
-            with self.__mode_lock:
-                mode = mode if mode else self.__mode
-                mode_data = self.get_mode_settings(mode)
-            self.acquire_thread = threading.Thread(target=self.acquire_thread_loop, args=(mode, mode_data))
+            self.acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
             self.acquire_thread.start()
         return port
 
@@ -282,9 +254,9 @@ class HardwareSource(Observable.Broadcaster):
         with self.__portlock:
             self.__ports.remove(port)
 
-    def acquire_thread_loop(self, mode, mode_data):
+    def __acquire_thread_loop(self):
         try:
-            self.start_acquisition(mode, mode_data)
+            self.start_acquisition()
             minimum_period = 1/20.0  # don't allow acquisition to starve main thread
             last_acquire_time = time.time() - minimum_period
         except Exception as e:
@@ -340,7 +312,7 @@ class HardwareSource(Observable.Broadcaster):
 
     # subclasses can implement this method which is called when acquisition starts.
     # must be thread safe
-    def start_acquisition(self, mode, mode_data):
+    def start_acquisition(self):
         pass
 
     # subclasses can implement this method which is called when acquisition aborts.
@@ -368,13 +340,13 @@ class HardwareSource(Observable.Broadcaster):
 
     # call this to start acquisition
     # not thread safe
-    def start_playing(self, workspace_controller, mode=None):
+    def start_playing(self, workspace_controller):
         if not self.is_playing:
             self.__abort_signal = False
             self.__workspace_controller = workspace_controller
             self.__workspace_controller.will_start_playing(self)
             if not self.__hardware_port:
-                self.__hardware_port = self.create_port(mode)
+                self.__hardware_port = self.create_port()
                 self.__hardware_port.on_new_data_elements = self.data_elements_changed
                 self.playing_state_changed_event.fire(True)
             self.notify_listeners("hardware_source_started", self)
