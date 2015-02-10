@@ -120,7 +120,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         p.close()
         hardware_source_manager.unregister_hardware_source(source)
 
-    def test_setting_current_snapshot_succeeds_and_does_not_leak_memory(self):
+    def test_acquiring_three_frames_works(self):
         # stopping acquisition should not clear session
         document_model = DocumentModel.DocumentModel()
         workspace_controller = DummyWorkspaceController(document_model)
@@ -130,7 +130,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         while source.frame_index < 3:
             time.sleep(0.01)
         source.abort_playing()
-        source.data_buffer.current_snapshot = 0
         source.close()
 
     def test_simple_hardware_start_and_wait_acquires_data(self):

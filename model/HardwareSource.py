@@ -266,6 +266,7 @@ class HardwareSource(Observable.Broadcaster):
         self.__mode = None
         self.__mode_data = dict()
         self.__mode_lock = threading.RLock()
+        self.playing_state_changed_event = Observable.Event()
 
     def close(self):
         if self.__data_buffer:
@@ -548,6 +549,10 @@ class HardwareSource(Observable.Broadcaster):
                 if not channel in channels:
                     del self.__channel_states[channel]
 
+    # this message comes from the data buffer. it will always be invoked on the UI thread.
+    def playing_state_changed(self, hardware_source, is_playing):
+        self.playing_state_changed_event.fire(is_playing)
+
 
 class HardwareSourceDataBuffer(Observable.Broadcaster):
     """
@@ -559,7 +564,7 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
     if the user wants to remove the data items, they should stop the acquisition
     first.
 
-    DataItems are resued if available - we reuse them by searching through all data_elements
+    DataItems are reused if available - we reuse them by searching through all data_elements
     in the 'Sources' data_group, based on name (could use more advanced metadata in the
     future f necessary).
 
@@ -570,8 +575,6 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
         assert hardware_source
         self.hardware_source = hardware_source
         self.hardware_port = None
-        self.__snapshots = collections.deque(maxlen=1)
-        self.__current_snapshot = 0
 
     def close(self):
         # logging.debug("Closing HardwareSourceDataBuffer for %s", self.hardware_source.hardware_source_id)
@@ -588,28 +591,6 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
     def __get_is_playing(self):
         return self.hardware_port is not None
     is_playing = property(__get_is_playing)
-
-    def __get_current_snapshot(self):
-        return self.__current_snapshot
-    def __set_current_snapshot(self, current_snapshot):
-        assert not self.is_playing
-        if current_snapshot < 0:
-            current_snapshot = 0
-        elif current_snapshot >= len(self.__snapshots):
-            current_snapshot = len(self.__snapshots) - 1
-        if self.__current_snapshot != current_snapshot:
-            self.__current_snapshot = current_snapshot
-            self.notify_listeners("data_elements_changed", self.hardware_source, self.__snapshots[self.__current_snapshot])
-            self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
-    current_snapshot = property(__get_current_snapshot, __set_current_snapshot)
-
-    def __get_snapshot_count(self):
-        return len(self.__snapshots)
-    snapshot_count = property(__get_snapshot_count)
-
-    def __get_snapshots(self):
-        return self.__snapshots
-    snapshots = property(__get_snapshots)
 
     # must be called on the UI thread
     def start(self, mode=None):
@@ -636,20 +617,8 @@ class HardwareSourceDataBuffer(Observable.Broadcaster):
         if not self.hardware_port:
             data_elements = []
 
-        # snapshots
-        snapshot_count = len(self.__snapshots)
-        self.__snapshots.append(data_elements)
-        if len(self.__snapshots) != snapshot_count:
-            self.notify_listeners("snapshot_count_changed", self.hardware_source, len(self.__snapshots))
-
         # update the data on the data items
         self.notify_listeners("data_elements_changed", self.hardware_source, data_elements)
-
-        # notify listeners if we change current snapshot
-        current_snapshot = len(self.__snapshots) - 1
-        if self.__current_snapshot != current_snapshot:
-            self.__current_snapshot = current_snapshot
-            self.notify_listeners("current_snapshot_changed", self.hardware_source, self.__current_snapshot)
 
 
 @contextmanager
