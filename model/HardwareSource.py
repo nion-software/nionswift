@@ -309,7 +309,7 @@ class AcquisitionTask(object):
             if "sub_area" in data_element:
                 data_item_state["sub_area"] = data_element["sub_area"]
             data_item_states.append(data_item_state)
-        self.__hardware_source.data_item_states_changed_event.fire(data_item_states)
+        self.__hardware_source._notify_data_item_states_changed(data_item_states)
 
         # these items are no longer live. mark live_data as False.
         for channel, data_item in self.__last_channel_to_data_item_dict.iteritems():
@@ -419,6 +419,14 @@ class HardwareSource(object):
     # must be thread safe
     def acquire_data_elements(self):
         raise NotImplementedError()
+
+    # subclasses can implement this method which is called when the data items used for acquisition change.
+    def data_item_states_changed(self, data_item_states):
+        pass
+
+    def _notify_data_item_states_changed(self, data_item_states):
+        self.data_item_states_changed_event.fire(data_item_states)
+        self.data_item_states_changed(data_item_states)
 
     # create the view task
     def create_acquisition_view_task(self, workspace_controller):

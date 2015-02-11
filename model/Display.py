@@ -127,6 +127,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.graphic_selection = GraphicSelection()
         self.graphic_selection.add_listener(self)
+        self.about_to_be_removed_event = Observable.Event()
 
     def close(self):
         for processor in self.__processors.values():
@@ -134,6 +135,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__processors = None
 
     def about_to_be_removed(self):
+        self.about_to_be_removed_event.fire()
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
 

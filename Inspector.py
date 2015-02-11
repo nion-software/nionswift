@@ -802,13 +802,13 @@ class GraphicsInspectorSection(InspectorSection):
 
     # not thread safe
     def __create_list_item_widget(self, graphic):
-        graphic_section_index = self.__graphics.index(graphic)
+        # NOTE: it is not valid to access self.__graphics here. graphic may or may not be in that list due to threading.
+        # graphic_section_index = self.__graphics.index(graphic)
         image_size = self.__image_size
-        calibrations = self.__calibrations
         graphic_title_row = self.ui.create_row_widget()
-        graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 20})
+        # graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 20})
         graphic_title_type_label = self.ui.create_label_widget()
-        graphic_title_row.add(graphic_title_index_label)
+        # graphic_title_row.add(graphic_title_index_label)
         graphic_title_row.add(graphic_title_type_label)
         graphic_title_row.add_stretch()
         graphic_widget = self.ui.create_column_widget()

@@ -126,6 +126,7 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_property("color", "#F00", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed)
         self.__region = None
+        self.about_to_be_removed_event = Observable.Event()
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
     @property
@@ -185,6 +186,7 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
     def nudge(self, mapping, delta):
         raise NotImplementedError()
     def notify_remove_region_graphic(self):
+
         self.notify_listeners("remove_region_graphic", self)
 
 
@@ -603,11 +605,16 @@ class PointGraphic(PointTypeGraphic):
                 font = "normal 11px serif"
                 font_metrics = get_font_metrics_fn(font, self.label)
                 text_pos = p + Geometry.FloatPoint(-cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
+                ctx.begin_path()
+                ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding, text_pos.y - font_metrics.height * 0.5 - padding)
+                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding, text_pos.y - font_metrics.height * 0.5 - padding)
+                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding, text_pos.y + font_metrics.height * 0.5 + padding)
+                ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding, text_pos.y + font_metrics.height * 0.5 + padding)
+                ctx.close_path()
                 ctx.fill_style = "rgba(255, 255, 255, 0.6)"
-                ctx.rect(text_pos.x - font_metrics.width * 0.5 - padding,
-                         text_pos.y - font_metrics.height * 0.5 - padding, font_metrics.width + padding * 2,
-                         font_metrics.height + padding * 2)
                 ctx.fill()
+                ctx.stroke_style = self.color
+                ctx.stroke()
                 ctx.font = font
                 ctx.text_baseline = "middle"
                 ctx.text_align = "center"
