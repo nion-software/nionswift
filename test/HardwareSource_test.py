@@ -407,6 +407,47 @@ class TestHardwareSourceClass(unittest.TestCase):
         viewed_data_elements_available_event_listener.close()
         document_controller.close()
 
+    def test_view_reuses_single_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        self.assertEqual(len(document_model.data_items), 0)
+        # play the first time
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while not hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.stop_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
+        self.assertEqual(len(document_model.data_items), 1)
+        data_item = document_model.data_items[0]
+        self.assertFalse(data_item.is_live)
+        data_value = data_item.data_sources[0].data[0, 0]
+        # play the second time. it should make a copy of the first data item and use the original.
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while not hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.stop_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
+        self.assertEqual(len(document_model.data_items), 2)
+        new_data_value = data_item.data_sources[0].data[0, 0]
+        self.assertNotAlmostEqual(data_value, new_data_value)
+        hardware_source.close()
+        document_controller.close()
+
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = SimpleHardwareSource().make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)

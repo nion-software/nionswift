@@ -584,10 +584,8 @@ class WorkspaceController(object):
                 existing_channel_id = hardware_source_metadata.get("channel_id")
                 existing_view_id = hardware_source_metadata.get("view_id")
                 if existing_hardware_source_id != hardware_source_id or existing_channel_id != channel:
-                    logging.debug("channel")
                     data_item = None
                 if existing_view_id != view_id:
-                    logging.debug("view")
                     data_item = None
             # if everything but session or live state matches, copy it and re-use. this keeps the users display
             # preferences intact.

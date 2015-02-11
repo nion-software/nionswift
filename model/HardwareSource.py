@@ -155,7 +155,7 @@ class AcquisitionTask(object):
         self.__last_acquire_time = None
         self.__minimum_period = 1/20.0
         self.__frame_index = 0
-        self.__view_id = str(uuid.uuid4())
+        self.__view_id = str(uuid.uuid4()) if not continuous else hardware_source.hardware_source_id
         self.__last_channel_to_data_item_dict = {}
         self.finished_event = Observable.Event()
 
