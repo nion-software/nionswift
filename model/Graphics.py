@@ -127,6 +127,8 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_property("label", changed=self._property_changed)
         self.__region = None
         self.about_to_be_removed_event = Observable.Event()
+    def about_to_be_removed(self):
+        self.about_to_be_removed_event.fire()
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
     @property
@@ -186,7 +188,6 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
     def nudge(self, mapping, delta):
         raise NotImplementedError()
     def notify_remove_region_graphic(self):
-
         self.notify_listeners("remove_region_graphic", self)
 
 

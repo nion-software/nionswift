@@ -333,6 +333,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             # will in turn remove the same region.
             # bad architecture.
             region_graphic.remove_listener(self)
+            region_graphic.about_to_be_removed()
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
             self.graphic_selection.remove_index(index)
