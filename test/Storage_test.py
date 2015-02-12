@@ -1345,6 +1345,40 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].modified, modified)
         self.assertEqual(document_model.data_items[1].modified, modified)
 
+    def test_begin_end_transaction_with_no_change_should_not_write(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item._set_modified(modified)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        # now clear the data_reference_handler and see if it gets written again
+        data_reference_handler.properties.clear()
+        document_model.begin_data_item_transaction(data_item)
+        document_model.end_data_item_transaction(data_item)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        # properties should still be empty, unless it was written again
+        self.assertEqual(data_reference_handler.properties, dict())
+
+    def test_begin_end_transaction_with_change_should_write(self):
+        # converse of previous test
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        data_item._set_modified(modified)
+        self.assertEqual(document_model.data_items[0].modified, modified)
+        # now clear the data_reference_handler and see if it gets written again
+        data_reference_handler.properties.clear()
+        document_model.begin_data_item_transaction(data_item)
+        data_item.set_metadata(data_item.metadata)
+        document_model.end_data_item_transaction(data_item)
+        self.assertNotEqual(document_model.data_items[0].modified, modified)
+        # properties should still be empty, unless it was written again
+        self.assertNotEqual(data_reference_handler.properties, dict())
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

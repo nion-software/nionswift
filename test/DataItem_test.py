@@ -193,19 +193,19 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         with document_model.data_item_transaction(data_item):
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data_ref.master_data[:] = 1
+                data_ref.master_data = numpy.ones((4, 4), numpy.uint32)
                 data_item_copy = copy.deepcopy(data_item)
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             with display_specifier2.buffered_data_source.data_ref() as data_copy_accessor:
-                self.assertEqual(data_copy_accessor.master_data.shape, (256, 256))
+                self.assertEqual(data_copy_accessor.master_data.shape, (4, 4))
                 self.assertTrue(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
-                data_ref.master_data[:] = 2
+                data_ref.master_data = numpy.ones((4, 4), numpy.uint32) + 1
                 self.assertFalse(numpy.array_equal(data_ref.master_data, data_copy_accessor.master_data))
 
     def test_clear_thumbnail_when_data_item_changed(self):
@@ -1332,7 +1332,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item.set_metadata(data_item.metadata)
         self.assertGreater(data_item.modified, modified)
 
-    def test_adding_data_source_updated_modified(self):
+    def test_adding_data_source_updates_modified(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
         document_model.append_data_item(data_item)
@@ -1348,6 +1348,16 @@ class TestDataItemClass(unittest.TestCase):
         data_item._set_modified(datetime.datetime(2000, 1, 1))
         modified = data_item.modified
         data_item.data_sources[0].displays[0].display_calibrated_values = False
+        self.assertGreater(data_item.modified, modified)
+
+    def test_changing_data_on_buffered_data_source_updates_modified(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
+        document_model.append_data_item(data_item)
+        data_item._set_modified(datetime.datetime(2000, 1, 1))
+        modified = data_item.modified
+        with data_item.data_sources[0].data_ref() as data_ref:
+            data_ref.master_data = numpy.zeros((2, 2))
         self.assertGreater(data_item.modified, modified)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_subscribed_to(self):

@@ -980,6 +980,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return self.__transaction_count
 
     def __enter_write_delay_state(self):
+        self.__write_delay_modified = self.modified
         if self.managed_object_context:
             persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
             if persistent_storage:
@@ -990,7 +991,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = False
-            self.managed_object_context.write_data_item(self)
+            if self.modified > self.__write_delay_modified:
+                self.managed_object_context.write_data_item(self)
 
     def _begin_transaction(self):
         """Begin transaction state.
