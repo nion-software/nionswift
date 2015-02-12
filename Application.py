@@ -8,9 +8,7 @@ import logging
 import os
 import cPickle as pickle
 import sqlite3
-import struct
 import sys
-import time
 import uuid
 
 # third party libraries
