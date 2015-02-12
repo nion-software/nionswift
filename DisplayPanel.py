@@ -666,26 +666,6 @@ class DisplayPanel(object):
     def image_panel_get_font_metrics(self, font, text):
         return self.ui.get_font_metrics(font, text)
 
-    def image_panel_get_tool_mode(self):
-        return self.document_controller.tool_mode
-
-    def image_panel_set_tool_mode(self, tool_mode):
-        self.document_controller.tool_mode = tool_mode
-
-    def image_panel_show_context_menu(self, gx, gy):
-        self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display_specifier.data_item, gx, gy)
-
-    def image_panel_cursor_changed(self, source, display, pos):
-        data_and_calibration = display.data_and_calibration if display else None
-        display_calibrated_values = display.display_calibrated_values if display else False
-        self.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
-
-    def image_panel_delete_key_pressed(self):
-        if self.document_controller.remove_graphic():
-            return True
-        self.set_displayed_data_item(None)
-        return False
-
     def handle_drag_enter(self, mime_data):
         if self.workspace_controller:
             return self.workspace_controller.handle_drag_enter(self, mime_data)
