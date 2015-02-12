@@ -600,11 +600,13 @@ class DisplayPanel(object):
                 def key_pressed(self, key):
                     return self.__display_panel.image_panel_key_pressed(key)
 
-                def cursor_changed(self, source, pos, image_size):
+                def cursor_changed(self, source, pos):
                     display = self.__display_panel.display_specifier.display
                     data_and_calibration = display.data_and_calibration if display else None
                     display_calibrated_values = display.display_calibrated_values if display else False
-                    self.__display_panel.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos, image_size)
+                    if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
+                        pos = (display.slice_center, ) + pos
+                    self.__display_panel.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
                 def update_display_properties(self, display_properties):
                     for key, value in display_properties.iteritems():
@@ -673,10 +675,10 @@ class DisplayPanel(object):
     def image_panel_show_context_menu(self, gx, gy):
         self.document_controller.show_context_menu_for_data_item(self.document_controller.document_model, self.display_specifier.data_item, gx, gy)
 
-    def image_panel_cursor_changed(self, source, display, pos, image_size):
+    def image_panel_cursor_changed(self, source, display, pos):
         data_and_calibration = display.data_and_calibration if display else None
         display_calibrated_values = display.display_calibrated_values if display else False
-        self.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos, image_size)
+        self.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
     def image_panel_delete_key_pressed(self):
         if self.document_controller.remove_graphic():

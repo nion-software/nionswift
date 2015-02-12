@@ -121,10 +121,9 @@ class DataAndCalibration(object):
         elif self.is_data_2d:
             if data is not None:
                 return data[pos[0], pos[1]]
-        # TODO: fix me 3d
         elif self.is_data_3d:
             if data is not None:
-                return data[pos[0], pos[1]]
+                return data[pos[0], pos[1], pos[2]]
         return None
 
     @property

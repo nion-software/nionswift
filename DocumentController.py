@@ -503,8 +503,8 @@ class DocumentController(Observable.Broadcaster):
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
-    def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos, image_size):
-        self.notify_listeners("cursor_changed", source, data_and_calibration, display_calibrated_values, pos, image_size)
+    def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
+        self.notify_listeners("cursor_changed", source, data_and_calibration, display_calibrated_values, pos)
 
     def __get_tool_mode(self):
         return self.__tool_mode

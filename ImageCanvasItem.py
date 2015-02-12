@@ -216,7 +216,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         mouse_clicked(image_position, modifiers)
         delete_key_pressed()
         key_pressed(key)
-        cursor_changed(source, pos, image_size)
+        cursor_changed(source, pos)
         update_display_properties(display_properties)
     """
 
@@ -623,14 +623,14 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         return None
 
     def __update_cursor_info(self):
-        pos = None
         image_size = self.__get_image_size()
         if self.__mouse_in and self.__last_mouse:
+            pos_2d = None
             if image_size and len(image_size) > 1:
-                pos = self.map_widget_to_image(self.__last_mouse)
-            self.delegate.cursor_changed(self, pos, image_size)
+                pos_2d = self.map_widget_to_image(self.__last_mouse)
+            self.delegate.cursor_changed(self, pos_2d)
         else:
-            self.delegate.cursor_changed(self, None, None)
+            self.delegate.cursor_changed(self, None)
 
     def _repaint(self, drawing_context):
         self.prepare_display()

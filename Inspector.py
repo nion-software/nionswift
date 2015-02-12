@@ -565,7 +565,7 @@ class SliceInspectorSection(InspectorSection):
         slice_center_row_widget.add_stretch()
 
         slice_width_row_widget = self.ui.create_row_widget()
-        slice_width_label_widget = self.ui.create_label_widget(_("Slice"))
+        slice_width_label_widget = self.ui.create_label_widget(_("Width"))
         slice_width_line_edit_widget = self.ui.create_line_edit_widget()
         slice_width_slider_widget = self.ui.create_slider_widget()
         slice_width_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1
