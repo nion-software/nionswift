@@ -186,7 +186,7 @@ class DocumentController(Observable.Broadcaster):
         self.file_menu.add_separator()
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
         self.file_menu.add_separator()
-        self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.ui.close(), key_sequence="quit", role="quit")
+        self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.app.deinitialize(), key_sequence="quit", role="quit")
 
         #self.undo_action = self.edit_menu.add_menu_item(_("Undo"), lambda: self.no_operation(), key_sequence="undo")
         #self.redo_action = self.edit_menu.add_menu_item(_("Redo"), lambda: self.no_operation(), key_sequence="redo")

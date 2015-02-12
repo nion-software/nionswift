@@ -33,6 +33,7 @@ from nion.swift import NDataHandler
 from nion.swift import InfoPanel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
@@ -79,6 +80,11 @@ class Application(object):
     def initialize(self):
         PlugInManager.load_plug_ins(self, get_root_dir())
         Test.load_tests()  # after plug-ins are loaded
+
+    def deinitialize(self):
+        HardwareSource.HardwareSourceManager().close()
+        self.ui.close()
+        # PlugInManager.unload_plug_ins()
 
     def choose_workspace(self):
         documents_dir = self.ui.get_document_location()

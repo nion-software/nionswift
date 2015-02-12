@@ -43,6 +43,16 @@ class HardwareSourceManager(object):
         # aliases are shared between hardware sources and instruments
         self.__aliases = {}
 
+    def close(self):
+        for hardware_source in self.hardware_sources:
+            if hasattr(hardware_source, "close"):
+                hardware_source.close()
+        for instrument in self.instruments:
+            if hasattr(instrument, "close"):
+                instrument.close()
+        self.hardware_sources = []
+        self.instruments = []
+
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
         self.hardware_source_added_removed = []
