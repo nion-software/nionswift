@@ -832,7 +832,8 @@ class DocumentController(Observable.Broadcaster):
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
             operation = Operation.OperationItem("pick-operation")
-            operation.establish_associated_region("pick", buffered_data_source)  # after setting operation properties
+            region = operation.establish_associated_region("pick", buffered_data_source)  # after setting operation properties
+            region.label = "Pick"
             pick_display_specifier = self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Pick of "))
             pick_interval = Region.IntervalRegion()
             pick_display_specifier.buffered_data_source.add_region(pick_interval)

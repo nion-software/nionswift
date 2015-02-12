@@ -553,6 +553,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             for operation_property, region_property in self.operation.region_bindings[region_connection_id]:
                 setattr(region, region_property, self.get_property(operation_property))
             self.region_connections[region_connection_id] = region.uuid
+        return region
 
     # this message comes from the region.
     # it is generated when the user deletes a region graphic
