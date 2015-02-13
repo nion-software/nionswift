@@ -207,6 +207,12 @@ class AcquisitionTask(object):
                 self.__mark_as_finished()
                 raise
 
+    def suspend(self):
+        self.__hardware_source.suspend_acquisition()
+
+    def resume(self):
+        self.__hardware_source.resume_acquisition()
+
     @property
     def is_finished(self):
         return self.__finished
@@ -269,6 +275,12 @@ class AcquisitionTask(object):
 
     def _abort_acquisition(self):
         self.__hardware_source.abort_acquisition()
+
+    def _suspend_acquisition(self):
+        self.__hardware_source.suspend_acquisition()
+
+    def _resume_acquisition(self):
+        self.__hardware_source.resume_acquisition()
 
     def _stop_acquisition(self):
         self.__hardware_source.stop_acquisition()
@@ -360,6 +372,7 @@ class HardwareSource(object):
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
         self.__record_task = None
+        self.__view_task_suspended = False
         self.__view_task_finished_event_listener = None
         self.__record_task_finished_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
@@ -381,6 +394,9 @@ class HardwareSource(object):
                 if acquire_thread_break:
                     self.__record_task.abort()
                 try:
+                    if self.__view_task and not self.__view_task_suspended:
+                        self.__view_task.suspend()
+                        self.__view_task_suspended = True
                     self.__record_task.execute()
                 except Exception as e:
                     import traceback
@@ -395,6 +411,9 @@ class HardwareSource(object):
                 if acquire_thread_break:
                     self.__view_task.abort()
                 try:
+                    if self.__view_task_suspended:
+                        self.__view_task.resume()
+                        self.__view_task_suspended = False
                     self.__view_task.execute()
                 except Exception as e:
                     import traceback
@@ -415,6 +434,16 @@ class HardwareSource(object):
     # subclasses can implement this method which is called when acquisition aborts.
     # must be thread safe
     def abort_acquisition(self):
+        pass
+
+    # subclasses can implement this method which is called when acquisition is suspended for higher priority acquisition.
+    # must be thread safe
+    def suspend_acquisition(self):
+        pass
+
+    # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
+    # must be thread safe
+    def resume_acquisition(self):
         pass
 
     # subclasses can implement this method which is called when acquisition stops.

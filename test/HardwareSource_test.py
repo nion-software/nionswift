@@ -41,6 +41,8 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.sleep = sleep
         self.image = np.zeros((256, 256))
         self.top = True
+        self.scanning = False
+        self.suspended = False
 
     def make_data_element(self):
         return {"version": 1, "data": self.image,
@@ -59,6 +61,18 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
             data_element["sub_area"] = (0, 0), (256, 256)
         self.top = not self.top
         return [data_element]
+
+    def start_acquisition(self):
+        self.scanning = True
+
+    def stop_acquisition(self):
+        self.scanning = False
+
+    def suspend_acquisition(self):
+        self.suspended = True
+
+    def resume_acquisition(self):
+        self.suspended = False
 
 
 class DummyWorkspaceController(object):
@@ -325,6 +339,39 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         viewed_data_elements_available_event_listener.close()
         recorded_data_elements_available_event_listener.close()
+        hardware_source.close()
+        document_controller.close()
+
+    def test_record_scan_during_view_suspends_the_view(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
+        # first start playing
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while not hardware_source.scanning:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        self.assertFalse(hardware_source.suspended)
+        # now start recording
+        hardware_source.sleep = 0.02
+        hardware_source.start_recording(document_controller.workspace_controller)
+        time.sleep(0.01)  # give recording a chance to start
+        self.assertTrue(hardware_source.suspended)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        self.assertFalse(hardware_source.suspended)
+        # clean up
+        hardware_source.abort_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
         hardware_source.close()
         document_controller.close()
 
