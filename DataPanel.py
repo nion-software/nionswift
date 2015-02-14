@@ -435,6 +435,7 @@ class DataPanel(Panel.Panel):
             # moved to the main thread via this object.
             self.__changed_data_items = False
             self.__changed_data_items_mutex = threading.RLock()
+            self.on_delete_display_items = None
 
         def close(self):
             del self.__binding.inserters[id(self)]
@@ -465,11 +466,6 @@ class DataPanel(Panel.Panel):
         def document_controller(self):
             return self.__document_controller_weakref()
 
-        # container is either a data group or a document model
-        @property
-        def container(self):
-            return self.document_controller.data_items_binding.container
-
         # TODO: refactor get_data_item_by_index out of DataItemModelController
         def get_data_item_by_index(self, index):
             return self.__display_items[index].data_item if index >= 0 and index < len(self.__display_items) else None
@@ -488,11 +484,8 @@ class DataPanel(Panel.Panel):
 
         # this message comes from the canvas item when delete key is pressed
         def delete_pressed(self, indexes):
-            selected_data_items = [self.get_data_item_by_index(index) for index in indexes]
-            for data_item in selected_data_items:
-                container = DataGroup.get_data_item_container(self.container, data_item)
-                if container and data_item in container.data_items:
-                    container.remove_data_item(data_item)
+            if self.on_delete_display_items:
+                self.on_delete_display_items([self.__display_items[index] for index in indexes])
 
         def __display_item_needs_update(self):
             with self.__changed_data_items_mutex:
@@ -561,6 +554,7 @@ class DataPanel(Panel.Panel):
             self.__document_controller_weakref = weakref.ref(document_controller)
             self.ui = document_controller.ui
             self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+            self.on_delete_display_items = None
 
             class GridCanvasItemDelegate(object):
                 def __init__(self, data_grid_controller):
@@ -667,30 +661,18 @@ class DataPanel(Panel.Panel):
         def queue_task(self, task):
             self.document_controller.queue_task(task)
 
-        # container is either a data group or a document model
-        @property
-        def container(self):
-            return self.document_controller.data_items_binding.container
-
         @property
         def document_controller(self):
             return self.__document_controller_weakref()
 
         # this message comes from the canvas item when delete key is pressed
         def delete_pressed(self):
-            selected_data_items = [self.get_data_item_by_index(index) for index in self.selection.indexes]
-            for data_item in selected_data_items:
-                container = DataGroup.get_data_item_container(self.container, data_item)
-                if container and data_item in container.data_items:
-                    container.remove_data_item(data_item)
+            if self.on_delete_display_items:
+                self.on_delete_display_items([self.__display_items[index] for index in self.selection.indexes])
 
         @property
         def display_item_count(self):
             return len(self.__display_items)
-
-        # TODO: refactor get_data_item_by_index out of DataGridController
-        def get_data_item_by_index(self, index):
-            return self.__display_items[index].data_item if index >= 0 and index < len(self.__display_items) else None
 
         # TODO: refactor get_data_item_index out of DataGridController
         def get_data_item_index(self, data_item):
@@ -702,8 +684,8 @@ class DataPanel(Panel.Panel):
 
         def context_menu_event(self, index, x, y, gx, gy):
             if self.on_context_menu_event:
-                data_item = self.__display_items[index].data_item
-                self.on_context_menu_event(data_item, x, y, gx, gy)
+                display_item = self.__display_items[index]
+                self.on_context_menu_event(display_item, x, y, gx, gy)
 
         def drag_started(self, index, x, y, modifiers):
             mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
@@ -853,7 +835,16 @@ class DataPanel(Panel.Panel):
         master_widget.add(collections_section_widget)
         master_widget.add_stretch()
 
+        def delete_display_items(display_items):
+            for display_item in display_items:
+                data_item = display_item.data_item
+                container = self.document_controller.data_items_binding.container
+                container = DataGroup.get_data_item_container(container, data_item)
+                if container and data_item in container.data_items:
+                    container.remove_data_item(data_item)
+
         self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
+        self.data_item_model_controller.on_delete_display_items = delete_display_items
 
         # this message is received when the current item changes in the widget
         def data_item_widget_selection_changed(indexes):
@@ -895,19 +886,23 @@ class DataPanel(Panel.Panel):
             index = self.data_item_widget.get_row_at_pos(x, y)
             data_item = self.data_item_model_controller.get_data_item_by_index(index)
             if data_item:
-                container = DataGroup.get_data_item_container(self.data_item_model_controller.container, data_item)
+                container = self.document_controller.data_items_binding.container
+                container = DataGroup.get_data_item_container(container, data_item)
                 self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
 
         self.data_item_widget.on_context_menu_event = context_menu_event
 
-        def data_grid_context_menu_event(data_item, x, y, gx, gy):
-            container = DataGroup.get_data_item_container(self.data_grid_controller.container, data_item)
+        def data_grid_context_menu_event(display_item, x, y, gx, gy):
+            data_item = display_item.data_item
+            container = self.document_controller.data_items_binding.container
+            container = DataGroup.get_data_item_container(container, data_item)
             self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
 
         self.data_grid_controller = DataPanel.DataGridController(document_controller)
         self.data_grid_controller.on_selection_changed = data_item_widget_selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_grid_controller.on_focus_changed = self.__set_focused
+        self.data_grid_controller.on_delete_display_items = delete_display_items
 
         self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
         self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)

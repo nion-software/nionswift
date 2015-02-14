@@ -423,6 +423,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1a.title = "data_item1a"
         document_model.append_data_item(data_item1a)
         data_panel = document_controller.find_dock_widget("data-panel").panel
+        document_controller.periodic()
         data_panel.data_item_widget.on_key_pressed([0, 1], self.app.ui.create_key_by_id("delete"))
 
     def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
