@@ -354,28 +354,23 @@ class DataPanel(Panel.Panel):
         def queue_task(self, task):
             self.document_controller.queue_task(task)
 
-        def __get_document_controller(self):
+        @property
+        def document_controller(self):
             return self.__document_controller_weakref()
-        document_controller = property(__get_document_controller)
 
         # container is either a data group or a document model
-        def __get_container(self):
-            return self.document_controller.data_items_binding.container
-        container = property(__get_container)
-
-        # TODO: refactor data_items property out of DataItemModelController
         @property
-        def data_items(self):
-            return self.__data_items
+        def container(self):
+            return self.document_controller.data_items_binding.container
 
         # TODO: refactor get_data_item_by_index out of DataItemModelController
         def get_data_item_by_index(self, index):
-            data_items = self.data_items
+            data_items = self.__data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
         # TODO: refactor get_data_item_index out of DataItemModelController
         def get_data_item_index(self, data_item):
-            data_items = self.data_items
+            data_items = self.__data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
         # return a dict with key value pairs. these methods are here for testing only.
@@ -632,19 +627,14 @@ class DataPanel(Panel.Panel):
                 thumbnail_data = display.get_processed_data("thumbnail")
                 self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
 
-        # TODO: refactor data_items property out of DataGridController
-        @property
-        def data_items(self):
-            return self.__data_items
-
         # TODO: refactor get_data_item_by_index out of DataGridController
         def get_data_item_by_index(self, index):
-            data_items = self.data_items
+            data_items = self.__data_items
             return data_items[index] if index >= 0 and index < len(data_items) else None
 
         # TODO: refactor get_data_item_index out of DataGridController
         def get_data_item_index(self, data_item):
-            data_items = self.data_items
+            data_items = self.__data_items
             return data_items.index(data_item) if data_item in data_items else -1
 
         # data_item_content_changed is received from data items tracked in this model. the connection is established
