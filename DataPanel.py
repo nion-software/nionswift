@@ -436,6 +436,45 @@ class DataPanel(Panel.Panel):
             self.__changed_data_items = False
             self.__changed_data_items_mutex = threading.RLock()
             self.on_delete_display_items = None
+            self.on_selection_changed = None
+            self.on_item_double_clicked = None
+            self.on_focus_changed = None
+            self.on_context_menu_event = None
+
+            def data_item_widget_key_pressed(indexes, key):
+                if key.is_delete:
+                    self.delete_pressed(indexes)
+                return False
+
+            def data_item_widget_selection_changed(indexes):
+                if self.on_selection_changed:
+                    self.on_selection_changed([self.__display_items[index] for index in indexes])
+
+            def data_item_widget_item_double_clicked(index):
+                if self.on_item_double_clicked:
+                    self.on_item_double_clicked(self.__display_items[index])
+
+            def data_item_widget_on_focus_changed(focused):
+                if self.on_focus_changed:
+                    self.on_focus_changed(focused)
+
+            def data_item_widget_context_menu_event(x, y, gx, gy):
+                index = self.data_item_widget.get_row_at_pos(x, y)
+                display_item = self.__display_items[index] if 0 < index < len(self.__display_items) else None
+                if display_item and self.on_context_menu_event:
+                    self.on_context_menu_event(display_item, x, y, gx, gy)
+
+            self.data_item_widget = self.ui.create_list_widget(properties={"min-height": 240})
+            self.data_item_widget.selection_mode = "extended"
+            self.data_item_widget.list_model_controller = self.list_model_controller
+            self.data_item_widget.on_paint = self.paint
+            self.data_item_widget.on_selection_changed = data_item_widget_selection_changed
+            self.data_item_widget.on_key_pressed = data_item_widget_key_pressed
+            self.data_item_widget.on_item_double_clicked = data_item_widget_item_double_clicked
+            self.data_item_widget.on_focus_changed = data_item_widget_on_focus_changed
+            self.data_item_widget.on_context_menu_event = data_item_widget_context_menu_event
+
+            self.widget = self.data_item_widget
 
         def close(self):
             del self.__binding.inserters[id(self)]
@@ -465,6 +504,13 @@ class DataPanel(Panel.Panel):
         @property
         def document_controller(self):
             return self.__document_controller_weakref()
+
+        @property
+        def selected_indexes(self):
+            return self.data_item_widget.selected_indexes
+
+        def set_selected_index(self, index):
+            self.data_item_widget.current_index = index
 
         # TODO: refactor get_data_item_by_index out of DataItemModelController
         def get_data_item_by_index(self, index):
@@ -606,7 +652,7 @@ class DataPanel(Panel.Panel):
             def selection_changed():
                 self.selected_indexes = list(self.selection.indexes)
                 if self.on_selection_changed:
-                    self.on_selection_changed(list(self.selection.indexes))
+                    self.on_selection_changed([self.__display_items[index] for index in list(self.selection.indexes)])
                 self.icon_view_canvas_item.update()
             self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
             self.selected_indexes = list()
@@ -665,6 +711,9 @@ class DataPanel(Panel.Panel):
         def document_controller(self):
             return self.__document_controller_weakref()
 
+        def set_selected_index(self, index):
+            self.selection.set(index)
+
         # this message comes from the canvas item when delete key is pressed
         def delete_pressed(self):
             if self.on_delete_display_items:
@@ -689,7 +738,7 @@ class DataPanel(Panel.Panel):
 
         def drag_started(self, index, x, y, modifiers):
             mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
-            if mime_data and thumbnail_data:
+            if mime_data and thumbnail_data is not None:
                 self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
 
         def __display_item_needs_update(self):
@@ -843,54 +892,21 @@ class DataPanel(Panel.Panel):
                 if container and data_item in container.data_items:
                     container.remove_data_item(data_item)
 
-        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
-        self.data_item_model_controller.on_delete_display_items = delete_display_items
-
         # this message is received when the current item changes in the widget
-        def data_item_widget_selection_changed(indexes):
+        def selection_changed(display_items):
             if not self.__block1:
-                if len(indexes) == 1:
-                    # check the proper index; there are some cases where it gets out of sync
-                    data_item = self.data_item_model_controller.get_data_item_by_index(indexes[0])
-                else:
-                    # nothing or multiple items selected
-                    data_item = None
+                data_item = display_items[0].data_item if len(display_items) == 1 else None
                 self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
                 if self.focused:
                     self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
-                    self.__selected_data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
+                    self.__selected_data_items = [display_item.data_item for display_item in display_items]
                     self.document_controller.set_selected_data_items(self.__selected_data_items)
                 self.document_controller.set_browser_data_item(data_item)
                 self.save_state()
 
-        def data_item_widget_key_pressed(indexes, key):
-            if key.is_delete:
-                self.data_item_model_controller.delete_pressed(indexes)
-            return False
-
-        def data_item_double_clicked(index):
-            data_item = self.data_item_model_controller.get_data_item_by_index(index)
-            if data_item:
-                self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
-
-        self.data_item_widget = ui.create_list_widget(properties={"min-height": 240})
-        self.data_item_widget.selection_mode = "extended"
-        self.data_item_widget.list_model_controller = self.data_item_model_controller.list_model_controller
-        self.data_item_widget.on_paint = lambda dc, options: self.data_item_model_controller.paint(dc, options)
-        self.data_item_widget.on_selection_changed = data_item_widget_selection_changed
-        self.data_item_widget.on_key_pressed = data_item_widget_key_pressed
-        self.data_item_widget.on_item_double_clicked = data_item_double_clicked
-        self.data_item_widget.on_focus_changed = self.__set_focused
-
-        def context_menu_event(x, y, gx, gy):
-            index = self.data_item_widget.get_row_at_pos(x, y)
-            data_item = self.data_item_model_controller.get_data_item_by_index(index)
-            if data_item:
-                container = self.document_controller.data_items_binding.container
-                container = DataGroup.get_data_item_container(container, data_item)
-                self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
-
-        self.data_item_widget.on_context_menu_event = context_menu_event
+        def display_item_double_clicked(display_item):
+            data_item = display_item.data_item
+            self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
 
         def data_grid_context_menu_event(display_item, x, y, gx, gy):
             data_item = display_item.data_item
@@ -898,8 +914,15 @@ class DataPanel(Panel.Panel):
             container = DataGroup.get_data_item_container(container, data_item)
             self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
 
+        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
+        self.data_item_model_controller.on_selection_changed = selection_changed
+        self.data_item_model_controller.on_context_menu_event = data_grid_context_menu_event
+        self.data_item_model_controller.on_item_double_clicked = display_item_double_clicked
+        self.data_item_model_controller.on_focus_changed = self.__set_focused
+        self.data_item_model_controller.on_delete_display_items = delete_display_items
+
         self.data_grid_controller = DataPanel.DataGridController(document_controller)
-        self.data_grid_controller.on_selection_changed = data_item_widget_selection_changed
+        self.data_grid_controller.on_selection_changed = selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_grid_controller.on_focus_changed = self.__set_focused
         self.data_grid_controller.on_delete_display_items = delete_display_items
@@ -933,18 +956,18 @@ class DataPanel(Panel.Panel):
         search_widget.add_spacing(8)
 
         self.data_view_widget = ui.create_stack_widget()
-        self.data_view_widget.add(self.data_item_widget)
+        self.data_view_widget.add(self.data_item_model_controller.widget)
         self.data_view_widget.add(self.data_grid_controller.widget)
         self.data_view_widget.current_index = 0
 
         def tab_changed(index):
             self.data_view_widget.current_index = index
             if index == 0:  # switching to data list?
-                data_item_widget_selection_changed(self.data_item_widget.selected_indexes)
+                selection_changed(self.data_item_model_controller.selected_indexes)
                 list_icon_button.background_color = "#CCC"
                 grid_icon_button.background_color = None
             elif index == 1:  # switching to data grid?
-                data_item_widget_selection_changed(self.data_grid_controller.selected_indexes)
+                selection_changed(self.data_grid_controller.selected_indexes)
                 list_icon_button.background_color = None
                 grid_icon_button.background_color = "#CCC"
 
@@ -1078,9 +1101,9 @@ class DataPanel(Panel.Panel):
         # update the data item selection by determining the new index of the item, if any.
         # TODO: updating the current selection is not done correctly here
         if self.data_view_widget.current_index == 0:
-            self.data_item_widget.current_index = self.data_item_model_controller.get_data_item_index(data_item)
+            self.data_item_model_controller.set_selected_index(self.data_item_model_controller.get_data_item_index(data_item))
         else:
-            self.data_grid_controller.selection.set(self.data_grid_controller.get_data_item_index(data_item))
+            self.data_grid_controller.set_selected_index(self.data_grid_controller.get_data_item_index(data_item))
         self.__selection = data_panel_selection
         # save the users selection
         self.save_state()
