@@ -246,12 +246,10 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         # now make sure data panel shows it as selected
         self.assertEqual(data_panel.data_item, inverted_data_item)
-        data_item_widget = data_panel.data_item_model_controller.data_item_widget
         # switch away and back and make sure selection is still correct
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item2))
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=inverted_data_item))
         self.assertEqual(data_panel.data_item, inverted_data_item)
-        self.assertEqual(data_panel.data_item_model_controller.get_data_item_by_index(data_item_widget.current_index), inverted_data_item)
         document_controller.close()
 
     def test_existing_item_gets_initially_added_to_binding_data_items(self):

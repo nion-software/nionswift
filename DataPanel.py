@@ -410,23 +410,8 @@ class DataPanel(Panel.Panel):
                 __filter_binding is used by the filter panel to further filter the data items. this is the one that's displayed
         """
 
-        def __init__(self, document_controller):
-            self.__document_controller_weakref = weakref.ref(document_controller)
-            self.ui = document_controller.ui
-
-            def data_item_inserted(data_item, before_index):
-                self.__display_item_inserted(DisplayItem(data_item, document_controller.document_model.dispatch_task, self.ui), before_index)
-
-            def data_item_removed(data_item, index):
-                self.__display_item_removed(index)
-
-            # the binding will watch for changes to the filtered list of data items.
-            # when a change is received, the internal list of DisplaySpecifiers will be updated.
-            self.__binding = document_controller.filtered_data_items_binding
-            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__display_items = [DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui) for data_item in self.__binding.data_items]
-            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
+        def __init__(self, ui):
+            self.ui = ui
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "display"])
             self.list_model_controller.on_item_mime_data = self.__item_mime_data
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
@@ -477,15 +462,10 @@ class DataPanel(Panel.Panel):
             self.widget = self.data_item_widget
 
         def close(self):
-            del self.__binding.inserters[id(self)]
-            del self.__binding.removers[id(self)]
             for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
                 display_item_needs_update_listener.close()
             self.__display_item_needs_update_listeners = None
-            for display_item in self.__display_items:
-                display_item.close()
             self.__display_items = None
-            # binding should not be closed since it isn't created in this object
             self.list_model_controller.close()
             self.list_model_controller = None
 
@@ -497,24 +477,12 @@ class DataPanel(Panel.Panel):
             if changed_data_items:
                 self.list_model_controller.data_changed()
 
-        # thread safe
-        def queue_task(self, task):
-            self.document_controller.queue_task(task)
-
-        @property
-        def document_controller(self):
-            return self.__document_controller_weakref()
-
         @property
         def selected_indexes(self):
             return self.data_item_widget.selected_indexes
 
         def set_selected_index(self, index):
             self.data_item_widget.current_index = index
-
-        # TODO: refactor get_data_item_by_index out of DataItemModelController
-        def get_data_item_by_index(self, index):
-            return self.__display_items[index].data_item if index >= 0 and index < len(self.__display_items) else None
 
         # TODO: refactor get_data_item_index out of DataItemModelController
         def get_data_item_index(self, data_item):
@@ -537,9 +505,15 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items = True
 
-        # this method if called when one of our listened to items changes.
+        # call this method to initialize the display items
         # not thread safe
-        def __display_item_inserted(self, display_item, before_index):
+        def set_display_items(self, display_items):
+            self.__display_items = copy.copy(display_items)
+            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
+
+        # call this method to insert a display item
+        # not thread safe
+        def display_item_inserted(self, display_item, before_index):
             self.__display_items.insert(before_index, display_item)
             self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
             # do the insert
@@ -552,12 +526,11 @@ class DataPanel(Panel.Panel):
             self.list_model_controller.model.insert(before_index, properties)
             self.list_model_controller.end_insert()
 
-        # this method if called when one of our listened to items changes
+        # call this method to remove a display item (by index)
         # not thread safe
-        def __display_item_removed(self, index):
+        def display_item_removed(self, index):
             self.__display_item_needs_update_listeners[index].close()
             del self.__display_item_needs_update_listeners[index]
-            self.__display_items[index].close()
             del self.__display_items[index]
             # manage the item model
             self.list_model_controller.begin_remove(index, index)
@@ -595,11 +568,10 @@ class DataPanel(Panel.Panel):
 
     class DataGridController(object):
 
-        def __init__(self, document_controller):
+        def __init__(self, ui):
             super(DataPanel.DataGridController, self).__init__()
-            self.__document_controller_weakref = weakref.ref(document_controller)
-            self.ui = document_controller.ui
-            self.root_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui)
+            self.ui = ui
+            self.root_canvas_item = CanvasItem.RootCanvasItem(ui)
             self.on_delete_display_items = None
 
             class GridCanvasItemDelegate(object):
@@ -660,18 +632,6 @@ class DataPanel(Panel.Panel):
             self.on_context_menu_event = None
             self.on_focus_changed = None
 
-            def data_item_inserted(data_item, before_index):
-                self.__display_item_inserted(DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui), before_index)
-
-            def data_item_removed(data_item, index):
-                self.__display_item_removed(index)
-
-            self.__binding = document_controller.filtered_data_items_binding
-            self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-            self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__display_items = [DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui) for data_item in self.__binding.data_items]
-            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
-
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
@@ -681,15 +641,10 @@ class DataPanel(Panel.Panel):
         def close(self):
             self.__selection_changed_listener.close()
             self.__selection_changed_listener = None
-            del self.__binding.inserters[id(self)]
-            del self.__binding.removers[id(self)]
             for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
                 display_item_needs_update_listener.close()
             self.__display_item_needs_update_listeners = None
-            for display_item in self.__display_items:
-                display_item.close()
             self.__display_items = None
-            # binding should not be closed since it isn't created in this object
             self.on_selection_changed = None
             self.on_context_menu_event = None
             self.on_focus_changed = None
@@ -702,14 +657,6 @@ class DataPanel(Panel.Panel):
                 self.__changed_data_items = False
             if changed_data_items:
                 self.icon_view_canvas_item.update()
-
-        # thread safe
-        def queue_task(self, task):
-            self.document_controller.queue_task(task)
-
-        @property
-        def document_controller(self):
-            return self.__document_controller_weakref()
 
         def set_selected_index(self, index):
             self.selection.set(index)
@@ -745,9 +692,15 @@ class DataPanel(Panel.Panel):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items = True
 
-        # this method if called when one of our listened to items changes.
+        # call this method to initialize the display items
         # not thread safe
-        def __display_item_inserted(self, display_item, before_index):
+        def set_display_items(self, display_items):
+            self.__display_items = copy.copy(display_items)
+            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
+
+        # call this method to insert a display item
+        # not thread safe
+        def display_item_inserted(self, display_item, before_index):
             self.__display_items.insert(before_index, display_item)
             self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
             # update the selection object. this won't change the selection; only adjust the existing indexes.
@@ -755,12 +708,11 @@ class DataPanel(Panel.Panel):
             # tell the icon view to update.
             self.icon_view_canvas_item.update()
 
-        # this method if called when one of our listened to items changes
+        # call this method to remove a display item (by index)
         # not thread safe
-        def __display_item_removed(self, index):
+        def display_item_removed(self, index):
             self.__display_item_needs_update_listeners[index].close()
             del self.__display_item_needs_update_listeners[index]
-            self.__display_items[index].close()
             del self.__display_items[index]
             self.selection.insert_index(index)
             self.icon_view_canvas_item.update()
@@ -914,18 +866,39 @@ class DataPanel(Panel.Panel):
             container = DataGroup.get_data_item_container(container, data_item)
             self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
 
-        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller)
+        self.data_item_model_controller = DataPanel.DataItemModelController(document_controller.ui)
         self.data_item_model_controller.on_selection_changed = selection_changed
         self.data_item_model_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_item_model_controller.on_item_double_clicked = display_item_double_clicked
         self.data_item_model_controller.on_focus_changed = self.__set_focused
         self.data_item_model_controller.on_delete_display_items = delete_display_items
 
-        self.data_grid_controller = DataPanel.DataGridController(document_controller)
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.ui)
         self.data_grid_controller.on_selection_changed = selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_grid_controller.on_focus_changed = self.__set_focused
         self.data_grid_controller.on_delete_display_items = delete_display_items
+
+        def data_item_inserted(data_item, before_index):
+            display_item = DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
+            self.__display_items.insert(before_index, display_item)
+            self.data_item_model_controller.display_item_inserted(display_item, before_index)
+            self.data_grid_controller.display_item_inserted(display_item, before_index)
+
+        def data_item_removed(index):
+            self.data_item_model_controller.display_item_removed(index)
+            self.data_grid_controller.display_item_removed(index)
+            self.__display_items[index].close()
+            del self.__display_items[index]
+
+        self.__binding = document_controller.filtered_data_items_binding
+        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+
+        dispatch_task_fn = self.document_controller.document_model.dispatch_task
+        self.__display_items = [DisplayItem(data_item, dispatch_task_fn, self.ui) for data_item in self.__binding.data_items]
+        self.data_item_model_controller.set_display_items(self.__display_items)
+        self.data_grid_controller.set_display_items(self.__display_items)
 
         self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
         self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
@@ -997,6 +970,9 @@ class DataPanel(Panel.Panel):
 
     def close(self):
         self.__closing = True
+        del self.__binding.inserters[id(self)]
+        del self.__binding.removers[id(self)]
+        # binding should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
         self.update_data_panel_selection(DataPanelSelection())
         # close the models
@@ -1013,6 +989,10 @@ class DataPanel(Panel.Panel):
         # disconnect self as listener
         self.document_controller.weak_data_panel = None
         self.document_controller.remove_listener(self)
+        # display items
+        for display_item in self.__display_items:
+            display_item.close()
+        self.__display_items = None
         # finish closing
         super(DataPanel, self).close()
 
@@ -1063,9 +1043,9 @@ class DataPanel(Panel.Panel):
             self.document_controller.set_browser_data_item(self.__selection.data_item)
     focused = property(__get_focused, __set_focused)
 
-    def __get_data_item(self):
+    @property
+    def data_item(self):
         return self.__selection.data_item
-    data_item = property(__get_data_item)
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
