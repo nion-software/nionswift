@@ -518,7 +518,7 @@ class DisplayPanel(object):
     # not thread safe
     def __update_display_canvas(self, display_specifier):
         if self.__header_canvas_item:  # may be closed
-            self.__header_canvas_item.title = self.document_controller.get_displayed_title_for_data_item(display_specifier.data_item)
+            self.__header_canvas_item.title = display_specifier.data_item.displayed_title if display_specifier.data_item else None
         display_type = None
         data_and_calibration = display_specifier.display.data_and_calibration if display_specifier.display else None
         if data_and_calibration:

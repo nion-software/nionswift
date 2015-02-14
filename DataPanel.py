@@ -17,6 +17,7 @@ from nion.swift.model import DataItem
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import GridCanvasItem
+from nion.ui import Observable
 from nion.ui import Selection
 
 _ = gettext.gettext
@@ -53,6 +54,103 @@ class DataPanelSelection(object):
     filter_id = property(__get_filter_id)
     def __str__(self):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
+
+
+class DisplayItem(object):
+
+    def __init__(self, data_item, dispatch_task, ui):
+        self.data_item = data_item
+        self.dispatch_task = dispatch_task
+        self.ui = ui
+        # add listener for data_item_content_changed, which handles items not handled by thumbnail, such as the
+        # reference display
+        data_item.add_listener(self)
+        # grab the display specifier and if there is a display, add a listener to that also for
+        # display_processor_needs_recompute, display_processor_data_updated, which handle thumbnail updating.
+        display_specifier = data_item.primary_display_specifier
+        if display_specifier.display:
+            display_specifier.display.add_listener(self)
+        self.needs_update_event = Observable.Event()
+
+    def close(self):
+        # remove the listener.
+        display_specifier = self.data_item.primary_display_specifier
+        if display_specifier.display:
+            display_specifier.display.remove_listener(self)
+        self.data_item.remove_listener(self)
+
+    @property
+    def thumbnail(self):
+        display = self.data_item.primary_display_specifier.display
+        if display:
+            display.get_processor("thumbnail").recompute_if_necessary(self.dispatch_task, self.ui)
+            return display.get_processed_data("thumbnail")
+        return None
+
+    @property
+    def title_str(self):
+        data_item = self.data_item
+        return data_item.displayed_title
+
+    @property
+    def format_str(self):
+        data_item = self.data_item
+        display_specifier = data_item.primary_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source:
+            data_and_calibration = buffered_data_source.data_and_calibration
+            if data_and_calibration:
+                return data_and_calibration.size_and_data_format_as_string
+        return str()
+
+    @property
+    def datetime_str(self):
+        data_item = self.data_item
+        return data_item.created_local_as_string
+
+    @property
+    def status_str(self):
+        data_item = self.data_item
+        if data_item.is_live:
+            display_specifier = data_item.primary_display_specifier
+            buffered_data_source = display_specifier.buffered_data_source
+            if buffered_data_source:
+                data_and_calibration = buffered_data_source.data_and_calibration
+                if data_and_calibration:
+                    live_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+                    frame_index_str = str(live_metadata.get("frame_index", str()))
+                    partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_and_calibration.dimensional_shape[-1]) if "valid_rows" in live_metadata else str()
+                    return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+        return str()
+
+    def get_mime_data(self):
+        data_item = self.data_item
+        mime_data = self.ui.create_mime_data()
+        mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+        return mime_data
+
+    def drag_started(self, x, y, modifiers):
+        data_item = self.data_item
+        mime_data = self.get_mime_data()
+        display_specifier = data_item.primary_display_specifier
+        display = display_specifier.display
+        thumbnail_data = display.get_processed_data("thumbnail") if display else None
+        return mime_data, thumbnail_data
+
+    # data_item_content_changed is received from data items tracked in this model. the connection is established
+    # in add_data_item using add_listener.
+    def data_item_content_changed(self, data_item, changes):
+        self.needs_update_event.fire()
+
+    # notification from display
+    def display_processor_needs_recompute(self, display, processor):
+        if processor == display.get_processor("thumbnail"):
+            processor.recompute_if_necessary(self.dispatch_task, self.ui)
+
+    # notification from display
+    def display_processor_data_updated(self, display, processor):
+        if processor == display.get_processor("thumbnail"):
+            self.needs_update_event.fire()
 
 
 class DataPanel(Panel.Panel):
@@ -117,10 +215,10 @@ class DataPanel(Panel.Panel):
         def __init__(self, document_controller):
             self.ui = document_controller.ui
             self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
-            self.item_model_controller.on_item_set_data = lambda data, index, parent_row, parent_id: self.item_set_data(data, index, parent_row, parent_id)
-            self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
-            self.item_model_controller.on_item_mime_data = lambda row, parent_row, parent_id: self.item_mime_data(row, parent_row, parent_id)
-            self.item_model_controller.on_remove_rows = lambda row, count, parent_row, parent_id: self.remove_rows(row, count, parent_row, parent_id)
+            self.item_model_controller.on_item_set_data = self.item_set_data
+            self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
+            self.item_model_controller.on_item_mime_data = self.item_mime_data
+            self.item_model_controller.on_remove_rows = self.remove_rows
             self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
             self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
             self.__document_controller_weakref = weakref.ref(document_controller)
@@ -313,21 +411,25 @@ class DataPanel(Panel.Panel):
         """
 
         def __init__(self, document_controller):
+            self.__document_controller_weakref = weakref.ref(document_controller)
             self.ui = document_controller.ui
+
+            def data_item_inserted(data_item, before_index):
+                self.__display_item_inserted(DisplayItem(data_item, document_controller.document_model.dispatch_task, self.ui), before_index)
+
+            def data_item_removed(data_item, index):
+                self.__display_item_removed(index)
+
             # the binding will watch for changes to the filtered list of data items.
             # when a change is received, the internal list of DisplaySpecifiers will be updated.
             self.__binding = document_controller.filtered_data_items_binding
-            def data_item_inserted(data_item, before_index):
-                self.__data_item_inserted(data_item, before_index)
-            def data_item_removed(data_item, index):
-                self.__data_item_removed(data_item, index)
             self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
             self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__data_items = self.__binding.data_items
+            self.__display_items = [DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui) for data_item in self.__binding.data_items]
+            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
             self.list_model_controller = self.ui.create_list_model_controller(["uuid", "display"])
-            self.list_model_controller.on_item_mime_data = lambda row: self.item_mime_data(row)
+            self.list_model_controller.on_item_mime_data = self.__item_mime_data
             self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
-            self.__document_controller_weakref = weakref.ref(document_controller)
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
@@ -337,10 +439,15 @@ class DataPanel(Panel.Panel):
         def close(self):
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
+            for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
+                display_item_needs_update_listener.close()
+            self.__display_item_needs_update_listeners = None
+            for display_item in self.__display_items:
+                display_item.close()
+            self.__display_items = None
             # binding should not be closed since it isn't created in this object
             self.list_model_controller.close()
             self.list_model_controller = None
-            self.__data_items = None
 
         def periodic(self):
             # handle the 'changed' stuff
@@ -365,44 +472,42 @@ class DataPanel(Panel.Panel):
 
         # TODO: refactor get_data_item_by_index out of DataItemModelController
         def get_data_item_by_index(self, index):
-            data_items = self.__data_items
-            return data_items[index] if index >= 0 and index < len(data_items) else None
+            return self.__display_items[index].data_item if index >= 0 and index < len(self.__display_items) else None
 
         # TODO: refactor get_data_item_index out of DataItemModelController
         def get_data_item_index(self, data_item):
-            data_items = self.__data_items
+            data_items = [display_item.data_item for display_item in self.__display_items]
             return data_items.index(data_item) if data_item in data_items else -1
 
         # return a dict with key value pairs. these methods are here for testing only.
         def _get_model_data(self, index):
             return self.list_model_controller.model[index]
+
         def _get_model_data_count(self):
             return len(self.list_model_controller.model)
 
-        # remove the data item from the list. called in response to the user hitting the delete key.
-        def remove_data_item(self, data_item):
-            container = DataGroup.get_data_item_container(self.container, data_item)
-            if container and data_item in container.data_items:
-                container.remove_data_item(data_item)
+        # this message comes from the canvas item when delete key is pressed
+        def delete_pressed(self, indexes):
+            selected_data_items = [self.get_data_item_by_index(index) for index in indexes]
+            for data_item in selected_data_items:
+                container = DataGroup.get_data_item_container(self.container, data_item)
+                if container and data_item in container.data_items:
+                    container.remove_data_item(data_item)
 
-        # data_item_content_changed is received from data items tracked in this model.
-        # the connection is established in add_data_item using add_listener.
-        def data_item_content_changed(self, data_item, changes):
+        def __display_item_needs_update(self):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
         # not thread safe
-        def __data_item_inserted(self, data_item, before_index):
-            self.__data_items.insert(before_index, data_item)
-            data_item.add_listener(self)  # for data_item_content_changed
-            display_specifier = data_item.primary_display_specifier
-            if display_specifier.display:
-                display_specifier.display.add_listener(self)  # for display_processor_needs_recompute, display_processor_data_updated
+        def __display_item_inserted(self, display_item, before_index):
+            self.__display_items.insert(before_index, display_item)
+            self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
             # do the insert
+            data_item = display_item.data_item
             properties = {
                 "uuid": str(data_item.uuid),
-                "display": self.document_controller.get_displayed_title_for_data_item(data_item),
+                "display": data_item.displayed_title
             }
             self.list_model_controller.begin_insert(before_index, before_index)
             self.list_model_controller.model.insert(before_index, properties)
@@ -410,82 +515,43 @@ class DataPanel(Panel.Panel):
 
         # this method if called when one of our listened to items changes
         # not thread safe
-        def __data_item_removed(self, data_item, index):
-            assert isinstance(data_item, DataItem.DataItem)
-            del self.__data_items[index]
+        def __display_item_removed(self, index):
+            self.__display_item_needs_update_listeners[index].close()
+            del self.__display_item_needs_update_listeners[index]
+            self.__display_items[index].close()
+            del self.__display_items[index]
             # manage the item model
             self.list_model_controller.begin_remove(index, index)
             del self.list_model_controller.model[index]
             self.list_model_controller.end_remove()
-            # remove the listener.
-            display_specifier = data_item.primary_display_specifier
-            if display_specifier.display:
-                display_specifier.display.remove_listener(self)
-            data_item.remove_listener(self)
 
-        # notification from display
-        def display_processor_needs_recompute(self, display, processor):
-            document_model = self.document_controller.document_model
-            if processor == display.get_processor("thumbnail"):
-                processor.recompute_if_necessary(document_model.dispatch_task, self.ui)
-
-        # notification from display
-        def display_processor_data_updated(self, display, processor):
-            if processor == display.get_processor("thumbnail"):
-                with self.__changed_data_items_mutex:
-                    self.__changed_data_items = True
-
-        def item_mime_data(self, row):
-            data_item = self.get_data_item_by_index(row)
-            if data_item:
-                mime_data = self.ui.create_mime_data()
-                mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-                return mime_data
-            return None
+        def __item_mime_data(self, row):
+            display_item = self.__display_items[row]
+            return display_item.get_mime_data()
 
         # this message comes from the styled item delegate
         # data items are actually hierarchical in nature,
-        def paint(self, ctx, options):
+        def paint(self, drawing_context, options):
             rect = ((options["rect"]["top"], options["rect"]["left"]), (options["rect"]["height"], options["rect"]["width"]))
             index = options["index"]["row"]
-            data_item = self.get_data_item_by_index(index)
-            if not data_item:
-                # this can happen when switching views -- data is changed out but model hasn't updated yet (threading).
-                # not sure of the best solution here, but I expect that it will present itself over time.
-                return
-            display_specifier = data_item.primary_display_specifier
-            buffered_data_source = display_specifier.buffered_data_source
-            display = display_specifier.display
-            if not display:
-                return
-            display.get_processor("thumbnail").recompute_if_necessary(self.document_controller.document_model.dispatch_task, self.ui)
-            data_and_calibration = display.data_and_calibration
-            thumbnail_data = display.get_processed_data("thumbnail")
-            title_str = self.document_controller.get_displayed_title_for_data_item(data_item)
-            format_str = data_and_calibration.size_and_data_format_as_string
-            datetime_str = data_item.created_local_as_string
-            def get_live_status_as_string():
-                if data_item.is_live:
-                    live_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-                    frame_index_str = str(live_metadata.get("frame_index", str()))
-                    partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_and_calibration.dimensional_shape[-1]) if "valid_rows" in live_metadata else str()
-                    return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
-                return str()
-            display4 = get_live_status_as_string()
-            ctx.save()
-            if thumbnail_data is not None:
-                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
-                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                ctx.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
-            ctx.fill_style = "#000"
-            ctx.fill_text(title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
-            ctx.font = "11px italic"
-            ctx.fill_text(format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
-            ctx.font = "11px italic"
-            ctx.fill_text(datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
-            ctx.font = "11px italic"
-            ctx.fill_text(display4, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
-            ctx.restore()
+            display_item = self.__display_items[index]
+            drawing_context.save()
+            try:
+                thumbnail_data = display_item.thumbnail
+                if thumbnail_data is not None:
+                    draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
+                    draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                    drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text(display_item.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
+                drawing_context.font = "11px italic"
+                drawing_context.fill_text(display_item.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+                drawing_context.font = "11px italic"
+                drawing_context.fill_text(display_item.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+                drawing_context.font = "11px italic"
+                drawing_context.fill_text(display_item.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+            finally:
+                drawing_context.restore()
 
 
     class DataGridController(object):
@@ -502,16 +568,10 @@ class DataPanel(Panel.Panel):
 
                 @property
                 def item_count(self):
-                    return len(self.__data_grid_controller.data_items)
+                    return self.__data_grid_controller.display_item_count
 
                 def get_item_thumbnail(self, index):
-                    display = self.__data_grid_controller.data_items[index].primary_display_specifier.display
-                    if display:
-                        display.get_processor("thumbnail").recompute_if_necessary(
-                            self.__data_grid_controller.document_controller.document_model.dispatch_task,
-                            self.__data_grid_controller.ui)
-                        return display.get_processed_data("thumbnail")
-                    return None
+                    return self.__data_grid_controller.get_display_item_thumbnail(index)
 
                 def is_item_selected(self, index):
                     return self.__data_grid_controller.selection.contains(index)
@@ -525,17 +585,14 @@ class DataPanel(Panel.Panel):
                 def set_selection(self, index):
                     self.__data_grid_controller.selection.set(index)
 
-                def on_content_menu_event(self, index, x, y, gx, gy):
-                    data_item = self.__data_grid_controller.data_items[index]
-                    if self.__data_grid_controller.on_context_menu_event:
-                        self.__data_grid_controller.on_context_menu_event(data_item, x, y, gx, gy)
+                def on_context_menu_event(self, index, x, y, gx, gy):
+                    self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
 
                 def on_delete_pressed(self):
                     self.__data_grid_controller.delete_pressed()
 
                 def on_drag_started(self, index, x, y, modifiers):
-                    data_item = self.__data_grid_controller.data_items[index]
-                    self.__data_grid_controller.drag_started(data_item, x, y, modifiers)
+                    self.__data_grid_controller.drag_started(index, x, y, modifiers)
 
             self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self))
             def icon_view_canvas_item_focus_changed(focused):
@@ -551,7 +608,6 @@ class DataPanel(Panel.Panel):
             self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
             self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
             self.widget = self.root_canvas_item.canvas_widget
-            self.__binding = document_controller.filtered_data_items_binding
             self.selection = Selection.IndexedSelection()
             def selection_changed():
                 self.selected_indexes = list(self.selection.indexes)
@@ -563,13 +619,19 @@ class DataPanel(Panel.Panel):
             self.on_selection_changed = None
             self.on_context_menu_event = None
             self.on_focus_changed = None
+
             def data_item_inserted(data_item, before_index):
-                self.__data_item_inserted(data_item, before_index)
+                self.__display_item_inserted(DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui), before_index)
+
             def data_item_removed(data_item, index):
-                self.__data_item_removed(data_item, index)
+                self.__display_item_removed(index)
+
+            self.__binding = document_controller.filtered_data_items_binding
             self.__binding.inserters[id(self)] = lambda data_item, before_index: self.queue_task(functools.partial(data_item_inserted, data_item, before_index))
             self.__binding.removers[id(self)] = lambda data_item, index: self.queue_task(functools.partial(data_item_removed, data_item, index))
-            self.__data_items = self.__binding.data_items
+            self.__display_items = [DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui) for data_item in self.__binding.data_items]
+            self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
+
             # changed data items keep track of items whose content has changed
             # the content changed messages may come from a thread so have to be
             # moved to the main thread via this object.
@@ -581,7 +643,12 @@ class DataPanel(Panel.Panel):
             self.__selection_changed_listener = None
             del self.__binding.inserters[id(self)]
             del self.__binding.removers[id(self)]
-            self.__data_items = None
+            for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
+                display_item_needs_update_listener.close()
+            self.__display_item_needs_update_listeners = None
+            for display_item in self.__display_items:
+                display_item.close()
+            self.__display_items = None
             # binding should not be closed since it isn't created in this object
             self.on_selection_changed = None
             self.on_context_menu_event = None
@@ -617,44 +684,41 @@ class DataPanel(Panel.Panel):
                 if container and data_item in container.data_items:
                     container.remove_data_item(data_item)
 
-        # this messages from from the canvas item when a drag is started
-        def drag_started(self, data_item, x, y, modifiers):
-            mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-            display_specifier = data_item.primary_display_specifier
-            display = display_specifier.display
-            if display:
-                thumbnail_data = display.get_processed_data("thumbnail")
-                self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+        @property
+        def display_item_count(self):
+            return len(self.__display_items)
 
         # TODO: refactor get_data_item_by_index out of DataGridController
         def get_data_item_by_index(self, index):
-            data_items = self.__data_items
-            return data_items[index] if index >= 0 and index < len(data_items) else None
+            return self.__display_items[index].data_item if index >= 0 and index < len(self.__display_items) else None
 
         # TODO: refactor get_data_item_index out of DataGridController
         def get_data_item_index(self, data_item):
-            data_items = self.__data_items
+            data_items = [display_item.data_item for display_item in self.__display_items]
             return data_items.index(data_item) if data_item in data_items else -1
 
-        # data_item_content_changed is received from data items tracked in this model. the connection is established
-        # in add_data_item using add_listener.
-        def data_item_content_changed(self, data_item, changes):
+        def get_display_item_thumbnail(self, index):
+            return self.__display_items[index].thumbnail
+
+        def context_menu_event(self, index, x, y, gx, gy):
+            if self.on_context_menu_event:
+                data_item = self.__display_items[index].data_item
+                self.on_context_menu_event(data_item, x, y, gx, gy)
+
+        def drag_started(self, index, x, y, modifiers):
+            mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
+            if mime_data and thumbnail_data:
+                self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+
+        def __display_item_needs_update(self):
             with self.__changed_data_items_mutex:
                 self.__changed_data_items = True
 
         # this method if called when one of our listened to items changes.
         # not thread safe
-        def __data_item_inserted(self, data_item, before_index):
-            self.__data_items.insert(before_index, data_item)
-            # add listener for data_item_content_changed, which handles items not handled by thumbnail, such as the
-            # reference display
-            data_item.add_listener(self)
-            # grab the display specifier and if there is a display, add a listener to that also for
-            # display_processor_needs_recompute, display_processor_data_updated, which handle thumbnail updating.
-            display_specifier = data_item.primary_display_specifier
-            if display_specifier.display:
-                display_specifier.display.add_listener(self)
+        def __display_item_inserted(self, display_item, before_index):
+            self.__display_items.insert(before_index, display_item)
+            self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
             # update the selection object. this won't change the selection; only adjust the existing indexes.
             self.selection.insert_index(before_index)
             # tell the icon view to update.
@@ -662,28 +726,13 @@ class DataPanel(Panel.Panel):
 
         # this method if called when one of our listened to items changes
         # not thread safe
-        def __data_item_removed(self, data_item, index):
-            assert isinstance(data_item, DataItem.DataItem)
-            del self.__data_items[index]
-            # remove the listener.
-            display_specifier = data_item.primary_display_specifier
-            if display_specifier.display:
-                display_specifier.display.remove_listener(self)
-            data_item.remove_listener(self)
+        def __display_item_removed(self, index):
+            self.__display_item_needs_update_listeners[index].close()
+            del self.__display_item_needs_update_listeners[index]
+            self.__display_items[index].close()
+            del self.__display_items[index]
             self.selection.insert_index(index)
             self.icon_view_canvas_item.update()
-
-        # notification from display
-        def display_processor_needs_recompute(self, display, processor):
-            document_model = self.document_controller.document_model
-            if processor == display.get_processor("thumbnail"):
-                processor.recompute_if_necessary(document_model.dispatch_task, self.ui)
-
-        # notification from display
-        def display_processor_data_updated(self, display, processor):
-            if processor == display.get_processor("thumbnail"):
-                with self.__changed_data_items_mutex:
-                    self.__changed_data_items = True
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
@@ -825,10 +874,7 @@ class DataPanel(Panel.Panel):
 
         def data_item_widget_key_pressed(indexes, key):
             if key.is_delete:
-                data_items = [self.data_item_model_controller.get_data_item_by_index(index) for index in indexes]
-                if len(data_items):
-                    for data_item in data_items:
-                        self.data_item_model_controller.remove_data_item(data_item)
+                self.data_item_model_controller.delete_pressed(indexes)
             return False
 
         def data_item_double_clicked(index):

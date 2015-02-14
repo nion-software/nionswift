@@ -916,20 +916,11 @@ class DocumentController(Observable.Broadcaster):
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
-        weak_data_item().r_value_changed()  # this triggers the update of the title
+        weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
 
     def __get_data_item_vars(self):
         return self.__data_item_vars
     data_item_vars = property(__get_data_item_vars)
-
-    def get_displayed_title_for_data_item(self, data_item):
-        if data_item:
-            data_item_var = self.__data_item_vars.get(weakref.ref(data_item))
-            if data_item_var:
-                return "{0} ({1})".format(data_item.title, data_item_var)
-            else:
-                return data_item.title
-        return unicode()
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary

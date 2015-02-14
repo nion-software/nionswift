@@ -908,6 +908,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_manager_lock = threading.RLock()
         self.__dependent_data_item_refs = list()
         self.__dependent_data_item_refs_lock = threading.RLock()
+        self.r_var = None
         if data is not None:
             data_source = BufferedDataSource(data)
             self.append_data_source(data_source)
@@ -1179,11 +1180,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
 
-    def r_value_changed(self):
+    def set_r_value(self, r_var):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
+        self.r_var = r_var
         for data_source in self.data_sources:
             data_source.r_value_changed()
         self.notify_data_item_content_changed(set([METADATA]))
+
+    @property
+    def displayed_title(self):
+        if self.r_var:
+            return "{0} ({1})".format(self.title, self.r_var)
+        else:
+            return self.title
 
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener.
