@@ -437,11 +437,15 @@ class HardwareSource(object):
         pass
 
     # subclasses can implement this method which is called when acquisition is suspended for higher priority acquisition.
+    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
+    # suspend.
     # must be thread safe
     def suspend_acquisition(self):
         pass
 
     # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
+    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
+    # suspend.
     # must be thread safe
     def resume_acquisition(self):
         pass
@@ -492,6 +496,7 @@ class HardwareSource(object):
                 self.__view_task_finished_event_listener = None
             def queue_acquire_thread():
                 workspace_controller.document_controller.queue_task(acquire_thread_view_finished)
+            self.__view_task_suspended = self.is_recording  # start suspended if already recording
             self.__view_task_finished_event_listener = acquisition_task.finished_event.listen(queue_acquire_thread)
             self.__view_task = acquisition_task
             self.__acquire_thread_trigger.set()
