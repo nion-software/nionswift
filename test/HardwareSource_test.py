@@ -418,6 +418,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_recording:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
+        time.sleep(0.01)
         self.assertFalse(hardware_source.suspended)
         # clean up
         hardware_source.abort_playing()
