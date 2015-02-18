@@ -330,7 +330,7 @@ class AcquisitionTask(object):
                 channel_state = channel_state if not self.is_stopping else "marked"
             data_item_state = dict()
             if channel_id is not None:
-                data_item_state["channel_id"] = channel_id
+                data_item_state["channel_id"] = channel.channel_id
             data_item_state["data_item"] = data_item
             data_item_state["channel_state"] = channel_state
             if "sub_area" in data_element:
