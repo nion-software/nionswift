@@ -144,6 +144,9 @@ class HardwareSourceManager(object):
             f()
 
 
+Channel = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_element"])
+
+
 class AcquisitionTask(object):
 
     """Basic acquisition task carries out acquisition repeatedly during acquisition loop, keeping track of state.
@@ -295,12 +298,12 @@ class AcquisitionTask(object):
         # TODO: deal wth overrun by asking for latest values.
 
         # build useful data structures (channel -> data)
-        channel_to_data_element_map = {}
-        channels = []
-        for channel, data_element in enumerate(data_elements):
-            if data_element is not None:
-                channels.append(channel)
-                channel_to_data_element_map[channel] = data_element
+        channels = list()
+        for channel_index, data_element in enumerate(data_elements):
+            assert data_element is not None
+            channel_id = data_element.get("channel_id")
+            channel_name = data_element.get("channel_name")
+            channels.append(Channel(channel_id=channel_id, index=channel_index, name=channel_name, data_element=data_element))
 
         # sync to data items
         hardware_source_id = self.__hardware_source.hardware_source_id
@@ -318,14 +321,16 @@ class AcquisitionTask(object):
         # update the data items with the new data.
         data_item_states = []
         for channel in channels:
-            data_element = channel_to_data_element_map[channel]
-            data_item = channel_to_data_item_dict[channel]
+            channel_index = channel.index
+            data_element = channel.data_element
+            data_item = channel_to_data_item_dict[channel_index]
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete":
                 channel_state = channel_state if not self.is_stopping else "marked"
             data_item_state = dict()
-            data_item_state["channel"] = channel
+            if channel_id is not None:
+                data_item_state["channel_id"] = channel_id
             data_item_state["data_item"] = data_item
             data_item_state["channel_state"] = channel_state
             if "sub_area" in data_element:
@@ -334,7 +339,7 @@ class AcquisitionTask(object):
         self.__hardware_source._notify_data_item_states_changed(data_item_states)
 
         # these items are no longer live. mark live_data as False.
-        for channel, data_item in self.__last_channel_to_data_item_dict.iteritems():
+        for data_item in self.__last_channel_to_data_item_dict.values():
             # the order of these two statements is important, at least for now (12/2013)
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end

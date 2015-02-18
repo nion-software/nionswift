@@ -1,6 +1,5 @@
 import datetime
 import logging
-import threading
 import time
 import unittest
 
@@ -23,9 +22,16 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
         self.image = np.zeros(256)
 
     def make_data_element(self):
-        return {"version": 1, "data": self.image,
-            "properties": {"exposure": 0.5, "extra_high_tension": 140000, "hardware_source": "hardware source",
-                "hardware_source_id": "simple_hardware_source"}}
+        return {
+            "version": 1,
+            "data": self.image,
+            "properties": {
+                "exposure": 0.5,
+                "extra_high_tension": 140000,
+                "hardware_source": "hardware source",
+                "hardware_source_id": "simple_hardware_source"
+            }
+        }
 
     def acquire_data_elements(self):
         self.image += 1.0
@@ -43,24 +49,41 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.top = True
         self.scanning = False
         self.suspended = False
+        self.channel_count = 2
+        self.channel_ids = ["a", "b"]
+        self.channel_names = ["A", "B"]
+        self.channel_enabled = [True, False]
 
-    def make_data_element(self):
-        return {"version": 1, "data": self.image,
-            "properties": {"exposure": 0.5, "extra_high_tension": 140000, "hardware_source": "hardware source",
-                "hardware_source_id": "scan_hardware_source"}}
+    def make_data_element(self, channel_index=0):
+        return {
+            "version": 1,
+            "data": self.image,
+            "channel_id": self.channel_ids[channel_index],
+            "channel_name": self.channel_names[channel_index],
+            "properties": {
+                "exposure": 0.5,
+                "extra_high_tension": 140000,
+                "hardware_source": "hardware source",
+                "hardware_source_id": "scan_hardware_source"
+            }
+        }
 
     def acquire_data_elements(self):
         self.image += 1.0
         time.sleep(self.sleep)
-        data_element = self.make_data_element()
-        if self.top:
-            data_element["state"] = "partial"
-            data_element["sub_area"] = (0, 0), (128, 256)
-        else:
-            data_element["state"] = "complete"
-            data_element["sub_area"] = (0, 0), (256, 256)
+        data_elements = list()
+        for channel_index in range(self.channel_count):
+            if self.channel_enabled[channel_index]:
+                data_element = self.make_data_element(channel_index)
+                if self.top:
+                    data_element["state"] = "partial"
+                    data_element["sub_area"] = (0, 0), (128, 256)
+                else:
+                    data_element["state"] = "complete"
+                    data_element["sub_area"] = (0, 0), (256, 256)
+                data_elements.append(data_element)
         self.top = not self.top
-        return [data_element]
+        return data_elements
 
     def start_acquisition(self):
         self.scanning = True
@@ -84,7 +107,7 @@ class DummyWorkspaceController(object):
     def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
         data_item_set = {}
         for channel in channels:
-            data_item_set[channel] = DataItem.DataItem()
+            data_item_set[channel.index] = DataItem.DataItem()
         return data_item_set
 
     def queue_task(self, task):
@@ -98,6 +121,36 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def tearDown(self):
         pass
+
+    def __acquire_one(self, document_controller, hardware_source):
+        hardware_source.start_playing(document_controller.workspace_controller)
+        start_time = time.time()
+        while not hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.stop_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()
+
+    def __setup_simple_hardware_source(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source = SimpleHardwareSource()
+        hardware_source.exposure = 0.01
+        return document_controller, document_model, hardware_source
+
+    def __setup_scan_hardware_source(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source = ScanHardwareSource()
+        hardware_source.exposure = 0.01
+        hardware_source.stages_per_frame = 2
+        hardware_source.blanked = False
+        hardware_source.positioned = False
+        return document_controller, document_model, hardware_source
 
     def test_registering_and_unregistering_works_as_expected(self):
         hardware_source_manager = HardwareSource.HardwareSourceManager()
@@ -507,6 +560,60 @@ class TestHardwareSourceClass(unittest.TestCase):
         data_item.created = datetime.datetime(2000, 06, 30)
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
         self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
+
+    def test_channel_id_and_name_and_index_are_empty_for_simple_hardware_source(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        self.__acquire_one(document_controller, hardware_source)
+        data_item0 = document_model.data_items[0]
+        buffered_data_source = data_item0.data_sources[0]
+        hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+        self.assertEqual(data_item0.title, hardware_source.display_name)
+        self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
+        self.assertIsNone(hardware_source_metadata.get("channel_id"))
+        self.assertIsNone(hardware_source_metadata.get("channel_name"))
+
+    def test_channel_id_and_name_and_index_are_correct_for_view(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        self.__acquire_one(document_controller, hardware_source)
+        data_item0 = document_model.data_items[0]
+        buffered_data_source = data_item0.data_sources[0]
+        hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+        self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
+        self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
+        self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
+        self.assertEqual(hardware_source_metadata.get("channel_name"), "A")
+
+    def test_channel_id_and_name_and_index_are_correct_for_multiview(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        hardware_source.channel_enabled = (True, True)
+        self.__acquire_one(document_controller, hardware_source)
+        data_item0 = document_model.data_items[0]
+        buffered_data_source0 = data_item0.data_sources[0]
+        hardware_source_metadata0 = buffered_data_source0.metadata.get("hardware_source", dict())
+        self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
+        self.assertEqual(hardware_source_metadata0.get("channel_index"), 0)
+        self.assertEqual(hardware_source_metadata0.get("channel_id"), "a")
+        self.assertEqual(hardware_source_metadata0.get("channel_name"), "A")
+        data_item1 = document_model.data_items[1]
+        buffered_data_source1 = data_item1.data_sources[0]
+        hardware_source_metadata1 = buffered_data_source1.metadata.get("hardware_source", dict())
+        self.assertEqual(data_item1.title, "%s (%s)" % (hardware_source.display_name, "B"))
+        self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
+        self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")
+        self.assertEqual(hardware_source_metadata1.get("channel_name"), "B")
+
+    def test_multiview_reuse_second_channel_by_id_not_index(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        hardware_source.channel_enabled = (True, True)
+        self.__acquire_one(document_controller, hardware_source)
+        buffered_data_source0 = document_model.data_items[0].data_sources[0]
+        buffered_data_source1 = document_model.data_items[1].data_sources[0]
+        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 2.0)  # 2.0 because two part partial acquisition
+        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 2.0)
+        hardware_source.channel_enabled = (False, True)
+        self.__acquire_one(document_controller, hardware_source)
+        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 2.0)
+        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 4.0)
 
 if __name__ == '__main__':
     unittest.main()

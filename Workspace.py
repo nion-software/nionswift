@@ -570,7 +570,14 @@ class WorkspaceController(object):
         for channel in channels:
             do_copy = False
 
-            channel_key = hardware_source_id + "_" + str(channel) + "_" + view_id
+            channel_index = channel.index
+            channel_id = channel.channel_id
+            channel_name= channel.name
+
+            if channel_id is not None:
+                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
+            else:
+                channel_key = hardware_source_id + "_" + view_id
 
             with self.__mutex:
                 data_item = self.__channel_data_items.get(channel_key)
@@ -583,7 +590,7 @@ class WorkspaceController(object):
                 existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
                 existing_channel_id = hardware_source_metadata.get("channel_id")
                 existing_view_id = hardware_source_metadata.get("view_id")
-                if existing_hardware_source_id != hardware_source_id or existing_channel_id != channel:
+                if existing_hardware_source_id != hardware_source_id or existing_channel_id != channel_id:
                     data_item = None
                 if existing_view_id != view_id:
                     data_item = None
@@ -603,7 +610,11 @@ class WorkspaceController(object):
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
                 hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["channel_id"] = channel
+                hardware_source_metadata["channel_index"] = channel_index
+                if channel_id is not None:
+                    hardware_source_metadata["channel_id"] = channel_id
+                if channel_name is not None:
+                    hardware_source_metadata["channel_name"] = channel_name
                 if view_id:
                     hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
@@ -611,13 +622,17 @@ class WorkspaceController(object):
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
-                data_item.title = "%s.%s" % (display_name, channel)
+                data_item.title = "%s (%s)" % (display_name, channel_name) if channel_name else display_name
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
                 metadata = buffered_data_source.metadata
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
                 hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["channel_id"] = channel
+                hardware_source_metadata["channel_index"] = channel_index
+                if channel_id is not None:
+                    hardware_source_metadata["channel_id"] = channel_id
+                if channel_name is not None:
+                    hardware_source_metadata["channel_name"] = channel_name
                 if view_id:
                     hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
@@ -627,7 +642,7 @@ class WorkspaceController(object):
                 data_item.session_id = session_id
             with self.__mutex:
                 self.__channel_data_items[channel_key] = data_item
-                data_items[channel] = data_item
+                data_items[channel_index] = data_item
 
         return data_items
 
