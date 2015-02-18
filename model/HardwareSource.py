@@ -367,6 +367,7 @@ class HardwareSource(object):
         super(HardwareSource, self).__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
+        self.channel_count = 1
         self.features = dict()
         self.viewed_data_elements_available_event = Observable.Event()
         self.recorded_data_elements_available_event = Observable.Event()

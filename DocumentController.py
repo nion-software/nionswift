@@ -14,6 +14,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataPanel
+from nion.swift import DisplayPanel
 from nion.swift import FilterPanel
 from nion.swift import Task
 from nion.swift import Workspace
@@ -24,7 +25,6 @@ from nion.swift.model import DataItemsBinding
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
-from nion.swift.model import Utility
 from nion.ui import Dialog
 from nion.ui import Process
 from nion.ui import Observable
@@ -103,6 +103,7 @@ class DocumentController(Observable.Broadcaster):
         if not self.document_window.has_event_loop:
             self.periodic()
         # menus
+        self.live_menu.on_about_to_show = None
         self.view_menu.on_about_to_show = None
         self.window_menu.on_about_to_show = None
         self.file_menu = None
@@ -227,6 +228,54 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
 
+        self.__dynamic_live_actions = []
+
+        def about_to_show_live_menu():
+            from nion.swift.model import HardwareSource
+
+            for dynamic_live_action in self.__dynamic_live_actions:
+                self.live_menu.remove_action(dynamic_live_action)
+            self.__dynamic_live_actions = []
+
+            selected_display_panel = self.selected_display_panel
+            if not selected_display_panel:
+                return
+
+            def clear_display_controller():
+                selected_display_panel.set_display_panel_controller(None)
+
+            action = self.live_menu.add_menu_item("None", clear_display_controller)
+            self.__dynamic_live_actions.append(action)
+
+            for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
+                channel_count = hardware_source.channel_count
+                if channel_count == 1:
+                    def switch_to_live_controller(hardware_source):
+                        display_panel_controller = DisplayPanel.DisplayPanelManager().match_display_panel_controller(selected_display_panel, hardware_source.hardware_source_id, None)
+                        selected_display_panel.set_display_panel_controller(display_panel_controller)
+
+                    action = self.live_menu.add_menu_item(hardware_source.display_name,
+                                                          functools.partial(switch_to_live_controller, hardware_source))
+                    action.checked = False
+                    self.__dynamic_live_actions.append(action)
+                elif channel_count > 1:
+                    for channel_index in range(channel_count):
+                        channel_id, name, _ = hardware_source.get_channel_state(channel_index)
+
+                        def switch_to_live_controller(hardware_source, channel_id):
+                            display_panel_controller = DisplayPanel.DisplayPanelManager().match_display_panel_controller(selected_display_panel, hardware_source.hardware_source_id, channel_id)
+                            selected_display_panel.set_display_panel_controller(display_panel_controller)
+
+                        display_name = "%s (%s)" % (hardware_source.display_name, name)
+                        action = self.live_menu.add_menu_item(display_name, functools.partial(switch_to_live_controller,
+                                                                                              hardware_source,
+                                                                                              channel_id))
+                        action.checked = False
+                        self.__dynamic_live_actions.append(action)
+
+        self.live_menu = self.ui.create_sub_menu(self.document_window)
+        self.live_menu.on_about_to_show = about_to_show_live_menu
+
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
             if self.selected_display_panel is not None:
@@ -249,7 +298,8 @@ class DocumentController(Observable.Broadcaster):
         self.view_menu.add_menu_item(_("New Workspace"), lambda: self.workspace_controller.create_workspace(), key_sequence="Ctrl+Alt+L")
         self.view_menu.add_menu_item(_("Rename Workspace"), lambda: self.workspace_controller.rename_workspace())
         self.view_menu.add_menu_item(_("Remove Workspace"), lambda: self.workspace_controller.remove_workspace())
-
+        self.view_menu.add_separator()
+        self.view_menu.add_sub_menu(_("Live"), self.live_menu)
         self.view_menu.add_separator()
 
         self.__dynamic_view_actions = []

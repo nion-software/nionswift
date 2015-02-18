@@ -237,13 +237,16 @@ class BrowserDisplayPanelController(object):
         self.browser_data_item_changed(self.__display_panel.document_controller.browser_data_item)
 
     def close(self):
-        self.__display_panel.header_canvas_item.reset_header_colors()
         self.__display_panel.document_controller.remove_listener(self)
         self.__display_panel = None
 
     @classmethod
     def make(cls, display_panel, d):
         return BrowserDisplayPanelController(display_panel)
+
+    @classmethod
+    def match(cls, display_panel, hardware_source_id, channel_id):
+        return None
 
     @classmethod
     def detect(cls, display_panel, display_specifier):
@@ -322,9 +325,7 @@ class DisplayPanel(object):
             self.display_canvas_item.about_to_close()
             self.display_canvas_item = None
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
-        if self.__display_panel_controller:
-            self.__display_panel_controller.close()
-            self.__display_panel_controller = None
+        self.set_display_panel_controller(None)
         self.document_controller.document_model.remove_listener(self)
         self.document_controller.unregister_display_panel(self)
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
@@ -433,11 +434,17 @@ class DisplayPanel(object):
         in that it will recognize when it is receiving a live acquisition and automatically
         set up the live image panel controller.
         """
+        self.set_display_panel_controller(DisplayPanelManager().detect_display_panel_controller(self, display_specifier))
+        self.set_displayed_data_item_and_display(display_specifier)
+
+    def set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
             self.__display_panel_controller.close()
             self.__display_panel_controller = None
-        self.__display_panel_controller = DisplayPanelManager().detect_display_panel_controller(self, display_specifier)
-        self.set_displayed_data_item_and_display(display_specifier)
+        self.__display_panel_controller = display_panel_controller
+        if not display_panel_controller:
+            self.header_canvas_item.reset_header_colors()
+        self.set_displayed_data_item_and_display(self.display_specifier)
 
     @property
     def buffered_data_source(self):
@@ -722,6 +729,13 @@ class DisplayPanelManager(Observable.Broadcaster):
     def detect_display_panel_controller(self, display_panel, display_specifier):
         for controller_type in self.__display_panel_controllers:
             display_panel_controller = self.__display_panel_controllers[controller_type].detect(display_panel, display_specifier)
+            if display_panel_controller:
+                return display_panel_controller
+        return None
+
+    def match_display_panel_controller(self, display_panel, hardware_source_id, channel_id):
+        for controller_type in self.__display_panel_controllers:
+            display_panel_controller = self.__display_panel_controllers[controller_type].match(display_panel, hardware_source_id, channel_id)
             if display_panel_controller:
                 return display_panel_controller
         return None
