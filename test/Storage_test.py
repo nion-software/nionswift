@@ -1302,7 +1302,7 @@ class TestStorageClass(unittest.TestCase):
         data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["data_sources"] = [data_source_dict]
         metadata = {"instrument": "a big screwdriver", "extra_high_tension": 42}
-        new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42} }
+        new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42}, "extra_high_tension": 42 }
         data_item_dict["hardware_source"] = metadata
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)

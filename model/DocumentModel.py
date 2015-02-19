@@ -498,7 +498,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         metadata = data_source_dict.get("metadata", dict())
                         hardware_source_dict = metadata.get("hardware_source", dict())
                         high_tension_v = hardware_source_dict.get("extra_high_tension")
-                        hardware_source_dict.pop("extra_high_tension", None)
+                        # hardware_source_dict.pop("extra_high_tension", None)
                         if high_tension_v:
                             autostem_dict = hardware_source_dict.setdefault("autostem", dict())
                             autostem_dict["high_tension_v"] = high_tension_v
