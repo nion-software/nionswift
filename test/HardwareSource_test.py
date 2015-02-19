@@ -27,8 +27,8 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
             "data": self.image,
             "properties": {
                 "exposure": 0.5,
-                "extra_high_tension": 140000,
-                "hardware_source": "hardware source",
+                "autostem": { "high_tension_v": 140000 },
+                "hardware_source_name": "hardware source",
                 "hardware_source_id": "simple_hardware_source"
             }
         }
@@ -62,8 +62,8 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
             "channel_name": self.channel_names[channel_index],
             "properties": {
                 "exposure": 0.5,
-                "extra_high_tension": 140000,
-                "hardware_source": "hardware source",
+                "autostem": { "high_tension_v": 140000 },
+                "hardware_source_name": "hardware source",
                 "hardware_source_id": "scan_hardware_source"
             }
         }

@@ -491,7 +491,17 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     version = 8
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (metadata to data source)", reference, version)
-
+                if version == 8:
+                    # version 8 -> 9 is not implemented yet. but adjust the extra_high_tension tag anyway.
+                    data_source_dicts = properties.get("data_sources", list())
+                    for data_source_dict in data_source_dicts:
+                        metadata = data_source_dict.get("metadata", dict())
+                        hardware_source_dict = metadata.get("hardware_source", dict())
+                        high_tension_v = hardware_source_dict.get("extra_high_tension")
+                        hardware_source_dict.pop("extra_high_tension", None)
+                        if high_tension_v:
+                            autostem_dict = hardware_source_dict.setdefault("autostem", dict())
+                            autostem_dict["high_tension_v"] = high_tension_v
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py
                 data_item = DataItem.DataItem(item_uuid=data_item_uuid)

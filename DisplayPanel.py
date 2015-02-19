@@ -633,12 +633,14 @@ class DisplayPanel(object):
         if display and self.display_canvas_item:  # may be closed
             if display_type == "image":
                 data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
-                intensity_calibration = Calibration.Calibration()
-                dimensional_calibrations = [Calibration.Calibration(), Calibration.Calibration()]
+                intensity_calibration = data_and_calibration.intensity_calibration
+                dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
+                metadata = data_and_calibration.metadata
+                timestamp = data_and_calibration.timestamp
                 preview_data_and_calibration = Operation.DataAndCalibration(lambda: display.preview_2d,
                                                                             data_shape_and_dtype, intensity_calibration,
-                                                                            dimensional_calibrations, dict(),
-                                                                            datetime.datetime.utcnow())
+                                                                            dimensional_calibrations, metadata,
+                                                                            timestamp)
                 self.display_canvas_item.update_display_state(preview_data_and_calibration)
             elif display_type == "line_plot":
                 display_properties = {"y_min": display.y_min, "y_max": display.y_max,

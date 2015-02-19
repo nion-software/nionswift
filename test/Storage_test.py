@@ -1301,14 +1301,15 @@ class TestStorageClass(unittest.TestCase):
         data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["data_sources"] = [data_source_dict]
-        metadata = {"instrument": "a big screwdriver"}
+        metadata = {"instrument": "a big screwdriver", "extra_high_tension": 42}
+        new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42} }
         data_item_dict["hardware_source"] = metadata
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         # check metadata transferred to data source
         self.assertEqual(len(document_model.data_items), 1)
         self.assertEqual(document_model.data_items[0].metadata.get("hardware_source", dict()), dict())
-        self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source"), metadata)
+        self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source"), new_metadata)
         self.assertEqual(document_model.data_items[0].caption, caption)
         self.assertEqual(document_model.data_items[0].flag, flag)
         self.assertEqual(document_model.data_items[0].rating, rating)
@@ -1317,6 +1318,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].modified, document_model.data_items[0].created)
         self.assertEqual(document_model.data_items[0].data_sources[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
         self.assertEqual(document_model.data_items[0].data_sources[0].modified, document_model.data_items[0].data_sources[0].created)
+        self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source").get("autostem").get("high_tension_v"), 42)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)

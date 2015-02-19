@@ -176,16 +176,16 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                     info_items = list()
                     hardware_source_metadata = data_and_calibration.metadata.get("hardware_source", dict())
-                    voltage = hardware_source_metadata.get("extra_high_tension", 0)
+                    voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
                     if voltage:
                         units = "V"
                         if voltage % 1000 == 0:
                             voltage = int(voltage / 1000)
                             units = "kV"
                         info_items.append("{0} {1}".format(voltage, units))
-                    source = hardware_source_metadata.get("hardware_source")
-                    if source:
-                        info_items.append(str(source))
+                    hardware_source_name = hardware_source_metadata.get("hardware_source_name")
+                    if hardware_source_name:
+                        info_items.append(str(hardware_source_name))
                     drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
 
             drawing_context.restore()
