@@ -138,14 +138,12 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__data_and_calibration:
 
             # canvas size
-            canvas_height = self.canvas_size[0]
-
-            drawing_context.save()
-            drawing_context.begin_path()
-
+            canvas_size = self.canvas_size
+            canvas_height = canvas_size[0]
             image_canvas_size = self.image_canvas_size
             image_canvas_origin = self.image_canvas_origin
             data_and_calibration = self.__data_and_calibration
+            metadata = data_and_calibration.metadata
             calibrations = data_and_calibration.dimensional_calibrations
             if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
                 origin = (canvas_height - 30, 20)
@@ -160,36 +158,37 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                     # update the scale marker width
                     scale_marker_image_width = calibrated_scale_marker_width / calibrations[1].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                    drawing_context.begin_path()
-                    drawing_context.move_to(origin[1], origin[0])
-                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
-                    drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
-                    drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
-                    drawing_context.close_path()
-                    drawing_context.fill_style = "#448"
-                    drawing_context.fill()
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.stroke()
-                    drawing_context.font = "normal 14px serif"
-                    drawing_context.text_baseline = "bottom"
-                    drawing_context.fill_style = "#FFF"
-                    drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                    info_items = list()
-                    hardware_source_metadata = data_and_calibration.metadata.get("hardware_source", dict())
-                    voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
-                    if voltage:
-                        units = "V"
-                        if voltage % 1000 == 0:
-                            voltage = int(voltage / 1000)
-                            units = "kV"
-                        info_items.append("{0} {1}".format(voltage, units))
-                    hardware_source_name = hardware_source_metadata.get("hardware_source_name")
-                    if hardware_source_name:
-                        info_items.append(str(hardware_source_name))
-                    drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
-
-            drawing_context.restore()
-
+                    drawing_context.save()
+                    try:
+                        drawing_context.begin_path()
+                        drawing_context.move_to(origin[1], origin[0])
+                        drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
+                        drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
+                        drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
+                        drawing_context.close_path()
+                        drawing_context.fill_style = "#448"
+                        drawing_context.fill()
+                        drawing_context.stroke_style = "#000"
+                        drawing_context.stroke()
+                        drawing_context.font = "normal 14px serif"
+                        drawing_context.text_baseline = "bottom"
+                        drawing_context.fill_style = "#FFF"
+                        drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                        info_items = list()
+                        hardware_source_metadata = metadata.get("hardware_source", dict())
+                        voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
+                        if voltage:
+                            units = "V"
+                            if voltage % 1000 == 0:
+                                voltage = int(voltage / 1000)
+                                units = "kV"
+                            info_items.append("{0} {1}".format(voltage, units))
+                        hardware_source_name = hardware_source_metadata.get("hardware_source_name")
+                        if hardware_source_name:
+                            info_items.append(str(hardware_source_name))
+                        drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
+                    finally:
+                        drawing_context.restore()
 
 class ImageCanvasItem(CanvasItem.CanvasItemComposition):
 
