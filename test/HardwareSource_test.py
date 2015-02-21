@@ -549,6 +549,20 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.close()
         document_controller.close()
 
+    def test_view_reuses_externally_configured_item(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        hardware_source_id = hardware_source.hardware_source_id
+        self.assertEqual(len(document_model.data_items), 0)
+        data_item = DataItem.DataItem(np.ones(256) + 1)
+        document_model.append_data_item(data_item)
+        document_controller.workspace_controller.setup_channel(hardware_source_id, None, hardware_source_id, data_item)
+        # at this point the data item contains 2.0. the acquisition will produce a 1.0.
+        # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
+        self.__acquire_one(document_controller, hardware_source)
+        self.assertEqual(len(document_model.data_items), 2)  # old one is copied
+        self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
+        self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
+
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = SimpleHardwareSource().make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)

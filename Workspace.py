@@ -542,9 +542,20 @@ class WorkspaceController(object):
                     del self.__channel_data_items[channel_key]
                     break
 
-    def setup_channel(self, hardware_source, channel, data_item):
+    def setup_channel(self, hardware_source_id, channel_id, view_id, data_item):
         with self.__mutex:
-            channel_key = hardware_source.hardware_source_id + "_" + str(channel)
+            metadata = data_item.data_sources[0].metadata
+            hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+            hardware_source_metadata["hardware_source_id"] = hardware_source_id
+            if channel_id:
+                hardware_source_metadata["channel_id"] = hardware_source_id
+            if view_id:
+                hardware_source_metadata["view_id"] = view_id
+            data_item.data_sources[0].set_metadata(metadata)
+            if channel_id is not None:
+                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
+            else:
+                channel_key = hardware_source_id + "_" + view_id
             self.__channel_data_items[channel_key] = data_item
 
     def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
