@@ -548,7 +548,7 @@ class WorkspaceController(object):
             hardware_source_metadata = metadata.setdefault("hardware_source", dict())
             hardware_source_metadata["hardware_source_id"] = hardware_source_id
             if channel_id:
-                hardware_source_metadata["channel_id"] = hardware_source_id
+                hardware_source_metadata["channel_id"] = channel_id
             if view_id:
                 hardware_source_metadata["view_id"] = view_id
             data_item.data_sources[0].set_metadata(metadata)
@@ -583,7 +583,7 @@ class WorkspaceController(object):
 
             channel_index = channel.index
             channel_id = channel.channel_id
-            channel_name= channel.name
+            channel_name = channel.name
 
             if channel_id is not None:
                 channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id

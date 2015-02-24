@@ -563,6 +563,20 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
         self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
 
+    def test_setup_channel_configures_tags_correctly(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        hardware_source_id = hardware_source.hardware_source_id
+        channel_id = "aaa"
+        view_id = "bbb"
+        self.assertEqual(len(document_model.data_items), 0)
+        data_item = DataItem.DataItem(np.ones(256) + 1)
+        document_model.append_data_item(data_item)
+        document_controller.workspace_controller.setup_channel(hardware_source_id, channel_id, view_id, data_item)
+        # these tags are required for the workspace to work right. not sure how else to test this.
+        self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["hardware_source_id"], hardware_source_id)
+        self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["channel_id"], channel_id)
+        self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["view_id"], view_id)
+
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = SimpleHardwareSource().make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
