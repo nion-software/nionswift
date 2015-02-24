@@ -220,6 +220,36 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_thumbnail_does_not_get_invalidated_upon_reading(self):
+        # tests caching on display
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        cache_name = os.path.join(workspace_dir, "Data.cache")
+        try:
+            storage_cache = Storage.DbStorageCache(cache_name)
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            storage_cache.set_cached_value(display_specifier.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+            self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
+            document_model.close()
+            # read it back
+            storage_cache = Storage.DbStorageCache(cache_name)
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, library_storage=library_storage, storage_cache=storage_cache)
+            read_data_item = document_model.data_items[0]
+            read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+            # thumbnail data should still be valid
+            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_specifier.display, "thumbnail_data"))
+            document_model.close()
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_reload_data_item_initializes_display_data_range(self):
         storage_cache = Storage.DbStorageCache(":memory:")
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()

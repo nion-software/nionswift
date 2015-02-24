@@ -281,12 +281,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         if self.has_data:
             with self.__pending_data_lock:
                 self.__pending_data = None
-        super(BufferedDataSource, self).finish_reading()
         # display properties need to be updated after storage_cache is initialized.
-        # this is where to do it.
+        # this is where to do it. in order for these methods to not have the side
+        # effect of invalidating cached values, they need to occur while is_reading
+        # is still true. call super after these two.
         for display in self.displays:
             display.update_properties(self.data_properties)
             display.update_data(self.data_and_calibration)
+        super(BufferedDataSource, self).finish_reading()
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
