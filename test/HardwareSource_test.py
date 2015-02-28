@@ -46,6 +46,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
         self.sleep = sleep
         self.image = np.zeros((256, 256))
+        self.frame_index = 0
         self.top = True
         self.scanning = False
         self.suspended = False
@@ -70,7 +71,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def acquire_data_elements(self):
         self.image += 1.0
-        time.sleep(self.sleep)
+        time.sleep(self.__current_sleep)
         data_elements = list()
         for channel_index in range(self.channel_count):
             if self.channel_enabled[channel_index]:
@@ -78,14 +79,19 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
                 if self.top:
                     data_element["state"] = "partial"
                     data_element["sub_area"] = (0, 0), (128, 256)
+                    data_element["properties"]["complete"] = False
+                    data_element["frame_index"] = self.frame_index
+                    self.frame_index += 1
                 else:
                     data_element["state"] = "complete"
                     data_element["sub_area"] = (0, 0), (256, 256)
+                    data_element["properties"]["complete"] = True
                 data_elements.append(data_element)
         self.top = not self.top
         return data_elements
 
     def start_acquisition(self):
+        self.__current_sleep = self.sleep
         self.scanning = True
 
     def stop_acquisition(self):
@@ -419,6 +425,38 @@ class TestHardwareSourceClass(unittest.TestCase):
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
         time.sleep(0.01)
+        self.assertFalse(hardware_source.suspended)
+        # clean up
+        hardware_source.abort_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.close()
+        document_controller.close()
+
+    def test_abort_record_during_view_returns_to_view(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source_manager = HardwareSource.HardwareSourceManager()
+        hardware_source_manager._reset()
+        hardware_source = ScanHardwareSource()
+        hardware_source_manager.register_hardware_source(hardware_source)
+        # first start playing
+        with HardwareSource.get_data_generator_by_id(hardware_source.hardware_source_id, sync=False) as generator:
+            hardware_source.start_playing(document_controller.workspace_controller)
+            generator()
+        document_controller.periodic()
+        # now start recording
+        hardware_source.sleep = 0.04
+        hardware_source.top = True
+        hardware_source.start_recording(document_controller.workspace_controller)
+        time.sleep(0.02)
+        self.assertTrue(hardware_source.is_recording)
+        self.assertTrue(hardware_source.suspended)
+        hardware_source.abort_recording()
+        with HardwareSource.get_data_generator_by_id(hardware_source.hardware_source_id, sync=False) as generator:
+            generator()
         self.assertFalse(hardware_source.suspended)
         # clean up
         hardware_source.abort_playing()

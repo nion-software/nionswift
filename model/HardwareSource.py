@@ -166,7 +166,7 @@ class AcquisitionTask(object):
         self.__stopped = False
         self.__continuous = continuous
         self.__last_acquire_time = None
-        self.__minimum_period = 1/20.0
+        self.__minimum_period = 1/200.0
         self.__frame_index = 0
         self.__view_id = str(uuid.uuid4()) if not continuous else hardware_source.hardware_source_id
         self.__last_channel_to_data_item_dict = {}
@@ -211,10 +211,10 @@ class AcquisitionTask(object):
                 raise
 
     def suspend(self):
-        self.__hardware_source.suspend_acquisition()
+        self._suspend_acquisition()
 
     def resume(self):
-        self.__hardware_source.resume_acquisition()
+        self._resume_acquisition()
 
     @property
     def is_finished(self):
@@ -584,11 +584,11 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0
     # exceptions thrown by the caller of the generator will end up here.
     # handle them by making sure to close the port.
     try:
-        # the port is not guaranteed to return data immediately. wait here.
-        if not new_data_event.wait(timeout):
-            raise Exception("Could not start data_source " + str(hardware_source_id))
-
         def get_last_data_element():
+            # the port is not guaranteed to return data immediately. wait here.
+            if not new_data_event.wait(timeout):
+                raise Exception("Could not start data_source " + str(hardware_source_id))
+
             if sync:
                 new_data_event.clear()
                 new_data_event.wait()
