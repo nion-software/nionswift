@@ -131,14 +131,14 @@ def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcas
     hardware_source.start_playing(document_controller.workspace_controller)
     # grab the next two (un-synchronized frames) frame 0 and frame 1
     with hardware_source.get_data_element_generator(False) as data_element_generator:
+        frame0 = data_element_generator()["properties"]["frame_index"]
         frame1 = data_element_generator()["properties"]["frame_index"]
-        frame2 = data_element_generator()["properties"]["frame_index"]
-    # frame 3 will be in progress. grab the next frame after frame 3.
+    # frame 2 will be in progress. grab the next frame after frame 2.
     with hardware_source.get_data_element_generator(True) as data_element_generator:
-        frame4 = data_element_generator()["properties"]["frame_index"]
-        # frame 5 will be in progress. next frame to start will be 6.
-        frame6 = data_element_generator()["properties"]["frame_index"]
-    testcase.assertEqual((1, 3, 5), (frame2 - frame1, frame4 - frame1, frame6 - frame1))
+        frame3 = data_element_generator()["properties"]["frame_index"]
+        # frame 4 will be in progress. next frame to start will be 5.
+        frame5 = data_element_generator()["properties"]["frame_index"]
+    testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
     hardware_source.abort_playing()
     hardware_source.close()
 
