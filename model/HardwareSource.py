@@ -320,6 +320,7 @@ class AcquisitionTask(object):
 
         # update the data items with the new data.
         data_item_states = []
+        complete = True
         for channel in channels:
             channel_index = channel.index
             data_element = channel.data_element
@@ -328,6 +329,7 @@ class AcquisitionTask(object):
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete":
                 channel_state = channel_state if not self.is_stopping else "marked"
+                complete = False
             data_item_state = dict()
             if channel_id is not None:
                 data_item_state["channel_id"] = channel.channel_id
@@ -354,10 +356,11 @@ class AcquisitionTask(object):
         self.__last_channel_to_data_item_dict = channel_to_data_item_dict
 
         # let listeners know too
-        if self.__continuous:
-            self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
-        else:
-            self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
+        if complete:
+            if self.__continuous:
+                self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
+            else:
+                self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
 
 
 class HardwareSource(object):
@@ -558,47 +561,46 @@ class HardwareSource(object):
         if acquire_thread_record:
             acquire_thread_record.stop()
 
+    @contextmanager
+    def get_data_element_generator(self, sync=True, timeout=10.0):
+        """
+            Return a generator for data elements.
 
-@contextmanager
-def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
-    """
-        Return a generator for data elements.
+            The sync parameter is used to guarantee that the frame returned is started after the generator call.
 
-        :param bool sync: whether to wait for current frame to finish then grab next frame
+            NOTE: data elements may return the same ndarray (with different data) each time it is called.
+            Callers should handle appropriately.
+        """
 
-        NOTE: data elements may return the same ndarray (with different data) each time it is called.
-        Callers should handle appropriately.
-    """
-
-    hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
-
-    new_data_event = threading.Event()
-    new_data_elements = list()
-
-    def receive_new_data_elements(data_elements):
-        new_data_elements[:] = data_elements
-        new_data_event.set()
-
-    viewed_data_elements_available_event_listener = hardware_source.viewed_data_elements_available_event.listen(receive_new_data_elements)
-
-    # exceptions thrown by the caller of the generator will end up here.
-    # handle them by making sure to close the port.
-    try:
         def get_last_data_element():
-            # the port is not guaranteed to return data immediately. wait here.
-            if not new_data_event.wait(timeout):
-                raise Exception("Could not start data_source " + str(hardware_source_id))
+            try:
+                new_data_event = threading.Event()
+                new_data_elements = list()
 
-            if sync:
-                new_data_event.clear()
-                new_data_event.wait()
-            new_data_event.clear()
-            new_data_event.wait()
-            return new_data_elements[0]
+                def receive_new_data_elements(data_elements):
+                    new_data_elements[:] = data_elements
+                    new_data_event.set()
+
+                viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
+
+                # wait for the next data to arrive
+                if not new_data_event.wait(timeout):
+                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
+
+                if sync:
+                    new_data_event.clear()
+                    new_data_event.wait()
+                return new_data_elements[0]
+            finally:
+                # exceptions thrown by the caller of the generator will end up here.
+                viewed_data_elements_available_event_listener.close()
 
         yield get_last_data_element
-    finally:
-        viewed_data_elements_available_event_listener.close()
+
+
+def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
+    hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+    return hardware_source.get_data_element_generator(sync, timeout)
 
 
 @contextmanager
