@@ -177,6 +177,7 @@ class AcquisitionTask(object):
         self.__data_elements_changed(list())
         self.finished_event.fire()
 
+    # called from the hardware source
     def execute(self):
         # first start the task
         if not self.__started:
@@ -187,22 +188,23 @@ class AcquisitionTask(object):
                 self.__mark_as_finished()
                 raise
             self.__started = True
-            # logging.debug("started")
+            # logging.debug("%s started", self)
         if not self.__finished:
             try:
                 # if aborted, abort here
                 if self.__aborted:
-                    # logging.debug("aborted")
+                    # logging.debug("%s aborted", self)
                     self._abort_acquisition()
-                    self.__stop()
+                    # logging.debug("%s stopped", self)
+                    self._stop_acquisition()
                     self.__mark_as_finished()
                 # otherwise execute the task
                 else:
                     complete = self.__execute()
-                    # logging.debug("executed %s", complete)
+                    # logging.debug("%s executed %s", self, complete)
                     if complete and (self.__stopped or not self.__continuous):
-                        # logging.debug("finished")
-                        self.__stop()
+                        # logging.debug("%s finished", self)
+                        self._stop_acquisition()
                         self.__mark_as_finished()
             except Exception as e:
                 # the task is finished if it doesn't execute
@@ -210,9 +212,11 @@ class AcquisitionTask(object):
                 self.__mark_as_finished()
                 raise
 
+    # called from the hardware source
     def suspend(self):
         self._suspend_acquisition()
 
+    # called from the hardware source
     def resume(self):
         self._resume_acquisition()
 
@@ -220,9 +224,11 @@ class AcquisitionTask(object):
     def is_finished(self):
         return self.__finished
 
+    # called from the hardware source
     def abort(self):
         self.__aborted = True
 
+    # called from the hardware source
     def stop(self):
         self.__stopped = True
 
@@ -270,8 +276,8 @@ class AcquisitionTask(object):
 
         return complete
 
-    def __stop(self):
-        self._stop_acquisition()
+    # override these routines. the default implementation is to
+    # call back to the hardware source.
 
     def _start_acquisition(self):
         self.__hardware_source.start_acquisition()
@@ -389,6 +395,8 @@ class HardwareSource(object):
         self.__acquire_thread.start()
 
     def close(self):
+        # when overriding hardware source close, the acquisition loop may still be running
+        # so nothing can be changed here that will make the acquisition loop fail.
         self.__acquire_thread_break = True
         self.__acquire_thread_trigger.set()
         self.__acquire_thread.join()
@@ -402,6 +410,7 @@ class HardwareSource(object):
             if self.__record_task:
                 if acquire_thread_break:
                     self.__record_task.abort()
+                    break
                 try:
                     if self.__view_task and not self.__view_task_suspended:
                         self.__view_task.suspend()
@@ -409,7 +418,7 @@ class HardwareSource(object):
                     self.__record_task.execute()
                 except Exception as e:
                     import traceback
-                    logging.debug("Acquisition Error: %s", e)
+                    logging.debug("Record Error: %s", e)
                     traceback.print_exc()
                     traceback.print_stack()
                 if self.__record_task.is_finished:
@@ -419,6 +428,7 @@ class HardwareSource(object):
             elif self.__view_task:
                 if acquire_thread_break:
                     self.__view_task.abort()
+                    break
                 try:
                     if self.__view_task_suspended:
                         self.__view_task.resume()
@@ -426,7 +436,7 @@ class HardwareSource(object):
                     self.__view_task.execute()
                 except Exception as e:
                     import traceback
-                    logging.debug("Acquisition Error: %s", e)
+                    logging.debug("View Error: %s", e)
                     traceback.print_exc()
                     traceback.print_stack()
                 if self.__view_task.is_finished:
@@ -561,6 +571,49 @@ class HardwareSource(object):
         if acquire_thread_record:
             acquire_thread_record.stop()
 
+    def get_next_data_elements_to_finish(self, timeout=10.0):
+        try:
+            new_data_event = threading.Event()
+            new_data_elements = list()
+
+            def receive_new_data_elements(data_elements):
+                new_data_elements[:] = data_elements
+                new_data_event.set()
+
+            viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
+
+            # wait for the current frame to finish
+            if not new_data_event.wait(timeout):
+                raise Exception("Could not start data_source " + str(self.hardware_source_id))
+
+            return new_data_elements
+        finally:
+            # exceptions thrown by the caller of the generator will end up here.
+            viewed_data_elements_available_event_listener.close()
+
+    def get_next_data_elements_to_start(self, timeout=10.0):
+        new_data_event = threading.Event()
+        new_data_elements = list()
+
+        def receive_new_data_elements(data_elements):
+            new_data_elements[:] = data_elements
+            new_data_event.set()
+
+        viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
+
+        try:
+            # wait for the current frame to finish
+            if not new_data_event.wait(timeout):
+                raise Exception("Could not start data_source " + str(self.hardware_source_id))
+
+            new_data_event.clear()
+            new_data_event.wait(timeout)
+
+            return new_data_elements
+        finally:
+            # exceptions thrown by the caller of the generator will end up here.
+            viewed_data_elements_available_event_listener.close()
+
     @contextmanager
     def get_data_element_generator(self, sync=True, timeout=10.0):
         """
@@ -572,30 +625,13 @@ class HardwareSource(object):
             Callers should handle appropriately.
         """
 
-        def get_last_data_element():
-            try:
-                new_data_event = threading.Event()
-                new_data_elements = list()
+        def get_data_element():
+            if sync:
+                return self.get_next_data_elements_to_start(timeout)[0]
+            else:
+                return self.get_next_data_elements_to_finish(timeout)[0]
 
-                def receive_new_data_elements(data_elements):
-                    new_data_elements[:] = data_elements
-                    new_data_event.set()
-
-                viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
-
-                # wait for the next data to arrive
-                if not new_data_event.wait(timeout):
-                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
-
-                if sync:
-                    new_data_event.clear()
-                    new_data_event.wait()
-                return new_data_elements[0]
-            finally:
-                # exceptions thrown by the caller of the generator will end up here.
-                viewed_data_elements_available_event_listener.close()
-
-        yield get_last_data_element
+        yield get_data_element
 
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
