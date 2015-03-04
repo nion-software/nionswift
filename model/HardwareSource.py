@@ -7,8 +7,9 @@ A HardwareSource represents a source of data elements.
 
 # system imports
 import collections
-from contextlib import contextmanager
 import ConfigParser as configparser
+from contextlib import contextmanager
+import contextlib
 import copy
 import gettext
 import logging
@@ -361,8 +362,8 @@ class AcquisitionTask(object):
         # last iteration and this one. also handle reference counts.
         self.__last_channel_to_data_item_dict = channel_to_data_item_dict
 
-        # let listeners know too
-        if complete:
+        # let listeners know too (if there are data_elements).
+        if complete and len(data_elements) > 0:
             if self.__continuous:
                 self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
             else:
@@ -572,24 +573,20 @@ class HardwareSource(object):
             acquire_thread_record.stop()
 
     def get_next_data_elements_to_finish(self, timeout=10.0):
-        try:
-            new_data_event = threading.Event()
-            new_data_elements = list()
+        new_data_event = threading.Event()
+        new_data_elements = list()
 
-            def receive_new_data_elements(data_elements):
-                new_data_elements[:] = data_elements
-                new_data_event.set()
+        def receive_new_data_elements(data_elements):
+            new_data_elements[:] = data_elements
+            new_data_event.set()
 
-            viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
+        with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
+            with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
+                # wait for the current frame to finish
+                if not new_data_event.wait(timeout):
+                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-            # wait for the current frame to finish
-            if not new_data_event.wait(timeout):
-                raise Exception("Could not start data_source " + str(self.hardware_source_id))
-
-            return new_data_elements
-        finally:
-            # exceptions thrown by the caller of the generator will end up here.
-            viewed_data_elements_available_event_listener.close()
+                return new_data_elements
 
     def get_next_data_elements_to_start(self, timeout=10.0):
         new_data_event = threading.Event()
@@ -599,20 +596,16 @@ class HardwareSource(object):
             new_data_elements[:] = data_elements
             new_data_event.set()
 
-        viewed_data_elements_available_event_listener = self.viewed_data_elements_available_event.listen(receive_new_data_elements)
+        with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
+            with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
+                # wait for the current frame to finish
+                if not new_data_event.wait(timeout):
+                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-        try:
-            # wait for the current frame to finish
-            if not new_data_event.wait(timeout):
-                raise Exception("Could not start data_source " + str(self.hardware_source_id))
+                new_data_event.clear()
+                new_data_event.wait(timeout)
 
-            new_data_event.clear()
-            new_data_event.wait(timeout)
-
-            return new_data_elements
-        finally:
-            # exceptions thrown by the caller of the generator will end up here.
-            viewed_data_elements_available_event_listener.close()
+                return new_data_elements
 
     @contextmanager
     def get_data_element_generator(self, sync=True, timeout=10.0):
