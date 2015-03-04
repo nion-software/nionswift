@@ -260,7 +260,7 @@ class DocumentController(Observable.Broadcaster):
                     self.__dynamic_live_actions.append(action)
                 elif channel_count > 1:
                     for channel_index in range(channel_count):
-                        channel_id, name, _ = hardware_source.get_channel_state(channel_index)
+                        channel_id, name, _ = hardware_source.get_channel_state(0, channel_index)  # hack since there is no get_channel_info call
 
                         def switch_to_live_controller(hardware_source, channel_id):
                             display_panel_controller = DisplayPanel.DisplayPanelManager().match_display_panel_controller(selected_display_panel, hardware_source.hardware_source_id, channel_id)
