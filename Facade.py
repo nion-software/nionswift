@@ -230,6 +230,40 @@ class FacadePanel(Panel.Panel):
             self.on_close()
 
 
+class FacadeDataItem(object):
+
+    def __init__(self):
+        pass
+
+    @property
+    def data(self):
+        raise AttributeError()
+
+
+class FacadeDisplayPanel(object):
+
+    def __init__(self):
+        pass
+
+    @property
+    def display(self):
+        raise AttributeError()
+
+
+class FacadeDisplay(object):
+
+    def __init__(self):
+        pass
+
+    @property
+    def data_item(self):
+        raise AttributeError()
+
+    @property
+    def data_item_list(self):
+        raise AttributeError()
+
+
 class FacadeDocumentController(object):
 
     def __init__(self, manifest, document_controller):
@@ -237,7 +271,31 @@ class FacadeDocumentController(object):
         self.__document_controller = document_controller
 
     def add_data(self, data):
-        self.__document_controller.add_data(data)
+        return self.create_data_item_from_data(data)
+
+    @property
+    def target_display_panel(self):
+        raise AttributeError()
+
+    @property
+    def target_display(self):
+        raise AttributeError()
+
+    def create_data_item_from_data(self, data):
+        raise NotImplementedError()
+
+    def create_data_item_from_data_and_calibration(self, data_and_calibration):
+        raise NotImplementedError()
+
+    def add_operation_to_data_item(self, data_item, symbolic):
+        raise NotImplementedError()
+
+    """
+    data_item = document_controller.create_data_item_from_data(some_data)
+    data_item2 = document_controller.create_data_item_from_data_node(DataNode.make(data_item) * 3)
+    document_controller.add_data_node_to_data_item(data_item, DataNode.make(data_item2) / 3)
+    document_controller.add_operation_to_data_item(data_item, "crop-operation", { "bounds": rect })
+    """
 
 
 class Facade(object):
