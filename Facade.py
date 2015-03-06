@@ -5,7 +5,7 @@
 
     events are used when a callback is optional and may have multiple listeners.
 
-    Versions numbering follows semantic versioning: http://semver.org/
+    Versions numbering follows semantic version numbering: http://semver.org/
 """
 
 # standard libraries
@@ -32,7 +32,7 @@ from nion.ui import CanvasItem
 from nion.ui import Geometry
 
 
-__all__ = ["load"]
+__all__ = ["get_api"]
 
 
 _ = gettext.gettext
@@ -433,8 +433,73 @@ class FacadeDocumentController(object):
     document_controller.add_operation_to_data_item(data_item, "crop-operation", { "bounds": rect })
     """
 
+class DataAndMetadataIOHandlerInterface(object):
+    """An interface for an IO handler delegate. Implement each of the methods and properties, as required."""
 
-class Facade(object):
+    @property
+    def io_hander_name(self):
+        """Name of the IO handler. This will appear to the user.
+
+        :rtype: str
+
+        .. versionadded:: 1.0
+        """
+        raise AttributeError()
+
+    @property
+    def io_handler_extensions(self):
+        """List of extensions handled by the IO handler.
+
+        :rtype: list of str
+
+        .. versionadded:: 1.0
+        """
+        raise AttributeError()
+
+    def read_data_and_metadata(self, extension, file_path):
+        """Read data from the file_path and return it in a data_and_metadata object.
+
+        .. versionadded:: 1.0
+
+        :param extension: The extension of the file_path, e.g. "tif".
+        :param file_path: The path to the file.
+        :return: The data and metadata that was read.
+        :rtype: :py:class:`DataAndMetadata`
+        """
+        raise NotImplementedError()
+
+    def can_write_data_and_metadata(self, data_and_metadata, extension):
+        """Return whether the data_and_metadata can be written to a file with the given extension.
+
+        .. versionadded:: 1.0
+
+        :param data_and_metadata: The data to write.
+        :type data_and_metadata: :py:class:`DataAndMetadata`
+        :param extension: The extension of the file, e.g. "tif".
+        :return: Whether the file can be written.
+        :rtype: boolean
+
+        Implementers should not ask for data from the data_and_metadata object as this may affect performance.
+        """
+        raise NotImplementedError()
+
+    def write_data_and_metadata(self, data_and_calibration, file_path, extension):
+        """Write the data_and_metadata to the file_path with the given extension.
+
+        .. versionadded:: 1.0
+
+        :param data_and_metadata: A :py:class:`DataAndCalibration` object.
+        :param file_path: The path to the file.
+        :param extension: The extension of the file, e.g. "tif".
+        """
+        raise NotImplementedError()
+
+
+class API_1(object):
+    """An interface to Nion Swift.
+
+    This should not be instantiated directly. Use Facade.get_api(version) instead.
+    """
 
     # RULES
     # clients should not be required to directly instantiate or subclass any classes
@@ -448,13 +513,32 @@ class Facade(object):
     # Allowed: add methods as long as they are optional.
 
     def __init__(self, ui_version):
-        super(Facade, self).__init__()
+        super(API_1, self).__init__()
         self.__ui_version = ui_version
 
     def create_calibration(self, offset=None, scale=None, units=None):
+        """Create a calibration object with offset, scale, and units.
+
+        .. versionadded:: 1.0
+
+        :param offset: The offset of the calibration.
+        :param scale: The scale of the calibration.
+        :param units: The units of the calibration as a string.
+        :return: The calibration object.
+        """
         return Calibration.Calibration(offset, scale, units)
 
     def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
+        """Create a data_and_metadata object from data.
+
+        .. versionadded:: 1.0
+
+        :param data: an ndarray of data.
+        :param intensity_calibration: An optional calibration object.
+        :param dimensional_calibrations: An optional list of calibration objects.
+        :param metadata: A dict of metadata.
+        :param timestamp: A datetime object.
+        """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         if intensity_calibration is None:
             intensity_calibration = Calibration.Calibration()
@@ -468,8 +552,13 @@ class Facade(object):
         return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     def create_data_and_metadata_io_handler(self, io_handler_delegate):
-        class DelegateIOHandler(ImportExportManager.ImportExportHandler):
+        """Create an I/O handler that reads and writes a single data_and_metadata.
 
+        .. versionadded:: 1.0
+
+        :param io_handler_delegate: A delegate object :py:class:`DataAndMetadataIOHandlerInterface`
+        """
+        class DelegateIOHandler(ImportExportManager.ImportExportHandler):
             def __init__(self):
                 super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
 
@@ -552,6 +641,8 @@ class Facade(object):
     def create_panel(self, panel_delegate):
         """Create a utility panel that can be attached to a window.
 
+        .. versionadded:: 1.0
+
          The panel_delegate should respond to the following:
             (property, read-only) panel_id
             (property, read-only) panel_name
@@ -631,7 +722,7 @@ def get_api(version, ui_version):
     actual_version = "1.0.0"
     if Utility.compare_versions(version, actual_version) > 0:
         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
-    return Facade(ui_version)
+    return API_1(ui_version)
 
 
 # TODO: facade panels never get closed
