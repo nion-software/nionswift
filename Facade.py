@@ -23,6 +23,7 @@ from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.swift import Application
 from nion.swift import Panel
 from nion.swift import Workspace
@@ -236,6 +237,36 @@ class FacadePanel(Panel.Panel):
             self.on_close()
 
 
+class FacadeRegion(object):
+
+    def __init__(self, region):
+        self.__region = region
+
+    @property
+    def _region(self):
+        return self.__region
+
+    @property
+    def type(self):
+        return self.__region.type
+
+    @property
+    def label(self):
+        return self.__region.label
+
+    @label.setter
+    def label(self, value):
+        self.__region.label = value
+
+    def get_property(self, property):
+        return getattr(self.__region, property)
+
+    def set_property(self, property, value):
+        setattr(self.__region, property, value)
+
+    # position, start, end, vector, center, size, bounds, angle
+
+
 class FacadeDataItem(object):
 
     def __init__(self, data_item):
@@ -247,7 +278,50 @@ class FacadeDataItem(object):
 
     @property
     def data(self):
-        raise AttributeError()
+        return self.__data_item.maybe_data_source.data_and_metadata.data
+
+    @property
+    def data_and_metadata(self):
+        return self.__data_item.maybe_data_source.data_and_metadata
+
+    @property
+    def regions(self):
+        return [FacadeRegion(region) for region in self.__data_item.maybe_data_source.regions]
+
+    def add_point_region(self, y, x):
+        region = Region.PointRegion()
+        region.position = Geometry.FloatPoint(y, x)
+        self.__data_item.maybe_data_source.add_region(region)
+        return FacadeRegion(region)
+
+    def add_rectangle_region(self, top, left, height, width):
+        region = Region.RectRegion()
+        region.bounds = Geometry.FloatRect(Geometry.FloatPoint(top, left), Geometry.FloatSize(height, width))
+        self.__data_item.maybe_data_source.add_region(region)
+        return FacadeRegion(region)
+
+    def add_ellipse_region(self, top, left, height, width):
+        region = Region.EllipseRegion()
+        region.bounds = Geometry.FloatRect(Geometry.FloatPoint(top, left), Geometry.FloatSize(height, width))
+        self.__data_item.maybe_data_source.add_region(region)
+        return FacadeRegion(region)
+
+    def add_line_region(self, start_y, start_x, end_y, end_x):
+        region = Region.LineRegion()
+        region.start = Geometry.FloatPoint(start_y, start_x)
+        region.end = Geometry.FloatPoint(end_y, end_x)
+        self.__data_item.maybe_data_source.add_region(region)
+        return FacadeRegion(region)
+
+    def add_interval_region(self, start, end):
+        region = Region.IntervalRegion()
+        region.start = start
+        region.end = end
+        self.__data_item.maybe_data_source.add_region(region)
+        return FacadeRegion(region)
+
+    def remove_region(self, region):
+        self.__data_item.maybe_data_source.remove_region(region._region)
 
 
 class FacadeDisplayPanel(object):
@@ -325,6 +399,10 @@ class FacadeDocumentController(object):
     def target_display(self):
         raise AttributeError()
 
+    @property
+    def target_data_item(self):
+        return FacadeDataItem(self.__document_controller.selected_display_specifier.data_item)
+
     def create_data_item_from_data(self, data, title=None):
         return FacadeDataItem(self.__document_controller.add_data(data, title))
 
@@ -359,6 +437,9 @@ class FacadeDocumentController(object):
 
 
 class Facade(object):
+
+    # RULES
+    # clients should not be required to directly instantiate or subclass any classes
 
     # NAMING
     # add, insert, remove (not append)
