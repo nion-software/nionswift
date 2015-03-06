@@ -200,6 +200,8 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             offset = float(intensity_calibration.get("offset", 0.0))
             scale = float(intensity_calibration.get("scale", 1.0))
             units = unicode(intensity_calibration.get("units", ""))
+            if scale != 0.0:
+                display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(offset, scale, units))
         # properties (general tags)
         if "properties" in data_element:
             buffered_data_source = data_item.maybe_data_source

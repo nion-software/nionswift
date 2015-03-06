@@ -238,8 +238,12 @@ class FacadePanel(Panel.Panel):
 
 class FacadeDataItem(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, data_item):
+        self.__data_item = data_item
+
+    @property
+    def _data_item(self):
+        return self.__data_item
 
     @property
     def data(self):
@@ -270,10 +274,45 @@ class FacadeDisplay(object):
         raise AttributeError()
 
 
+class FacadeDataGroup(object):
+
+    def __init__(self, data_group):
+        self.__data_group = data_group
+
+    def add_data_item(self, data_item):
+        self.__data_group.append_data_item(data_item._data_item)
+
+    def remove_data_item(self, data_item):
+        raise NotImplementedError()
+
+    def remove_all_data_items(self):
+        raise NotImplementedError()
+
+    @property
+    def data_items(self):
+        raise AttributeError()
+
+
+class FacadeHardwareSource(object):
+
+    def __init__(self, hardware_source):
+        self.__hardware_source = hardware_source
+
+    def get_data_and_metadata_generator(self, sync=True):
+        return HardwareSource.get_data_and_metadata_generator_by_id(self.__hardware_source.hardware_source_id, sync)
+
+    def start_playing(self, document_controller):
+        self.__hardware_source.start_playing(document_controller._document_controller.workspace_controller)
+
+
 class FacadeDocumentController(object):
 
     def __init__(self, document_controller):
         self.__document_controller = document_controller
+
+    @property
+    def _document_controller(self):
+        return self.__document_controller
 
     def add_data(self, data, title=None):
         return self.create_data_item_from_data(data, title)
@@ -286,14 +325,30 @@ class FacadeDocumentController(object):
     def target_display(self):
         raise AttributeError()
 
-    def create_data_item_from_data(self, data, title):
-        self.__document_controller.add_data(data, title)
+    def create_data_item_from_data(self, data, title=None):
+        return FacadeDataItem(self.__document_controller.add_data(data, title))
 
-    def create_data_item_from_data_and_calibration(self, data_and_calibration):
-        raise NotImplementedError()
+    def create_data_item_from_data_and_metadata(self, data_and_calibration, title=None):
+        data_item = DataItem.DataItem()
+        if title is not None:
+            data_item.title = title
+        buffered_data_source = DataItem.BufferedDataSource(data_and_calibration.data)
+        buffered_data_source.set_metadata(data_and_calibration.metadata)
+        buffered_data_source.set_intensity_calibration(data_and_calibration.intensity_calibration)
+        buffered_data_source.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
+        buffered_data_source.created = data_and_calibration.timestamp
+        data_item.append_data_source(buffered_data_source)
+        self.__document_controller.document_model.append_data_item(data_item)
+        return FacadeDataItem(data_item)
 
-    def add_operation_to_data_item(self, data_item, symbolic):
-        raise NotImplementedError()
+    def create_task_context_manager(self, title, task_type):
+        return self.__document_controller.create_task_context_manager(title, task_type)
+
+    def get_or_create_data_group(self, title):
+        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
+
+    def queue_task(self, fn):
+        self.__document_controller.queue_task(fn)
 
     """
     data_item = document_controller.create_data_item_from_data(some_data)
@@ -304,6 +359,9 @@ class FacadeDocumentController(object):
 
 
 class Facade(object):
+
+    # NAMING
+    # add, insert, remove (not append)
 
     # MIGRATING
     # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
@@ -474,6 +532,9 @@ class Facade(object):
 
         Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
         Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
+
+    def get_hardware_source_by_id(self, hardware_source_id):
+        return FacadeHardwareSource(HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id))
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
