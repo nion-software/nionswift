@@ -15,9 +15,11 @@ import datetime
 # None
 
 # local libraries
+from nion.swift.model import Calibration
 from nion.swift.model import DataItem
-from nion.swift.model import Operation
 from nion.swift.model import Image
+from nion.swift.model import ImportExportManager
+from nion.swift.model import Operation
 from nion.swift import Application
 from nion.swift import Panel
 from nion.swift import Workspace
@@ -230,9 +232,12 @@ class FacadePanel(Panel.Panel):
 
 class FacadeDocumentController(object):
 
-    def __init__(self, manifest, ui):
+    def __init__(self, manifest, document_controller):
         self.__manifest = manifest
-        self.__ui = ui
+        self.__document_controller = document_controller
+
+    def add_data(self, data):
+        self.__document_controller.add_data(data)
 
 
 class Facade(object):
@@ -241,10 +246,46 @@ class Facade(object):
         super(Facade, self).__init__()
         self.__manifest = manifest
 
+    def create_calibration(self, offset=None, scale=None, units=None):
+        return Calibration.Calibration(offset, scale, units)
+
     def create_data_and_metadata_from_data(self, data, intensity_calibration, dimensional_calibrations, metadata, timestamp=None):
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
         return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+
+    def create_data_and_metadata_io_handler(self, io_handler_delegate):
+        class DelegateIOHandler(ImportExportManager.ImportExportHandler):
+
+            def __init__(self):
+                super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
+
+            def read_data_elements(self, ui, extension, file_path):
+                data_and_calibration = io_handler_delegate.read_data_and_metadata(extension, file_path)
+                data_element = dict()
+                data_element["data"] = data_and_calibration.data
+                dimensional_calibrations = list()
+                for calibration in data_and_calibration.dimensional_calibrations:
+                    dimensional_calibrations.append({ "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units })
+                data_element["spatial_calibrations"] = dimensional_calibrations
+                calibration = data_and_calibration.intensity_calibration
+                data_element["intensity_calibration"] = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
+                data_element["properties"] = data_and_calibration.metadata.get("hardware_source", dict())
+                return [data_element]
+
+            def can_write(self, data_item, extension):
+                return data_item.maybe_data_source and io_handler_delegate.can_write_data_and_metadata(data_item.maybe_data_source.data_and_calibration, extension)
+
+            def write(self, ui, data_item, file_path, extension):
+                data_and_calibration = data_item.maybe_data_source.data_and_calibration
+                data = data_and_calibration.data
+                if data is not None:
+                    io_handler_delegate.write_data_and_metadata(data_and_calibration, file_path, extension)
+
+        ImportExportManager.ImportExportManager().register_io_handler(DelegateIOHandler())
+
+    def create_document_controller_handler(self, document_controller_handler):
+        pass
 
     def create_float_rect(self, o, s):
         return Geometry.FloatRect(o, s)
@@ -309,7 +350,7 @@ class Facade(object):
         def create_facade_panel(document_controller, panel_id, properties):
             panel = FacadePanel(document_controller, panel_id, properties)
             ui = FacadeUserInterface(self.__manifest, document_controller.ui)
-            document_controller = FacadeDocumentController(self.__manifest, document_controller.ui)
+            document_controller = FacadeDocumentController(self.__manifest, document_controller)
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
