@@ -17,8 +17,10 @@ import datetime
 # local libraries
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
+from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
+from nion.swift.model import PlugInManager
 from nion.swift.model import Operation
 from nion.swift import Application
 from nion.swift import Panel
@@ -383,6 +385,33 @@ class Facade(object):
     def create_float_size_from_tuple(self, height_width):
         return Geometry.FloatSize(height_width[0], height_width[1])
 
+    def create_hardware_source(self, hardware_source_delegate):
+
+        class FacadeHardwareSource(HardwareSource.HardwareSource):
+
+            def __init__(self):
+                super(FacadeHardwareSource, self).__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
+
+            def start_acquisition(self):
+                hardware_source_delegate.start_acquisition()
+
+            def acquire_data_elements(self):
+                data_and_calibration = hardware_source_delegate.acquire_data_and_metadata()
+                data_element = {
+                    "version": 1,
+                    "data": data_and_calibration.data,
+                    "properties": {
+                        "hardware_source_name": hardware_source_delegate.hardware_source_name,
+                        "hardware_source_id": hardware_source_delegate.hardware_source_id,
+                    }
+                }
+                return [data_element]
+
+            def stop_acquisition(self):
+                hardware_source_delegate.stop_acquisition()
+
+        HardwareSource.HardwareSourceManager().register_hardware_source(FacadeHardwareSource())
+
     def create_int_rect(self, o, s):
         return Geometry.IntRect(o, s)
 
@@ -467,6 +496,9 @@ class Facade(object):
 
         Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
         Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
+
+    def raise_requirements_exception(self, reason):
+        raise PlugInManager.RequirementsException(reason)
 
 
 def load(manifest):
