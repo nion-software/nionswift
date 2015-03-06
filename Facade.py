@@ -9,13 +9,16 @@
 """
 
 # standard libraries
-# None
+import datetime
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift.model import Utility
+from nion.swift.model import DataItem
+from nion.swift.model import Operation
+from nion.swift.model import Image
+from nion.swift import Application
 from nion.swift import Panel
 from nion.swift import Workspace
 from nion.ui import CanvasItem
@@ -238,6 +241,53 @@ class Facade(object):
         super(Facade, self).__init__()
         self.__manifest = manifest
 
+    def create_data_and_metadata_from_data(self, data, intensity_calibration, dimensional_calibrations, metadata, timestamp=None):
+        data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        timestamp = timestamp if timestamp else datetime.datetime.utcnow()
+        return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+
+    def create_float_rect(self, o, s):
+        return Geometry.FloatRect(o, s)
+
+    def create_float_rect_from_tuple(self, origin_size):
+        return Geometry.FloatRect(origin_size[0], origin_size[1])
+
+    def create_float_rect_from_center_and_size(self, c, s):
+        return Geometry.FloatRect.from_center_and_size(c, s)
+
+    def create_float_point(self, y, x):
+        return Geometry.FloatPoint(y, x)
+
+    def create_float_point_from_tuple(self, y_x):
+        return Geometry.FloatPoint(y_x[0], y_x[1])
+
+    def create_float_size(self, h, w):
+        return Geometry.FloatSize(h, w)
+
+    def create_float_size_from_tuple(self, height_width):
+        return Geometry.FloatSize(height_width[0], height_width[1])
+
+    def create_int_rect(self, o, s):
+        return Geometry.IntRect(o, s)
+
+    def create_int_rect_from_tuple(self, origin_size):
+        return Geometry.IntRect(origin_size[0], origin_size[1])
+
+    def create_int_rect_from_center_and_size(self, c, s):
+        return Geometry.IntRect.from_center_and_size(c, s)
+
+    def create_int_point(self, y, x):
+        return Geometry.IntPoint(y, x)
+
+    def create_int_point_from_tuple(self, y_x):
+        return Geometry.IntPoint(y_x[0], y_x[1])
+
+    def create_int_size(self, h, w):
+        return Geometry.IntSize(h, w)
+
+    def create_int_size_from_tuple(self, height_width):
+        return Geometry.IntSize(height_width[0], height_width[1])
+
     def create_panel(self, panel_delegate):
         """Create a utility panel that can be attached to a window.
 
@@ -265,6 +315,42 @@ class Facade(object):
 
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
+
+    def create_unary_operation(self, unary_operation_delegate):
+
+        class DelegateOperation(Operation.Operation):
+            def __init__(self):
+                super(DelegateOperation, self).__init__(unary_operation_delegate.operation_name, unary_operation_delegate.operation_id, unary_operation_delegate.operation_description)
+                self.region_types = dict()
+                self.region_bindings = dict()
+                operation_region_bindings = getattr(unary_operation_delegate, "operation_region_bindings", dict())
+                for operation_region_id, binding_description in operation_region_bindings.iteritems():
+                    self.region_types[operation_region_id] = binding_description["type"]
+                    for binding in binding_description["bindings"]:
+                        for from_key, to_key in binding.iteritems():
+                            self.region_bindings[operation_region_id] = [Operation.RegionBinding(from_key, to_key)]
+
+            def get_processed_data_and_calibration(self, data_and_calibrations, values):
+                # doesn't do any bounds checking
+                return unary_operation_delegate.get_processed_data_and_metadata(data_and_calibrations[0], values)
+
+        def apply_operation(document_controller):
+            display_specifier = document_controller.selected_display_specifier
+            buffered_data_source = display_specifier.buffered_data_source if display_specifier else None
+            data_and_metadata = buffered_data_source.data_and_calibration if buffered_data_source else None
+            if data_and_metadata and unary_operation_delegate.can_apply_to_data(data_and_metadata):
+                operation = Operation.OperationItem(unary_operation_delegate.operation_id)
+                for operation_region_id in getattr(unary_operation_delegate, "operation_region_bindings", dict()).keys():
+                    operation.establish_associated_region(operation_region_id, buffered_data_source)
+                return document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=unary_operation_delegate.operation_prefix)
+            return DataItem.DisplaySpecifier()
+
+        def build_menus(document_controller):
+            """ Make menu item for this operation. """
+            document_controller.processing_menu.add_menu_item(unary_operation_delegate.operation_name, lambda: apply_operation(document_controller))
+
+        Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
+        Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
 
 
 def load(manifest):
