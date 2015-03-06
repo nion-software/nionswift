@@ -24,6 +24,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
+from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import Panel
 from nion.swift import Workspace
@@ -185,13 +186,9 @@ class FacadePushButtonWidget(object):
 
 class FacadeUserInterface(object):
 
-    def __init__(self, manifest, ui):
-        version = manifest.get("ui", "0")
-        version_components = version.split(".")
-        if int(version_components[0]) != 1 or len(version_components) > 1:
-            raise NotImplementedError("Facade version %s is not available." % version)
-
-        self.__manifest = manifest
+    def __init__(self, ui_version, ui):
+        if Utility.compare_versions(ui_version, "1.0.0") > 0:
+            raise NotImplementedError("UI version %s is not available." % ui_version)
         self.__ui = ui
 
     def create_canvas_widget(self, height=None):
@@ -440,6 +437,7 @@ class Facade(object):
 
     # RULES
     # clients should not be required to directly instantiate or subclass any classes
+    # versions should be passed wherever a sub-system might be versioned separately
 
     # NAMING
     # add, insert, remove (not append)
@@ -448,9 +446,9 @@ class Facade(object):
     # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
     # Allowed: add methods as long as they are optional.
 
-    def __init__(self, manifest):
+    def __init__(self, ui_version):
         super(Facade, self).__init__()
-        self.__manifest = manifest
+        self.__ui_version = ui_version
 
     def create_calibration(self, offset=None, scale=None, units=None):
         return Calibration.Calibration(offset, scale, units)
@@ -570,7 +568,7 @@ class Facade(object):
 
         def create_facade_panel(document_controller, panel_id, properties):
             panel = FacadePanel(document_controller, panel_id, properties)
-            ui = FacadeUserInterface(self.__manifest, document_controller.ui)
+            ui = FacadeUserInterface(self.__ui_version, document_controller.ui)
             document_controller = FacadeDocumentController(document_controller)
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
@@ -621,16 +619,14 @@ class Facade(object):
         raise PlugInManager.RequirementsException(reason)
 
 
-def load(manifest):
-    """Load a facade interface matching the given version.
+def get_api(version, ui_version):
+    """Get a versioned interface matching the given version and ui_version.
 
-    version is a string and the only supported version is "1".
+    version is a string in the form "1.0.2".
     """
-    version = manifest.get("main", "0")
-    version_components = version.split(".")
-    if int(version_components[0]) != 1 or len(version_components) > 1:
-        raise NotImplementedError("Facade version %s is not available." % version)
-    return Facade(manifest)
+    if Utility.compare_versions(version, "1.0.0") > 0:
+        raise NotImplementedError("API version %s is not available." % version)
+    return Facade(ui_version)
 
 
 # TODO: facade panels never get closed

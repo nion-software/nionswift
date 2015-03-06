@@ -155,3 +155,22 @@ def clean_item_no_list(i):
         return i
     logging.info("Unable to handle type %s", itype)
     return None
+
+
+def parse_version(version, count=3):
+    version_components = [int(version_component) for version_component in version.split(".")]
+    assert len(version_components) <= count
+    while len(version_components) < count:
+        version_components.append(0)
+    return version_components
+
+
+def compare_versions(version1, version2):
+    version_components1 = parse_version(version1)
+    version_components2 = parse_version(version2)
+    for version_component1, version_component2 in zip(version_components1, version_components2):
+        if version_component1 > version_component2:
+            return 1
+        elif version_component1 < version_component2:
+            return -1
+    return 0
