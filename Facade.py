@@ -501,6 +501,11 @@ class API_1(object):
     This should not be instantiated directly. Use Facade.get_api(version) instead.
     """
 
+    # GOALS
+    # Provide an API for any plug-in available
+    # Provide an API for anything the user can do
+    # Provide programmatic access for creating new extensions
+
     # RULES
     # clients should not be required to directly instantiate or subclass any classes
     # versions should be passed wherever a sub-system might be versioned separately
