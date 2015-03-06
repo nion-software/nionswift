@@ -345,6 +345,23 @@ class Facade(object):
     def create_document_controller_handler(self, document_controller_handler):
         pass
 
+    def create_document_controller_menu_item(self, menu_item_handler):
+
+        # the build_menus function will be called whenever a new document window is created.
+        # it will be passed the document_controller.
+        def build_menus(document_controller):
+            menu_id = menu_item_handler.menu_id
+            menu_name = getattr(menu_item_handler, "menu_name", None)
+            menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
+            if menu_name is not None and menu_before_id is not None:
+                menu = document_controller.get_or_create_menu(menu_id, menu_name, menu_before_id)
+            else:
+                menu = document_controller.get_menu(menu_id)
+            if menu:
+                menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(document_controller))
+
+        Application.app.register_menu_handler(build_menus)
+
     def create_float_rect(self, o, s):
         return Geometry.FloatRect(o, s)
 

@@ -337,6 +337,10 @@ class DocumentController(Observable.Broadcaster):
 
         self.window_menu.on_about_to_show = adjust_window_menu
 
+    def get_menu(self, menu_id):
+        assert menu_id.endswith("_menu")
+        return getattr(self, menu_id, None)
+
     def get_or_create_menu(self, menu_id, menu_title, before_menu_id):
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
