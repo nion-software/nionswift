@@ -11,6 +11,7 @@ import ConfigParser as configparser
 from contextlib import contextmanager
 import contextlib
 import copy
+import datetime
 import gettext
 import logging
 import os
@@ -20,7 +21,9 @@ import traceback
 import uuid
 
 # local imports
+from nion.swift.model import Calibration
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Operation
 from nion.swift.model import Utility
 from nion.ui import Observable
 
@@ -644,6 +647,49 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
     with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
         def get_last_data():
             return data_element_generator()["data"].copy()
+        # error handling not necessary here - occurs above with get_data_element_generator_by_id function
+        yield get_last_data
+
+
+def convert_data_element_to_data_and_metadata(data_element):
+    data = data_element["data"]
+    data_shape_and_dtype = data.shape, data.dtype
+    # dimensional calibrations
+    dimensional_calibrations = None
+    if "spatial_calibrations" in data_element:
+        spatial_calibrations = data_element.get("spatial_calibrations")
+        dimensional_calibrations = list()
+        for dimension, spatial_calibration in enumerate(spatial_calibrations):
+            offset = float(spatial_calibration.get("offset", 0.0))
+            scale = float(spatial_calibration.get("scale", 1.0))
+            units = unicode(spatial_calibration.get("units", ""))
+            if scale != 0.0:
+                dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
+    intensity_calibration = None
+    if "intensity_calibration" in data_element:
+        intensity_calibration_dict = data_element.get("intensity_calibration")
+        offset = float(intensity_calibration_dict.get("offset", 0.0))
+        scale = float(intensity_calibration_dict.get("scale", 1.0))
+        units = unicode(intensity_calibration_dict.get("units", ""))
+        if scale != 0.0:
+            intensity_calibration = Calibration.Calibration(offset, scale, units)
+    # properties (general tags)
+    metadata = None
+    if "properties" in data_element:
+        metadata = dict()
+        hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+        hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
+    timestamp = datetime.datetime.utcnow()
+    return Operation.DataAndCalibration(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
+                                        dimensional_calibrations, metadata, timestamp)
+
+
+@contextmanager
+def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
+    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
+        def get_last_data():
+            data_element = data_element_generator()
+            return convert_data_element_to_data_and_metadata(data_element)
         # error handling not necessary here - occurs above with get_data_element_generator_by_id function
         yield get_last_data
 
