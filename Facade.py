@@ -10,6 +10,7 @@
 
 # standard libraries
 import datetime
+import gettext
 
 # third party libraries
 # None
@@ -30,6 +31,9 @@ from nion.ui import Geometry
 
 
 __all__ = ["load"]
+
+
+_ = gettext.gettext
 
 
 class FacadeCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -268,12 +272,11 @@ class FacadeDisplay(object):
 
 class FacadeDocumentController(object):
 
-    def __init__(self, manifest, document_controller):
-        self.__manifest = manifest
+    def __init__(self, document_controller):
         self.__document_controller = document_controller
 
-    def add_data(self, data):
-        return self.create_data_item_from_data(data)
+    def add_data(self, data, title=None):
+        return self.create_data_item_from_data(data, title)
 
     @property
     def target_display_panel(self):
@@ -283,8 +286,8 @@ class FacadeDocumentController(object):
     def target_display(self):
         raise AttributeError()
 
-    def create_data_item_from_data(self, data):
-        raise NotImplementedError()
+    def create_data_item_from_data(self, data, title):
+        self.__document_controller.add_data(data, title)
 
     def create_data_item_from_data_and_calibration(self, data_and_calibration):
         raise NotImplementedError()
@@ -302,6 +305,10 @@ class FacadeDocumentController(object):
 
 class Facade(object):
 
+    # MIGRATING
+    # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
+    # Allowed: add methods as long as they are optional.
+
     def __init__(self, manifest):
         super(Facade, self).__init__()
         self.__manifest = manifest
@@ -309,8 +316,16 @@ class Facade(object):
     def create_calibration(self, offset=None, scale=None, units=None):
         return Calibration.Calibration(offset, scale, units)
 
-    def create_data_and_metadata_from_data(self, data, intensity_calibration, dimensional_calibrations, metadata, timestamp=None):
+    def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        if intensity_calibration is None:
+            intensity_calibration = Calibration.Calibration()
+        if dimensional_calibrations is None:
+            dimensional_calibrations = list()
+            for _ in data_shape_and_dtype[0]:
+                dimensional_calibrations.append(Calibration.Calibration())
+        if metadata is None:
+            metadata = dict()
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
         return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
@@ -344,23 +359,28 @@ class Facade(object):
 
         ImportExportManager.ImportExportManager().register_io_handler(DelegateIOHandler())
 
-    def create_document_controller_handler(self, document_controller_handler):
-        pass
-
-    def create_document_controller_menu_item(self, menu_item_handler):
+    def create_menu_item(self, menu_item_handler):
 
         # the build_menus function will be called whenever a new document window is created.
         # it will be passed the document_controller.
         def build_menus(document_controller):
-            menu_id = menu_item_handler.menu_id
-            menu_name = getattr(menu_item_handler, "menu_name", None)
-            menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
+            menu_id = getattr(menu_item_handler, "menu_id", None)
+            if menu_id is None:
+                menu_id = "script_menu"
+                menu_name = _("Scripts")
+                menu_before_id = "window_menu"
+            else:
+                menu_name = getattr(menu_item_handler, "menu_name", None)
+                menu_before_id = getattr(menu_item_handler, "menu_before_id", None)
             if menu_name is not None and menu_before_id is not None:
                 menu = document_controller.get_or_create_menu(menu_id, menu_name, menu_before_id)
             else:
                 menu = document_controller.get_menu(menu_id)
+            key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
             if menu:
-                menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(document_controller))
+                facade_document_controller = FacadeDocumentController(document_controller)
+                menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
+                    facade_document_controller), key_sequence=key_sequence)
 
         Application.app.register_menu_handler(build_menus)
 
@@ -412,7 +432,7 @@ class Facade(object):
         def create_facade_panel(document_controller, panel_id, properties):
             panel = FacadePanel(document_controller, panel_id, properties)
             ui = FacadeUserInterface(self.__manifest, document_controller.ui)
-            document_controller = FacadeDocumentController(self.__manifest, document_controller)
+            document_controller = FacadeDocumentController(document_controller)
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
