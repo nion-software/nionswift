@@ -364,27 +364,6 @@ class Facade(object):
 
         Application.app.register_menu_handler(build_menus)
 
-    def create_float_rect(self, o, s):
-        return Geometry.FloatRect(o, s)
-
-    def create_float_rect_from_tuple(self, origin_size):
-        return Geometry.FloatRect(origin_size[0], origin_size[1])
-
-    def create_float_rect_from_center_and_size(self, c, s):
-        return Geometry.FloatRect.from_center_and_size(c, s)
-
-    def create_float_point(self, y, x):
-        return Geometry.FloatPoint(y, x)
-
-    def create_float_point_from_tuple(self, y_x):
-        return Geometry.FloatPoint(y_x[0], y_x[1])
-
-    def create_float_size(self, h, w):
-        return Geometry.FloatSize(h, w)
-
-    def create_float_size_from_tuple(self, height_width):
-        return Geometry.FloatSize(height_width[0], height_width[1])
-
     def create_hardware_source(self, hardware_source_delegate):
 
         class FacadeHardwareSource(HardwareSource.HardwareSource):
@@ -411,27 +390,6 @@ class Facade(object):
                 hardware_source_delegate.stop_acquisition()
 
         HardwareSource.HardwareSourceManager().register_hardware_source(FacadeHardwareSource())
-
-    def create_int_rect(self, o, s):
-        return Geometry.IntRect(o, s)
-
-    def create_int_rect_from_tuple(self, origin_size):
-        return Geometry.IntRect(origin_size[0], origin_size[1])
-
-    def create_int_rect_from_center_and_size(self, c, s):
-        return Geometry.IntRect.from_center_and_size(c, s)
-
-    def create_int_point(self, y, x):
-        return Geometry.IntPoint(y, x)
-
-    def create_int_point_from_tuple(self, y_x):
-        return Geometry.IntPoint(y_x[0], y_x[1])
-
-    def create_int_size(self, h, w):
-        return Geometry.IntSize(h, w)
-
-    def create_int_size_from_tuple(self, height_width):
-        return Geometry.IntSize(height_width[0], height_width[1])
 
     def create_panel(self, panel_delegate):
         """Create a utility panel that can be attached to a window.
