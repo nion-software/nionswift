@@ -18,7 +18,17 @@ class RequirementsException(Exception):
         self.reason = reason
 
 
+api_broker_fn = None
+
+def register_api_broker_fn(new_api_broker_fn):
+    global api_broker_fn
+    api_broker_fn = new_api_broker_fn
+
+extensions = []
+
 def load_plug_ins(app, root_dir):
+    global extensions
+
     ui = app.ui
 
     # calculate the relative path of the plug-in folder. this will be different depending on platform.
@@ -61,18 +71,37 @@ def load_plug_ins(app, root_dir):
             plugin_dirs = [d for d in os.listdir(plugins_dir) if os.path.isdir(os.path.join(plugins_dir, d))]
             for plugin_dir in sorted(plugin_dirs):
                 try:
+                    class APIBroker(object):
+                        def get_api(self, *args, **kwargs):
+                            global api_broker_fn
+                            return api_broker_fn(*args, **kwargs)
+
                     # First load the module.
                     module = importlib.import_module(plugin_dir)
-                    # Now scan through the module and look for tests.
+                    # Now scan through the module and look for extensions and tests.
                     tests = []
                     for member in inspect.getmembers(module):
-                        if inspect.ismodule(member[1]) and member[0].endswith("_test"):
+                        if inspect.ismodule(member[1]):
+                            if member[0].endswith("_test"):
+                                for maybe_a_class in inspect.getmembers(member[1]):
+                                    if inspect.isclass(maybe_a_class[1]):
+                                        if maybe_a_class[0].startswith("Test"):
+                                            # It is a class... add it to the test suite.
+                                            tests.append(maybe_a_class[0])
+                                            cls = getattr(member[1], maybe_a_class[0])
+                                            __test_suites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
                             for maybe_a_class in inspect.getmembers(member[1]):
-                                if inspect.isclass(maybe_a_class[1]) and maybe_a_class[0].startswith("Test"):
-                                    # It is a class... add it to the test suite.
-                                    tests.append(maybe_a_class[0])
-                                    cls = getattr(member[1], maybe_a_class[0])
-                                    __test_suites.append(unittest.TestLoader().loadTestsFromTestCase(cls))
+                                if inspect.isclass(maybe_a_class[1]):
+                                    if maybe_a_class[0].endswith("Extension"):
+                                        cls = getattr(member[1], maybe_a_class[0])
+                                        extension_id = getattr(cls, "extension_id", None)
+                                        if extension_id:
+                                            extensions.append(cls(APIBroker()))
+                        if inspect.isclass(member[1]) and member[0].endswith("Extension"):
+                            cls = getattr(module, member[0])
+                            extension_id = getattr(cls, "extension_id", None)
+                            if extension_id:
+                                extensions.append(cls(APIBroker()))
                     plugin_loaded_str = "Plug-in '" + plugin_dir + "' loaded."
                     __modules.append(module)
                     list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
@@ -86,6 +115,15 @@ def load_plug_ins(app, root_dir):
 
     notify_modules("run")
 
+def unload_plug_ins():
+    global extensions
+    for extension in reversed(extensions):
+        try:
+            extension.close()
+        except Exception as e:
+            logging.info(traceback.format_exc())
+
+    extensions = []
 
 def notify_modules(method_name, *args, **kwargs):
     for module in __modules:

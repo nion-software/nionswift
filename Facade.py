@@ -589,7 +589,25 @@ class API_1(object):
                 if data is not None:
                     io_handler_delegate.write_data_and_metadata(data_and_calibration, file_path, extension)
 
-        ImportExportManager.ImportExportManager().register_io_handler(DelegateIOHandler())
+        class IOHandlerReference(object):
+
+            def __init__(self):
+                self.__io_handler_delegate = io_handler_delegate
+                self.__io_handler = DelegateIOHandler()
+                ImportExportManager.ImportExportManager().register_io_handler(self.__io_handler)
+
+            def __del__(self):
+                self.close()
+
+            def close(self):
+                if self.__io_handler_delegate:
+                    io_handler_delegate_close_fn = getattr(self.__io_handler_delegate, "close", None)
+                    if io_handler_delegate_close_fn:
+                       io_handler_delegate_close_fn()
+                    ImportExportManager.ImportExportManager().unregister_io_handler(self.__io_handler)
+                    self.__io_handler_delegate = None
+
+        return IOHandlerReference()
 
     def create_menu_item(self, menu_item_handler):
 
@@ -614,7 +632,25 @@ class API_1(object):
                 menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
                     facade_document_controller), key_sequence=key_sequence)
 
-        Application.app.register_menu_handler(build_menus)
+        class MenuItemReference(object):
+
+            def __init__(self):
+                self.__menu_item_handler = menu_item_handler
+                Application.app.register_menu_handler(build_menus)
+
+            def __del__(self):
+                self.close()
+
+            def close(self):
+                if self.__menu_item_handler:
+                    menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
+                    if menu_item_handler_close_fn:
+                       menu_item_handler_close_fn()
+                    Application.app.unregister_menu_handler(build_menus)
+                    self.__menu_item_handler = None
+
+        return MenuItemReference()
+
 
     def create_hardware_source(self, hardware_source_delegate):
 
@@ -641,7 +677,25 @@ class API_1(object):
             def stop_acquisition(self):
                 hardware_source_delegate.stop_acquisition()
 
-        HardwareSource.HardwareSourceManager().register_hardware_source(FacadeHardwareSource())
+        class HardwareSourceReference(object):
+
+            def __init__(self):
+                self.__hardware_source_delegate = hardware_source_delegate
+                self.__hardware_source = FacadeHardwareSource()
+                HardwareSource.HardwareSourceManager().register_hardware_source(self.__hardware_source)
+
+            def __del__(self):
+                self.close()
+
+            def close(self):
+                if self.__hardware_source_delegate:
+                    hardware_source_delegate_close_fn = getattr(self.__hardware_source_delegate, "close", None)
+                    if hardware_source_delegate_close_fn:
+                       hardware_source_delegate_close_fn()
+                    HardwareSource.HardwareSourceManager().unregister_hardware_source(self.__hardware_source)
+                    self.__hardware_source_delegate = None
+
+        return HardwareSourceReference()
 
     def create_panel(self, panel_delegate):
         """Create a utility panel that can be attached to a window.
@@ -663,6 +717,8 @@ class API_1(object):
         panel_position = getattr(panel_delegate, "panel_position", "none")
         properties = getattr(panel_delegate, "panel_properties", None)
 
+        workspace_manager = Workspace.WorkspaceManager()
+
         def create_facade_panel(document_controller, panel_id, properties):
             panel = FacadePanel(document_controller, panel_id, properties)
             ui = FacadeUserInterface(self.__ui_version, document_controller.ui)
@@ -670,8 +726,24 @@ class API_1(object):
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
-        workspace_manager = Workspace.WorkspaceManager()
-        workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
+        class PanelReference(object):
+
+            def __init__(self):
+                self.__panel_delegate = panel_delegate
+                workspace_manager.register_panel(create_facade_panel, panel_id, panel_name, panel_positions, panel_position, properties)
+
+            def __del__(self):
+                self.close()
+
+            def close(self):
+                if self.__panel_delegate:
+                    panel_delegate_close_fn = getattr(self.__panel_delegate, "close", None)
+                    if panel_delegate_close_fn:
+                       panel_delegate_close_fn()
+                    workspace_manager.unregister_panel(panel_id)
+                    self.__panel_delegate = None
+
+        return PanelReference()
 
     def create_unary_operation(self, unary_operation_delegate):
 
@@ -706,8 +778,26 @@ class API_1(object):
             """ Make menu item for this operation. """
             document_controller.processing_menu.add_menu_item(unary_operation_delegate.operation_name, lambda: apply_operation(document_controller))
 
-        Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
-        Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
+        class OperationReference(object):
+
+            def __init__(self):
+                self.__unary_operation_delegate = unary_operation_delegate
+                Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
+                Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
+
+            def __del__(self):
+                self.close()
+
+            def close(self):
+                if self.__unary_operation_delegate:
+                    unary_operation_delegate_close_fn = getattr(self.__unary_operation_delegate, "close", None)
+                    if unary_operation_delegate_close_fn:
+                       unary_operation_delegate_close_fn()
+                    Operation.OperationManager().unregister_operation(unary_operation_delegate.operation_id)
+                    Application.app.unregister_menu_handler(build_menus)
+                    self.__unary_operation_delegate = None
+
+        return OperationReference()
 
     def get_hardware_source_by_id(self, hardware_source_id):
         return FacadeHardwareSource(HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id))
@@ -728,6 +818,12 @@ def get_api(version, ui_version):
     if Utility.compare_versions(version, actual_version) > 0:
         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
     return API_1(ui_version)
+
+
+# this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
+# for this to work, Facade must be imported early in the startup process.
+def initialize():
+    PlugInManager.register_api_broker_fn(get_api)
 
 
 # TODO: facade panels never get closed

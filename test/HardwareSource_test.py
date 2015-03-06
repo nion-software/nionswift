@@ -418,9 +418,9 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         self.assertFalse(hardware_source.suspended)
         # now start recording
-        hardware_source.sleep = 0.02
+        hardware_source.sleep = 0.04
         hardware_source.start_recording(document_controller.workspace_controller)
-        time.sleep(0.01)  # give recording a chance to start
+        time.sleep(0.02)  # give recording a chance to start
         self.assertTrue(hardware_source.suspended)
         start_time = time.time()
         while hardware_source.is_recording:

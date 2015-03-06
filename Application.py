@@ -80,9 +80,9 @@ class Application(object):
         Test.load_tests()  # after plug-ins are loaded
 
     def deinitialize(self):
+        PlugInManager.unload_plug_ins()
         HardwareSource.HardwareSourceManager().close()
         self.ui.close()
-        # PlugInManager.unload_plug_ins()
 
     def choose_workspace(self):
         documents_dir = self.ui.get_document_location()
