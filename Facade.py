@@ -187,8 +187,9 @@ class FacadePushButtonWidget(object):
 class FacadeUserInterface(object):
 
     def __init__(self, ui_version, ui):
-        if Utility.compare_versions(ui_version, "1.0.0") > 0:
-            raise NotImplementedError("UI version %s is not available." % ui_version)
+        actual_version = "1.0.0"
+        if Utility.compare_versions(ui_version, actual_version) > 0:
+            raise NotImplementedError("UI API requested version %s is greater than %s." % (ui_version, actual_version))
         self.__ui = ui
 
     def create_canvas_widget(self, height=None):
@@ -615,6 +616,9 @@ class Facade(object):
     def get_hardware_source_by_id(self, hardware_source_id):
         return FacadeHardwareSource(HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id))
 
+    def get_hardware_source_api_by_id(self, hardware_source_id, version):
+        return HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id).get_api(version)
+
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
 
@@ -624,8 +628,9 @@ def get_api(version, ui_version):
 
     version is a string in the form "1.0.2".
     """
-    if Utility.compare_versions(version, "1.0.0") > 0:
-        raise NotImplementedError("API version %s is not available." % version)
+    actual_version = "1.0.0"
+    if Utility.compare_versions(version, actual_version) > 0:
+        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
     return Facade(ui_version)
 
 

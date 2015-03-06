@@ -629,6 +629,18 @@ class HardwareSource(object):
 
         yield get_data_element
 
+    def get_api(self, version):
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version, actual_version) > 0:
+            raise NotImplementedError("Hardware Source API requested version %s is greater than %s." % (version, actual_version))
+
+        class HardwareSourceFacade(object):
+
+            def __init__(self):
+                pass
+
+        return HardwareSourceFacade()
+
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
