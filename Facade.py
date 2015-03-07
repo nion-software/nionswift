@@ -365,16 +365,93 @@ class FacadeDataGroup(object):
         raise AttributeError()
 
 
+class FacadeMonitor(object):
+
+    def __init__(self):
+        self.on_data_and_metadata_list_available = None  # frame_index, data_and_metadata_list, frame_parameters
+        self.on_start_playing = None
+        self.on_stop_playing = None
+        self.on_start_recording = None
+        self.on_stop_recording = None
+
+    def close(self):
+        pass
+
+
+class FacadeRecordTask(object):
+
+    def __init__(self):
+        pass
+
+    def close(self):
+        pass
+
+    def grab(self):
+        pass
+
+    def cancel(self):
+        pass
+
+
+class FacadeViewTask(object):
+
+    def __init__(self, hardware_source):
+        self.__hardware_source = hardware_source
+        self.__was_playing = self.__hardware_source.is_playing
+        if not self.__was_playing:
+            self.__hardware_source.start_playing()
+        self.on_will_start_frame = None  # prepare the hardware here
+        self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
+
+    def close(self):
+        if not self.__was_playing:
+            self.__hardware_source.stop_playing()
+
+    def grab_immediate(self):
+        return self.grab_next_to_finish()
+
+    def grab_next_to_finish(self):
+        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+
+    def grab_next_to_start(self):
+        data_elements = self.__hardware_source.get_next_data_elements_to_start()
+        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+
+
 class FacadeHardwareSource(object):
 
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
 
-    def get_data_and_metadata_generator(self, sync=True):
-        return HardwareSource.get_data_and_metadata_generator_by_id(self.__hardware_source.hardware_source_id, sync)
+    def create_monitor(self):
+        pass
 
     def start_playing(self):
         self.__hardware_source.start_playing()
+
+    def create_record_task(self, frame_parameters=None, start=True):
+        pass
+
+    def create_view_task(self, frame_parameters=None, priority=None, start=True):
+        """Create a view task for this hardware source.
+
+        :param frame_parameters: The frame parameters for the view. Pass None for defaults.
+        :type frame_parameters: :py:class:`FrameParameters`
+        :param priority: Pass None for low priority. Pass 1 for high priority.
+        :param start: A boolean indicating whether to immediately start the view.
+
+        Callers should call close on task when finished.
+
+        See :py:class:`ViewTask` for examples of how to use.
+        """
+        assert frame_parameters is None
+        assert priority is None
+        assert start is True
+        return FacadeViewTask(self.__hardware_source)
+
+    def get_frame_info(self, data_and_metadata):
+        pass
 
 
 class FacadeDocumentController(object):
@@ -799,11 +876,9 @@ class API_1(object):
 
         return OperationReference()
 
-    def get_hardware_source_by_id(self, hardware_source_id):
+    def get_hardware_source_by_id(self, hardware_source_id, version):
+        # TODO: Handle how this returns an actual API.
         return FacadeHardwareSource(HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id))
-
-    def get_hardware_source_api_by_id(self, hardware_source_id, version):
-        return HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id).get_api(version)
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
