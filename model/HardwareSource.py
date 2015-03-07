@@ -329,9 +329,7 @@ class HardwareSource(object):
         self.active_view_task_changed_event = Observable.Event()
         self.active_record_task_changed_event = Observable.Event()
         self.__view_task_suspended = False
-        self.__view_task_finished_event_listener = None
         self.__view_data_elements_changed_event_listener = None
-        self.__record_task_finished_event_listener = None
         self.__record_data_elements_changed_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
@@ -367,6 +365,7 @@ class HardwareSource(object):
                 if self.__record_task.is_finished:
                     self.__record_task = None
                     self.active_record_task_changed_event.fire(self.__record_task)
+                    self.recording_state_changed_event.fire(False)
                 self.__acquire_thread_trigger.set()
             # view task gets next priority
             elif self.__view_task:
@@ -386,6 +385,7 @@ class HardwareSource(object):
                 if self.__view_task.is_finished:
                     self.__view_task = None
                     self.active_view_task_changed_event.fire(self.__view_task)
+                    self.playing_state_changed_event.fire(False)
                 self.__acquire_thread_trigger.set()
             if acquire_thread_break:
                 break
@@ -447,8 +447,26 @@ class HardwareSource(object):
     def active_view_task(self):
         return self.__view_task
 
-    def set_active_view_task(self, view_task):
-        pass
+    @property
+    def active_record_task(self):
+        return self.__record_task
+
+    # call this to set the view task
+    # thread safe
+    def set_active_view_task(self, acquisition_task):
+        self.__view_task_suspended = self.is_recording  # start suspended if already recording
+        self.__view_task = acquisition_task
+        self.__acquire_thread_trigger.set()
+        self.active_view_task_changed_event.fire(self.__view_task)
+        self.playing_state_changed_event.fire(True)
+
+    # call this to set the record task
+    # thread safe
+    def set_active_record_task(self, acquisition_task):
+        self.__record_task = acquisition_task
+        self.active_record_task_changed_event.fire(self.__record_task)
+        self.__acquire_thread_trigger.set()
+        self.recording_state_changed_event.fire(True)
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
@@ -531,21 +549,8 @@ class HardwareSource(object):
     def start_playing(self, workspace_controller):
         if not self.is_playing:
             acquisition_task = self.create_acquisition_view_task()
-            def acquire_thread_view_finished():
-                self.playing_state_changed_event.fire(False)
-                self.__view_task_finished_event_listener.close()
-                self.__view_task_finished_event_listener = None
-                self.__view_data_elements_changed_event_listener.close()
-                self.__view_data_elements_changed_event_listener = None
-            def queue_acquire_thread():
-                workspace_controller.document_controller.queue_task(acquire_thread_view_finished)
-            self.__view_task_finished_event_listener = acquisition_task.finished_event.listen(queue_acquire_thread)
             self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, workspace_controller, acquisition_task, dict()))
-            self.__view_task_suspended = self.is_recording  # start suspended if already recording
-            self.__view_task = acquisition_task
-            self.active_view_task_changed_event.fire(self.__view_task)
-            self.__acquire_thread_trigger.set()
-            self.playing_state_changed_event.fire(True)
+            self.set_active_view_task(acquisition_task)
 
     # call this to stop acquisition immediately
     # not thread safe
@@ -564,40 +569,28 @@ class HardwareSource(object):
     # return whether acquisition is running
     @property
     def is_recording(self):
-        acquire_thread_record = self.__record_task  # assignment for lock free thread safety
+        acquire_thread_record = self.active_record_task  # assignment for lock free thread safety
         return acquire_thread_record is not None and not acquire_thread_record.is_finished
 
     # call this to start acquisition
-    # not thread safe
+    # thread safe
     def start_recording(self, workspace_controller):
         if not self.is_recording:
             acquisition_task = self.create_acquisition_record_task()
-            def acquire_thread_record_finished():
-                self.recording_state_changed_event.fire(False)
-                self.__record_task_finished_event_listener.close()
-                self.__record_task_finished_event_listener = None
-                self.__record_data_elements_changed_event_listener.close()
-                self.__record_data_elements_changed_event_listener = None
-            def queue_acquire_thread():
-                workspace_controller.document_controller.queue_task(acquire_thread_record_finished)
-            self.__record_task_finished_event_listener = acquisition_task.finished_event.listen(queue_acquire_thread)
             self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, workspace_controller, acquisition_task, dict()))
-            self.__record_task = acquisition_task
-            self.active_record_task_changed_event.fire(self.__record_task)
-            self.__acquire_thread_trigger.set()
-            self.recording_state_changed_event.fire(True)
+            self.set_active_record_task(acquisition_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_recording(self):
-        acquire_thread_record = self.__record_task
+        acquire_thread_record = self.active_record_task
         if acquire_thread_record:
             acquire_thread_record.abort()
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_recording(self):
-        acquire_thread_record = self.__record_task
+        acquire_thread_record = self.active_record_task
         if acquire_thread_record:
             acquire_thread_record.stop()
 

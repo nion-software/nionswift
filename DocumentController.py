@@ -400,6 +400,7 @@ class DocumentController(Observable.Broadcaster):
         self.__periodic_set.clear_task(key + str(id(self)))
 
     def queue_task(self, task):
+        assert task
         self.__periodic_queue.put(task)
 
     def queue_main_thread_task(self, task):
