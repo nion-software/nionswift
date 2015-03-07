@@ -286,6 +286,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
+        HardwareSource.HardwareSourceManager()._reset()
 
     def tearDown(self):
         pass
@@ -308,6 +309,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
+        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
 
     def __setup_scan_hardware_source(self):
@@ -318,6 +320,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.stages_per_frame = 2
         hardware_source.blanked = False
         hardware_source.positioned = False
+        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
 
     def test_registering_and_unregistering_works_as_expected(self):
@@ -347,69 +350,47 @@ class TestHardwareSourceClass(unittest.TestCase):
     # Search for the tag above when adding tests to this section.
 
     def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquiring_frames_as_partials_with_generator_produces_correct_frame_numbers(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_reuses_same_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_as_partials_reuses_same_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_simple_hardware_start_and_stop_actually_stops_acquisition(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_abort_works_as_expected(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_simple_hardware_start_and_abort_works_as_expected(self, hardware_source, document_controller)
 
     def test_record_only_acquires_one_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = SimpleHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_record_only_acquires_one_item(self, hardware_source, document_controller)
 
     def test_record_during_view_records_one_item_and_keeps_viewing(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_record_during_view_records_one_item_and_keeps_viewing(self, hardware_source, document_controller)
 
     def test_abort_record_during_view_returns_to_view(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_abort_record_during_view_returns_to_view(self, hardware_source, document_controller)
 
     def test_view_reuses_single_data_item(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_view_reuses_single_data_item(self, hardware_source, document_controller)
 
     def test_record_scan_during_view_suspends_the_view(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = ScanHardwareSource()
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         # first start playing
         hardware_source.start_playing(document_controller.workspace_controller)
         start_time = time.time()

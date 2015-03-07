@@ -44,8 +44,8 @@ class HardwareSourceManager(object):
         self.instruments = []
         # we create a list of callbacks for when a hardware
         # source is added or removed
-        self.hardware_source_added_removed = []
-        self.instrument_added_removed = []
+        self.hardware_source_added_event = Observable.Event()
+        self.hardware_source_removed_event = Observable.Event()
         self.aliases_updated = []
         # aliases are shared between hardware sources and instruments
         self.__aliases = {}
@@ -62,34 +62,28 @@ class HardwareSourceManager(object):
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
-        self.hardware_source_added_removed = []
         self.instruments = []
-        self.instrument_added_removed = []
+        self.hardware_source_added_event = Observable.Event()
+        self.hardware_source_removed_event = Observable.Event()
         self.__aliases = {}
 
     def register_hardware_source(self, hardware_source):
         self.hardware_sources.append(hardware_source)
-        for f in self.hardware_source_added_removed:
-            f()
+        self.hardware_source_added_event.fire(hardware_source)
 
     def unregister_hardware_source(self, hardware_source):
         self.hardware_sources.remove(hardware_source)
-        for f in self.hardware_source_added_removed:
-            f()
+        self.hardware_source_removed_event.fire(hardware_source)
 
     def register_instrument(self, instrument_id, instrument):
         instrument.instrument_id = instrument_id
         self.instruments.append(instrument)
-        for f in self.instrument_added_removed:
-            f()
 
     def unregister_instrument(self, instrument_id):
         for instrument in self.instruments:
             if instrument.instrument_id == instrument_id:
                 instrument.instrument_id = None
                 self.instruments.remove(instrument)
-                for f in self.instrument_added_removed:
-                    f()
                 break
 
     def abort_all_and_close(self):
@@ -153,6 +147,8 @@ class HardwareSourceManager(object):
 
 Channel = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_element"])
 
+ChannelData = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area"])
+
 
 class AcquisitionTask(object):
 
@@ -180,7 +176,7 @@ class AcquisitionTask(object):
 
     def __mark_as_finished(self):
         self.__finished = True
-        self.data_elements_changed_event.fire(self.__view_id, list())
+        self.data_elements_changed_event.fire(list())
         self.finished_event.fire()
 
     # called from the hardware source
@@ -247,6 +243,10 @@ class AcquisitionTask(object):
         return self.__stopped
 
     @property
+    def view_id(self):
+        return self.__view_id
+
+    @property
     def is_continuous(self):
         return self.__continuous
 
@@ -270,7 +270,7 @@ class AcquisitionTask(object):
 
         # data_elements should never be empty
         assert data_elements is not None
-        self.data_elements_changed_event.fire(self.__view_id, data_elements)
+        self.data_elements_changed_event.fire(data_elements)
 
         # figure out whether all data elements are complete
         complete = True
@@ -322,6 +322,7 @@ class HardwareSource(object):
         self.playing_state_changed_event = Observable.Event()
         self.recording_state_changed_event = Observable.Event()
         self.data_item_states_changed_event = Observable.Event()
+        self.channels_data_updated_event = Observable.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
@@ -431,10 +432,6 @@ class HardwareSource(object):
     def data_item_states_changed(self, data_item_states):
         pass
 
-    def _notify_data_item_states_changed(self, data_item_states):
-        self.data_item_states_changed_event.fire(data_item_states)
-        self.data_item_states_changed(data_item_states)
-
     # create the view task
     def create_acquisition_view_task(self):
         return AcquisitionTask(self, True)
@@ -454,6 +451,7 @@ class HardwareSource(object):
     # call this to set the view task
     # thread safe
     def set_active_view_task(self, acquisition_task):
+        self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
         self.__view_task_suspended = self.is_recording  # start suspended if already recording
         self.__view_task = acquisition_task
         self.__acquire_thread_trigger.set()
@@ -463,6 +461,7 @@ class HardwareSource(object):
     # call this to set the record task
     # thread safe
     def set_active_record_task(self, acquisition_task):
+        self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
         self.__record_task = acquisition_task
         self.active_record_task_changed_event.fire(self.__record_task)
         self.__acquire_thread_trigger.set()
@@ -470,73 +469,21 @@ class HardwareSource(object):
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
-    def __data_elements_changed(self, workspace_controller, acquisition_task, last_channel_to_data_item_dict, view_id, data_elements):
-
-        # build useful data structures (channel -> data)
-        channels = list()
+    def __data_elements_changed(self, acquisition_task, data_elements):
+        channels_data = list()
         for channel_index, data_element in enumerate(data_elements):
             assert data_element is not None
             channel_id = data_element.get("channel_id")
             channel_name = data_element.get("channel_name")
-            channels.append(Channel(channel_id=channel_id, index=channel_index, name=channel_name, data_element=data_element))
-
-        # sync to data items
-        hardware_source_id = self.hardware_source_id
-        display_name = self.display_name
-        channel_to_data_item_dict = workspace_controller.sync_channels_to_data_items(channels, hardware_source_id, view_id, display_name)
-
-        # these items are now live if we're playing right now. mark as such.
-        for data_item in channel_to_data_item_dict.values():
-            data_item.increment_data_ref_counts()
-            document_model = workspace_controller.document_model
-            document_model.begin_data_item_transaction(data_item)
-            document_model.begin_data_item_live(data_item)
-
-        # update the data items with the new data.
-        data_item_states = []
-        complete = True
-        for channel in channels:
-            channel_index = channel.index
-            data_element = channel.data_element
-            data_item = channel_to_data_item_dict[channel_index]
-            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            data_and_calibration = convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
-            if channel_state != "complete":
-                channel_state = channel_state if not acquisition_task.is_stopping else "marked"
-                complete = False
-            data_item_state = dict()
-            if channel.channel_id is not None:
-                data_item_state["channel_id"] = channel.channel_id
-            data_item_state["data_item"] = data_item
-            data_item_state["channel_state"] = channel_state
-            if "sub_area" in data_element:
-                data_item_state["sub_area"] = data_element["sub_area"]
-            data_item_states.append(data_item_state)
-        self.data_item_states_changed_event.fire(data_item_states)
-        self.data_item_states_changed(data_item_states)
-
-        # these items are no longer live. mark live_data as False.
-        for data_item in last_channel_to_data_item_dict.values():
-            # the order of these two statements is important, at least for now (12/2013)
-            # when the transaction ends, the data will get written to disk, so we need to
-            # make sure it's still in memory. if decrement were to come before the end
-            # of the transaction, the data would be unloaded from memory, losing it forever.
-            document_model = workspace_controller.document_model
-            document_model.end_data_item_transaction(data_item)
-            document_model.end_data_item_live(data_item)
-            data_item.decrement_data_ref_counts()
-
-        # keep the channel to data item map around so that we know what changed between
-        # last iteration and this one. also handle reference counts.
-        last_channel_to_data_item_dict.clear()
-        last_channel_to_data_item_dict.update(channel_to_data_item_dict)
-
-        # let listeners know too (if there are data_elements).
-        if complete and len(data_elements) > 0:
-            if acquisition_task.is_continuous:
-                self.viewed_data_elements_available_event.fire(data_elements)
-            else:
-                self.recorded_data_elements_available_event.fire(data_elements)
+            if channel_state != "complete" and acquisition_task.is_stopping:
+                channel_state = "marked"
+            sub_area = data_element.get("sub_area")
+            channels_data.append(ChannelData(channel_id=channel_id, index=channel_index, name=channel_name,
+                                        data_and_calibration=data_and_calibration, state=channel_state,
+                                        sub_area=sub_area))
+        self.channels_data_updated_event.fire(acquisition_task, channels_data)
 
     # return whether acquisition is running
     @property
@@ -549,7 +496,6 @@ class HardwareSource(object):
     def start_playing(self, workspace_controller):
         if not self.is_playing:
             acquisition_task = self.create_acquisition_view_task()
-            self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, workspace_controller, acquisition_task, dict()))
             self.set_active_view_task(acquisition_task)
 
     # call this to stop acquisition immediately
@@ -577,7 +523,6 @@ class HardwareSource(object):
     def start_recording(self, workspace_controller):
         if not self.is_recording:
             acquisition_task = self.create_acquisition_record_task()
-            self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, workspace_controller, acquisition_task, dict()))
             self.set_active_record_task(acquisition_task)
 
     # call this to stop acquisition immediately
@@ -681,6 +626,24 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
         # error handling not necessary here - occurs above with get_data_element_generator_by_id function
         yield get_last_data
 
+
+def convert_data_and_metadata_to_data_element(data_and_calibration):
+    data_element = dict()
+    data_element["data"] = data_and_calibration.data
+    if data_and_calibration.dimensional_calibrations:
+        spatial_calibrations = list()
+        for dimensional_calibration in data_and_calibration.dimensional_calibrations:
+            spatial_calibrations.append({"offset": dimensional_calibration.offset, "scale": dimensional_calibration.scale,
+            "units": dimensional_calibration.units})
+        data_element["spatial_calibrations"] = spatial_calibrations
+    if data_and_calibration.intensity_calibration:
+        intensity_calibration = data_and_calibration.intensity_calibration
+        data_element["intensity_calibration"] = {"offset": intensity_calibration.offset,
+        "scale": intensity_calibration.scale, "units": intensity_calibration.units}
+    # properties (general tags)
+    properties = data_and_calibration.metadata.get("hardware_source", dict())
+    data_element["properties"] = properties
+    return data_element
 
 def convert_data_element_to_data_and_metadata(data_element):
     data = data_element["data"]

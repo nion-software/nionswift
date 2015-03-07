@@ -1,9 +1,8 @@
 # standard libraries
 import copy
-import cPickle as pickle
+import functools
 import gettext
 import logging
-import sys
 import threading
 import time
 import uuid
@@ -15,6 +14,8 @@ import weakref
 # local libraries
 from nion.swift import DisplayPanel
 from nion.swift.model import DataItem
+from nion.swift.model import HardwareSource
+from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
@@ -81,6 +82,15 @@ class WorkspaceController(object):
         # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
         self.__channel_data_items = dict()  # maps channel to data item
         self.__mutex = threading.RLock()
+
+        self.__channels_data_updated_event_listeners = dict()
+        self.__last_channel_to_data_item_dicts = dict()
+
+        self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(self.__hardware_source_added)
+        self.__hardware_source_removed_event_listener = HardwareSource.HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
+
+        for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
+            self.__hardware_source_added(hardware_source)
 
     def close(self):
         for message_box_widget in copy.copy(self.__message_boxes.values()):
@@ -557,6 +567,77 @@ class WorkspaceController(object):
             else:
                 channel_key = hardware_source_id + "_" + view_id
             self.__channel_data_items[channel_key] = data_item
+
+    def __channels_data_updated(self, hardware_source, acquisition_task, channels_data):
+
+        # sync to data items
+        hardware_source_id = hardware_source.hardware_source_id
+        display_name = hardware_source.display_name
+        channel_to_data_item_dict = self.sync_channels_to_data_items(channels_data, hardware_source_id, acquisition_task.view_id, display_name)
+
+        # these items are now live if we're playing right now. mark as such.
+        for data_item in channel_to_data_item_dict.values():
+            data_item.increment_data_ref_counts()
+            document_model = self.document_model
+            document_model.begin_data_item_transaction(data_item)
+            document_model.begin_data_item_live(data_item)
+
+        # update the data items with the new data.
+        data_elements = []
+        data_item_states = []
+        for channel_data in channels_data:
+            channel_index = channel_data.index
+            data_item = channel_to_data_item_dict[channel_index]
+            # until the whole pipeline is cleaned up, recreate the data_element. guh.
+            data_element = HardwareSource.convert_data_and_metadata_to_data_element(channel_data.data_and_calibration)
+            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
+            data_elements.append(data_element)
+            data_item_state = dict()
+            if channel_data.channel_id is not None:
+                data_item_state["channel_id"] = channel_data.channel_id
+            data_item_state["data_item"] = data_item
+            data_item_state["channel_state"] = channel_data.state
+            if channel_data.sub_area:
+                data_item_state["sub_area"] = channel_data.sub_area
+            data_item_states.append(data_item_state)
+        # temporary until things get cleaned up
+        hardware_source.data_item_states_changed_event.fire(data_item_states)
+        hardware_source.data_item_states_changed(data_item_states)
+
+        last_channel_to_data_item_dict = self.__last_channel_to_data_item_dicts.setdefault(hardware_source.hardware_source_id + str(acquisition_task.is_continuous), dict())
+
+        # these items are no longer live. mark live_data as False.
+        for data_item in last_channel_to_data_item_dict.values():
+            # the order of these two statements is important, at least for now (12/2013)
+            # when the transaction ends, the data will get written to disk, so we need to
+            # make sure it's still in memory. if decrement were to come before the end
+            # of the transaction, the data would be unloaded from memory, losing it forever.
+            document_model = self.document_model
+            document_model.end_data_item_transaction(data_item)
+            document_model.end_data_item_live(data_item)
+            data_item.decrement_data_ref_counts()
+
+        # keep the channel to data item map around so that we know what changed between
+        # last iteration and this one. also handle reference counts.
+        last_channel_to_data_item_dict.clear()
+        last_channel_to_data_item_dict.update(channel_to_data_item_dict)
+
+        complete = len(channels_data) > 0 and all([channel_data.state == "complete" for channel_data in channels_data])
+
+        # let listeners know too (if there are data_elements).
+        if complete:
+            if acquisition_task.is_continuous:
+                hardware_source.viewed_data_elements_available_event.fire(data_elements)
+            else:
+                hardware_source.recorded_data_elements_available_event.fire(data_elements)
+
+    def __hardware_source_added(self, hardware_source):
+        channels_data_updated_event_listener = hardware_source.channels_data_updated_event.listen(functools.partial(self.__channels_data_updated, hardware_source))
+        self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id] = channels_data_updated_event_listener
+
+    def __hardware_source_removed(self, hardware_source):
+        self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id].close()
+        del self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id]
 
     def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
 
