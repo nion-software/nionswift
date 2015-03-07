@@ -373,8 +373,8 @@ class FacadeHardwareSource(object):
     def get_data_and_metadata_generator(self, sync=True):
         return HardwareSource.get_data_and_metadata_generator_by_id(self.__hardware_source.hardware_source_id, sync)
 
-    def start_playing(self, document_controller):
-        self.__hardware_source.start_playing(document_controller._document_controller.workspace_controller)
+    def start_playing(self):
+        self.__hardware_source.start_playing()
 
 
 class FacadeDocumentController(object):

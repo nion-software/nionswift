@@ -128,7 +128,7 @@ class DummyWorkspaceController(object):
 
 
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     # grab the next two (un-synchronized frames) frame 0 and frame 1
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         frame0 = data_element_generator()["properties"]["frame_index"]
@@ -143,7 +143,7 @@ def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcas
     hardware_source.close()
 
 def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_source, document_controller):
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     testcase.assertTrue(hardware_source.is_playing)
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
@@ -162,7 +162,7 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
     hardware_source.close()
 
 def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, hardware_source, document_controller):
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     start_time = time.time()
     while not hardware_source.is_playing:
         time.sleep(0.01)
@@ -175,7 +175,7 @@ def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, ha
     hardware_source.close()
 
 def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_source, document_controller):
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     testcase.assertTrue(hardware_source.is_playing)
     hardware_source.abort_playing()
     start_time = time.time()
@@ -185,7 +185,7 @@ def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_s
     hardware_source.close()
 
 def _test_record_only_acquires_one_item(testcase, hardware_source, document_controller):
-    hardware_source.start_recording(document_controller.workspace_controller)
+    hardware_source.start_recording()
     testcase.assertFalse(hardware_source.is_playing)
     testcase.assertTrue(hardware_source.is_recording)
     start_time = time.time()
@@ -198,12 +198,12 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
     hardware_source.close()
 
 def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardware_source, document_controller):
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     # start playing, grab a few frames
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
         data_element_generator()
-    hardware_source.start_recording(document_controller.workspace_controller)
+    hardware_source.start_recording()
     # wait for recording to start
     start_time = time.time()
     while not hardware_source.is_recording:
@@ -225,12 +225,12 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
     document_controller.periodic()
     # now start recording
-    hardware_source.start_recording(document_controller.workspace_controller)
+    hardware_source.start_recording()
     # wait for recording to start
     start_time = time.time()
     while not hardware_source.is_recording:
@@ -247,7 +247,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     document_model = document_controller.document_model
     testcase.assertEqual(len(document_model.data_items), 0)
     # play the first time
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
     hardware_source.stop_playing()
@@ -262,7 +262,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertFalse(data_item.is_live)
     frame_index = data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
     # play the second time. it should make a copy of the first data item and use the original.
-    hardware_source.start_playing(document_controller.workspace_controller)
+    hardware_source.start_playing()
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
     hardware_source.stop_playing()
@@ -292,7 +292,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         pass
 
     def __acquire_one(self, document_controller, hardware_source):
-        hardware_source.start_playing(document_controller.workspace_controller)
+        hardware_source.start_playing()
         start_time = time.time()
         while not hardware_source.is_playing:
             time.sleep(0.01)
@@ -392,7 +392,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         # first start playing
-        hardware_source.start_playing(document_controller.workspace_controller)
+        hardware_source.start_playing()
         start_time = time.time()
         while not hardware_source.scanning:
             time.sleep(0.01)
@@ -400,7 +400,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertFalse(hardware_source.suspended)
         # now start recording
         hardware_source.sleep = 0.04
-        hardware_source.start_recording(document_controller.workspace_controller)
+        hardware_source.start_recording()
         time.sleep(0.02)  # give recording a chance to start
         self.assertTrue(hardware_source.suspended)
         start_time = time.time()
