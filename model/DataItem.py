@@ -903,6 +903,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
+        self.metadata_changed_event = Observable.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
@@ -1178,6 +1179,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def __metadata_changed(self):
         self.notify_data_item_content_changed(set([METADATA]))
+        self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)

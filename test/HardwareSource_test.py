@@ -111,22 +111,6 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.suspended = False
 
 
-class DummyWorkspaceController(object):
-
-    def __init__(self, document_model):
-        self.document_controller = self  # hack so that document_controller.document_model works
-        self.document_model = document_model
-
-    def sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
-        data_item_set = {}
-        for channel in channels:
-            data_item_set[channel.index] = DataItem.DataItem()
-        return data_item_set
-
-    def queue_task(self, task):
-        pass
-
-
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     # grab the next two (un-synchronized frames) frame 0 and frame 1
@@ -300,6 +284,14 @@ class TestHardwareSourceClass(unittest.TestCase):
         hardware_source.stop_playing()
         start_time = time.time()
         while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.periodic()
+
+    def __record_one(self, document_controller, hardware_source):
+        hardware_source.start_recording()
+        start_time = time.time()
+        while hardware_source.is_recording:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.periodic()
@@ -529,6 +521,17 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.__acquire_one(document_controller, hardware_source)
         self.assertAlmostEqual(buffered_data_source0.data[0, 0], 2.0)
         self.assertAlmostEqual(buffered_data_source1.data[0, 0], 4.0)
+
+    def test_assessed_flag_is_not_set_for_viewed_data(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        self.__acquire_one(document_controller, hardware_source)
+        self.assertIsNone(document_model.data_items[0].metadata.get("assessed"))
+
+    def test_assessed_flag_is_false_for_recorded_data(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        self.__record_one(document_controller, hardware_source)
+        self.assertFalse(document_model.data_items[0].metadata.get("assessed", True))
+
 
 if __name__ == '__main__':
     unittest.main()
