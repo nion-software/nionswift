@@ -292,15 +292,17 @@ class FacadeDataItem(object):
         self.__data_item.maybe_data_source.add_region(region)
         return FacadeRegion(region)
 
-    def add_rectangle_region(self, top, left, height, width):
+    def add_rectangle_region(self, center_y, center_x, height, width):
         region = Region.RectRegion()
-        region.bounds = Geometry.FloatRect(Geometry.FloatPoint(top, left), Geometry.FloatSize(height, width))
+        region.center = Geometry.FloatPoint(center_y, center_x)
+        region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.add_region(region)
         return FacadeRegion(region)
 
-    def add_ellipse_region(self, top, left, height, width):
+    def add_ellipse_region(self, center_y, center_x, height, width):
         region = Region.EllipseRegion()
-        region.bounds = Geometry.FloatRect(Geometry.FloatPoint(top, left), Geometry.FloatSize(height, width))
+        region.center = Geometry.FloatPoint(center_y, center_x)
+        region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.add_region(region)
         return FacadeRegion(region)
 
