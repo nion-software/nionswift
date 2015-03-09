@@ -590,6 +590,8 @@ class WorkspaceController(object):
             data_item = channel_to_data_item_dict[channel_index]
             # until the whole pipeline is cleaned up, recreate the data_element. guh.
             data_element = HardwareSource.convert_data_and_metadata_to_data_element(channel_data.data_and_calibration)
+            if channel_data.sub_area:
+                data_element["sub_area"] = channel_data.sub_area
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             data_elements.append(data_element)
             data_item_state = dict()

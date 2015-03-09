@@ -445,6 +445,24 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["channel_id"], channel_id)
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["view_id"], view_id)
 
+    def test_partial_acquisition_only_updates_sub_area(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        data_item = DataItem.DataItem(np.zeros((256, 256)) + 16)
+        document_model.append_data_item(data_item)
+        document_controller.workspace_controller.setup_channel(hardware_source.hardware_source_id, "a", str(hardware_source.hardware_source_id), data_item)
+        hardware_source.exposure = 0.02
+        hardware_source.start_playing()
+        time.sleep(0.01)
+        hardware_source.abort_playing()
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            self.assertTrue(time.time() - start_time < 3.0)
+        self.assertEqual(len(document_model.data_items), 1)
+        data = document_model.data_items[0].data_sources[0].data
+        self.assertAlmostEqual(data[0, 0], 1.0)
+        self.assertAlmostEqual(data[128, 0], 16.0)
+
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = SimpleHardwareSource().make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
