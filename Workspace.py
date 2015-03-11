@@ -583,7 +583,7 @@ class WorkspaceController(object):
             document_model.begin_data_item_live(data_item)
 
         # update the data items with the new data.
-        data_elements = []
+        data_elements = []  # used to send out data elements available events
         data_item_states = []
         for channel_data in channels_data:
             channel_index = channel_data.index
@@ -593,7 +593,8 @@ class WorkspaceController(object):
             if channel_data.sub_area:
                 data_element["sub_area"] = channel_data.sub_area
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-            data_elements.append(data_element)
+            # make sure to send out the complete frame
+            data_elements.append(HardwareSource.convert_data_and_metadata_to_data_element(data_item.data_sources[0].data_and_calibration))
             data_item_state = dict()
             if channel_data.channel_id is not None:
                 data_item_state["channel_id"] = channel_data.channel_id

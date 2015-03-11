@@ -42,7 +42,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
 class ScanHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self, sleep=0.01):
+    def __init__(self, sleep=0.02):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
         self.sleep = sleep
         self.image = np.zeros((256, 256))
@@ -55,10 +55,16 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.channel_names = ["A", "B"]
         self.channel_enabled = [True, False]
 
-    def make_data_element(self, channel_index=0):
+    def make_data_element(self, channel_index=0, sub_area=None):
+        if sub_area is not None:
+            data = np.zeros(self.image.shape, self.image.dtype)
+            data_slice = slice(sub_area[0][0], sub_area[0][0] + sub_area[1][0]), slice(sub_area[0][1], sub_area[0][1] + sub_area[1][1])
+            data[data_slice] = self.image[data_slice]
+        else:
+            data = self.image.copy()
         return {
             "version": 1,
-            "data": self.image,
+            "data": data,
             "channel_id": self.channel_ids[channel_index],
             "channel_name": self.channel_names[channel_index],
             "properties": {
@@ -75,16 +81,20 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         data_elements = list()
         for channel_index in range(self.channel_count):
             if self.channel_enabled[channel_index]:
-                data_element = self.make_data_element(channel_index)
+                if self.top:
+                    sub_area = (0, 0), (128, 256)
+                else:
+                    sub_area = (128, 0), (256, 256)
+                data_element = self.make_data_element(channel_index, sub_area)
                 if self.top:
                     data_element["state"] = "partial"
-                    data_element["sub_area"] = (0, 0), (128, 256)
+                    data_element["sub_area"] = sub_area
                     data_element["properties"]["complete"] = False
                     data_element["properties"]["frame_index"] = self.frame_index
                     self.frame_index += 1
                 else:
                     data_element["state"] = "complete"
-                    data_element["sub_area"] = (0, 0), (256, 256)
+                    data_element["sub_area"] = sub_area
                     data_element["properties"]["complete"] = True
                     data_element["properties"]["frame_index"] = self.frame_index
                 data_elements.append(data_element)
@@ -98,7 +108,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
             self.sleep = 0.04
             self.top = True
         else:
-            self.sleep = 0.01
+            self.sleep = 0.02
             self.top = True
 
     def stop_acquisition(self):
@@ -113,15 +123,10 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    # grab the next two (un-synchronized frames) frame 0 and frame 1
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        frame0 = data_element_generator()["properties"]["frame_index"]
-        frame1 = data_element_generator()["properties"]["frame_index"]
-    # frame 2 will be in progress. grab the next frame after frame 2.
-    with hardware_source.get_data_element_generator(True) as data_element_generator:
-        frame3 = data_element_generator()["properties"]["frame_index"]
-        # frame 4 will be in progress. next frame to start will be 5.
-        frame5 = data_element_generator()["properties"]["frame_index"]
+    frame0 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
+    frame1 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
+    frame3 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
+    frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
     testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
     hardware_source.abort_playing()
     hardware_source.close()
@@ -265,6 +270,15 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertEqual(frame_index, copied_frame_index)
     hardware_source.close()
 
+def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
+    hardware_source.start_playing()
+    data_element = hardware_source.get_next_data_elements_to_finish()[0]
+    hardware_source.abort_playing()
+    testcase.assertNotEqual(data_element["data"][0, 0], 0)
+    testcase.assertNotEqual(data_element["data"][-1, -1], 0)
+    testcase.assertIsNone(data_element.get("sub_area"))
+    hardware_source.close()
+
 
 class TestHardwareSourceClass(unittest.TestCase):
 
@@ -380,6 +394,10 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_view_reuses_single_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_view_reuses_single_data_item(self, hardware_source, document_controller)
+
+    def test_get_next_data_elements_to_finish_returns_full_frames(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
 
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -515,12 +533,16 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.__acquire_one(document_controller, hardware_source)
         buffered_data_source0 = document_model.data_items[0].data_sources[0]
         buffered_data_source1 = document_model.data_items[1].data_sources[0]
-        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 2.0)  # 2.0 because two part partial acquisition
-        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 2.0)
+        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)  # 1.0 because top half of two part partial acquisition
+        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 1.0)
+        self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
+        self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 2.0)
         hardware_source.channel_enabled = (False, True)
         self.__acquire_one(document_controller, hardware_source)
-        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 2.0)
-        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 4.0)
+        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)
+        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
+        self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)
+        self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
 
     def test_assessed_flag_is_not_set_for_viewed_data(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
