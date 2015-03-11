@@ -199,6 +199,7 @@ class AcquisitionTask(object):
                     # logging.debug("%s aborted", self)
                     self._abort_acquisition()
                     # logging.debug("%s stopped", self)
+                    self._mark_acquisition()
                     self._stop_acquisition()
                     self.__mark_as_finished()
                 # otherwise execute the task
@@ -234,6 +235,7 @@ class AcquisitionTask(object):
     # called from the hardware source
     def stop(self):
         self.__stopped = True
+        self._mark_acquisition()
 
     @property
     def is_aborted(self):
@@ -301,6 +303,9 @@ class AcquisitionTask(object):
 
     def _resume_acquisition(self):
         self.__hardware_source.resume_acquisition()
+
+    def _mark_acquisition(self):
+        self.__hardware_source.mark_acquisition()
 
     def _stop_acquisition(self):
         self.__hardware_source.stop_acquisition()
@@ -414,6 +419,13 @@ class HardwareSource(object):
     # suspend.
     # must be thread safe
     def resume_acquisition(self):
+        pass
+
+    # subclasses can implement this method which is called when acquisition is marked for stopping.
+    # subclasses that feature a continuous mode will need implement this method so that continuous
+    # mode is marked for stopping at the end of the current frame.
+    # must be thread safe
+    def mark_acquisition(self):
         pass
 
     # subclasses can implement this method which is called when acquisition stops.
