@@ -11,6 +11,7 @@
 # standard libraries
 import datetime
 import gettext
+import threading
 
 # third party libraries
 # None
@@ -381,15 +382,29 @@ class FacadeMonitor(object):
 
 
 class FacadeRecordTask(object):
+    def __init__(self, hardware_source, frame_parameters, channels_enabled):
+        self.__hardware_source = hardware_source
+        if frame_parameters:
+            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+        if channels_enabled:
+            self.__hardware_source.set_record_channels_enabled(channels_enabled)
 
-    def __init__(self):
-        pass
+        def record_thread():
+            self.__hardware_source.start_recording()
+            data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+            self.__data_and_metadata_list = [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for
+                data_element in data_elements]
+
+        self.__thread = threading.Thread(target=record_thread)
+        self.__thread.start()
 
     def close(self):
-        pass
+        self.__thread.join()
+        self.__data_and_metadata_list = None
 
     def grab(self):
-        pass
+        self.__thread.join()
+        return self.__data_and_metadata_list
 
     def cancel(self):
         pass
@@ -397,9 +412,15 @@ class FacadeRecordTask(object):
 
 class FacadeViewTask(object):
 
-    def __init__(self, hardware_source):
+    def __init__(self, hardware_source, mode, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
         self.__was_playing = self.__hardware_source.is_playing
+        if mode:
+            self.__hardware_source.set_current_mode(mode)
+        if frame_parameters:
+            self.__hardware_source.set_current_frame_parameters(frame_parameters)
+        if channels_enabled:
+            self.__hardware_source.set_current_channels_enabled(channels_enabled)
         if not self.__was_playing:
             self.__hardware_source.start_playing()
         self.on_will_start_frame = None  # prepare the hardware here
@@ -432,28 +453,58 @@ class FacadeHardwareSource(object):
     def create_monitor(self):
         pass
 
-    def start_playing(self):
+    def get_default_frame_parameters(self):
+        return self.__hardware_source.get_default_frame_parameters()
+
+    def start_playing(self, frame_parameters=None, channels_enabled=None, mode=None):
+        if mode:
+            self.__hardware_source.set_current_mode(mode)
+        if frame_parameters:
+            self.__hardware_source.set_current_frame_parameters(frame_parameters)
+        if channels_enabled:
+            self.__hardware_source.set_current_channels_enabled(channels_enabled)
         self.__hardware_source.start_playing()
 
-    def create_record_task(self, frame_parameters=None, start=True):
-        pass
+    def record(self, frame_parameters=None, channels_enabled=None):
+        if frame_parameters:
+            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+        if channels_enabled:
+            self.__hardware_source.set_record_channels_enabled(channels_enabled)
+        self.__hardware_source.start_recording()
+        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def create_view_task(self, frame_parameters=None, priority=None, start=True):
+    def create_record_task(self, frame_parameters=None, channels_enabled=None):
+        """Create a record task for this hardware source.
+
+        :param frame_parameters: The frame parameters for the record. Pass None for defaults.
+        :type frame_parameters: :py:class:`FrameParameters`
+        :param channels_enabled: The enabled channels for the record. Pass None for defaults.
+        :type channels_enabled: Array of booleans.
+        :return: The :py:class:`ViewTask` object.
+        :rtype: :py:class:`ViewTask`
+
+        Callers should call close on the returned task when finished.
+
+        See :py:class:`ViewTask` for examples of how to use.
+        """
+        return FacadeRecordTask(self.__hardware_source, frame_parameters, channels_enabled)
+
+    def create_view_task(self, mode=None, frame_parameters=None, channels_enabled=None):
         """Create a view task for this hardware source.
 
         :param frame_parameters: The frame parameters for the view. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
-        :param priority: Pass None for low priority. Pass 1 for high priority.
-        :param start: A boolean indicating whether to immediately start the view.
+        :param channels_enabled: The enabled channels for the view. Pass None for defaults.
+        :type channels_enabled: Array of booleans.
+        :return: The :py:class:`ViewTask` object.
+        :rtype: :py:class:`ViewTask`
 
-        Callers should call close on task when finished.
+        Callers should call close on the returned task when finished.
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        assert frame_parameters is None
-        assert priority is None
-        assert start is True
-        return FacadeViewTask(self.__hardware_source)
+        return FacadeViewTask(self.__hardware_source, mode, frame_parameters, channels_enabled)
 
     def get_frame_info(self, data_and_metadata):
         pass
