@@ -885,10 +885,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     Metadata.
     """
 
+    writer_version = 8
+
     def __init__(self, data=None, item_uuid=None):
         super(DataItem, self).__init__()
+        global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.writer_version = 8  # writes this version
+        self.writer_version = DataItem.writer_version  # writes this version
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None

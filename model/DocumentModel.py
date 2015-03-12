@@ -290,10 +290,25 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     """
 
-    def __init__(self, data_reference_handler, log_migrations):
+    def __init__(self, data_reference_handler, ignore_older_files, log_migrations):
         super(ManagedDataItemContext, self).__init__()
         self.__data_reference_handler = data_reference_handler
+        self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
+
+    def read_data_items_version_stats(self):
+        data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
+        count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
+        writer_version = DataItem.DataItem.writer_version
+        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
+            version = properties.get("version", 0)
+            if version < writer_version:
+                count[2] += 1
+            elif version > writer_version:
+                count[1] += 1
+            else:
+                count[0] += 1
+        return count
 
     def read_data_items(self):
         """
@@ -308,6 +323,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             try:
                 version = properties.get("version", 0)
+                if self.__ignore_older_files and version != 8:
+                    version = 9999
                 if version <= 1:
                     if "spatial_calibrations" in properties:
                         properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
@@ -486,8 +503,8 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     properties.pop("datetime_original", None)
                     properties.pop("datetime_modified", None)
                     properties["version"] = 8
-                    # no rewrite needed
-                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    # no rewrite needed, but do it anyway so the user can have a simple understanding of upgrading.
+                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
                     version = 8
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (metadata to data source)", reference, version)
@@ -565,11 +582,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
 
-    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True):
+    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super(DocumentModel, self).__init__()
         self.__thread_pool = ThreadPool.ThreadPool()
         data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
-        self.managed_object_context = ManagedDataItemContext(data_reference_handler, log_migrations)
+        self.managed_object_context = ManagedDataItemContext(data_reference_handler, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.managed_object_context.set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()

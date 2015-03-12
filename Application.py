@@ -35,6 +35,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
 from nion.swift.model import Storage
 from nion.swift.model import Utility
+from nion.ui import Dialog
 
 _ = gettext.gettext
 
@@ -651,8 +652,80 @@ class Application(object):
         else:
             logging.debug("Using existing document %s", lib_filename)
             library_storage = DocumentModel.FilePersistentStorage(lib_filename, create=False)
+        managed_object_context = DocumentModel.ManagedDataItemContext(data_reference_handler, False, False)
+        counts = managed_object_context.read_data_items_version_stats()
+        if counts[2] > 0:
+
+            def do_ignore():
+                logging.debug("do ignore")
+                self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+
+            def do_upgrade():
+                logging.debug("do upgrade")
+                self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, False)
+
+            class UpgradeDialog(Dialog.ActionDialog):
+                def __init__(self, ui):
+                    super(UpgradeDialog, self).__init__(ui)
+
+                    self.add_button(_("Upgrade"), do_upgrade)
+
+                    self.add_button(_("Ignore"), do_ignore)
+
+                    column = self.ui.create_column_widget()
+                    column.add_spacing(12)
+
+                    row_one = self.ui.create_row_widget()
+                    row_one.add_spacing(13)
+                    row_one.add(self.ui.create_label_widget("{0} data items need to be updated.".format(counts[2])))
+                    row_one.add_stretch()
+                    row_one.add_spacing(13)
+                    column.add(row_one)
+                    column.add_spacing(4)
+
+                    row_two = self.ui.create_row_widget()
+                    row_two.add_spacing(13)
+                    row_two.add(self.ui.create_label_widget("{0} data items are newer than this version and won't be loaded.".format(counts[1])))
+                    row_two.add_stretch()
+                    row_two.add_spacing(13)
+                    column.add(row_two)
+                    column.add_spacing(4)
+
+                    row_three = self.ui.create_row_widget()
+                    row_three.add_spacing(13)
+                    row_three.add(self.ui.create_label_widget("{0} data items match this version.".format(counts[0])))
+                    row_three.add_stretch()
+                    row_three.add_spacing(13)
+                    column.add(row_three)
+                    column.add_spacing(4)
+
+                    row_three = self.ui.create_row_widget()
+                    row_three.add_spacing(13)
+                    row_three.add(self.ui.create_label_widget("If you choose to upgrade, the upgraded items will not\nbe able to be loaded in earlier versions.".format(counts[0])))
+                    row_three.add_stretch()
+                    row_three.add_spacing(13)
+                    column.add_spacing(8)
+                    column.add(row_three)
+                    column.add_spacing(4)
+
+                    column.add_spacing(12)
+                    column.add_stretch()
+
+                    self.content.add(column)
+
+            upgrade_dialog = UpgradeDialog(self.ui)
+            upgrade_dialog.show()
+
+        else:
+            self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+
+        return True
+
+    def continue_start(self, cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files):
         storage_cache = Storage.DbStorageCache(cache_filename)
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage,
+                                                     data_reference_handler=data_reference_handler,
+                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
         PlugInManager.notify_modules("document_model_loaded", self, document_model)
@@ -669,7 +742,6 @@ class Application(object):
         if create_new_document and len(document_model.data_items) > 0:
             document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
             document_controller.selected_display_panel.display_canvas_item.set_fill_mode()
-        return True
 
     def get_recent_workspace_file_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
