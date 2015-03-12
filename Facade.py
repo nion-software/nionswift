@@ -389,6 +389,8 @@ class FacadeRecordTask(object):
         if channels_enabled:
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
 
+        self.__data_and_metadata_list = None
+
         def record_thread():
             self.__hardware_source.start_recording()
             data_elements = self.__hardware_source.get_next_data_elements_to_finish()
@@ -401,6 +403,10 @@ class FacadeRecordTask(object):
     def close(self):
         self.__thread.join()
         self.__data_and_metadata_list = None
+
+    @property
+    def is_finished(self):
+        return not self.__thread.is_alive()
 
     def grab(self):
         self.__thread.join()
@@ -508,6 +514,21 @@ class FacadeHardwareSource(object):
 
     def get_frame_info(self, data_and_metadata):
         pass
+
+
+class FacadeInstrument(object):
+
+    def __init__(self, instrument):
+        self.__instrument = instrument
+
+    def close(self):
+        pass
+
+    def get_property(self, property_name):
+        return self.__instrument.values[property_name]
+
+    def set_property(self, property_name, value):
+        self.__instrument.values[property_name] = value
 
 
 class FacadeDocumentController(object):
@@ -939,6 +960,13 @@ class API_1(object):
         hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
         return FacadeHardwareSource(hardware_source)
 
+    def get_instrument_by_id(self, instrument_id, version):
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version, actual_version) > 0:
+            raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
+        instrument = HardwareSource.HardwareSourceManager().get_instrument_by_id(instrument_id)
+        return FacadeInstrument(instrument)
+
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
 
@@ -960,4 +988,4 @@ def initialize():
     PlugInManager.register_api_broker_fn(get_api)
 
 
-# TODO: facade panels never get closed
+# TODO: handle user hitting 'pause' or 'abort' during acquisition tasks
