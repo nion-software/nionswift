@@ -426,6 +426,9 @@ class FacadeHardwareSource(object):
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
 
+    def close(self):
+        pass
+
     def create_monitor(self):
         pass
 
@@ -879,8 +882,11 @@ class API_1(object):
         return OperationReference()
 
     def get_hardware_source_by_id(self, hardware_source_id, version):
-        # TODO: Handle how this returns an actual API.
-        return FacadeHardwareSource(HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id))
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version, actual_version) > 0:
+            raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
+        hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+        return FacadeHardwareSource(hardware_source)
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
