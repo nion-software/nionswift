@@ -127,6 +127,8 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_property("label", changed=self._property_changed)
         self.__region = None
         self.about_to_be_removed_event = Observable.Event()
+        self.label_padding = 4
+        self.label_font = "normal 11px serif"
     def about_to_be_removed(self):
         self.about_to_be_removed_event.fire()
     def _property_changed(self, name, value):
@@ -157,6 +159,15 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         return math.sqrt(pow(p[0] - cp[0], 2) + pow(p[1] - cp[1], 2)) < radius
     def test_inside_bounds(self, bounds, p, radius):
         return p[0] > bounds[0][0] and p[0] <= bounds[0][0] + bounds[1][0] and p[1] > bounds[0][1] and p[1] <= bounds[0][1] + bounds[1][1]
+    def test_label(self, get_font_metrics_fn, mapping, test_point):
+        if self.label:
+            padding = self.label_padding
+            font = self.label_font
+            font_metrics = get_font_metrics_fn(font, self.label)
+            text_pos = self.label_position(mapping, font_metrics, padding)
+            bounds = Geometry.FloatRect.from_center_and_size(text_pos, Geometry.FloatSize(width=font_metrics.width + padding * 2, height=font_metrics.height + padding * 2))
+            return self.test_inside_bounds(bounds, test_point, 2)
+        return False
     def draw_ellipse(self, ctx, cx, cy, rx, ry):
         ctx.save()
         ra = 0.0  # rotation angle
@@ -182,6 +193,31 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         ctx.close_path()
         ctx.fill()
         ctx.restore()
+    def draw_label(self, ctx, get_font_metrics_fn, mapping):
+        if self.label:
+            padding = self.label_padding
+            font = self.label_font
+            font_metrics = get_font_metrics_fn(font, self.label)
+            text_pos = self.label_position(mapping, font_metrics, padding)
+            ctx.begin_path()
+            ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding,
+                        text_pos.y - font_metrics.height * 0.5 - padding)
+            ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
+                        text_pos.y - font_metrics.height * 0.5 - padding)
+            ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding,
+                        text_pos.y + font_metrics.height * 0.5 + padding)
+            ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding,
+                        text_pos.y + font_metrics.height * 0.5 + padding)
+            ctx.close_path()
+            ctx.fill_style = "rgba(255, 255, 255, 0.6)"
+            ctx.fill()
+            ctx.stroke_style = self.color
+            ctx.stroke()
+            ctx.font = font
+            ctx.text_baseline = "middle"
+            ctx.text_align = "center"
+            ctx.fill_style = "#000"
+            ctx.fill_text(self.label, text_pos.x, text_pos.y)
     def notify_set_property(self, key, value):
         super(Graphic, self).notify_set_property(key, value)
         self.notify_listeners("graphic_changed", self)
@@ -189,6 +225,8 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         raise NotImplementedError()
     def notify_remove_region_graphic(self):
         self.notify_listeners("remove_region_graphic", self)
+    def label_position(self, mapping, font_metrics, padding):
+        raise NotImplementedError()
 
 
 class RectangleTypeGraphic(Graphic):
@@ -225,7 +263,7 @@ class RectangleTypeGraphic(Graphic):
         self.bounds = (origin, size)
     size = property(__get_size, __set_size)
     # test point hit
-    def test(self, mapping, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
@@ -386,7 +424,7 @@ class LineTypeGraphic(Graphic):
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
     # test is required for Graphic interface
-    def test(self, mapping, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -548,13 +586,16 @@ class PointTypeGraphic(Graphic):
         # start and end points are stored in image normalized coordinates
         self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
     # test is required for Graphic interface
-    def test(self, mapping, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         cross_hair_size = 12
         p = mapping.map_point_image_norm_to_widget(self.position)
         bounds = Geometry.FloatRect.from_center_and_size(p, Geometry.FloatSize(width=cross_hair_size*2, height=cross_hair_size*2))
         if self.test_inside_bounds(bounds, test_point, 2):
+            return "all"
+        # check the label
+        if self.test_label(get_font_metrics_fn, mapping, test_point):
             return "all"
         # didn't find anything
         return None
@@ -563,9 +604,6 @@ class PointTypeGraphic(Graphic):
     def end_drag(self, part_data):
         pass
     def adjust_part(self, mapping, original, current, part, modifiers):
-        o_image = mapping.map_point_widget_to_image(original)
-        p_image = mapping.map_point_widget_to_image(current)
-        pos_image = mapping.map_point_image_norm_to_image(self.position)
         if part[0] == "all":
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
@@ -583,12 +621,13 @@ class PointTypeGraphic(Graphic):
 class PointGraphic(PointTypeGraphic):
     def __init__(self):
         super(PointGraphic, self).__init__("point-graphic", _("Point"))
+        self.cross_hair_size = 12
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p = mapping.map_point_image_norm_to_widget(self.position)
         ctx.save()
         try:
             ctx.begin_path()
-            cross_hair_size = 12
+            cross_hair_size = self.cross_hair_size
             inner_size = 4
             ctx.move_to(p.x - cross_hair_size, p.y)
             ctx.line_to(p.x - inner_size, p.y)
@@ -601,26 +640,7 @@ class PointGraphic(PointTypeGraphic):
             ctx.line_width = 1
             ctx.stroke_style = self.color
             ctx.stroke()
-            if self.label:
-                padding = 4
-                font = "normal 11px serif"
-                font_metrics = get_font_metrics_fn(font, self.label)
-                text_pos = p + Geometry.FloatPoint(-cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
-                ctx.begin_path()
-                ctx.move_to(text_pos.x - font_metrics.width * 0.5 - padding, text_pos.y - font_metrics.height * 0.5 - padding)
-                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding, text_pos.y - font_metrics.height * 0.5 - padding)
-                ctx.line_to(text_pos.x + font_metrics.width * 0.5 + padding, text_pos.y + font_metrics.height * 0.5 + padding)
-                ctx.line_to(text_pos.x - font_metrics.width * 0.5 - padding, text_pos.y + font_metrics.height * 0.5 + padding)
-                ctx.close_path()
-                ctx.fill_style = "rgba(255, 255, 255, 0.6)"
-                ctx.fill()
-                ctx.stroke_style = self.color
-                ctx.stroke()
-                ctx.font = font
-                ctx.text_baseline = "middle"
-                ctx.text_align = "center"
-                ctx.fill_style = "#000"
-                ctx.fill_text(self.label, text_pos.x, text_pos.y)
+            self.draw_label(ctx, get_font_metrics_fn, mapping)
         finally:
             ctx.restore()
         if is_selected:
@@ -628,6 +648,9 @@ class PointGraphic(PointTypeGraphic):
             self.draw_marker(ctx, p + Geometry.FloatPoint(cross_hair_size, -cross_hair_size))
             self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, cross_hair_size))
             self.draw_marker(ctx, p + Geometry.FloatPoint(-cross_hair_size, -cross_hair_size))
+    def label_position(self, mapping, font_metrics, padding):
+        p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(self.position))
+        return p + Geometry.FloatPoint(-self.cross_hair_size - font_metrics.height * 0.5 - padding * 2, 0.0)
 
 
 class IntervalGraphic(Graphic):
@@ -663,7 +686,7 @@ class IntervalGraphic(Graphic):
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
     # test is required for Graphic interface
-    def test(self, mapping, test_point, move_only):
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         p1 = mapping.map_point_channel_norm_to_widget(self.start)

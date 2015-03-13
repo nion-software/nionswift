@@ -1,4 +1,5 @@
 # standard libraries
+import collections
 import copy
 import logging
 import unittest
@@ -41,14 +42,29 @@ class TestGraphicsClass(unittest.TestCase):
         line_graphic = Graphics.LineGraphic()
         line_graphic.start = (0.25,0.25)
         line_graphic.end = (0.75,0.75)
-        self.assertEqual(line_graphic.test(mapping, (500, 500), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, (250, 250), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, (750, 750), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, (250, 250), move_only=False), "start")
-        self.assertEqual(line_graphic.test(mapping, (750, 750), move_only=False), "end")
-        self.assertIsNone(line_graphic.test(mapping, (240, 240), move_only=False))
-        self.assertIsNone(line_graphic.test(mapping, (760, 760), move_only=False))
-        self.assertIsNone(line_graphic.test(mapping, (0, 0), move_only=False))
+        def get_font_metrics(font, text):
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (500, 500), move_only=True), "all")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True), "all")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=True), "all")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=False), "start")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=False), "end")
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (240, 240), move_only=False))
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (760, 760), move_only=False))
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False))
+
+    def test_point_test(self):
+        mapping = TestGraphicsClass.Mapping((1000, 1000))
+        point_graphic = Graphics.PointGraphic()
+        point_graphic.position = (0.25,0.25)
+        def get_font_metrics(font, text):
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True), "all")
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18, 250), move_only=True), None)
+        point_graphic.label = "Test"
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18 - 6, 250), move_only=True), "all")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
