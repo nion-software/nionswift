@@ -180,8 +180,11 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 if top == 0 and left == 0 and bottom == data.shape[0] and right == data.shape[1]:
                     sub_area = None  # sub-area is specified, but specifies entire data
             data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
-            if data_matches and data_ref.master_data is not None and sub_area is not None:
-                data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+            if data_matches:
+                if sub_area is not None:
+                    data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                else:
+                    data_ref.master_data[:] = data[:]
                 data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
             else:
                 data_ref.master_data = data.copy()
