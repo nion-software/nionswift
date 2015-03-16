@@ -554,6 +554,46 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.__record_one(document_controller, hardware_source)
         self.assertFalse(document_model.data_items[0].metadata.get("assessed", True))
 
+    def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        self.__acquire_one(document_controller, hardware_source)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+        document_controller.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation")
+        document_controller.periodic()
+        document_model.recompute_all()
+        modified = document_model.data_items[1].modified
+        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
+        acq_value = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
+        self.assertEqual(acq_value, 1.0)
+        self.assertEqual(value, -acq_value)
+        self.__acquire_one(document_controller, hardware_source)
+        document_controller.periodic()
+        document_model.recompute_all()
+        self.assertNotEqual(modified, document_model.data_items[1].modified)
+        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
+        acq_value = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
+        self.assertEqual(acq_value, 2.0)
+        self.assertEqual(value, -acq_value)
+
+    def test_restarting_view_after_reload_preserves_dependent_data_connections(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        self.__acquire_one(document_controller, hardware_source)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+        document_controller.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation")
+        document_controller.periodic()
+        document_model.recompute_all()
+        document_model.start_new_session()
+        document_controller.workspace_controller._clear_channel_data_items()
+        self.__acquire_one(document_controller, hardware_source)
+        document_controller.periodic()
+        document_model.recompute_all()
+        self.assertEqual(len(document_model.data_items), 3)
+        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
+        acq_value0 = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
+        acq_value2 = document_model.data_items[2].data_sources[0].data_and_calibration.data[0]
+        self.assertEqual(acq_value0, 2.0)
+        self.assertEqual(acq_value2, 1.0)
+        self.assertEqual(value, -acq_value0)
 
 if __name__ == '__main__':
     unittest.main()

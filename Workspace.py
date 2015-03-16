@@ -14,6 +14,7 @@ import weakref
 # local libraries
 from nion.swift import DisplayPanel
 from nion.swift.model import DataItem
+from nion.swift.model import DataItemsBinding
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
@@ -65,6 +66,11 @@ class WorkspaceController(object):
         self.__content_column.add(self.image_row, fill=True)
         self.filter_row.visible = False
         root_widget.add(self.__content_column)
+
+        self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
+        self.__filtered_data_items_binding.container = self.document_controller.document_model
+        self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
+        self.__filtered_data_items_binding.sort_reverse = True
 
         self.__message_boxes = dict()
 
@@ -642,6 +648,21 @@ class WorkspaceController(object):
         self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id].close()
         del self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id]
 
+    # used for testing
+    def _clear_channel_data_items(self):
+        self.__channel_data_items = dict()
+
+    def __matches_data_item(self, data_item, hardware_source_id, channel_id, view_id):
+        buffered_data_source = data_item.maybe_data_source
+        if buffered_data_source:
+            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+            existing_channel_id = hardware_source_metadata.get("channel_id")
+            existing_view_id = hardware_source_metadata.get("view_id")
+            if existing_hardware_source_id == hardware_source_id and existing_channel_id == channel_id and existing_view_id == view_id:
+                return True
+        return False
+
     def __sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name, is_recording):
 
         # TODO: self.__channel_data_items never gets cleared
@@ -677,20 +698,18 @@ class WorkspaceController(object):
             with self.__mutex:
                 data_item = self.__channel_data_items.get(channel_key)
 
-            buffered_data_source = data_item.maybe_data_source if data_item else None
+            if not data_item:
+                for data_item_i in self.__filtered_data_items_binding.data_items:
+                    if self.__matches_data_item(data_item_i, hardware_source_id, channel_id, view_id):
+                        data_item = data_item_i
+                        break
 
-            # to reuse, first verify that the hardware source id, if any, matches
-            if buffered_data_source:
-                hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-                existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-                existing_channel_id = hardware_source_metadata.get("channel_id")
-                existing_view_id = hardware_source_metadata.get("view_id")
-                if existing_hardware_source_id != hardware_source_id or existing_channel_id != channel_id:
-                    data_item = None
-                if existing_view_id != view_id:
-                    data_item = None
+            if data_item and not self.__matches_data_item(data_item, hardware_source_id, channel_id, view_id):
+                data_item = None
+
             # if everything but session or live state matches, copy it and re-use. this keeps the users display
             # preferences intact.
+            buffered_data_source = data_item.maybe_data_source if data_item else None
             if data_item and buffered_data_source and buffered_data_source.has_data and data_item.session_id != session_id:
                 do_copy = True
             # finally, verify that this data item is live. if it isn't live, copy it and add the copy to the group,

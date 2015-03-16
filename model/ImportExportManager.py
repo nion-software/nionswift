@@ -185,7 +185,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                     data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
                 else:
                     data_ref.master_data[:] = data[:]
-                data_ref.master_data = data_ref.master_data  # trigger change notifications, for lack of better mechanism
+                data_ref.data_updated()  # trigger change notifications
             else:
                 data_ref.master_data = data.copy()
         # spatial calibrations
