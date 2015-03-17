@@ -88,8 +88,12 @@ class LineGraphDataInfo(object):
 
             min_specified = self.data_min is not None
             max_specified = self.data_max is not None
-            raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
-            raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
+            if self.data.shape[0] > 0.0:
+                raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
+                raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
+            else:
+                raw_data_min = 0.0
+                raw_data_max = 0.0
 
             calibrated_data_min = calibration.convert_to_calibrated_value(raw_data_min) if calibration is not None else raw_data_min
             calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max) if calibration is not None else raw_data_max
@@ -198,12 +202,13 @@ class LineGraphDataInfo(object):
         drawn_data_width = x_properties.drawn_right_channel - x_properties.drawn_left_channel
 
         x_ticks = list()
-        for tick_value in x_properties.x_tick_values:
-            label = (u"{0:0." + u"{0:d}".format(x_properties.x_tick_precision) + "f}").format(tick_value)
-            data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
-            x_tick = plot_width * (data_tick - x_properties.drawn_left_channel) / drawn_data_width
-            if x_tick >= 0 and x_tick <= plot_width:
-                x_ticks.append((x_tick, label))
+        if drawn_data_width > 0.0:
+            for tick_value in x_properties.x_tick_values:
+                label = (u"{0:0." + u"{0:d}".format(x_properties.x_tick_precision) + "f}").format(tick_value)
+                data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
+                x_tick = plot_width * (data_tick - x_properties.drawn_left_channel) / drawn_data_width
+                if x_tick >= 0 and x_tick <= plot_width:
+                    x_ticks.append((x_tick, label))
 
         return x_ticks
 

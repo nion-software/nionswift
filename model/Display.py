@@ -476,21 +476,23 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         image = Image.scalar_from_array(image)
         image_height = image.shape[0]
         image_width = image.shape[1]
-        assert image_height > 0 and image_width > 0
-        scaled_height = height if image_height > image_width else height * image_height / image_width
-        scaled_width = width if image_width > image_height else width * image_width / image_height
-        thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-        if numpy.ndim(thumbnail_image) == 2:
-            return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        elif numpy.ndim(thumbnail_image) == 3:
-            data = thumbnail_image
-            if thumbnail_image.shape[2] == 4:
-                return data.view(numpy.uint32).reshape(data.shape[:-1])
-            elif thumbnail_image.shape[2] == 3:
-                rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                rgba[:,:,0:3] = data
-                rgba[:,:,3] = 255
-                return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+        if image_height > 0 and image_width > 0:
+            scaled_height = height if image_height > image_width else height * image_height / image_width
+            scaled_width = width if image_width > image_height else width * image_width / image_height
+            thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
+            if numpy.ndim(thumbnail_image) == 2:
+                return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+            elif numpy.ndim(thumbnail_image) == 3:
+                data = thumbnail_image
+                if thumbnail_image.shape[2] == 4:
+                    return data.view(numpy.uint32).reshape(data.shape[:-1])
+                elif thumbnail_image.shape[2] == 3:
+                    rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+                    rgba[:,:,0:3] = data
+                    rgba[:,:,3] = 255
+                    return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
+        else:
+            return self.get_default_data()
 
 
 def display_factory(lookup_id):

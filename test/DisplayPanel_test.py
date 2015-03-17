@@ -894,6 +894,29 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.image_panel.replace_displayed_data_item_and_display(self.display_specifier)
         self.assertEqual(self.image_panel.display_specifier.data_item, self.data_item)
 
+    def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
+        with self.data_item.maybe_data_source.data_ref() as dr:
+            dr.master_data = numpy.zeros((0, ))
+        # first try basic repaint
+        self.image_panel.display_canvas_item._repaint(self.app.ui.create_offscreen_drawing_context())  # force layout
+        # next try resize
+        self.image_panel.display_canvas_item.root_container.update_layout((0, 0), (500, 600))
+        # thumbnails and processors
+        self.display_specifier.display.get_processor("thumbnail").get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
+        self.document_controller.periodic()
+        self.document_controller.document_model.recompute_all()
+
+    def test_2d_data_with_zero_dimensions_display_fails_without_exception(self):
+        with self.data_item.maybe_data_source.data_ref() as dr:
+            dr.master_data = numpy.zeros((0, 0))
+        # first try basic repaint
+        self.image_panel.display_canvas_item._repaint(self.app.ui.create_offscreen_drawing_context())  # force layout
+        # next try resize
+        self.image_panel.display_canvas_item.root_container.update_layout((0, 0), (500, 600))
+        # thumbnails and processors
+        self.display_specifier.display.get_processor("thumbnail").get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
+        self.document_controller.periodic()
+        self.document_controller.document_model.recompute_all()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
