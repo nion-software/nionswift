@@ -616,12 +616,12 @@ class DocumentController(Observable.Broadcaster):
         if len(selected_data_items) > 1:
             directory = self.ui.get_document_location()
             existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), directory)
-            if directory:
+            if existing_directory:
                 for index, data_item in enumerate(selected_data_items):
                     try:
                         pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape])
                         date_str = data_item.created_local.isoformat().replace(':', '')
-                        path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
+                        path = os.path.join(existing_directory, "Data_{0}_{1}_{2:05d}.dm3".format(date_str, pixel_dimension_str, index))
                         ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
                     except Exception as e:
                         logging.debug("Could not export image %s / %s", str(data_item), str(e))
