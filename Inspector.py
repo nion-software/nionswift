@@ -595,7 +595,7 @@ class CalibratedValueFloatToStringConverter(object):
         return calibration.convert_to_calibrated_value_str(self.__data_size * value)
     def convert_back(self, str):
         calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
+        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / self.__data_size
 
 
 class CalibratedSizeFloatToStringConverter(object):
@@ -611,7 +611,7 @@ class CalibratedSizeFloatToStringConverter(object):
         return calibration.convert_to_calibrated_size_str(self.__data_size * size)
     def convert_back(self, str):
         calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(float(str)) / self.__data_size
+        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / self.__data_size
 
 
 # combine the display calibrated values binding with the calibration values themselves.
@@ -638,7 +638,7 @@ class CalibratedValueBinding(Binding.Binding):
         if display_calibrated_values:
             converted_value = self.converter.convert_back(target_value)
         else:
-            converted_value = float(target_value)
+            converted_value = Converter.FloatToStringConverter().convert_back(target_value)
         self.__value_binding.update_source(converted_value)
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.

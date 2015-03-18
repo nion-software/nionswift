@@ -1,4 +1,5 @@
 # standard libraries
+import locale
 import logging
 import unittest
 
@@ -84,6 +85,30 @@ class TestInspectorClass(unittest.TestCase):
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+
+    def test_float_to_string_converter_strips_units(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        converter = Inspector.CalibratedValueFloatToStringConverter(buffered_data_source, 0, 256)
+        locale.setlocale(locale.LC_ALL, '')
+        self.assertAlmostEqual(converter.convert_back("0.5"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back(".5"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("00.5"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("0.500e0"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("+.5"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("-.5"), -0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("+0.5"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("0.5x"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("x0.5"), 0.0)
+        self.assertAlmostEqual(converter.convert_back(" 0.5 "), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back(""), 0.0)
+        self.assertAlmostEqual(converter.convert_back("  "), 0.0)
+        self.assertAlmostEqual(converter.convert_back(" x"), 0.0)
+        locale.setlocale(locale.LC_ALL, 'de_DE')
+        self.assertAlmostEqual(converter.convert_back("0,500"), 0.5 / 256)
+        self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
