@@ -215,6 +215,8 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
         self.processing_menu.add_menu_item(_("Auto Correlate"), lambda: self.processing_auto_correlate())
         self.processing_menu.add_menu_item(_("Cross Correlate"), lambda: self.processing_cross_correlate())
+        self.processing_menu.add_menu_item(_("Sobel Filter"), lambda: self.processing_sobel())
+        self.processing_menu.add_menu_item(_("Laplace Filter"), lambda: self.processing_laplace())
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
         self.processing_menu.add_menu_item(_("Median Filter"), lambda: self.processing_median_filter())
         self.processing_menu.add_menu_item(_("Uniform Filter"), lambda: self.processing_uniform_filter())
@@ -844,6 +846,14 @@ class DocumentController(Observable.Broadcaster):
             crop_region2 = self.__get_crop_region(display_specifier2)
             return self.add_binary_processing_operation_by_id("cross-correlate-operation", display_specifier1.buffered_data_source_specifier, display_specifier2.buffered_data_source_specifier, prefix=_("Cross Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
         return DataItem.DisplaySpecifier()
+
+    def processing_sobel(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "sobel-operation", prefix=_("Sobel Filter of "))
+
+    def processing_laplace(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "laplace-operation", prefix=_("Laplace Filter of "))
 
     def processing_gaussian_blur(self):
         display_specifier = self.selected_display_specifier

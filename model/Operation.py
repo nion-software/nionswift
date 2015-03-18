@@ -855,6 +855,60 @@ class InvertOperation(Operation):
             return -data[:]
 
 
+class SobelOperation(Operation):
+
+    def __init__(self):
+        super(SobelOperation, self).__init__(_("Sobel"), "sobel-operation")
+
+    def get_processed_data(self, data_sources, values):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
+        if data is None:
+            return None
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.sobel(data[..., 0])
+            rgb[..., 1] = scipy.ndimage.sobel(data[..., 1])
+            rgb[..., 2] = scipy.ndimage.sobel(data[..., 2])
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.sobel(data[..., 0])
+            rgba[..., 1] = scipy.ndimage.sobel(data[..., 1])
+            rgba[..., 2] = scipy.ndimage.sobel(data[..., 2])
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.sobel(data)
+
+
+class LaplaceOperation(Operation):
+
+    def __init__(self):
+        super(LaplaceOperation, self).__init__(_("Laplace"), "laplace-operation")
+
+    def get_processed_data(self, data_sources, values):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
+        if data is None:
+            return None
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.laplace(data[..., 0])
+            rgb[..., 1] = scipy.ndimage.laplace(data[..., 1])
+            rgb[..., 2] = scipy.ndimage.laplace(data[..., 2])
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.laplace(data[..., 0])
+            rgba[..., 1] = scipy.ndimage.laplace(data[..., 1])
+            rgba[..., 2] = scipy.ndimage.laplace(data[..., 2])
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.laplace(data)
+
+
 class GaussianBlurOperation(Operation):
 
     def __init__(self):
@@ -1442,6 +1496,8 @@ OperationManager().register_operation("inverse-fft-operation", lambda: IFFTOpera
 OperationManager().register_operation("auto-correlate-operation", lambda: AutoCorrelateOperation())
 OperationManager().register_operation("cross-correlate-operation", lambda: CrossCorrelateOperation())
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())
+OperationManager().register_operation("sobel-operation", lambda: SobelOperation())
+OperationManager().register_operation("laplace-operation", lambda: LaplaceOperation())
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
 OperationManager().register_operation("median-filter-operation", lambda: MedianFilterOperation())
 OperationManager().register_operation("uniform-filter-operation", lambda: UniformFilterOperation())
