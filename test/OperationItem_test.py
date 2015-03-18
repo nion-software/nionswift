@@ -76,8 +76,15 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_complex, Operation.OperationItem("inverse-fft-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("invert-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("gaussian-blur-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("median-filter-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("uniform-filter-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("histogram-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("convert-to-scalar-operation")))
+        transpose_operation = Operation.OperationItem("transpose-flip-operation")
+        transpose_operation.transpose = True
+        transpose_operation.flip_horizontal = True
+        transpose_operation.flip_vertical = True
+        operation_list.append((data_item_real, transpose_operation))
 
         for source_data_item, operation in operation_list:
             operation.add_data_source(source_data_item._create_test_data_source())
@@ -104,8 +111,14 @@ class TestOperationClass(unittest.TestCase):
         operation_list.append((data_item_real, Operation.OperationItem("invert-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("auto-correlate-operation")))
         operation_list.append((data_item_real, Operation.OperationItem("gaussian-blur-operation")))
-        crop_2d_operation = Operation.OperationItem("crop-operation")
-        operation_list.append((data_item_real, crop_2d_operation))
+        operation_list.append((data_item_real, Operation.OperationItem("median-filter-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("uniform-filter-operation")))
+        operation_list.append((data_item_real, Operation.OperationItem("crop-operation")))
+        transpose_operation = Operation.OperationItem("transpose-flip-operation")
+        transpose_operation.transpose = True
+        transpose_operation.flip_horizontal = True
+        transpose_operation.flip_vertical = True
+        operation_list.append((data_item_real, transpose_operation))
         resample_2d_operation = Operation.OperationItem("resample-operation")
         resample_2d_operation.width = 128
         resample_2d_operation.height = 128
@@ -163,8 +176,14 @@ class TestOperationClass(unittest.TestCase):
         operation_list = []
         operation_list.append((data_item_rgb, Operation.OperationItem("invert-operation")))
         operation_list.append((data_item_rgb, Operation.OperationItem("gaussian-blur-operation")))
-        crop_2d_operation = Operation.OperationItem("crop-operation")
-        operation_list.append((data_item_rgb, crop_2d_operation))
+        operation_list.append((data_item_rgb, Operation.OperationItem("median-filter-operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("uniform-filter-operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("crop-operation")))
+        transpose_operation = Operation.OperationItem("transpose-flip-operation")
+        transpose_operation.transpose = True
+        transpose_operation.flip_horizontal = True
+        transpose_operation.flip_vertical = True
+        operation_list.append((data_item_rgb, transpose_operation))
         resample_2d_operation = Operation.OperationItem("resample-operation")
         resample_2d_operation.width = 128
         resample_2d_operation.height = 128
@@ -198,8 +217,14 @@ class TestOperationClass(unittest.TestCase):
         operation_list = []
         operation_list.append((data_item_rgb, Operation.OperationItem("invert-operation")))
         operation_list.append((data_item_rgb, Operation.OperationItem("gaussian-blur-operation")))
-        crop_2d_operation = Operation.OperationItem("crop-operation")
-        operation_list.append((data_item_rgb, crop_2d_operation))
+        operation_list.append((data_item_rgb, Operation.OperationItem("median-filter-operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("uniform-filter-operation")))
+        operation_list.append((data_item_rgb, Operation.OperationItem("crop-operation")))
+        transpose_operation = Operation.OperationItem("transpose-flip-operation")
+        transpose_operation.transpose = True
+        transpose_operation.flip_horizontal = True
+        transpose_operation.flip_vertical = True
+        operation_list.append((data_item_rgb, transpose_operation))
         resample_2d_operation = Operation.OperationItem("resample-operation")
         resample_2d_operation.width = 128
         resample_2d_operation.height = 128

@@ -216,6 +216,9 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Auto Correlate"), lambda: self.processing_auto_correlate())
         self.processing_menu.add_menu_item(_("Cross Correlate"), lambda: self.processing_cross_correlate())
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
+        self.processing_menu.add_menu_item(_("Median Filter"), lambda: self.processing_median_filter())
+        self.processing_menu.add_menu_item(_("Uniform Filter"), lambda: self.processing_uniform_filter())
+        self.processing_menu.add_menu_item(_("Transpose and Flip"), lambda: self.processing_transpose_flip())
         self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
         self.processing_menu.add_menu_item(_("Slice"), lambda: self.processing_slice())
@@ -845,6 +848,18 @@ class DocumentController(Observable.Broadcaster):
     def processing_gaussian_blur(self):
         display_specifier = self.selected_display_specifier
         return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "gaussian-blur-operation", prefix=_("Gaussian Blur of "))
+
+    def processing_median_filter(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "median-filter-operation", prefix=_("Median Filter of "))
+
+    def processing_uniform_filter(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "uniform-filter-operation", prefix=_("Uniform Filter of "))
+
+    def processing_transpose_flip(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "transpose-flip-operation", prefix=_("Transpose/Flip of "))
 
     def processing_resample(self):
         display_specifier = self.selected_display_specifier

@@ -871,6 +871,125 @@ class GaussianBlurOperation(Operation):
         return scipy.ndimage.gaussian_filter(data, sigma=10*values.get("sigma"))
 
 
+class MedianFilterOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Size"), "property": "size", "type": "integer-field", "default": 3 }
+        ]
+        super(MedianFilterOperation, self).__init__(_("Median Filter"), "median-filter-operation", description)
+
+    def get_processed_data(self, data_sources, values):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
+        if data is None:
+            return None
+        size = max(min(values.get("size"), 999), 1)
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
+            rgb[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
+            rgb[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
+            rgba[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
+            rgba[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.median_filter(data, size=size)
+
+
+class UniformFilterOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Size"), "property": "size", "type": "integer-field", "default": 3 }
+        ]
+        super(UniformFilterOperation, self).__init__(_("Uniform Filter"), "uniform-filter-operation", description)
+
+    def get_processed_data(self, data_sources, values):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
+        if data is None:
+            return None
+        size = max(min(values.get("size"), 999), 1)
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
+            rgb[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
+            rgb[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
+            rgba[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
+            rgba[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.uniform_filter(data, size=size)
+
+
+class TransposeFlipOperation(Operation):
+
+    def __init__(self):
+        description = [
+            { "name": _("Transpose"), "property": "transpose", "type": "boolean-checkbox", "default": False },
+            { "name": _("Flip Horizontal"), "property": "flip_horizontal", "type": "boolean-checkbox", "default": False },
+            { "name": _("Flip Vertical"), "property": "flip_vertical", "type": "boolean-checkbox", "default": False }
+        ]
+        super(TransposeFlipOperation, self).__init__(_("Transpose/Flip"), "transpose-flip-operation", description)
+
+    def get_processed_dimensional_calibrations(self, data_sources, values):
+        if len(data_sources) > 0:
+            dimensional_calibrations = data_sources[0].dimensional_calibrations
+            if values.get("transpose"):
+                dimensional_calibrations = list(reversed(data_sources[0].dimensional_calibrations))
+            else:
+                dimensional_calibrations = data_sources[0].dimensional_calibrations
+            return dimensional_calibrations
+        return None
+
+    def get_processed_data_shape_and_dtype(self, data_sources, values):
+        if len(data_sources) > 0:
+            data_shape = data_sources[0].data_shape
+            data_dtype = data_sources[0].data_dtype
+            if data_shape is None or data_dtype is None:
+                return None
+            if values.get("transpose"):
+                if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+                    data_shape = list(reversed(data_shape[0:2])) + [data_shape[-1],]
+                else:
+                    data_shape = list(reversed(data_shape))
+            return data_shape, data_dtype
+        return None
+
+    def get_processed_data(self, data_sources, values):
+        assert(len(data_sources) == 1)
+        data = data_sources[0].data
+        data_id = id(data)
+        if data is None:
+            return None
+        flip_horizontal = values.get("flip_horizontal")
+        flip_vertical = values.get("flip_vertical")
+        transpose = values.get("transpose")
+        if transpose:
+            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+                data = numpy.transpose(data, [1,0,2])
+            else:
+                data = numpy.transpose(data, [1,0])
+        if flip_horizontal:
+            data = numpy.fliplr(data)
+        if flip_vertical:
+            data = numpy.flipud(data)
+        if id(data) == data_id:  # ensure real data, not a view
+            data = data.copy()
+        return data
+
+
 class Crop2dOperation(Operation):
 
     def __init__(self):
@@ -1324,6 +1443,9 @@ OperationManager().register_operation("auto-correlate-operation", lambda: AutoCo
 OperationManager().register_operation("cross-correlate-operation", lambda: CrossCorrelateOperation())
 OperationManager().register_operation("invert-operation", lambda: InvertOperation())
 OperationManager().register_operation("gaussian-blur-operation", lambda: GaussianBlurOperation())
+OperationManager().register_operation("median-filter-operation", lambda: MedianFilterOperation())
+OperationManager().register_operation("uniform-filter-operation", lambda: UniformFilterOperation())
+OperationManager().register_operation("transpose-flip-operation", lambda: TransposeFlipOperation())
 OperationManager().register_operation("crop-operation", lambda: Crop2dOperation())
 OperationManager().register_operation("slice-operation", lambda: Slice3dOperation())
 OperationManager().register_operation("pick-operation", lambda: Pick3dOperation())

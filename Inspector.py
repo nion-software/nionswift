@@ -895,6 +895,14 @@ class OperationsInspectorSection(InspectorSection):
                 row_widget.add_stretch()
                 operation_widget.add_spacing(4)
                 operation_widget.add(row_widget)
+            elif type == "boolean-checkbox":
+                row_widget = self.ui.create_row_widget()
+                check_box_widget = self.ui.create_check_box_widget(name)
+                check_box_widget.bind_check_state(Operation.OperationPropertyBinding(operation, property, converter=Converter.CheckedToCheckStateConverter()))
+                row_widget.add(check_box_widget)
+                row_widget.add_stretch()
+                operation_widget.add_spacing(4)
+                operation_widget.add(row_widget)
             elif type == "slice-center-field":
                 row_widget = self.ui.create_row_widget()
                 label_widget = self.ui.create_label_widget(name)
