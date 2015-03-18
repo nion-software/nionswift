@@ -411,8 +411,7 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             self._set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
-        if Image.is_data_3d(data):
-            data = self.item.preview_2d_data
+        data = self.item.preview_2d_data
         display_range = self.item.display_range  # may be None
         histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
         histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
