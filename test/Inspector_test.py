@@ -106,9 +106,12 @@ class TestInspectorClass(unittest.TestCase):
         self.assertAlmostEqual(converter.convert_back(""), 0.0)
         self.assertAlmostEqual(converter.convert_back("  "), 0.0)
         self.assertAlmostEqual(converter.convert_back(" x"), 0.0)
-        locale.setlocale(locale.LC_ALL, 'de_DE')
-        self.assertAlmostEqual(converter.convert_back("0,500"), 0.5 / 256)
-        self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
+        try:
+            locale.setlocale(locale.LC_ALL, 'de_DE')
+            self.assertAlmostEqual(converter.convert_back("0,500"), 0.5 / 256)
+            self.assertAlmostEqual(converter.convert_back("0.500"), 0.5 / 256)
+        except locale.Error as e:
+            pass
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
