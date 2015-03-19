@@ -807,7 +807,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def create_sample_images(self, resources_path):
         if True:
             data_group = self.get_or_create_data_group(_("Example Data"))
-            handler = ImportExportManager.NDataImportExportHandler(None, ["ndata1"])
+            handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", None, ["ndata1"])
             samples_dir = os.path.join(resources_path, "SampleImages")
             #logging.debug("Looking in %s", samples_dir)
             def is_ndata(file_path):

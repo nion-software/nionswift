@@ -14,6 +14,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Image
+from nion.swift.model import Operation
 from nion.swift.model import Utility
 
 
@@ -31,7 +32,8 @@ class ImportExportHandler(object):
     """
 
     # Extensions should not include a period.
-    def __init__(self, name, extensions):
+    def __init__(self, io_handler_id, name, extensions):
+        self.io_handler_id = io_handler_id
         self.name = name
         self.extensions = extensions
 
@@ -58,7 +60,7 @@ class ImportExportHandler(object):
     def read_data_elements(self, ui, extension, file_path):
         return None
 
-    def can_write(self, data_item, extension):
+    def can_write(self, data_and_calibration, extension):
         return False
 
     def write(self, ui, data_item, path, extension):
@@ -97,13 +99,32 @@ class ImportExportManager(object):
                 readers.append(io_handler)
         return readers
 
-    def get_writers_for_data_item(self, data_item):
+    def get_writers(self):
         writers = []
         for io_handler in self.__io_handlers:
+            if io_handler.can_read():
+                writers.append(io_handler)
+        return writers
+
+    def get_writer_by_id(self, io_handler_id):
+        for io_handler in self.__io_handlers:
+            if io_handler.io_handler_id == io_handler_id:
+                return io_handler
+        return None
+
+    def get_writers_for_data_item(self, data_item):
+        writers = []
+        data_and_calibration = Operation.DataAndCalibration(lambda: numpy.zeros((64, 64), numpy.float),
+                                                            (64, 64), numpy.float,
+                                                            Calibration.Calibration(),
+                                                            [Calibration.Calibration(),
+                                                                Calibration.Calibration()], dict(),
+                                                            datetime.datetime.utcnow())
+
+        for io_handler in self.__io_handlers:
             for extension in io_handler.extensions:
-                if io_handler.can_write(data_item, string.lower(extension)):
+                if io_handler.can_write(data_and_calibration, string.lower(extension)):
                     writers.append(io_handler)
-                    break  # from iterating extensions
         return writers
 
     # read file, return data items
@@ -128,13 +149,23 @@ class ImportExportManager(object):
                     return io_handler.read_data_elements(ui, extension, path)
         return None
 
+    def write_data_items_with_writer(self, ui, writer, data_item, path):
+        root, extension = os.path.splitext(path)
+        if extension:
+            extension = extension[1:]  # remove the leading "."
+            extension = string.lower(extension)
+            buffered_data_source = data_item.maybe_data_source
+            if extension in writer.extensions and buffered_data_source and writer.can_write(buffered_data_source.data_and_calibration, extension):
+                writer.write(ui, data_item, path, extension)
+
     def write_data_items(self, ui, data_item, path):
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = string.lower(extension)
             for io_handler in self.__io_handlers:
-                if extension in io_handler.extensions and io_handler.can_write(data_item, extension):
+                buffered_data_source = data_item.maybe_data_source
+                if extension in io_handler.extensions and buffered_data_source and io_handler.can_write(buffered_data_source.data_and_calibration, extension):
                     io_handler.write(ui, data_item, path, extension)
 
 
@@ -294,8 +325,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
 
 class StandardImportExportHandler(ImportExportHandler):
 
-    def __init__(self, name, extensions):
-        super(StandardImportExportHandler, self).__init__(name, extensions)
+    def __init__(self, io_handler_id, name, extensions):
+        super(StandardImportExportHandler, self).__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, ui, extension, path):
         data = None
@@ -317,8 +348,8 @@ class StandardImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_item, extension):
-        return data_item.maybe_data_source and len(data_item.maybe_data_source.dimensional_shape) == 2
+    def can_write(self, data_and_calibration, extension):
+        return len(data_and_calibration.dimensional_shape) == 2
 
     def write(self, ui, data_item, path, extension):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -329,8 +360,8 @@ class StandardImportExportHandler(ImportExportHandler):
 
 class CSVImportExportHandler(ImportExportHandler):
 
-    def __init__(self, name, extensions):
-        super(CSVImportExportHandler, self).__init__(name, extensions)
+    def __init__(self, io_handler_id, name, extensions):
+        super(CSVImportExportHandler, self).__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, ui, extension, path):
         data = numpy.loadtxt(path, delimiter=',')
@@ -351,8 +382,8 @@ class CSVImportExportHandler(ImportExportHandler):
 
 class NDataImportExportHandler(ImportExportHandler):
 
-    def __init__(self, name, extensions):
-        super(NDataImportExportHandler, self).__init__(name, extensions)
+    def __init__(self, io_handler_id, name, extensions):
+        super(NDataImportExportHandler, self).__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, ui, extension, path):
         zip_file = zipfile.ZipFile(path, 'r')
@@ -369,7 +400,7 @@ class NDataImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_item, extension):
+    def can_write(self, data_and_calibration, extension):
         return True
 
     def write(self, ui, data_item, path, extension):
@@ -391,8 +422,8 @@ class NDataImportExportHandler(ImportExportHandler):
                 os.remove(data_path)
 
 
-ImportExportManager().register_io_handler(StandardImportExportHandler("JPEG", ["jpg", "jpeg"]))
-ImportExportManager().register_io_handler(StandardImportExportHandler("PNG", ["png"]))
-#ImportExportManager().register_io_handler(StandardImportExportHandler("TIFF", ["tif", "tiff"]))
-ImportExportManager().register_io_handler(CSVImportExportHandler("CSV", ["csv"]))
-ImportExportManager().register_io_handler(NDataImportExportHandler("NData", ["ndata1"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("jpeg-io-handler", "JPEG", ["jpg", "jpeg"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("png-io-handler", "PNG", ["png"]))
+#ImportExportManager().register_io_handler(StandardImportExportHandler("tiff-io-handler", "TIFF", ["tif", "tiff"]))
+ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler", "CSV", ["csv"]))
+ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))

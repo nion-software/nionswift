@@ -657,11 +657,9 @@ class Application(object):
         if counts[2] > 0:
 
             def do_ignore():
-                logging.debug("do ignore")
                 self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
 
             def do_upgrade():
-                logging.debug("do upgrade")
                 self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, False)
 
             class UpgradeDialog(Dialog.ActionDialog):

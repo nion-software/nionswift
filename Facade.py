@@ -719,7 +719,7 @@ class API_1(object):
         """
         class DelegateIOHandler(ImportExportManager.ImportExportHandler):
             def __init__(self):
-                super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
+                super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
 
             def read_data_elements(self, ui, extension, file_path):
                 data_and_calibration = io_handler_delegate.read_data_and_metadata(extension, file_path)
@@ -734,8 +734,8 @@ class API_1(object):
                 data_element["properties"] = data_and_calibration.metadata.get("hardware_source", dict())
                 return [data_element]
 
-            def can_write(self, data_item, extension):
-                return data_item.maybe_data_source and io_handler_delegate.can_write_data_and_metadata(data_item.maybe_data_source.data_and_calibration, extension)
+            def can_write(self, data_and_calibration, extension):
+                return io_handler_delegate.can_write_data_and_metadata(data_and_calibration, extension)
 
             def write(self, ui, data_item, file_path, extension):
                 data_and_calibration = data_item.maybe_data_source.data_and_calibration

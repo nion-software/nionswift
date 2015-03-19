@@ -58,7 +58,7 @@ class TestImportExportManagerClass(unittest.TestCase):
     def test_ndata_write_to_then_read_from_temp_file(self):
         current_working_directory = os.getcwd()
         file_path = os.path.join(current_working_directory, "__file.ndata")
-        handler = ImportExportManager.NDataImportExportHandler("ndata", ["ndata"])
+        handler = ImportExportManager.NDataImportExportHandler("ndata1-io-handler", "ndata", ["ndata"])
         data_item = DataItem.DataItem(numpy.zeros((16, 16), dtype=numpy.double))
         handler.write(None, data_item, file_path, "ndata")
         self.assertTrue(os.path.exists(file_path))
