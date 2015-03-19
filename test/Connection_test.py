@@ -78,7 +78,6 @@ class TestConnectionClass(unittest.TestCase):
         document_controller.close()
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify it read back
         data_item_3d = document_model.data_items[0]
         data_item_1d = document_model.data_items[1]

@@ -5,6 +5,7 @@ import gettext
 import logging
 import os
 import threading
+import time
 import weakref
 
 # third party libraries
@@ -19,7 +20,6 @@ from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
-from nion.swift.model import Utility
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -896,6 +896,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__transaction_count_mutex = threading.RLock()
         self.managed_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
+        # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
+        time.sleep(0.001)
         self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
