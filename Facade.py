@@ -591,6 +591,18 @@ class DataAndMetadataIOHandlerInterface(object):
     """An interface for an IO handler delegate. Implement each of the methods and properties, as required."""
 
     @property
+    def io_hander_id(self):
+        """Unique identifier of the IO handler. This will be used to uniquely identify this IO handler.
+
+        An example identifier might be "my.company.example.1".
+
+        :rtype: str
+
+        .. versionadded:: 1.0
+        """
+        raise AttributeError()
+
+    @property
     def io_hander_name(self):
         """Name of the IO handler. This will appear to the user.
 
@@ -652,7 +664,8 @@ class DataAndMetadataIOHandlerInterface(object):
 class API_1(object):
     """An interface to Nion Swift.
 
-    This should not be instantiated directly. Use Facade.get_api(version) instead.
+    This class cannot be instantiated directly. Use :samp:`api_broker.get_api(version)` to get access an instance of
+    this class.
     """
 
     # GOALS
