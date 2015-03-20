@@ -1,5 +1,6 @@
 import datetime
 import logging
+import threading
 import time
 import unittest
 
@@ -50,6 +51,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.top = True
         self.scanning = False
         self.suspended = False
+        self.suspend_event = threading.Event()
         self.channel_count = 2
         self.channel_ids = ["a", "b"]
         self.channel_names = ["A", "B"]
@@ -116,6 +118,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def suspend_acquisition(self):
         self.suspended = True
+        self.suspend_event.set()
 
     def resume_acquisition(self):
         self.suspended = False
@@ -411,7 +414,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         # now start recording
         hardware_source.sleep = 0.06
         hardware_source.start_recording()
-        time.sleep(0.04)  # give recording a chance to start
+        hardware_source.suspend_event.wait(3.0)
         self.assertTrue(hardware_source.suspended)
         start_time = time.time()
         while hardware_source.is_recording:
