@@ -4,6 +4,7 @@ import functools
 import gettext
 import logging
 import threading
+import time
 import uuid
 import weakref
 
@@ -195,6 +196,7 @@ class DataListController(object):
         # moved to the main thread via this object.
         self.__changed_display_items = False
         self.__changed_display_items_mutex = threading.RLock()
+        self.__changed_display_items_last = 0
         self.on_delete_display_items = None
         self.on_selection_changed = None
         self.on_display_item_double_clicked = None
@@ -247,8 +249,13 @@ class DataListController(object):
     def periodic(self):
         # handle the 'changed' stuff
         with self.__changed_display_items_mutex:
-            changed_display_items = self.__changed_display_items
-            self.__changed_display_items = False
+            current_time = time.time()
+            if current_time - self.__changed_display_items_last > 0.5:
+                changed_display_items = self.__changed_display_items
+                self.__changed_display_items = False
+                self.__changed_display_items_last = current_time
+            else:
+                changed_display_items = False
         if changed_display_items:
             self.list_model_controller.data_changed()
 
