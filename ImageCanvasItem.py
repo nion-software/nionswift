@@ -8,6 +8,7 @@ import numpy
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
+from nion.ui import Observable
 
 
 class ImageCanvasItemMapping(object):
@@ -270,6 +271,9 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
 
+        # metrics
+        self._metric_update_event = Observable.Event()
+
     def close(self):
         # call super
         super(ImageCanvasItem, self).close()
@@ -292,6 +296,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                     Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                     self.__display_frame_rate_last_index = frame_index
                 Utility.fps_tick("update_"+self.__display_frame_rate_id)
+            self._metric_update_event.fire()
         else:
             self.__data_and_calibration = None
             self.__graphics = list()

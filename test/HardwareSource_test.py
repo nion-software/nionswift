@@ -1,10 +1,11 @@
+import contextlib
 import datetime
 import logging
 import threading
 import time
 import unittest
 
-import numpy as np
+import numpy
 
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -20,7 +21,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
     def __init__(self, sleep=0.05):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
         self.sleep = sleep
-        self.image = np.zeros(256)
+        self.image = numpy.zeros(256)
 
     def make_data_element(self):
         return {
@@ -46,7 +47,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
     def __init__(self, sleep=0.02):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
         self.sleep = sleep
-        self.image = np.zeros((256, 256))
+        self.image = numpy.zeros((256, 256))
         self.frame_index = 0
         self.top = True
         self.scanning = False
@@ -59,7 +60,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def make_data_element(self, channel_index=0, sub_area=None):
         if sub_area is not None:
-            data = np.zeros(self.image.shape, self.image.dtype)
+            data = numpy.zeros(self.image.shape, self.image.dtype)
             data_slice = slice(sub_area[0][0], sub_area[0][0] + sub_area[1][0]), slice(sub_area[0][1], sub_area[0][1] + sub_area[1][1])
             data[data_slice] = self.image[data_slice]
         else:
@@ -434,7 +435,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         hardware_source_id = hardware_source.hardware_source_id
         self.assertEqual(len(document_model.data_items), 0)
-        data_item = DataItem.DataItem(np.ones(256) + 1)
+        data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
         document_controller.workspace_controller.setup_channel(hardware_source_id, None, hardware_source_id, data_item)
         # at this point the data item contains 2.0. the acquisition will produce a 1.0.
@@ -450,7 +451,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         channel_id = "aaa"
         view_id = "bbb"
         self.assertEqual(len(document_model.data_items), 0)
-        data_item = DataItem.DataItem(np.ones(256) + 1)
+        data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
         document_controller.workspace_controller.setup_channel(hardware_source_id, channel_id, view_id, data_item)
         # these tags are required for the workspace to work right. not sure how else to test this.
@@ -460,7 +461,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_partial_acquisition_only_updates_sub_area(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        data_item = DataItem.DataItem(np.zeros((256, 256)) + 16)
+        data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
         document_model.append_data_item(data_item)
         document_controller.workspace_controller.setup_channel(hardware_source.hardware_source_id, "a", str(hardware_source.hardware_source_id), data_item)
         hardware_source.exposure = 0.02
@@ -614,6 +615,19 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
         self.assertEqual(len(document_model.data_items), 2)
         document_controller.close()
+
+    def test_single_frame_acquisition_generates_single_canvas_update_event(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        hardware_source.image = numpy.ones((4, 4))
+        display_panel = document_controller.selected_display_panel
+        self.__acquire_one(document_controller, hardware_source)
+        display_panel.set_displayed_data_item(document_model.data_items[0])
+        count_ref = [0]
+        def metric_update():
+            count_ref[0] += 1
+        with contextlib.closing(display_panel.display_canvas_item._metric_update_event.listen(metric_update)):
+            self.__acquire_one(document_controller, hardware_source)
+        self.assertEqual(count_ref[0], 1)
 
 if __name__ == '__main__':
     unittest.main()
