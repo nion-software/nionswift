@@ -99,6 +99,13 @@ class WorkspaceController(object):
             self.__hardware_source_added(hardware_source)
 
     def close(self):
+        self.__hardware_source_added_event_listener.close()
+        self.__hardware_source_added_event_listener = None
+        self.__hardware_source_removed_event_listener.close()
+        self.__hardware_source_removed_event_listener = None
+        for hardware_source_id in self.__channels_data_updated_event_listeners:
+            self.__channels_data_updated_event_listeners[hardware_source_id].close()
+        self.__channels_data_updated_event_listeners = None
         for message_box_widget in copy.copy(self.__message_boxes.values()):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
