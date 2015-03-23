@@ -12,6 +12,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 
@@ -145,6 +146,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
         self.__graphics = list()
         self.__graphic_selection = set()
 
+        # frame rate
+        self.__display_frame_rate_id = None
+        self.__display_frame_rate_last_index = 0
+
     def close(self):
         # call super
         super(LinePlotCanvasItem, self).close()
@@ -161,6 +166,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__left_channel = display_properties["left_channel"]
             self.__right_channel = display_properties["right_channel"]
             self.__display_calibrated_values = display_calibrated_values
+            if self.__display_frame_rate_id:
+                frame_index = data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
+                if frame_index != self.__display_frame_rate_last_index:
+                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                    self.__display_frame_rate_last_index = frame_index
+                Utility.fps_tick("update_"+self.__display_frame_rate_id)
         else:
             self.__data_and_calibration = None
             self.__y_min = None
@@ -248,7 +259,37 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
 
     def _repaint(self, drawing_context):
         self.prepare_display()
+
         super(LinePlotCanvasItem, self)._repaint(drawing_context)
+
+        if self.__display_frame_rate_id:
+            fps = Utility.fps_tick("display_"+self.__display_frame_rate_id)
+            fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
+            fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
+
+            rect = self.canvas_bounds
+
+            drawing_context.save()
+            try:
+                font = "normal 11px serif"
+                text_pos = Geometry.IntPoint(y=rect[0][0], x=rect[0][1] + rect[1][1] - 100)
+                drawing_context.begin_path()
+                drawing_context.move_to(text_pos.x, text_pos.y)
+                drawing_context.line_to(text_pos.x + 100, text_pos.y)
+                drawing_context.line_to(text_pos.x + 100, text_pos.y + 60)
+                drawing_context.line_to(text_pos.x, text_pos.y + 60)
+                drawing_context.close_path()
+                drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
+                drawing_context.fill()
+                drawing_context.font = font
+                drawing_context.text_baseline = "middle"
+                drawing_context.text_align = "left"
+                drawing_context.fill_style = "#000"
+                drawing_context.fill_text("display:" + str(int(fps*10)/10.0), text_pos.x + 8, text_pos.y + 10)
+                drawing_context.fill_text("frame:" + str(int(fps2*10)/10.0), text_pos.x + 8, text_pos.y + 30)
+                drawing_context.fill_text("update:" + str(int(fps3*10)/10.0), text_pos.x + 8, text_pos.y + 50)
+            finally:
+                drawing_context.restore()
 
     def __update_data_info(self, data_info):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
@@ -365,6 +406,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=-amount))
             elif key.is_right_arrow:
                 self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=amount))
+            return True
+        if key.key == 70 and key.modifiers.control and key.modifiers.alt:
+            if self.__display_frame_rate_id is None:
+                self.__display_frame_rate_id = str(id(self))
+            else:
+                self.__display_frame_rate_id = None
             return True
         return self.delegate.key_pressed(key)
 

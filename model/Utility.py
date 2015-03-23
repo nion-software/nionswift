@@ -174,3 +174,20 @@ def compare_versions(version1, version2):
         elif version_component1 < version_component2:
             return -1
     return 0
+
+
+def fps_tick(fps_id):
+    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0])
+    v[0] += 1
+    next_time = time.time()
+    v[1] += next_time - v[2] if v[2] is not None else 0.0
+    if v[1] > 1.0:
+        v[3] = v[0] / v[1]
+        v[0] = 0
+        v[1] -= 1.0
+    v[2] = next_time
+    return fps_get(fps_id)
+
+def fps_get(fps_id):
+    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0])
+    return v[3]
