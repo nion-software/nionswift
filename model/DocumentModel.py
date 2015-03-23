@@ -318,7 +318,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         on each of the data items.
         """
         data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
-        data_items = list()
+        data_items_by_uuid = dict()
         v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
         for data_item_uuid, properties, reference_type, reference in data_item_tuples:
             try:
@@ -528,7 +528,9 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     data_item.read_from_dict(persistent_storage.properties)
                     self.set_persistent_storage_for_object(data_item, persistent_storage)
                     data_item.managed_object_context = self
-                    data_items.append(data_item)
+                    if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                        logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                    data_items_by_uuid[data_item.uuid] = data_item
             except Exception as e:
                 logging.debug("Error reading %s (uuid=%s)", reference, data_item_uuid)
                 import traceback
@@ -536,6 +538,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 traceback.print_stack()
         def sort_by_date_key(data_item):
             return data_item.created
+        data_items = data_items_by_uuid.values()
         data_items.sort(key=sort_by_date_key)
         return data_items
 

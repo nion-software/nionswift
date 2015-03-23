@@ -1,9 +1,10 @@
 # standard libraries
+import copy
 import logging
 import unittest
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import Application
@@ -58,6 +59,24 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model.remove_data_item(data_item1)
         self.assertEqual(data_group.counted_data_items[data_item1], 0)
         self.assertEqual(data_group.counted_data_items[data_item2], 1)
+
+    def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+        document_model.append_data_item(data_item)
+        document_model.close()
+        # modify data reference to have duplicate
+        old_data_key = data_reference_handler.data.keys()[0]
+        new_data_key = "2000" + old_data_key[4:]
+        old_properties_key = data_reference_handler.properties.keys()[0]
+        new_properties_key = "2000" + old_properties_key[4:]
+        data_reference_handler.data[new_data_key] = copy.deepcopy(data_reference_handler.data[old_data_key])
+        data_reference_handler.properties[new_properties_key] = copy.deepcopy(data_reference_handler.properties[old_properties_key])
+        # reload and verify
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
+        self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+        self.assertEqual(len(document_model.data_items), 1)
 
 if __name__ == '__main__':
     unittest.main()
