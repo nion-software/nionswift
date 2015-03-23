@@ -280,6 +280,16 @@ class TestDataItemClass(unittest.TestCase):
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
         self.assertEqual(len(display_specifier2.display.graphics), 1)
 
+    def test_deepcopy_data_item_should_produce_new_uuid(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item_copy = copy.deepcopy(data_item)
+        self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
+
+    def test_copy_data_item_should_raise_exception(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        with self.assertRaises(AssertionError):
+            copy.copy(data_item)
+
     def disabled_test_data_item_data_changed(self):
         # it is not currently possible to have fine grained control of what type of data has changed
         # disabling this test until that capability re-appears.

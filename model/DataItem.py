@@ -925,6 +925,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.created_local_as_string)
 
+    def __copy__(self):
+        assert False
+
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         # metadata
