@@ -13,7 +13,7 @@ class Calibration(object):
 
     """
         Represents a transformation from one coordinate system to another.
-        
+
         Uses a transformation x' = x * scale + offset
     """
 
