@@ -894,6 +894,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.writer_version = DataItem.writer_version  # writes this version
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
+        self.__pending_write = True
         self.managed_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
@@ -1004,8 +1005,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = False
-            if self.modified_count > self.__write_delay_modified_count:
+            if self.__pending_write or self.modified_count > self.__write_delay_modified_count:
                 self.managed_object_context.write_data_item(self)
+            self.__pending_write = False
 
     def _begin_transaction(self):
         """Begin transaction state.
@@ -1091,6 +1093,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.remove_data_source(data_source)
             super(DataItem, self).read_from_dict(properties)
             self.__data_item_changes = set()
+        self.__pending_write = False
 
     @property
     def properties(self):

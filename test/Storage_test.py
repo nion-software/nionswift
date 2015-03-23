@@ -1383,6 +1383,11 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
         document_model.append_data_item(data_item)
+        # force a write and verify
+        document_model.begin_data_item_transaction(data_item)
+        document_model.end_data_item_transaction(data_item)
+        self.assertEqual(len(data_reference_handler.properties.keys()), 1)
+        # continue with test
         data_item._set_modified(modified)
         self.assertEqual(document_model.data_items[0].modified, modified)
         # now clear the data_reference_handler and see if it gets written again

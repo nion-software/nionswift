@@ -313,8 +313,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.periodic()
 
-    def __setup_simple_hardware_source(self):
-        document_model = DocumentModel.DocumentModel()
+    def __setup_simple_hardware_source(self, data_reference_handler=None):
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
@@ -597,6 +597,23 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(acq_value0, 2.0)
         self.assertEqual(acq_value2, 1.0)
         self.assertEqual(value, -acq_value0)
+
+    def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(data_reference_handler=data_reference_handler)
+        document_model.session_id = "20000630-150200"
+        self.__acquire_one(document_controller, hardware_source)
+        self.assertEqual(len(document_model.data_items), 1)
+        document_model.session_id = "20000630-150201"
+        self.__acquire_one(document_controller, hardware_source)
+        self.assertEqual(len(document_model.data_items), 2)
+        document_controller.close()
+        # reload
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+        self.assertEqual(len(document_model.data_items), 2)
+        document_controller.close()
 
 if __name__ == '__main__':
     unittest.main()

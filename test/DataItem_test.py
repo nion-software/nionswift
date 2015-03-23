@@ -1417,6 +1417,41 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(document_model.data_items[0].modified, modified)
         self.assertEqual(document_model.data_items[1].modified, modified)
 
+    def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+        with document_model.data_item_transaction(data_item):
+            document_model.append_data_item(data_item)
+            self.assertEqual(len(data_reference_handler.data.keys()), 0)
+        self.assertEqual(len(data_reference_handler.data.keys()), 1)
+        document_model.close()
+
+    def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+        with document_model.data_item_transaction(data_item):
+            data_item.session_id = "20000630-150200"
+            document_model.append_data_item(data_item)
+            self.assertEqual(len(data_reference_handler.data.keys()), 0)
+            data_item.session_id = "20000630-150201"
+        self.assertEqual(len(data_reference_handler.data.keys()), 1)
+        document_model.close()
+
+    def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
+        with document_model.data_item_transaction(data_item):
+            data_item.session_id = "20000630-150200"
+            document_model.append_data_item(data_item)
+        self.assertEqual(len(data_reference_handler.data.keys()), 1)
+        with document_model.data_item_transaction(data_item):
+            data_item.session_id = "20000630-150201"
+        self.assertEqual(len(data_reference_handler.data.keys()), 1)
+        document_model.close()
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 

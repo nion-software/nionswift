@@ -542,8 +542,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """
         properties = data_item.write_to_dict()
-        persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
-        self.set_persistent_storage_for_object(data_item, persistent_storage)
+        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        if not persistent_storage:
+            persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
+            self.set_persistent_storage_for_object(data_item, persistent_storage)
+        data_item.managed_object_context_changed()
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
@@ -660,8 +663,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
         data_item.storage_cache = self.storage_cache
-        self.managed_object_context.write_data_item(data_item)
         data_item.managed_object_context = self.managed_object_context
+        self.managed_object_context.write_data_item(data_item)
         #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
