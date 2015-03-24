@@ -184,7 +184,7 @@ def fps_tick(fps_id):
     if v[1] > 1.0:
         v[3] = v[0] / v[1]
         v[0] = 0
-        v[1] -= 1.0
+        v[1] = 0.0
     v[2] = next_time
     return fps_get(fps_id)
 

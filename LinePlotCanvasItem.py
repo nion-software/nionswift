@@ -286,9 +286,9 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.text_baseline = "middle"
                 drawing_context.text_align = "left"
                 drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + str(int(fps*10)/10.0), text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + str(int(fps2*10)/10.0), text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + str(int(fps3*10)/10.0), text_pos.x + 8, text_pos.y + 50)
+                drawing_context.fill_text("display:" + str(int(fps*100)/100.0), text_pos.x + 8, text_pos.y + 10)
+                drawing_context.fill_text("frame:" + str(int(fps2*100)/100.0), text_pos.x + 8, text_pos.y + 30)
+                drawing_context.fill_text("update:" + str(int(fps3*100)/100.0), text_pos.x + 8, text_pos.y + 50)
             finally:
                 drawing_context.restore()
 
