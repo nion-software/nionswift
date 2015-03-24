@@ -18,7 +18,6 @@ import numpy
 
 # local libraries
 from nion.swift.model import DataItem
-from nion.swift.model import Operation
 
 
 class DataNode(object):
@@ -136,6 +135,9 @@ def min(data_node):
 
 def max(data_node):
     return ScalarDataNode(numpy.amax(data_node.data))
+
+def range(data_node):
+    return ScalarDataNode(numpy.amax(data_node.data) - numpy.amin(data_node.data))
 
 def median(data_node):
     return ScalarDataNode(numpy.median(data_node.data))
