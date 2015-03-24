@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import copy
 import datetime
 import gc
@@ -318,21 +319,15 @@ class TestDataItemClass(unittest.TestCase):
             def __init__(self):
                 self.reset()
             def reset(self):
-                self._data_changed = False
                 self._display_changed = False
             def data_item_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
-            def display_changed(self, display):
-                self._display_changed = True
         listener = Listener()
         data_item.add_listener(listener)
-        display_specifier.display.add_listener(listener)
         listener2 = Listener()
         data_item2.add_listener(listener2)
-        display_specifier2.display.add_listener(listener2)
         listener3 = Listener()
         data_item3.add_listener(listener3)
-        display_specifier3.display.add_listener(listener3)
         listeners = (listener, listener2, listener3)
         # changing the master data of the source should trigger a data changed message
         # subsequently that should trigger a changed message for dependent items
@@ -415,20 +410,20 @@ class TestDataItemClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         class Listener(object):
             def __init__(self):
-                self._display_changed = False
                 self._data_changed = False
             def data_item_content_changed(self, data_item, changes):
                 self._data_changed = DataItem.DATA in changes
-            def display_changed(self, display):
-                self._display_changed = True
         listener = Listener()
         data_item.add_listener(listener)
-        display_specifier.display.add_listener(listener)
-        spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
-        spatial_calibration_0.offset = 1.0
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
-        self.assertFalse(listener._data_changed)
-        self.assertTrue(listener._display_changed)
+        display_changed_ref = [False]
+        def display_changed():
+            display_changed_ref[0] = True
+        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+            spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
+            spatial_calibration_0.offset = 1.0
+            display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
+            self.assertFalse(listener._data_changed)
+            self.assertTrue(display_changed_ref[0])
 
     def test_appending_data_item_should_trigger_recompute(self):
         document_model = DocumentModel.DocumentModel()
@@ -754,56 +749,46 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
 
     def test_updating_operation_graphic_property_notifies_data_item(self):
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._display_changed = False
-            def display_changed(self, display):
-                self._display_changed = True
+        display_changed_ref = [False]
+        def display_changed():
+            display_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        listener = Listener()
-        display_specifier.display.add_listener(listener)
-        data_item_crop = DataItem.DataItem()
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-        crop_operation.add_data_source(data_item._create_test_data_source())
-        data_item_crop.set_operation(crop_operation)
-        document_model.append_data_item(data_item_crop)
-        listener.reset()
-        display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        self.assertTrue(listener._display_changed)
+        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+            data_item_crop = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
+            crop_operation.add_data_source(data_item._create_test_data_source())
+            data_item_crop.set_operation(crop_operation)
+            document_model.append_data_item(data_item_crop)
+            display_changed_ref[0] = False
+            display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+            self.assertTrue(display_changed_ref[0])
 
     # necessary to make inspector display updated values properly
     def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._display_changed = False
-            def display_changed(self, display):
-                self._display_changed = True
+        display_changed_ref = [False]
+        def display_changed():
+            display_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_model.append_data_item(data_item)
-        listener = Listener()
-        display_specifier.display.add_listener(listener)
-        data_item_crop = DataItem.DataItem()
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-        crop_operation.add_data_source(data_item._create_test_data_source())
-        data_item_crop.set_operation(crop_operation)
-        document_model.append_data_item(data_item_crop)
-        display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        listener.reset()
-        display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
-        self.assertTrue(listener._display_changed)
+        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+            data_item_crop = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
+            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
+            crop_operation.add_data_source(data_item._create_test_data_source())
+            data_item_crop.set_operation(crop_operation)
+            document_model.append_data_item(data_item_crop)
+            display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+            display_changed_ref[0] = False
+            display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+            self.assertTrue(display_changed_ref[0])
 
     def test_updating_region_bounds_updates_crop_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -888,26 +873,21 @@ class TestDataItemClass(unittest.TestCase):
 
     # necessary to make inspector display updated values properly
     def test_adding_region_generates_display_changed(self):
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._display_changed = False
-            def display_changed(self, display):
-                self._display_changed = True
+        display_changed_ref = [False]
+        def display_changed():
+            display_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        listener = Listener()
-        display_specifier.display.add_listener(listener)
-        crop_region = Region.RectRegion()
-        buffered_data_source = display_specifier.buffered_data_source
-        buffered_data_source.add_region(crop_region)
-        self.assertTrue(listener._display_changed)
-        listener.reset()
-        buffered_data_source.remove_region(crop_region)
-        self.assertTrue(listener._display_changed)
+        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+            crop_region = Region.RectRegion()
+            buffered_data_source = display_specifier.buffered_data_source
+            buffered_data_source.add_region(crop_region)
+            self.assertTrue(display_changed_ref[0])
+            display_changed_ref[0] = False
+            buffered_data_source.remove_region(crop_region)
+            self.assertTrue(display_changed_ref[0])
 
     def test_data_source_connects_if_added_after_data_item_is_already_in_document(self):
         document_model = DocumentModel.DocumentModel()

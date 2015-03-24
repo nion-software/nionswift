@@ -128,6 +128,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.graphic_selection = GraphicSelection()
         self.graphic_selection.add_listener(self)
         self.about_to_be_removed_event = Observable.Event()
+        self.display_changed_event = Observable.Event()
+        self.display_graphic_selection_changed_event = Observable.Event()
 
     def close(self):
         for processor in self.__processors.values():
@@ -139,9 +141,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.graphic_selection.remove_listener(self)
         self.graphic_selection = None
 
+    # TODO: remove graphic_selection_changed method
     def graphic_selection_changed(self, graphic_selection):
         """ This message comes from the graphic selection object. Notify our listeners too. """
-        self.notify_listeners("display_graphic_selection_changed", self, graphic_selection)
+        self.display_graphic_selection_changed_event.fire(graphic_selection)
 
     def get_processor(self, processor_id):
         # check for case where we might already be closed. not pretty.
@@ -252,7 +255,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.notify_set_property(property_name, value)
         self.__preview_data = None
         self.__preview = None
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     def __get_lookup_table(self):
         return self.__lookup
@@ -261,7 +264,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__lookup = lookup
         self.__preview_data = None
         self.__preview = None
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     lookup_table = property(__get_lookup_table, __set_lookup_table)
 
@@ -313,7 +316,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__data_and_calibration = data_and_calibration
         self.__preview_data = None
         self.__preview = None
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
         # clear the processor caches
         if not self._is_reading:
             for processor in self.__processors.values():
@@ -324,7 +327,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         before_index = len(self.__drawn_graphics)
         self.__drawn_graphics.insert(before_index, region_graphic)
         self.graphic_selection.insert_index(before_index)
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     def remove_region_graphic(self, region_graphic):
         if region_graphic in self.__drawn_graphics:
@@ -337,14 +340,14 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
             self.graphic_selection.remove_index(index)
-            self.notify_listeners("display_changed", self)
+            self.display_changed_event.fire()
 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
         item.add_observer(self)
         self.__drawn_graphics.insert(before_index, item)
         self.graphic_selection.insert_index(before_index)
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     def __remove_graphic(self, name, index, item):
         item.remove_listener(self)
@@ -352,7 +355,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         index = self.__drawn_graphics.index(item)
         self.__drawn_graphics.remove(item)
         self.graphic_selection.remove_index(index)
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """
@@ -380,7 +383,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
     def graphic_changed(self, graphic):
-        self.notify_listeners("display_changed", self)
+        self.display_changed_event.fire()
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):

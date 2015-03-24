@@ -1231,8 +1231,9 @@ class SelectedDisplayBinding(Observable.Broadcaster):
     """
     def __init__(self, document_controller):
         super(SelectedDisplayBinding, self).__init__()
-        self.__display_specifier = DataItem.DisplaySpecifier()
         self.document_controller = document_controller
+        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__display_changed_event_listener = None
         # connect self as listener. this will result in calls to selected_display_specifier_changed
         self.document_controller.add_listener(self)
         # initialize with the existing value
@@ -1242,8 +1243,9 @@ class SelectedDisplayBinding(Observable.Broadcaster):
         # disconnect self as listener
         self.document_controller.remove_listener(self)
         # disconnect data item
-        if self.__display_specifier.display:
-            self.__display_specifier.display.remove_listener(self)
+        if self.__display_changed_event_listener:
+            self.__display_changed_event_listener.close()
+            self.__display_changed_event_listener = None
         # release references
         self.__display_specifier = DataItem.DisplaySpecifier()
 
@@ -1255,18 +1257,15 @@ class SelectedDisplayBinding(Observable.Broadcaster):
     def selected_display_specifier_changed(self, display_specifier):
         if self.__display_specifier != display_specifier:
             # disconnect listener from display
-            if self.__display_specifier.display:
-                self.__display_specifier.display.remove_listener(self)
+            if self.__display_changed_event_listener:
+                self.__display_changed_event_listener.close()
+                self.__display_changed_event_listener = None
             # save the new state
             self.__display_specifier = copy.copy(display_specifier)
             # connect listener to display
+            def display_changed():
+                self.notify_listeners("selected_display_binding_changed", self.__display_specifier)
             if self.__display_specifier.display:
-                self.__display_specifier.display.add_listener(self)
+                self.__display_changed_event_listener = self.__display_specifier.display.display_changed_event.listen(display_changed)
             # notify our listeners
-            self.notify_display_changed()
-
-    # this message is received from the display (if there is one) when it changes.
-    # it is established using add_listener
-    # thread safe
-    def display_changed(self, display):
-        self.notify_display_changed()
+            display_changed()

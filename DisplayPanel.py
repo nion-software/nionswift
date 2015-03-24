@@ -1,6 +1,6 @@
 # standard libraries
 import copy
-import datetime
+import functools
 import gettext
 import uuid
 import weakref
@@ -269,6 +269,8 @@ class DisplayPanel(object):
         self.__weak_workspace = None
 
         self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__display_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
 
         class ContentCanvasItem(CanvasItem.CanvasItemComposition):
 
@@ -464,13 +466,19 @@ class DisplayPanel(object):
         # track data item in this class to report changes
         if self.__display_specifier.buffered_data_source:
             self.__display_specifier.buffered_data_source.decrement_data_ref_count()  # don't keep data in memory anymore
-        if self.__display_specifier.display:
-            self.__display_specifier.display.remove_listener(self)
+        if self.__display_changed_event_listener:
+            self.__display_changed_event_listener.close()
+            self.__display_changed_event_listener = None
+        if self.__display_graphic_selection_changed_event_listener:
+            self.__display_graphic_selection_changed_event_listener.close()
+            self.__display_graphic_selection_changed_event_listener = None
         self.__display_specifier = copy.copy(display_specifier)
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display_specifier.display:
-            self.__display_specifier.display.add_listener(self)  # for display_changed and display_graphic_selection_changed
+            display = self.display
+            self.__display_changed_event_listener = display.display_changed_event.listen(self.__display_changed)
+            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
         self.__update_display_canvas(self.__display_specifier)
 
     # this message comes from the document model.
@@ -507,12 +515,12 @@ class DisplayPanel(object):
     # this will be called when anything in the data item changes, including things
     # like graphics or the data itself.
     # thread safe.
-    def display_changed(self, display):
+    def __display_changed(self):
         display_specifier = copy.copy(self.__display_specifier)
         if display_specifier.display:
             self.__update_display_canvas(display_specifier)
 
-    def display_graphic_selection_changed(self, display, graphic_selection):
+    def __display_graphic_selection_changed(self, display, graphic_selection):
         # this message comes from the display when the graphic selection changes
         display_calibrated_values = display.display_calibrated_values
         data_and_calibration = display.data_and_calibration
@@ -647,8 +655,8 @@ class DisplayPanel(object):
                     "left_channel": display.left_channel, "right_channel": display.right_channel}
                 self.display_canvas_item.update_display_state(data_and_calibration, display_properties,
                                                               display.display_calibrated_values)
-            self.display_graphic_selection_changed(display_specifier.display,
-                                                   display_specifier.display.graphic_selection)
+            self.__display_graphic_selection_changed(display_specifier.display,
+                                                     display_specifier.display.graphic_selection)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_display_panel == self

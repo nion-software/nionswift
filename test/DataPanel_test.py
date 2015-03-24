@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import logging
 import unittest
 
@@ -456,17 +457,12 @@ class TestDataPanelClass(unittest.TestCase):
         # necessary to make the thumbnails update in the data panel
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._changed = False
-            def display_changed(self, display):
-                self._changed = True
-        listener = Listener()
-        display_specifier.display.add_listener(listener)
-        display_specifier.display.display_limits = (0.25, 0.75)
-        self.assertTrue(listener._changed)
+        display_changed_ref = [False]
+        def display_changed():
+            display_changed_ref[0] = True
+        with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+            display_specifier.display.display_limits = (0.25, 0.75)
+            self.assertTrue(display_changed_ref[0])
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import copy
 import logging
 import unittest
@@ -40,17 +41,12 @@ class TestDisplayClass(unittest.TestCase):
         display.get_processor("histogram").recompute_data(None)
         display.get_processed_data("histogram")
         self.assertFalse(display.is_cached_value_dirty("histogram_data"))
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._dirty = False
-            def display_changed(self, display):
-                self._dirty = display.is_cached_value_dirty("histogram_data")
-        listener = Listener()
-        display.add_listener(listener)
-        display.display_limits = (0.25, 0.75)
-        self.assertTrue(listener._dirty)
+        dirty_ref = [False]
+        def display_changed():
+            dirty_ref[0] = display.is_cached_value_dirty("histogram_data")
+        with contextlib.closing(display.display_changed_event.listen(display_changed)):
+            display.display_limits = (0.25, 0.75)
+            self.assertTrue(dirty_ref[0])
 
     def test_setting_inverted_display_limits_reverses_them(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import copy
 import logging
 import unittest
@@ -617,17 +618,17 @@ class TestOperationClass(unittest.TestCase):
                 self._display_changed = False
             def data_item_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
-            def display_changed(self, display):
-                self._display_changed = True
         listener = Listener()
         blurred_data_item.add_listener(listener)
-        blurred_display_specifier.display.add_listener(listener)
-        # modify an operation. make sure data and dependent data gets updated.
-        listener.reset()
-        blur_operation.set_property("sigma", 0.1)
-        document_model.recompute_all()
-        self.assertTrue(listener._data_changed)
-        self.assertTrue(listener._display_changed)
+        def display_changed():
+            listener._display_changed = True
+        with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
+            # modify an operation. make sure data and dependent data gets updated.
+            listener.reset()
+            blur_operation.set_property("sigma", 0.1)
+            document_model.recompute_all()
+            self.assertTrue(listener._data_changed)
+            self.assertTrue(listener._display_changed)
 
     def test_modifying_operation_region_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -649,17 +650,17 @@ class TestOperationClass(unittest.TestCase):
                 self._display_changed = False
             def data_item_content_changed(self, data_item, changes):
                 self._data_changed = self._data_changed or DataItem.DATA in changes
-            def display_changed(self, display):
-                self._display_changed = True
         listener = Listener()
         blurred_data_item.add_listener(listener)
-        blurred_display_specifier.display.add_listener(listener)
-        # modify an operation. make sure data and dependent data gets updated.
-        listener.reset()
-        blur_operation.set_property("sigma", 0.1)
-        document_model.recompute_all()
-        self.assertTrue(listener._data_changed)
-        self.assertTrue(listener._display_changed)
+        def display_changed():
+            listener._display_changed = True
+        with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
+            # modify an operation. make sure data and dependent data gets updated.
+            listener.reset()
+            blur_operation.set_property("sigma", 0.1)
+            document_model.recompute_all()
+            self.assertTrue(listener._data_changed)
+            self.assertTrue(listener._display_changed)
 
     def test_changing_region_does_not_trigger_fft_recompute(self):
         document_model = DocumentModel.DocumentModel()
