@@ -68,18 +68,28 @@ def scaled(image, size, method='linear'):
     return None
 
 
-def rebin_1d(src, len):
+def rebin_1d(src, len, retained=None):
     src_len = src.shape[0]
     if len < src_len:
-        # create linear bins
-        ss = numpy.linspace(0, len, len+1) * float(src_len) / len
-        # create some useful row and column values using meshgrid
-        ix, iy = numpy.meshgrid(numpy.linspace(0, src_len-1, src_len), numpy.linspace(0, len-1, len))
-        ix = ix.astype(numpy.int32)
-        iy = iy.astype(numpy.int32)
-        # basic idea here is to multiply low window by high window to get the window for each bin; then sum the transpose to do the actual binning
-        # result is scaled to keep amplitude the same.
-        return sum((numpy.maximum(numpy.minimum(ss[iy+1] - ix, 1.0), 0.0) * numpy.minimum(numpy.maximum(ix+1 - ss[iy], 0), 1.0) * src).transpose()) * len / src_len
+        if retained is not None and (retained.get("src_len") != src_len or retained.get("len") != len):
+            retained.clear()
+        if retained is not None and "w" in retained:
+            w = retained["w"]
+        else:
+            # create linear bins
+            ss = numpy.linspace(0, len, len+1) * float(src_len) / len
+            # create some useful row and column values using meshgrid
+            ix, iy = numpy.meshgrid(numpy.linspace(0, src_len-1, src_len), numpy.linspace(0, len-1, len))
+            ix = ix.astype(numpy.int32)
+            iy = iy.astype(numpy.int32)
+            # basic idea here is to multiply low window by high window to get the window for each bin; then sum the transpose to do the actual binning
+            # result is scaled to keep amplitude the same.
+            w = numpy.maximum(numpy.minimum(ss[iy+1] - ix, 1.0), 0.0) * numpy.minimum(numpy.maximum(ix+1 - ss[iy], 0), 1.0)
+        if retained is not None:
+            retained["src_len"] = src_len
+            retained["len"] = len
+            retained["w"] = w
+        return sum((w * src).transpose()) * len / src_len
     else:
         # linear
         result = numpy.empty((len, ), dtype=numpy.double)

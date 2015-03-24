@@ -89,6 +89,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         super(SimpleLineGraphCanvasItem, self).__init__()
         self.__data = None
         self.__background_color = None
+        self.__retained_rebin_1d = dict()
 
     @property
     def data(self):
@@ -141,7 +142,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             # draw the histogram itself
             drawing_context.save()
             drawing_context.begin_path()
-            binned_data = Image.rebin_1d(self.data, int(canvas_width)) if int(canvas_width) != self.data.shape[0] else self.data
+            binned_data = Image.rebin_1d(self.data, int(canvas_width), self.__retained_rebin_1d) if int(canvas_width) != self.data.shape[0] else self.data
             for i in xrange(canvas_width):
                 drawing_context.move_to(i, canvas_height)
                 drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))

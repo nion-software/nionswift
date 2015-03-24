@@ -237,6 +237,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.draw_frame = True
         self.background_color = "#FFF"
         self.font_size = 12
+        self.__retained_rebin_1d = dict()
 
     @property
     def data_info(self):
@@ -341,7 +342,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                 baseline = max(plot_origin_y, baseline)
                 # rebin so that data_width corresponds to plot width
                 binned_length = int(data_info.data.shape[0] * plot_width / data_width)
-                binned_data = Image.rebin_1d(data_info.data, binned_length)
+                binned_data = Image.rebin_1d(data_info.data, binned_length, self.__retained_rebin_1d)
                 binned_left = int(data_left * plot_width / data_width)
                 # draw the plot
                 for i in xrange(0, plot_width):
