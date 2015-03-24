@@ -1220,20 +1220,19 @@ class DocumentController(Observable.Broadcaster):
 class SelectedDisplayBinding(Observable.Broadcaster):
     """A binding to the selected display in the document controller.
 
-    The selected display may be in an image panel, in the data panel,
-    or in another user interface element. The document controller will
-    send selected_display_specifier_changed when the data item changes.
-    This object will listen to the data item to know when its data
-    changes or when it gets deleted.
+    The selected display may be in an image panel, in the data panel, or in another user interface element. The document
+    controller will send selected_display_specifier_changed when the data item changes. This object will listen to the
+    data item to know when its data changes or when it gets deleted.
 
-    It will emit a selected_display_binding_changed message when a new
-    display is selected or when the display changes internally.
+    It will fire selected_display_binding_changed_event(display_specifier) when a new display is selected or when the
+    display changes internally.
     """
     def __init__(self, document_controller):
         super(SelectedDisplayBinding, self).__init__()
         self.document_controller = document_controller
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
+        self.selected_display_binding_changed_event = Observable.Event()
         # connect self as listener. this will result in calls to selected_display_specifier_changed
         self.document_controller.add_listener(self)
         # initialize with the existing value
@@ -1249,10 +1248,9 @@ class SelectedDisplayBinding(Observable.Broadcaster):
         # release references
         self.__display_specifier = DataItem.DisplaySpecifier()
 
-    # this message is received from the document controller.
-    # it is established using add_listener
-    def notify_display_changed(self):
-        self.notify_listeners("selected_display_binding_changed", self.__display_specifier)
+    @property
+    def display_specifier(self):
+        return self.__display_specifier
 
     def selected_display_specifier_changed(self, display_specifier):
         if self.__display_specifier != display_specifier:
@@ -1264,7 +1262,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
             self.__display_specifier = copy.copy(display_specifier)
             # connect listener to display
             def display_changed():
-                self.notify_listeners("selected_display_binding_changed", self.__display_specifier)
+                self.selected_display_binding_changed_event.fire(self.__display_specifier)
             if self.__display_specifier.display:
                 self.__display_changed_event_listener = self.__display_specifier.display.display_changed_event.listen(display_changed)
             # notify our listeners

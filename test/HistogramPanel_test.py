@@ -43,7 +43,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None)
         self.histogram_canvas_item = self.histogram_panel._histogram_canvas_item
         self.display = self.display_specifier.display
-        self.histogram_panel.selected_display_binding_changed(self.display_specifier)
+        self.document_controller.display_data_item(self.display_specifier)
         self.histogram_canvas_item.container = CanvasItemContainer()
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
 
