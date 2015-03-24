@@ -258,6 +258,7 @@ class AcquisitionTask(object):
         self.__last_acquire_time = time.time() - self.__minimum_period
 
     def __execute(self):
+        # with Utility.trace(): # (min_elapsed=0.0005, discard="anaconda"):
         # impose maximum frame rate so that acquire_data_elements can't starve main thread
         elapsed = time.time() - self.__last_acquire_time
         time.sleep(max(0.0, self.__minimum_period - elapsed))
@@ -646,13 +647,11 @@ def convert_data_and_metadata_to_data_element(data_and_calibration):
     if data_and_calibration.dimensional_calibrations:
         spatial_calibrations = list()
         for dimensional_calibration in data_and_calibration.dimensional_calibrations:
-            spatial_calibrations.append({"offset": dimensional_calibration.offset, "scale": dimensional_calibration.scale,
-            "units": dimensional_calibration.units})
+            spatial_calibrations.append(dimensional_calibration.write_dict())
         data_element["spatial_calibrations"] = spatial_calibrations
     if data_and_calibration.intensity_calibration:
         intensity_calibration = data_and_calibration.intensity_calibration
-        data_element["intensity_calibration"] = {"offset": intensity_calibration.offset,
-        "scale": intensity_calibration.scale, "units": intensity_calibration.units}
+        data_element["intensity_calibration"] = intensity_calibration.write_dict()
     # properties (general tags)
     properties = data_and_calibration.metadata.get("hardware_source", dict())
     data_element["properties"] = properties

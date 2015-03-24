@@ -1,6 +1,10 @@
 # standard libraries
+import collections
+import contextlib
 import datetime
+import functools
 import logging
+import sys
 import time
 
 # third party libraries
@@ -191,3 +195,46 @@ def fps_tick(fps_id):
 def fps_get(fps_id):
     v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0])
     return v[3]
+
+
+def trace_calls(trace, frame, event, arg):
+    if event != 'call':
+        return
+    co = frame.f_code
+    func_name = co.co_name
+    if func_name == 'write':
+        # Ignore write() calls from print statements
+        return
+    func_line_no = frame.f_lineno
+    func_filename = co.co_filename
+    caller = frame.f_back
+    caller_line_no = caller.f_lineno
+    caller_filename = caller.f_code.co_filename
+    t = time.time()
+    last_elapsed = t - trace.last_time_ref[0]
+    if not trace.discard or trace.discard not in func_filename:
+        if last_elapsed > trace.min_elapsed:
+            s = "         " if last_elapsed > 0.001 else ""
+            trace.all.append(":%s%12.5f %12.5f Call to %s on line %s of %s from line %s of %s" % (
+                s, last_elapsed, t - trace.start_time, func_name, func_line_no, func_filename, caller_line_no, caller_filename))
+        trace.last_time_ref[0] = t
+
+
+def begin_trace(min_elapsed, discard):
+    Trace = collections.namedtuple("Trace", ["start_time", "last_time_ref", "min_elapsed", "discard", "all"])
+    trace = Trace(start_time=time.time(), last_time_ref=[0], min_elapsed=min_elapsed, discard=discard, all=list())
+    sys.settrace(functools.partial(trace_calls, trace))
+    return trace
+
+
+def end_trace(trace):
+    sys.settrace(None)
+    logging.debug("\n".join(trace.all))
+    logging.debug("TOTAL: %s", len(trace.all))
+
+
+@contextlib.contextmanager
+def trace(min_elapsed=0.0, discard=None):
+    t = begin_trace(min_elapsed, discard)
+    yield
+    end_trace(t)
