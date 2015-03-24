@@ -24,6 +24,8 @@ from nion.ui import Observable
 
 _ = gettext.gettext
 
+UNTITLED_STR = _("Untitled")
+
 
 class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
@@ -1427,7 +1429,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     @property
     def title(self):
-        return self.metadata.get("description", dict()).get("title", _("Untitled"))
+        return self.metadata.get("description", dict()).get("title", UNTITLED_STR)
 
     @title.setter
     def title(self, value):
