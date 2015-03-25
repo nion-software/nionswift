@@ -987,7 +987,7 @@ class TestStorageClass(unittest.TestCase):
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         # check storage caches
         self.assertEqual(document_model.data_items[0].storage_cache, storage_cache)
-        self.assertEqual(read_display_specifier.display.storage_cache, storage_cache)
+        self.assertEqual(read_display_specifier.display.storage_cache, read_data_item._suspendable_storage_cache)
         # clean up
         document_controller.close()
 
@@ -1416,6 +1416,20 @@ class TestStorageClass(unittest.TestCase):
         # properties should still be empty, unless it was written again
         self.assertNotEqual(data_reference_handler.properties, dict())
 
+    def test_storage_cache_disabled_during_transaction(self):
+        storage_cache = Storage.DictStorageCache()
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        document_model.append_data_item(data_item)
+        cached_data_range = storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"]
+        self.assertEqual(cached_data_range, (1, 1))
+        with document_model.data_item_transaction(data_item):
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            self.assertEqual(cached_data_range, storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"])
+            self.assertEqual(cached_data_range, (1, 1))
+        self.assertEqual(storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"], (0, 0))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

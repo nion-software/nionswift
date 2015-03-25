@@ -920,6 +920,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.__data_item_manager_lock = threading.RLock()
         self.__dependent_data_item_refs = list()
         self.__dependent_data_item_refs_lock = threading.RLock()
+        self.__suspendable_storage_cache = None
         self.r_var = None
         if data is not None:
             data_source = BufferedDataSource(data)
@@ -983,12 +984,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable to update the children that need updating
+        self.__suspendable_storage_cache = Storage.SuspendableCache(storage_cache)
         for data_source in self.data_sources:
-            data_source.storage_cache = storage_cache
+            data_source.storage_cache = self.__suspendable_storage_cache
 
-    def _is_cache_delayed(self):
-        """ Override from Cacheable base class to indicate when caching is delayed. """
-        return self.__transaction_count > 0
+    @property
+    def _suspendable_storage_cache(self):
+        return self.__suspendable_storage_cache
 
     @property
     def transaction_count(self):
@@ -1031,6 +1033,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if old_transaction_count == 0:
             # first enter the write delay state.
             self.__enter_write_delay_state()
+            # suspend disk caching
+            if self.__suspendable_storage_cache:
+                self.__suspendable_storage_cache.suspend_cache()
             # now tell each data source to load its data.
             # this prevents paging in and out.
             for data_source in self.data_sources:
@@ -1064,7 +1069,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 data_item._end_transaction()
             # being in the transaction state has the side effect of delaying the cache too.
             # spill whatever was into the local cache into the persistent cache.
-            self.spill_cache()
+            if self.__suspendable_storage_cache:
+                self.__suspendable_storage_cache.spill_cache()
             # exit the write delay state.
             self.__exit_write_delay_state()
             # finally, tell each data source to unload its data.

@@ -74,6 +74,105 @@ class MutableRelationship(collections.MutableSequence):
         self.parent_weak_ref().notify_insert_item(self.relationship_name, value, index)
 
 
+class SuspendableCache(object):
+
+    def __init__(self, storage_cache):
+        self.__storage_cache = storage_cache
+        self.__cache = dict()
+        self.__cache_dirty = dict()
+        self.__cache_mutex = threading.RLock()
+        self.__cache_delayed = False
+
+    # the cache system stores values that are expensive to calculate for quick retrieval.
+    # an item can be marked dirty in the cache so that callers can determine whether that
+    # value needs to be recalculated. marking a value as dirty doesn't affect the current
+    # value in the cache. callers can still retrieve the latest value for an item in the
+    # cache even when it is marked dirty. this way the cache is used to retrieve the best
+    # available data without doing additional calculations.
+
+    def suspend_cache(self):
+        with self.__cache_mutex:
+            self.__cache_delayed = True
+
+    # move local cache items into permanent cache when transaction is finished.
+    def spill_cache(self):
+        with self.__cache_mutex:
+            cache_copy = copy.copy(self.__cache)
+            cache_dirty_copy = copy.copy(self.__cache_dirty)
+            self.__cache.clear()
+            self.__cache_dirty.clear()
+            self.__cache_delayed = False
+        if self.__storage_cache:
+            for object_id, (object, object_dict) in cache_copy.iteritems():
+                _, object_dirty_dict = cache_dirty_copy.get(id(object), (object, dict()))
+                for key, value in object_dict.iteritems():
+                    dirty = object_dirty_dict.get(key, False)
+                    self.__storage_cache.set_cached_value(object, key, value, dirty)
+
+    # update the value in the cache. usually updating a value in the cache
+    # means it will no longer be dirty.
+    def set_cached_value(self, object, key, value, dirty=False):
+        # if transaction count is 0, cache directly
+        if self.__storage_cache and not self.__cache_delayed:
+            self.__storage_cache.set_cached_value(object, key, value, dirty)
+        # otherwise, store it temporarily until transaction is finished
+        else:
+            with self.__cache_mutex:
+                _, object_dict = self.__cache.setdefault(id(object), (object, dict()))
+                _, object_dirty_dict = self.__cache_dirty.setdefault(id(object), (object, dict()))
+                object_dict[key] = value
+                object_dirty_dict[key] = dirty
+
+    # grab the last cached value, if any, from the cache.
+    def get_cached_value(self, object, key, default_value=None):
+        # first check temporary cache.
+        with self.__cache_mutex:
+            if key in self.__cache:
+                return self.__cache.get(key)
+        # not there, go to cache db
+        if self.__storage_cache and not self.__cache_delayed:
+            return self.__storage_cache.get_cached_value(object, key, default_value)
+        return default_value
+
+    # removing values from the cache happens immediately under a transaction.
+    # this is an area of improvement if it becomes a bottleneck.
+    def remove_cached_value(self, object, key):
+        # remove it from the cache db.
+        if self.__storage_cache:
+            self.__storage_cache.remove_cached_value(object, key)
+        # if its in the temporary cache, remove it
+        with self.__cache_mutex:
+            _, object_dict = self.__cache.get(id(object), (object, dict()))
+            _, object_dirty_dict = self.__cache_dirty.get(id(object), (object, dict()))
+            if key in object_dict:
+                del object_dict[key]
+            if key in object_dirty_dict:
+                del object_dirty_dict[key]
+
+    # determines whether the item in the cache is dirty.
+    def is_cached_value_dirty(self, object, key):
+        # check the temporary cache first
+        with self.__cache_mutex:
+            _, object_dirty_dict = self.__cache_dirty.get(id(object), (object, dict()))
+            if key in object_dirty_dict:
+                return object_dirty_dict[key]
+        # not there, go to the db cache
+        if self.__storage_cache and not self.__cache_delayed:
+            return self.__storage_cache.is_cached_value_dirty(object, key)
+        return True
+
+    # set whether the cache value is dirty.
+    def set_cached_value_dirty(self, object, key, dirty=True):
+        # go directory to the db cache if not under a transaction
+        if self.__storage_cache and not self.__cache_delayed:
+            self.__storage_cache.set_cached_value_dirty(object, key, dirty)
+        # otherwise mark it in the temporary cache
+        else:
+            with self.__cache_mutex:
+                _, object_dirty_dict = self.__cache_dirty.setdefault(id(object), (object, dict()))
+                object_dirty_dict[key] = dirty
+
+
 class Cacheable(object):
 
     def __init__(self):
@@ -82,6 +181,7 @@ class Cacheable(object):
         self.__cache = dict()
         self.__cache_dirty = dict()
         self.__cache_mutex = threading.RLock()
+        self.__cache_delayed = False
 
     def get_storage_cache(self):
         return self.__storage_cache
@@ -93,9 +193,6 @@ class Cacheable(object):
 
     def storage_cache_changed(self, storage_cache):
         pass
-
-    def _is_cache_delayed(self):
-        return False
 
     # the cache system stores values that are expensive to calculate for quick retrieval.
     # an item can be marked dirty in the cache so that callers can determine whether that
@@ -119,7 +216,7 @@ class Cacheable(object):
     # means it will no longer be dirty.
     def set_cached_value(self, key, value, dirty=False):
         # if transaction count is 0, cache directly
-        if self.storage_cache and not self._is_cache_delayed():
+        if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.set_cached_value(self, key, value, dirty)
         # otherwise, store it temporarily until transaction is finished
         else:
@@ -165,7 +262,7 @@ class Cacheable(object):
     # set whether the cache value is dirty.
     def set_cached_value_dirty(self, key, dirty=True):
         # go directory to the db cache if not under a transaction
-        if self.storage_cache and not self._is_cache_delayed():
+        if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.set_cached_value_dirty(self, key, dirty)
         # otherwise mark it in the temporary cache
         else:
@@ -1430,6 +1527,10 @@ class DictStorageCache(object):
 
     def close(self):
         pass
+
+    @property
+    def cache(self):
+        return self.__cache
 
     def set_cached_value(self, object, key, value, dirty=False):
         cache = self.__cache.setdefault(object.uuid, dict())
