@@ -65,6 +65,8 @@ class InfoPanel(Panel.Panel):
 
     # this message is received from the document controller.
     # it is established using add_listener
+    # the only way the cursor data can be cleared is if the source is the same as the last source
+    # to display cursor data.
     def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
         def get_value_text(value, intensity_calibration):
             if value is not None:
@@ -107,7 +109,8 @@ class InfoPanel(Panel.Panel):
                 if pos[0] >= 0 and pos[0] < data_shape[0]:
                     position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
                     value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
-            self.__last_source = source
+            if pos:
+                self.__last_source = source
         if self.__last_source == source:
             def update_position_and_value(position_text, value_text):
                 self.position_text.text = position_text
