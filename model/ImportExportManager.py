@@ -114,17 +114,12 @@ class ImportExportManager(object):
 
     def get_writers_for_data_item(self, data_item):
         writers = []
-        data_and_calibration = Operation.DataAndCalibration(lambda: numpy.zeros((64, 64), numpy.float),
-                                                            (64, 64), numpy.float,
-                                                            Calibration.Calibration(),
-                                                            [Calibration.Calibration(),
-                                                                Calibration.Calibration()], dict(),
-                                                            datetime.datetime.utcnow())
-
-        for io_handler in self.__io_handlers:
-            for extension in io_handler.extensions:
-                if io_handler.can_write(data_and_calibration, string.lower(extension)):
-                    writers.append(io_handler)
+        if len(data_item.data_sources) > 0:
+            data_and_calibration = data_item.data_sources[0].data_and_calibration
+            for io_handler in self.__io_handlers:
+                for extension in io_handler.extensions:
+                    if io_handler.can_write(data_and_calibration, string.lower(extension)):
+                        writers.append(io_handler)
         return writers
 
     # read file, return data items

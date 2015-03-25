@@ -69,6 +69,17 @@ class TestImportExportManagerClass(unittest.TestCase):
         finally:
             os.remove(file_path)
 
+    def test_get_writers_for_empty_data_item_returns_valid_list(self):
+        data_item = DataItem.DataItem()
+        writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        self.assertEqual(len(writers), 0)
+
+    def test_get_writers_for_float_2d_data_item_returns_valid_list(self):
+        data_item = DataItem.DataItem(numpy.zeros((64, 64), numpy.float))
+        writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        self.assertTrue(len(writers) > 0)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
