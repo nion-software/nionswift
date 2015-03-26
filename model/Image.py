@@ -254,13 +254,16 @@ def scalar_from_array(array, normalize=True):
 # if underlimit/overlimit are specified and display limits are specified, values out of the under/over
 #   limit percentage values are mapped to blue and red.
 # may return a new array or a view on the existing array
-def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None, lookup=None):
+def create_rgba_image_from_array(array, normalize=True, data_range=None, display_limits=None, underlimit=None, overlimit=None, lookup=None, existing=None):
     assert numpy.ndim(array) in (1, 2, 3)
     assert numpy.can_cast(array.dtype, numpy.double)
     if numpy.ndim(array) == 1:  # temporary hack to display 1-d images
         array = array.reshape((1,) + array.shape)
     if numpy.ndim(array) == 2:
-        rgba_image = numpy.empty(array.shape, numpy.uint32)
+        if existing is not None and existing.shape == array.shape and existing.dtype == numpy.uint32:
+            rgba_image = existing
+        else:
+            rgba_image = numpy.empty(array.shape, numpy.uint32)
         if normalize:
             if display_limits and len(display_limits) == 2:
                 nmin_new = display_limits[0]

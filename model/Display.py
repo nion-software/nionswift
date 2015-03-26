@@ -122,6 +122,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__data_properties = dict()
         self.__preview_data = None
         self.__preview = None
+        self.__preview_last = None
         self.__processors = dict()
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
@@ -175,7 +176,16 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             if data_2d is not None:
                 data_range = self.data_range
                 display_limits = self.display_limits
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
+                # enforce a maximum of 1024 in either dimension on the preview for performance.
+                # but only scale by integer factors.
+                target_size = 1024.0
+                if data_2d.shape[0] > 1.5 * target_size or data_2d.shape[1] > 1.5 * target_size:
+                    if data_2d.shape[0] > data_2d.shape[1]:
+                        stride = round(data_2d.shape[0]/target_size)
+                    else:
+                        stride = round(data_2d.shape[1]/target_size)
+                    data_2d = data_2d[0:data_2d.shape[0]:stride, 0:data_2d.shape[1]:stride]
+                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup, existing=self.__preview_last)
         return self.__preview
 
     @property
@@ -254,6 +264,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         # when one of the defined properties changes, this gets called
         self.notify_set_property(property_name, value)
         self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
         self.__preview = None
         self.display_changed_event.fire()
 
@@ -263,6 +275,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def __set_lookup_table(self, lookup):
         self.__lookup = lookup
         self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
         self.__preview = None
         self.display_changed_event.fire()
 
@@ -305,6 +319,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     # message sent from buffered_data_source data_range or data_sample changes.
     def update_property(self, property, value):
         self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
         self.__preview = None
         self.__data_properties[property] = value
         self.notify_set_property(property, value)
@@ -315,6 +331,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def update_data(self, data_and_calibration):
         self.__data_and_calibration = data_and_calibration
         self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
         self.__preview = None
         self.display_changed_event.fire()
         # clear the processor caches
