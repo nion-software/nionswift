@@ -1424,9 +1424,11 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         cached_data_range = storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"]
         self.assertEqual(cached_data_range, (1, 1))
+        self.assertEqual(data_item.maybe_data_source.data_range, (1, 1))
         with document_model.data_item_transaction(data_item):
             with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+            self.assertEqual(data_item.maybe_data_source.data_range, (0, 0))
             self.assertEqual(cached_data_range, storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"])
             self.assertEqual(cached_data_range, (1, 1))
         self.assertEqual(storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"], (0, 0))

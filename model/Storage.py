@@ -136,8 +136,9 @@ class SuspendableCache(object):
     def get_cached_value(self, object, key, default_value=None):
         # first check temporary cache.
         with self.__cache_mutex:
-            if key in self.__cache:
-                return self.__cache.get(key)
+            _, object_dict = self.__cache.get(id(object), (object, dict()))
+            if key in object_dict:
+                return object_dict.get(key)
         # not there, go to cache db
         if self.__storage_cache and not self.__cache_delayed:
             return self.__storage_cache.get_cached_value(object, key, default_value)
