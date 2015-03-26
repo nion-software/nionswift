@@ -424,6 +424,9 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
     def __init__(self, display):
         super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
         self.bins = 320
+        self.subsample = None  # hard coded subsample size
+        self.subsample_fraction = None  # fraction of total pixels
+        self.subsample_min = 1024  # minimum subsample size
 
     def item_property_changed(self, key, value):
         """ Called directly from data item. """
@@ -432,9 +435,19 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             self._set_cached_value_dirty()
 
     def get_calculated_data(self, ui, data):
-        data = self.item.preview_2d_data
+        subsample = self.subsample
+        total_pixels = numpy.product(data.shape)
+        if not subsample and self.subsample_fraction:
+            subsample = min(max(total_pixels * self.subsample_fraction, self.subsample_min), total_pixels)
+        if subsample:
+            factor = total_pixels / subsample
+            data = self.item.preview_2d_data
+            data_sample = numpy.random.choice(data.reshape(numpy.product(data.shape)), subsample)
+        else:
+            factor = 1.0
+            data_sample = self.item.preview_2d_data
         display_range = self.item.display_range  # may be None
-        histogram_data = numpy.histogram(data, range=display_range, bins=self.bins)[0]
+        histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=self.bins)[0]
         histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
         if histogram_max > 0:
             histogram_data = histogram_data / float(histogram_max)
