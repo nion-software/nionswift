@@ -685,6 +685,7 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill_text("display:" + str(int(fps*100)/100.0), text_pos.x + 8, text_pos.y + 10)
                 drawing_context.fill_text("frame:" + str(int(fps2*100)/100.0), text_pos.x + 8, text_pos.y + 30)
                 drawing_context.fill_text("update:" + str(int(fps3*100)/100.0), text_pos.x + 8, text_pos.y + 50)
+                drawing_context.statistics("display")
             finally:
                 drawing_context.restore()
 
