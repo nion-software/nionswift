@@ -1431,6 +1431,28 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(cached_data_range, (1, 1))
         self.assertEqual(storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"], (0, 0))
 
+    def test_suspendable_storage_cache_caches_removes(self):
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        storage_cache = Storage.DictStorageCache()
+        suspendable_storage_cache = Storage.SuspendableCache(storage_cache)
+        suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
+        self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
+        suspendable_storage_cache.suspend_cache()
+        suspendable_storage_cache.remove_cached_value(data_item, "key")
+        self.assertEqual(storage_cache.cache[data_item.uuid]["key"], 1.0)
+        suspendable_storage_cache.spill_cache()
+        self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
+
+    def test_suspendable_storage_cache_is_null_for_add_followed_by_remove(self):
+        data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+        storage_cache = Storage.DictStorageCache()
+        suspendable_storage_cache = Storage.SuspendableCache(storage_cache)
+        suspendable_storage_cache.suspend_cache()
+        suspendable_storage_cache.set_cached_value(data_item, "key", 1.0)
+        suspendable_storage_cache.remove_cached_value(data_item, "key")
+        suspendable_storage_cache.spill_cache()
+        self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

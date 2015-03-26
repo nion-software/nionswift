@@ -79,6 +79,7 @@ class SuspendableCache(object):
     def __init__(self, storage_cache):
         self.__storage_cache = storage_cache
         self.__cache = dict()
+        self.__cache_remove = dict()
         self.__cache_dirty = dict()
         self.__cache_mutex = threading.RLock()
         self.__cache_delayed = False
@@ -99,7 +100,9 @@ class SuspendableCache(object):
         with self.__cache_mutex:
             cache_copy = copy.copy(self.__cache)
             cache_dirty_copy = copy.copy(self.__cache_dirty)
+            cache_remove_copy = copy.copy(self.__cache_remove)
             self.__cache.clear()
+            self.__cache_remove.clear()
             self.__cache_dirty.clear()
             self.__cache_delayed = False
         if self.__storage_cache:
@@ -108,6 +111,9 @@ class SuspendableCache(object):
                 for key, value in object_dict.iteritems():
                     dirty = object_dirty_dict.get(key, False)
                     self.__storage_cache.set_cached_value(object, key, value, dirty)
+            for object_id, (object, key_list) in cache_remove_copy.iteritems():
+                for key in key_list:
+                    self.__storage_cache.remove_cached_value(object, key)
 
     # update the value in the cache. usually updating a value in the cache
     # means it will no longer be dirty.
@@ -119,9 +125,12 @@ class SuspendableCache(object):
         else:
             with self.__cache_mutex:
                 _, object_dict = self.__cache.setdefault(id(object), (object, dict()))
+                _, object_list = self.__cache_remove.get(id(object), (object, list()))
                 _, object_dirty_dict = self.__cache_dirty.setdefault(id(object), (object, dict()))
                 object_dict[key] = value
                 object_dirty_dict[key] = dirty
+                if key in object_list:
+                    object_list.remove(key)
 
     # grab the last cached value, if any, from the cache.
     def get_cached_value(self, object, key, default_value=None):
@@ -138,16 +147,19 @@ class SuspendableCache(object):
     # this is an area of improvement if it becomes a bottleneck.
     def remove_cached_value(self, object, key):
         # remove it from the cache db.
-        if self.__storage_cache:
+        if self.__storage_cache and not self.__cache_delayed:
             self.__storage_cache.remove_cached_value(object, key)
         # if its in the temporary cache, remove it
         with self.__cache_mutex:
             _, object_dict = self.__cache.get(id(object), (object, dict()))
+            _, object_list = self.__cache_remove.setdefault(id(object), (object, list()))
             _, object_dirty_dict = self.__cache_dirty.get(id(object), (object, dict()))
             if key in object_dict:
                 del object_dict[key]
             if key in object_dirty_dict:
                 del object_dirty_dict[key]
+            if key not in object_list:
+                object_list.append(key)
 
     # determines whether the item in the cache is dirty.
     def is_cached_value_dirty(self, object, key):
@@ -179,6 +191,7 @@ class Cacheable(object):
         super(Cacheable, self).__init__()
         self.__storage_cache = None
         self.__cache = dict()
+        self.__cache_remove = list()
         self.__cache_dirty = dict()
         self.__cache_mutex = threading.RLock()
         self.__cache_delayed = False
@@ -206,11 +219,15 @@ class Cacheable(object):
         with self.__cache_mutex:
             cache_copy = copy.copy(self.__cache)
             cache_dirty_copy = copy.copy(self.__cache_dirty)
+            cache_remove = copy.copy(self.__cache_remove)
             self.__cache.clear()
+            self.__cache_remove = list()
             self.__cache_dirty.clear()
-        for key, value in cache_copy.iteritems():
-            if self.storage_cache:
+        if self.storage_cache:
+            for key, value in cache_copy.iteritems():
                 self.storage_cache.set_cached_value(self, key, value, cache_dirty_copy.get(key, False))
+            for key in cache_remove:
+                self.storage_cache.remove_cached_value(self, key)
 
     # update the value in the cache. usually updating a value in the cache
     # means it will no longer be dirty.
@@ -223,6 +240,8 @@ class Cacheable(object):
             with self.__cache_mutex:
                 self.__cache[key] = value
                 self.__cache_dirty[key] = dirty
+                if key in self.__cache_remove:
+                    self.__cache_remove.remove(key)
 
     # grab the last cached value, if any, from the cache.
     def get_cached_value(self, key, default_value=None):
@@ -239,7 +258,7 @@ class Cacheable(object):
     # this is an area of improvement if it becomes a bottleneck.
     def remove_cached_value(self, key):
         # remove it from the cache db.
-        if self.storage_cache:
+        if self.storage_cache and not self.__cache_delayed:
             self.storage_cache.remove_cached_value(self, key)
         # if its in the temporary cache, remove it
         with self.__cache_mutex:
@@ -247,6 +266,8 @@ class Cacheable(object):
                 del self.__cache[key]
             if key in self.__cache_dirty:
                 del self.__cache_dirty[key]
+            if key not in self.__cache_remove:
+                self.__cache_remove.append(key)
 
     # determines whether the item in the cache is dirty.
     def is_cached_value_dirty(self, key):
