@@ -48,51 +48,6 @@ def traceit(method):
     return traced
 
 
-require_main_thread = True
-
-
-# classes which use this decorator on a method are required
-# to define a property: delay_queue.
-def queue_main_thread(f):
-    @functools.wraps(f)
-    def new_function(self, *args, **kw):
-        if require_main_thread:
-            # using wraps we still get useful info about the function we're calling
-            # eg the name
-            wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-            self.delay_queue.queue_main_thread_task(wrapped_f)
-        else:
-            f(self, *args, **kw)
-    return new_function
-
-
-# classes which use this decorator on a method are required
-# to define a property: delay_queue.
-def queue_main_thread_sync(f):
-    @functools.wraps(f)
-    def new_function(self, *args, **kw):
-        if require_main_thread:
-            # using wraps we still get useful info about the function we're calling
-            # eg the name
-            e = threading.Event()
-            def sync_f(f, event):
-                try:
-                    f()
-                finally:
-                    event.set()
-            wrapped_f = functools.wraps(f)(lambda args=args, kw=kw: f(self, *args, **kw))
-            synced_f = functools.partial(sync_f, wrapped_f, e)
-            self.delay_queue.queue_main_thread_task(synced_f)
-            # how do we tell if this is the main (presumably UI) thread?
-            # the order from threading.enumerate() is not reliable
-            if threading.current_thread().getName() != "MainThread":
-                if not e.wait(5):
-                    logging.debug("TIMEOUT %s", f)
-        else:
-            f(self, *args, **kw)
-    return new_function
-
-
 def relative_file(parent_path, filename):
     # nb os.path.abspath is os.path.realpath
     dir = os.path.dirname(os.path.abspath(parent_path))

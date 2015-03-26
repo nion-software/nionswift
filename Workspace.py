@@ -739,7 +739,7 @@ class WorkspaceController(object):
                 if view_id:
                     hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
-                self.document_controller.queue_main_thread_task(lambda value=data_item_copy: append_data_item(value))
+                self.document_controller.queue_task(functools.partial(append_data_item, data_item_copy))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
@@ -761,7 +761,7 @@ class WorkspaceController(object):
                 if view_id:
                     hardware_source_metadata["view_id"] = view_id
                 buffered_data_source.set_metadata(metadata)
-                self.document_controller.queue_main_thread_task(lambda value=data_item: append_data_item(value))
+                self.document_controller.queue_task(functools.partial(append_data_item, data_item))
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
             if data_item.session_id != session_id:
                 data_item.session_id = session_id

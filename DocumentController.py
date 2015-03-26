@@ -409,9 +409,6 @@ class DocumentController(Observable.Broadcaster):
         assert task
         self.__periodic_queue.put(task)
 
-    def queue_main_thread_task(self, task):
-        self.__periodic_queue.put(task)
-
     def periodic(self):
         #import time
         #t0 = time.time()
@@ -1152,11 +1149,7 @@ class DocumentController(Observable.Broadcaster):
 
                             # notice that a lambda function is used to snapshot the first three arguments, but the
                             # index_ref argument is shared with all calls so that the items get inserted in order.
-                            self.queue_main_thread_task(lambda document_model=self.document_model, data_group=data_group,
-                                                               data_items=data_items: insert_data_item(document_model,
-                                                                                                       data_group,
-                                                                                                       data_items,
-                                                                                                       index_ref))
+                            self.queue_task(functools.partial(insert_data_item, self.document_model, data_group, data_items, index_ref))
 
                             # wait for the save event to occur, then release the data ref.
                             for data_item in data_items:
