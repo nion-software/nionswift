@@ -156,7 +156,7 @@ class ConsolePanel(Panel):
         return result, error_code, prompt
 
 
-class HeaderCanvasItem(CanvasItem.AbstractCanvasItem):
+class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
     def __init__(self, title=None, display_drag_control=False, display_sync_control=False, display_close_control=False):
         super(HeaderCanvasItem, self).__init__()

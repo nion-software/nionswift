@@ -297,7 +297,7 @@ class DisplayPanel(object):
         self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
         self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
         self.__header_canvas_item.on_close_clicked = lambda: self.__close_display_panel()
-        self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
