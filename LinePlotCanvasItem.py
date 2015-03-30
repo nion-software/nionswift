@@ -216,8 +216,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
                 regions.append(region)
 
-        self.__line_graph_regions_canvas_item.regions = regions
-        self.__line_graph_regions_canvas_item.update()
+        if self.__line_graph_regions_canvas_item.regions is None or self.__line_graph_regions_canvas_item.regions != regions:
+            self.__line_graph_regions_canvas_item.regions = regions
+            self.__line_graph_regions_canvas_item.update()
 
     def prepare_display(self):
         if self.__data_and_calibration:

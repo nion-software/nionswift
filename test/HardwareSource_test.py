@@ -616,9 +616,23 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 2)
         document_controller.close()
 
-    def test_single_frame_acquisition_generates_single_canvas_update_event(self):
+    def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         hardware_source.image = numpy.ones((4, 4))
+        display_panel = document_controller.selected_display_panel
+        self.__acquire_one(document_controller, hardware_source)
+        display_panel.set_displayed_data_item(document_model.data_items[0])
+        count_ref = [0]
+        def metric_update():
+            count_ref[0] += 1
+        with contextlib.closing(document_controller.workspace_controller._canvas_item._metric_update_event.listen(metric_update)):
+            self.assertEqual(count_ref[0], 0)
+            self.__acquire_one(document_controller, hardware_source)
+        self.assertEqual(count_ref[0], 1)
+
+    def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        hardware_source.image = numpy.ones((4, ))
         display_panel = document_controller.selected_display_panel
         self.__acquire_one(document_controller, hardware_source)
         display_panel.set_displayed_data_item(document_model.data_items[0])
