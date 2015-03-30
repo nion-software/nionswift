@@ -193,7 +193,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                         finally:
                             drawing_context.restore()
 
-class ImageCanvasItem(CanvasItem.CanvasItemComposition):
+class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     """Display an image.
 
@@ -655,12 +655,10 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
             self.delegate.cursor_changed(self, None)
 
     def _repaint(self, drawing_context):
-        self.prepare_display()
-
         super(ImageCanvasItem, self)._repaint(drawing_context)
 
         if self.__display_frame_rate_id:
-            fps = Utility.fps_tick("display_"+self.__display_frame_rate_id)
+            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
             fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
             fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
 
@@ -688,6 +686,12 @@ class ImageCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.statistics("display")
             finally:
                 drawing_context.restore()
+
+    def _repaint_layer(self, drawing_context):
+        self.prepare_display()
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_"+self.__display_frame_rate_id)
+        super(ImageCanvasItem, self)._repaint_layer(drawing_context)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.

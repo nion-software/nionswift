@@ -36,7 +36,7 @@ class LinePlotCanvasItemMapping(object):
         return x * self.__data_size[0]
 
 
-class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
+class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     """Display a line plot.
 
@@ -259,12 +259,10 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
             self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo())
 
     def _repaint(self, drawing_context):
-        self.prepare_display()
-
         super(LinePlotCanvasItem, self)._repaint(drawing_context)
 
         if self.__display_frame_rate_id:
-            fps = Utility.fps_tick("display_"+self.__display_frame_rate_id)
+            fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
             fps2 = Utility.fps_get("frame_"+self.__display_frame_rate_id)
             fps3 = Utility.fps_get("update_"+self.__display_frame_rate_id)
 
@@ -291,6 +289,12 @@ class LinePlotCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.fill_text("update:" + str(int(fps3*100)/100.0), text_pos.x + 8, text_pos.y + 50)
             finally:
                 drawing_context.restore()
+
+    def _repaint_layer(self, drawing_context):
+        self.prepare_display()
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_"+self.__display_frame_rate_id)
+        super(LinePlotCanvasItem, self)._repaint_layer(drawing_context)
 
     def __update_data_info(self, data_info):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
