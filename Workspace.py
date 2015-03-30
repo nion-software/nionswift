@@ -168,6 +168,10 @@ class WorkspaceController(object):
     def document_model(self):
         return self.document_controller.document_model
 
+    @property
+    def _canvas_item(self):
+        return self.__canvas_item
+
     def _find_dock_widget(self, dock_widget_id):
         for dock_widget in self.dock_widgets:
             if dock_widget.panel.panel_id == dock_widget_id:

@@ -8,7 +8,6 @@ import numpy
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
-from nion.ui import Observable
 
 
 class ImageCanvasItemMapping(object):
@@ -91,10 +90,18 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__graphic_selection = None
 
     def update_graphics(self, dimensional_shape, graphics, graphic_selection):
-        self.__dimensional_shape = dimensional_shape
-        self.__graphics = graphics
-        self.__graphic_selection = graphic_selection
-        self.update()
+        needs_update = False
+        if self.__dimensional_shape != dimensional_shape:
+            self.__dimensional_shape = dimensional_shape
+            needs_update = True
+        if self.__graphics != graphics:
+            self.__graphics = graphics
+            needs_update = True
+        if self.__graphic_selection != graphic_selection:
+            self.__graphic_selection = graphic_selection
+            needs_update = True
+        if needs_update:
+            self.update()
 
     def _repaint(self, drawing_context):
         if self.__graphics:
@@ -109,9 +116,11 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
-        self.__data_and_calibration = None
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
+        self.__dimensional_shape = None
+        self.__dimensional_calibrations = None
+        self.__info_text = None
 
     @property
     def image_canvas_size(self):
@@ -134,66 +143,71 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update()
 
     def set_data_and_calibration(self, data_and_calibration):
-        self.__data_and_calibration = data_and_calibration
-        self.update()
+        needs_update = False
+        dimensional_shape = data_and_calibration.dimensional_shape
+        if self.__dimensional_shape is None or dimensional_shape != self.__dimensional_shape:
+            self.__dimensional_shape = dimensional_shape
+            needs_update = True
+        dimensional_calibrations = data_and_calibration.dimensional_calibrations
+        if self.__dimensional_calibrations is None or dimensional_calibrations != self.__dimensional_calibrations:
+            self.__dimensional_calibrations = dimensional_calibrations
+            needs_update = True
+        info_items = list()
+        metadata = data_and_calibration.metadata
+        hardware_source_metadata = metadata.get("hardware_source", dict())
+        voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
+        if voltage:
+            units = "V"
+            if voltage % 1000 == 0:
+                voltage = int(voltage / 1000)
+                units = "kV"
+            info_items.append("{0} {1}".format(voltage, units))
+        hardware_source_name = hardware_source_metadata.get("hardware_source_name")
+        if hardware_source_name:
+            info_items.append(str(hardware_source_name))
+        info_text = " ".join(info_items)
+        if self.__info_text is None or self.__info_text != info_text:
+            self.__info_text = info_text
+            needs_update = True
+        if needs_update:
+            self.update()
 
     def _repaint(self, drawing_context):
-
-        if self.__data_and_calibration:
-
-            # canvas size
-            canvas_size = self.canvas_size
-            canvas_height = canvas_size[0]
-            image_canvas_size = self.image_canvas_size
-            image_canvas_origin = self.image_canvas_origin
-            data_and_calibration = self.__data_and_calibration
-            metadata = data_and_calibration.metadata
-            calibrations = data_and_calibration.dimensional_calibrations
-            if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
-                origin = (canvas_height - 30, 20)
-                scale_marker_width = 120
-                scale_marker_height = 6
-                dimensional_shape = self.__data_and_calibration.dimensional_shape
-                widget_mapping = ImageCanvasItemMapping(dimensional_shape, image_canvas_origin, image_canvas_size)
-                if dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
-                    screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
-                    if screen_pixel_per_image_pixel > 0:
-                        scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                        calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[1].scale)
-                        # update the scale marker width
-                        scale_marker_image_width = calibrated_scale_marker_width / calibrations[1].scale
-                        scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
-                        drawing_context.save()
-                        try:
-                            drawing_context.begin_path()
-                            drawing_context.move_to(origin[1], origin[0])
-                            drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
-                            drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
-                            drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
-                            drawing_context.close_path()
-                            drawing_context.fill_style = "#448"
-                            drawing_context.fill()
-                            drawing_context.stroke_style = "#000"
-                            drawing_context.stroke()
-                            drawing_context.font = "normal 14px serif"
-                            drawing_context.text_baseline = "bottom"
-                            drawing_context.fill_style = "#FFF"
-                            drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
-                            info_items = list()
-                            hardware_source_metadata = metadata.get("hardware_source", dict())
-                            voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
-                            if voltage:
-                                units = "V"
-                                if voltage % 1000 == 0:
-                                    voltage = int(voltage / 1000)
-                                    units = "kV"
-                                info_items.append("{0} {1}".format(voltage, units))
-                            hardware_source_name = hardware_source_metadata.get("hardware_source_name")
-                            if hardware_source_name:
-                                info_items.append(str(hardware_source_name))
-                            drawing_context.fill_text(" ".join(info_items), origin[1], origin[0] - scale_marker_height - 4 - 20)
-                        finally:
-                            drawing_context.restore()
+        canvas_size = self.canvas_size
+        canvas_height = canvas_size[0]
+        image_canvas_size = self.image_canvas_size
+        image_canvas_origin = self.image_canvas_origin
+        calibrations = self.__dimensional_calibrations
+        if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
+            origin = (canvas_height - 30, 20)
+            scale_marker_width = 120
+            scale_marker_height = 6
+            dimensional_shape = self.__dimensional_shape
+            widget_mapping = ImageCanvasItemMapping(dimensional_shape, image_canvas_origin, image_canvas_size)
+            if dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
+                if screen_pixel_per_image_pixel > 0:
+                    scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
+                    calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[1].scale)
+                    # update the scale marker width
+                    scale_marker_image_width = calibrated_scale_marker_width / calibrations[1].scale
+                    scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
+                    with drawing_context.saver():
+                        drawing_context.begin_path()
+                        drawing_context.move_to(origin[1], origin[0])
+                        drawing_context.line_to(origin[1] + scale_marker_width, origin[0])
+                        drawing_context.line_to(origin[1] + scale_marker_width, origin[0] - scale_marker_height)
+                        drawing_context.line_to(origin[1], origin[0] - scale_marker_height)
+                        drawing_context.close_path()
+                        drawing_context.fill_style = "#448"
+                        drawing_context.fill()
+                        drawing_context.stroke_style = "#000"
+                        drawing_context.stroke()
+                        drawing_context.font = "normal 14px serif"
+                        drawing_context.text_baseline = "bottom"
+                        drawing_context.fill_style = "#FFF"
+                        drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                        drawing_context.fill_text(self.__info_text, origin[1], origin[0] - scale_marker_height - 4 - 20)
 
 class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
@@ -273,9 +287,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
 
-        # metrics
-        self._metric_update_event = Observable.Event()
-
     def close(self):
         # call super
         super(ImageCanvasItem, self).close()
@@ -298,7 +309,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                     self.__display_frame_rate_last_index = frame_index
                 Utility.fps_tick("update_"+self.__display_frame_rate_id)
-            self._metric_update_event.fire()
         else:
             self.__data_and_calibration = None
             self.__graphics = list()

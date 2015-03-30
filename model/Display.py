@@ -31,6 +31,10 @@ class GraphicSelection(Observable.Broadcaster):
         self.__indexes = copy.copy(indexes) if indexes else set()
     def __copy__(self):
         return type(self)(self.__indexes)
+    def __eq__(self, other):
+        return other is not None and self.indexes == other.indexes
+    def __ne__(self, other):
+        return other is None or self.indexes != other.indexes
     # manage selection
     def __get_current_index(self):
         if len(self.__indexes) == 1:
@@ -42,9 +46,9 @@ class GraphicSelection(Observable.Broadcaster):
         return len(self.__indexes) > 0
     def contains(self, index):
         return index in self.__indexes
-    def __get_indexes(self):
+    @property
+    def indexes(self):
         return self.__indexes
-    indexes = property(__get_indexes)
     def clear(self):
         old_index = self.__indexes.copy()
         self.__indexes = set()
