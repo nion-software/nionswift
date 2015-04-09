@@ -771,28 +771,30 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         with self._changes():
             with self.__recompute_lock:
                 if self.__recompute_allowed:
-                    with self.__pending_data_lock:  # only one thread should be computing data at once
-                        pending_data = self.__pending_data
-                        self.__pending_data = None
-                        self.__is_recomputing = True
-                    if pending_data is not None:
-                        self.increment_data_ref_count()  # make sure data is loaded
-                        try:
-                            operation_data = pending_data.data_fn()
-                            if operation_data is not None:
-                                self.__set_data(operation_data)
-                        finally:
-                            self.decrement_data_ref_count()  # unload data
-                        operation_intensity_calibration = pending_data.intensity_calibration
-                        operation_dimensional_calibrations = pending_data.dimensional_calibrations
-                        if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                            self.set_intensity_calibration(operation_intensity_calibration)
-                            for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                self.set_dimensional_calibration(index, dimensional_calibration)
-                    with self.__pending_data_lock:
-                        self.__is_recomputing = False
-                        if self.__pending_data and self.__data_item_manager:
-                            self.__data_item_manager.dispatch_task(self.recompute_data, "data")
+                    try:
+                        with self.__pending_data_lock:  # only one thread should be computing data at once
+                            pending_data = self.__pending_data
+                            self.__pending_data = None
+                            self.__is_recomputing = True
+                        if pending_data is not None:
+                            self.increment_data_ref_count()  # make sure data is loaded
+                            try:
+                                operation_data = pending_data.data_fn()
+                                if operation_data is not None:
+                                    self.__set_data(operation_data)
+                            finally:
+                                self.decrement_data_ref_count()  # unload data
+                            operation_intensity_calibration = pending_data.intensity_calibration
+                            operation_dimensional_calibrations = pending_data.dimensional_calibrations
+                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                                self.set_intensity_calibration(operation_intensity_calibration)
+                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                    self.set_dimensional_calibration(index, dimensional_calibration)
+                    finally:  # this should occur so that temporary errors in computation are ignored
+                        with self.__pending_data_lock:
+                            self.__is_recomputing = False
+                            if self.__pending_data and self.__data_item_manager:
+                                self.__data_item_manager.dispatch_task(self.recompute_data, "data")
 
     @property
     def dimensional_shape(self):
