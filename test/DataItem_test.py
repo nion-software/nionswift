@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import datetime
+import functools
 import gc
 import logging
 import math
@@ -220,6 +221,14 @@ class TestDataItemClass(unittest.TestCase):
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
         self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
+
+    def test_thumbnail_2d_handles_small_dimension_without_producing_invalid_thumbnail(self):
+        data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
+        thumbnail_data = display.get_processed_data("thumbnail")
+        self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))

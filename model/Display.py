@@ -516,6 +516,8 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         if image_height > 0 and image_width > 0:
             scaled_height = height if image_height > image_width else height * image_height / image_width
             scaled_width = width if image_width > image_height else width * image_width / image_height
+            scaled_height = max(1, scaled_height)
+            scaled_width = max(1, scaled_width)
             thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
             if numpy.ndim(thumbnail_image) == 2:
                 return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
