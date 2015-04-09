@@ -5,6 +5,7 @@
 # standard libraries
 import collections
 import copy
+import math
 import logging
 import gettext
 import numbers
@@ -520,7 +521,10 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
             scaled_width = max(1, scaled_width)
             thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
             if numpy.ndim(thumbnail_image) == 2:
-                return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+                if data_range is not None and (any([math.isnan(x) for x in data_range]) or any([math.isinf(x) for x in data_range])):
+                    return self.get_default_data()
+                else:
+                    return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
             elif numpy.ndim(thumbnail_image) == 3:
                 data = thumbnail_image
                 if thumbnail_image.shape[2] == 4:

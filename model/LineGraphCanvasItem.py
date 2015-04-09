@@ -88,10 +88,14 @@ class LineGraphDataInfo(object):
 
             min_specified = self.data_min is not None
             max_specified = self.data_max is not None
-            if self.data.shape[0] > 0.0:
+            if self.data.shape[0] > 0:
                 raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
                 raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
             else:
+                raw_data_min = 0.0
+                raw_data_max = 0.0
+
+            if math.isnan(raw_data_min) or math.isnan(raw_data_max) or math.isinf(raw_data_min) or math.isinf(raw_data_max):
                 raw_data_min = 0.0
                 raw_data_max = 0.0
 

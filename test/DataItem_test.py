@@ -230,9 +230,47 @@ class TestDataItemClass(unittest.TestCase):
         thumbnail_data = display.get_processed_data("thumbnail")
         self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
+    def test_thumbnail_2d_handles_nan_data(self):
+        data = numpy.zeros((16, 16), numpy.float)
+        data[:] = numpy.nan
+        data_item = DataItem.DataItem(data)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+
+    def test_thumbnail_2d_handles_inf_data(self):
+        data = numpy.zeros((16, 16), numpy.float)
+        data[:] = numpy.inf
+        data_item = DataItem.DataItem(data)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+
+    def test_thumbnail_1d_handles_nan_data(self):
+        data = numpy.zeros((256), numpy.float)
+        data[:] = numpy.nan
+        data_item = DataItem.DataItem(data)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+
+    def test_thumbnail_1d_handles_inf_data(self):
+        data = numpy.zeros((256), numpy.float)
+        data[:] = numpy.inf
+        data_item = DataItem.DataItem(data)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.get_processor("thumbnail").recompute_data(self.app.ui)
         self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
 
     def test_thumbnail_marked_dirty_when_source_data_changed(self):
