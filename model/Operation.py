@@ -314,6 +314,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         The data_sources property holds a list of data sources. Data sources can be data items or other operations.
 
         The region_connections property holds a dict mapping region identifiers to region UUID's.
+
+        Operations should return None for calibrations, metadata, or data when error conditions such as
+        invalid data arise.
         """
     def __init__(self, operation_id):
         super(OperationItem, self).__init__()
@@ -711,7 +714,7 @@ class FFTOperation(Operation):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         data_shape = data_sources[0].data_shape
-        if data is None or data_shape is None:
+        if data is None or not Image.is_data_valid(data):
             return None
         # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
         # see https://gist.github.com/endolith/1257010
@@ -727,7 +730,8 @@ class FFTOperation(Operation):
 
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
-        if data_shape is None:
+        data_dtype = data_sources[0].data_dtype
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         return data_shape, numpy.dtype(numpy.complex128)
 
@@ -735,7 +739,7 @@ class FFTOperation(Operation):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if data_shape is None or data_dtype is None or dimensional_calibrations is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
             return None
         assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
@@ -752,7 +756,7 @@ class IFFTOperation(Operation):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         data_shape = data_sources[0].data_shape
-        if data is None or data_shape is None:
+        if data is None or not Image.is_data_valid(data):
             return None
         # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
         # see https://gist.github.com/endolith/1257010
@@ -770,7 +774,7 @@ class IFFTOperation(Operation):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if data_shape is None or data_dtype is None or dimensional_calibrations is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
             return None
         assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
         return [Calibration.Calibration(0.0,
@@ -786,7 +790,7 @@ class AutoCorrelateOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_data_2d(data):
             data_copy = data.copy()  # let other threads use data while we're processing
@@ -801,7 +805,7 @@ class AutoCorrelateOperation(Operation):
             # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
             # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
             # return scipy.signal.fftconvolve(data_copy, numpy.conj(data_copy), mode='same')
-        raise NotImplementedError()
+        return None
 
 
 class CrossCorrelateOperation(Operation):
@@ -831,7 +835,7 @@ class CrossCorrelateOperation(Operation):
                 # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
                 # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
                 # return scipy.signal.fftconvolve(data1.copy(), numpy.conj(data2.copy()), mode='same')
-        raise NotImplementedError()
+        return None
 
 
 class InvertOperation(Operation):
@@ -842,7 +846,7 @@ class InvertOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
             if Image.is_data_rgba(data):
@@ -863,7 +867,7 @@ class SobelOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
             rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
@@ -890,7 +894,7 @@ class LaplaceOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
             rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
@@ -920,7 +924,7 @@ class GaussianBlurOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         return scipy.ndimage.gaussian_filter(data, sigma=10*values.get("sigma"))
 
@@ -936,7 +940,7 @@ class MedianFilterOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         size = max(min(values.get("size"), 999), 1)
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
@@ -967,7 +971,7 @@ class UniformFilterOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         size = max(min(values.get("size"), 999), 1)
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
@@ -1011,7 +1015,7 @@ class TransposeFlipOperation(Operation):
         if len(data_sources) > 0:
             data_shape = data_sources[0].data_shape
             data_dtype = data_sources[0].data_dtype
-            if data_shape is None or data_dtype is None:
+            if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
                 return None
             if values.get("transpose"):
                 if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -1025,7 +1029,7 @@ class TransposeFlipOperation(Operation):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
         data_id = id(data)
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         flip_horizontal = values.get("flip_horizontal")
         flip_vertical = values.get("flip_vertical")
@@ -1056,8 +1060,9 @@ class Crop2dOperation(Operation):
 
     def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if data_shape is None or dimensional_calibrations is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
             return None
         cropped_dimensional_calibrations = list()
         bounds = values.get("bounds")
@@ -1071,7 +1076,7 @@ class Crop2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         bounds = values.get("bounds")
         bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
@@ -1083,11 +1088,11 @@ class Crop2dOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        shape = data_sources[0].data_shape
-        if data is None or shape is None:
+        if not Image.is_data_valid(data):
             return None
+        data_shape = data_sources[0].data_shape
         bounds = values.get("bounds")
-        bounds_int = ((int(shape[0] * bounds[0][0]), int(shape[1] * bounds[0][1])), (int(shape[0] * bounds[1][0]), int(shape[1] * bounds[1][1])))
+        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
         return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
 
 
@@ -1103,14 +1108,14 @@ class Slice3dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         return data_shape[1:], data_dtype
 
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         shape = data.shape
         slice_center = values.get("slice_center")
@@ -1135,23 +1140,23 @@ class Pick3dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         return (data_shape[0], ), data_dtype
 
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        shape = data.shape
-        if data is None or shape is None:
+        if not Image.is_data_valid(data):
             return None
+        data_shape = data_sources[0].data_shape
         position = values.get("position")
         position = Geometry.FloatPoint.make(position)
-        position_i = Geometry.IntPoint(y=position.y * shape[1], x=position.x * shape[2])
-        if position_i.y >= 0 and position_i.y < shape[1] and position_i.x >= 0 and position_i.x < shape[2]:
+        position_i = Geometry.IntPoint(y=position.y * data_shape[1], x=position.x * data_shape[2])
+        if position_i.y >= 0 and position_i.y < data_shape[1] and position_i.x >= 0 and position_i.x < data_shape[2]:
             return data[:, position_i[0], position_i[1]].copy()
         else:
-            return numpy.zeros((shape[0], ), dtype=data.dtype)
+            return numpy.zeros((data_shape[0], ), dtype=data.dtype)
 
 
 class Projection2dOperation(Operation):
@@ -1169,14 +1174,14 @@ class Projection2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         return data_shape[1:], data_dtype
 
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
             if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
@@ -1208,18 +1213,21 @@ class Resample2dOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
-        height = values.get("height", data.shape[0])
-        width = values.get("width", data.shape[1])
-        if data.shape[1] == width and data.shape[0] == height:
-            return data.copy()
-        return Image.scaled(data, (height, width))
+        if Image.is_data_2d(data):
+            height = values.get("height", data.shape[0])
+            width = values.get("width", data.shape[1])
+            if data.shape[1] == width and data.shape[0] == height:
+                return data.copy()
+            return Image.scaled(data, (height, width))
+        return None
 
     def get_processed_dimensional_calibrations(self, data_sources, values):
         data_shape = data_sources[0].data_shape
+        data_dtype = data_sources[0].data_dtype
         dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if data_shape is None or dimensional_calibrations is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
             return None
         assert len(dimensional_calibrations) == 2
         height = values.get("height", data_shape[0])
@@ -1232,7 +1240,7 @@ class Resample2dOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         height = values.get("height", data_shape[0])
         width = values.get("width", data_shape[1])
@@ -1244,7 +1252,8 @@ class Resample2dOperation(Operation):
     def property_defaults_for_data_shape_and_dtype(self, data_sources):
         property_defaults = super(Resample2dOperation, self).property_defaults_for_data_shape_and_dtype(data_sources)
         data_shape = data_sources[0].data_shape
-        if data_shape is not None:
+        data_dtype = data_sources[0].data_dtype
+        if Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             property_defaults["height"] = data_shape[0]
             property_defaults["width"] = data_shape[1]
         return property_defaults
@@ -1262,7 +1271,7 @@ class HistogramOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         histogram_data = numpy.histogram(data, bins=self.bins)
         return histogram_data[0].astype(numpy.int)
@@ -1283,7 +1292,7 @@ class LineProfileOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         start, end = values.get("vector")
         shape = data_shape
@@ -1297,7 +1306,7 @@ class LineProfileOperation(Operation):
 
     def get_processed_dimensional_calibrations(self, data_sources, values):
         dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if dimensional_calibrations is None:
+        if dimensional_calibrations is None or len(dimensional_calibrations) != 2:
             return None
         return [Calibration.Calibration(0.0, dimensional_calibrations[1].scale, dimensional_calibrations[1].units)]
 
@@ -1326,7 +1335,7 @@ class LineProfileOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         assert Image.is_data_2d(data)
         if Image.is_data_rgb_type(data):
@@ -1359,7 +1368,7 @@ class ConvertToScalarOperation(Operation):
     def get_processed_data(self, data_sources, values):
         assert(len(data_sources) == 1)
         data = data_sources[0].data
-        if data is None:
+        if not Image.is_data_valid(data):
             return None
         if Image.is_data_rgba(data) or Image.is_data_rgb(data):
             return Image.convert_to_grayscale(data, numpy.double)
@@ -1371,7 +1380,7 @@ class ConvertToScalarOperation(Operation):
     def get_processed_data_shape_and_dtype(self, data_sources, values):
         data_shape = data_sources[0].data_shape
         data_dtype = data_sources[0].data_dtype
-        if data_shape is None or data_dtype is None:
+        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
             return None
         if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
             return data_shape[:-1], numpy.dtype(numpy.double)

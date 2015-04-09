@@ -307,6 +307,145 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
 
+    # test operations against 2d data. doesn't test for correctness of the operation.
+    def test_invalid_operations(self):
+
+        data_item_none = DataItem.DataItem()
+        self.document_model.append_data_item(data_item_none)
+
+        data_item_real_0l = DataItem.DataItem(numpy.zeros((0), numpy.double))
+        self.document_model.append_data_item(data_item_real_0l)
+        data_item_real_0w = DataItem.DataItem(numpy.zeros((256,0), numpy.double))
+        self.document_model.append_data_item(data_item_real_0w)
+        data_item_real_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
+        self.document_model.append_data_item(data_item_real_0h)
+        data_item_real_0z = DataItem.DataItem(numpy.zeros((0,256,256), numpy.double))
+        self.document_model.append_data_item(data_item_real_0z)
+        data_item_real_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
+        self.document_model.append_data_item(data_item_real_0z0w)
+        data_item_real_0z0h = DataItem.DataItem(numpy.zeros((16,256,0), numpy.double))
+        self.document_model.append_data_item(data_item_real_0z0h)
+
+        data_item_complex_0l = DataItem.DataItem(numpy.zeros((0), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0l)
+        data_item_complex_0w = DataItem.DataItem(numpy.zeros((256,0), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0w)
+        data_item_complex_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0h)
+        data_item_complex_0z = DataItem.DataItem(numpy.zeros((0,256,256), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0z)
+        data_item_complex_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0z0w)
+        data_item_complex_0z0h = DataItem.DataItem(numpy.zeros((16,256,0), numpy.double))
+        self.document_model.append_data_item(data_item_complex_0z0h)
+
+        data_item_rgb_0w = DataItem.DataItem(numpy.zeros((256,0, 3), numpy.uint8))
+        self.document_model.append_data_item(data_item_rgb_0w)
+        data_item_rgb_0h = DataItem.DataItem(numpy.zeros((0,256, 3), numpy.uint8))
+        self.document_model.append_data_item(data_item_rgb_0h)
+
+        data_item_rgba_0w = DataItem.DataItem(numpy.zeros((256,0, 4), numpy.uint8))
+        self.document_model.append_data_item(data_item_rgba_0w)
+        data_item_rgba_0h = DataItem.DataItem(numpy.zeros((0,256, 4), numpy.uint8))
+        self.document_model.append_data_item(data_item_rgba_0h)
+
+        data_list = (
+            # data_item_none,
+            data_item_real_0l, data_item_real_0w, data_item_real_0h, data_item_real_0z,
+            data_item_real_0z0w, data_item_real_0z0h, data_item_complex_0l, data_item_complex_0w, data_item_complex_0h,
+            data_item_complex_0z, data_item_complex_0z0w, data_item_complex_0z0h, data_item_rgb_0w, data_item_rgb_0h,
+            data_item_rgba_0w, data_item_rgba_0h)
+
+        operation_list = []
+        for data_item in data_list:
+            operation_list.append((data_item, Operation.OperationItem("fft-operation")))
+            operation_list.append((data_item, Operation.OperationItem("inverse-fft-operation")))
+            operation_list.append((data_item, Operation.OperationItem("auto-correlate-operation")))
+            operation_list.append((data_item, Operation.OperationItem("cross-correlate-operation")))
+            operation_list.append((data_item, Operation.OperationItem("invert-operation")))
+            operation_list.append((data_item, Operation.OperationItem("sobel-operation")))
+            operation_list.append((data_item, Operation.OperationItem("laplace-operation")))
+            operation_list.append((data_item, Operation.OperationItem("gaussian-blur-operation")))
+            operation_list.append((data_item, Operation.OperationItem("median-filter-operation")))
+            operation_list.append((data_item, Operation.OperationItem("uniform-filter-operation")))
+            transpose_operation = Operation.OperationItem("transpose-flip-operation")
+            transpose_operation.transpose = True
+            transpose_operation.flip_horizontal = True
+            transpose_operation.flip_vertical = True
+            operation_list.append((data_item, transpose_operation))
+            operation_list.append((data_item, Operation.OperationItem("crop-operation")))
+            operation_list.append((data_item, Operation.OperationItem("slice-operation")))
+            operation_list.append((data_item, Operation.OperationItem("pick-operation")))
+            operation_list.append((data_item, Operation.OperationItem("projection-operation")))
+            resample_2d_operation = Operation.OperationItem("resample-operation")
+            resample_2d_operation.width = 128
+            resample_2d_operation.height = 128
+            operation_list.append((data_item, resample_2d_operation))
+            operation_list.append((data_item, Operation.OperationItem("histogram-operation")))
+            line_profile_operation = Operation.OperationItem("line-profile-operation")
+            operation_list.append((data_item, line_profile_operation))
+            operation_list.append((data_item, Operation.OperationItem("convert-to-scalar-operation")))
+
+        for source_data_item, operation in operation_list:
+            # logging.debug("%s, %s", source_data_item.maybe_data_source.data_shape_and_dtype, operation.operation_id)
+            operation.add_data_source(source_data_item._create_test_data_source())
+            data_item = DataItem.DataItem()
+            data_item.set_operation(operation)
+            self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            data_item.recompute_data()
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
+                self.assertEqual(data_item.operation.data_sources[0].source_data_item, source_data_item)
+                self.assertIsNone(data_ref.data)
+                self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations, [])
+
+    def test_operations_on_none(self):
+
+        data_item = DataItem.DataItem()
+        self.document_model.append_data_item(data_item)
+
+        operation_list = []
+        operation_list.append((data_item, Operation.OperationItem("fft-operation")))
+        operation_list.append((data_item, Operation.OperationItem("inverse-fft-operation")))
+        operation_list.append((data_item, Operation.OperationItem("auto-correlate-operation")))
+        operation_list.append((data_item, Operation.OperationItem("cross-correlate-operation")))
+        operation_list.append((data_item, Operation.OperationItem("invert-operation")))
+        operation_list.append((data_item, Operation.OperationItem("sobel-operation")))
+        operation_list.append((data_item, Operation.OperationItem("laplace-operation")))
+        operation_list.append((data_item, Operation.OperationItem("gaussian-blur-operation")))
+        operation_list.append((data_item, Operation.OperationItem("median-filter-operation")))
+        operation_list.append((data_item, Operation.OperationItem("uniform-filter-operation")))
+        transpose_operation = Operation.OperationItem("transpose-flip-operation")
+        transpose_operation.transpose = True
+        transpose_operation.flip_horizontal = True
+        transpose_operation.flip_vertical = True
+        operation_list.append((data_item, transpose_operation))
+        operation_list.append((data_item, Operation.OperationItem("crop-operation")))
+        operation_list.append((data_item, Operation.OperationItem("slice-operation")))
+        operation_list.append((data_item, Operation.OperationItem("pick-operation")))
+        operation_list.append((data_item, Operation.OperationItem("projection-operation")))
+        resample_2d_operation = Operation.OperationItem("resample-operation")
+        resample_2d_operation.width = 128
+        resample_2d_operation.height = 128
+        operation_list.append((data_item, resample_2d_operation))
+        operation_list.append((data_item, Operation.OperationItem("histogram-operation")))
+        line_profile_operation = Operation.OperationItem("line-profile-operation")
+        operation_list.append((data_item, line_profile_operation))
+        operation_list.append((data_item, Operation.OperationItem("convert-to-scalar-operation")))
+
+        for source_data_item, operation in operation_list:
+            # logging.debug("%s, %s", source_data_item.maybe_data_source.data_shape_and_dtype, operation.operation_id)
+            operation.add_data_source(source_data_item._create_test_data_source())
+            data_item = DataItem.DataItem()
+            data_item.set_operation(operation)
+            self.document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            data_item.recompute_data()
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
+                self.assertIsNone(data_item.operation.data_sources[0].source_data_item)
+                self.assertIsNone(data_ref.data)
+                self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations, [])
+
     def test_crop_2d_operation_returns_correct_dimensional_shape_and_data_shape(self):
         data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
         real_data_item = DataItem.DataItem()

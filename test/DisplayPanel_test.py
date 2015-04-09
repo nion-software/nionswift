@@ -897,10 +897,8 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
         with self.data_item.maybe_data_source.data_ref() as dr:
             dr.master_data = numpy.zeros((0, ))
-        # first try basic repaint
-        self.image_panel.display_canvas_item._repaint(self.app.ui.create_offscreen_drawing_context())  # force layout
-        # next try resize
-        self.image_panel.display_canvas_item.root_container.update_layout((0, 0), (500, 600))
+        # display panel should not have any display_canvas_item now since data is not valid
+        self.assertIsNone(self.image_panel.display_canvas_item)
         # thumbnails and processors
         self.display_specifier.display.get_processor("thumbnail").get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
         self.document_controller.periodic()
@@ -909,10 +907,8 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_2d_data_with_zero_dimensions_display_fails_without_exception(self):
         with self.data_item.maybe_data_source.data_ref() as dr:
             dr.master_data = numpy.zeros((0, 0))
-        # first try basic repaint
-        self.image_panel.display_canvas_item._repaint(self.app.ui.create_offscreen_drawing_context())  # force layout
-        # next try resize
-        self.image_panel.display_canvas_item.root_container.update_layout((0, 0), (500, 600))
+        # display panel should not have any display_canvas_item now since data is not valid
+        self.assertIsNone(self.image_panel.display_canvas_item)
         # thumbnails and processors
         self.display_specifier.display.get_processor("thumbnail").get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
         self.document_controller.periodic()

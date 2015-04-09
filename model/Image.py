@@ -1,4 +1,5 @@
 # standard libraries
+import functools
 import logging
 import math
 import sys
@@ -204,8 +205,17 @@ def is_data_scalar_type(data):
     return data is not None and is_shape_and_dtype_scalar_type(data.shape, data.dtype)
 
 
-def is_shape_and_dtype_1d(shape, dtype):
+def is_shape_and_dtype_valid(shape, dtype):
     if shape is None or dtype is None:
+        return False
+    if is_shape_and_dtype_rgb_type(shape, dtype):
+        return len(shape) > 1 and functools.reduce(lambda x, y: x * y, shape[:-1]) > 0  # one extra dimension for rgb(a) values
+    return len(shape) > 0 and functools.reduce(lambda x, y: x * y, shape) > 0
+def is_data_valid(data):
+    return data is not None and is_shape_and_dtype_valid(data.shape, data.dtype)
+
+def is_shape_and_dtype_1d(shape, dtype):
+    if shape is None or dtype is None or not is_shape_and_dtype_valid(shape, dtype):
         return False
     if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
         return len(shape) == 2  # one extra dimension for rgb(a) values
@@ -215,7 +225,7 @@ def is_data_1d(data):
 
 
 def is_shape_and_dtype_2d(shape, dtype):
-    if shape is None or dtype is None:
+    if shape is None or dtype is None or not is_shape_and_dtype_valid(shape, dtype):
         return False
     if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
         return len(shape) == 3  # one extra dimension for rgb(a) values
@@ -225,7 +235,7 @@ def is_data_2d(data):
 
 
 def is_shape_and_dtype_3d(shape, dtype):
-    if shape is None or dtype is None:
+    if shape is None or dtype is None or not is_shape_and_dtype_valid(shape, dtype):
         return False
     if is_shape_and_dtype_rgb(shape, dtype) or is_shape_and_dtype_rgba(shape, dtype):
         return len(shape) == 4  # one extra dimension for rgb(a) values
