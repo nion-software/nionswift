@@ -111,25 +111,25 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.display_panel = None
         super(DisplayPanelOverlayCanvasItem, self).close()
 
-    def __get_focused(self):
+    @property
+    def focused(self):
         return self.__focused
 
-    def __set_focused(self, focused):
+    @focused.setter
+    def focused(self, focused):
         if self.__focused != focused:
             self.__focused = focused
             self.update()
 
-    focused = property(__get_focused, __set_focused)
-
-    def __get_selected(self):
+    @property
+    def selected(self):
         return self.__selected
 
-    def __set_selected(self, selected):
+    @selected.setter
+    def selected(self, selected):
         if self.__selected != selected:
             self.__selected = selected
             self.update()
-
-    selected = property(__get_selected, __set_selected)
 
     def __set_drop_region(self, drop_region):
         if self.__drop_region != drop_region:
