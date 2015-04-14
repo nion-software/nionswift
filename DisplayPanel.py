@@ -229,8 +229,11 @@ class BrowserDisplayPanelController(object):
         external events such as a selection in another panel changing, acquisition starting,
         and more.
     """
+    type = "browser"
+    display_name = _("Browser")
+
     def __init__(self, display_panel):
-        self.type = "browser"
+        self.type = BrowserDisplayPanelController.type
         self.__display_panel = display_panel
         self.__display_panel.document_controller.add_listener(self)
         self.__display_panel.header_canvas_item.end_header_color = "#996633"
@@ -241,15 +244,23 @@ class BrowserDisplayPanelController(object):
         self.__display_panel = None
 
     @classmethod
-    def make(cls, display_panel, d):
-        return BrowserDisplayPanelController(display_panel)
+    def build_menu(self, live_menu, selected_display_panel):
+        return list()
 
     @classmethod
-    def match(cls, display_panel, hardware_source_id, channel_id):
-        return None
+    def build_menu(self, live_menu, selected_display_panel):
+        def switch_to_live_controller():
+            d = dict()
+            display_panel_controller = self.make_new(BrowserDisplayPanelController.type, selected_display_panel, d)
+            selected_display_panel.set_display_panel_controller(display_panel_controller)
+        action = live_menu.add_menu_item(BrowserDisplayPanelController.display_name, switch_to_live_controller)
+        action.checked = False
+        return [action]
 
     @classmethod
-    def detect(cls, display_panel, display_specifier):
+    def make_new(self, controller_type, display_panel, d):
+        if controller_type == BrowserDisplayPanelController.type:
+            return BrowserDisplayPanelController(display_panel)
         return None
 
     def save(self, d):
@@ -436,7 +447,6 @@ class DisplayPanel(object):
         in that it will recognize when it is receiving a live acquisition and automatically
         set up the live image panel controller.
         """
-        self.set_display_panel_controller(DisplayPanelManager().detect_display_panel_controller(self, display_specifier))
         self.set_displayed_data_item_and_display(display_specifier)
 
     def set_display_panel_controller(self, display_panel_controller):
@@ -715,6 +725,7 @@ class DisplayPanelManager(Observable.Broadcaster):
     def __init__(self):
         super(DisplayPanelManager, self).__init__()
         self.__display_panel_controllers = dict()  # maps controller_type to make_fn
+        self.__factories = dict()
 
     # events from the image panels
     def key_pressed(self, image_panel, key):
@@ -725,30 +736,25 @@ class DisplayPanelManager(Observable.Broadcaster):
         self.notify_listeners("image_panel_mouse_clicked", image_panel, display_specifier, image_position, modifiers)
         return False
 
-    def register_display_panel_controller(self, controller_type, make_fn):
-        self.__display_panel_controllers[controller_type] = make_fn
+    def register_display_panel_controller_factory(self, factory_id, factory):
+        assert factory_id not in self.__factories
+        self.__factories[factory_id] = factory
 
-    def unregister_display_panel_controller(self, controller_type):
-        del self.__display_panel_controllers[controller_type]
+    def unregister_display_panel_controller_factory(self, factory_id):
+        assert factory_id in self.__factories
+        del self.__factories[factory_id]
 
     def make_display_panel_controller(self, controller_type, display_panel, d):
-        if controller_type in self.__display_panel_controllers:
-            return self.__display_panel_controllers[controller_type].make(display_panel, d)
-        return None
-
-    def detect_display_panel_controller(self, display_panel, display_specifier):
-        for controller_type in self.__display_panel_controllers:
-            display_panel_controller = self.__display_panel_controllers[controller_type].detect(display_panel, display_specifier)
+        for factory in self.__factories.values():
+            display_panel_controller = factory.make_new(controller_type, display_panel, d)
             if display_panel_controller:
                 return display_panel_controller
         return None
 
-    def match_display_panel_controller(self, display_panel, hardware_source_id, channel_id):
-        for controller_type in self.__display_panel_controllers:
-            display_panel_controller = self.__display_panel_controllers[controller_type].match(display_panel, hardware_source_id, channel_id)
-            if display_panel_controller:
-                return display_panel_controller
-        return None
+    def build_menu(self, live_menu, selected_display_panel):
+        dynamic_live_actions = list()
 
+        for factory in self.__factories.values():
+            dynamic_live_actions.extend(factory.build_menu(live_menu, selected_display_panel))
 
-DisplayPanelManager().register_display_panel_controller("browser", BrowserDisplayPanelController)
+        return dynamic_live_actions

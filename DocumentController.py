@@ -237,8 +237,6 @@ class DocumentController(Observable.Broadcaster):
         self.__dynamic_live_actions = []
 
         def about_to_show_live_menu():
-            from nion.swift.model import HardwareSource
-
             for dynamic_live_action in self.__dynamic_live_actions:
                 self.live_menu.remove_action(dynamic_live_action)
             self.__dynamic_live_actions = []
@@ -253,31 +251,7 @@ class DocumentController(Observable.Broadcaster):
             action = self.live_menu.add_menu_item("None", clear_display_controller)
             self.__dynamic_live_actions.append(action)
 
-            for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
-                channel_count = hardware_source.channel_count
-                if channel_count == 1:
-                    def switch_to_live_controller(hardware_source):
-                        display_panel_controller = DisplayPanel.DisplayPanelManager().match_display_panel_controller(selected_display_panel, hardware_source.hardware_source_id, None)
-                        selected_display_panel.set_display_panel_controller(display_panel_controller)
-
-                    action = self.live_menu.add_menu_item(hardware_source.display_name,
-                                                          functools.partial(switch_to_live_controller, hardware_source))
-                    action.checked = False
-                    self.__dynamic_live_actions.append(action)
-                elif channel_count > 1:
-                    for channel_index in range(channel_count):
-                        channel_id, name, _ = hardware_source.get_channel_state(0, channel_index)  # hack since there is no get_channel_info call
-
-                        def switch_to_live_controller(hardware_source, channel_id):
-                            display_panel_controller = DisplayPanel.DisplayPanelManager().match_display_panel_controller(selected_display_panel, hardware_source.hardware_source_id, channel_id)
-                            selected_display_panel.set_display_panel_controller(display_panel_controller)
-
-                        display_name = "%s (%s)" % (hardware_source.display_name, name)
-                        action = self.live_menu.add_menu_item(display_name, functools.partial(switch_to_live_controller,
-                                                                                              hardware_source,
-                                                                                              channel_id))
-                        action.checked = False
-                        self.__dynamic_live_actions.append(action)
+            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self.live_menu, selected_display_panel))
 
         self.live_menu = self.ui.create_sub_menu(self.document_window)
         self.live_menu.on_about_to_show = about_to_show_live_menu
