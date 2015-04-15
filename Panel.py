@@ -119,7 +119,7 @@ class ConsolePanel(Panel):
         self.console = code.InteractiveConsole(locals)
         lines = [
             "from nion.swift import DocumentController",
-            "from nion.swift.model import DocumentModel, DataItem, Image, Region",
+            "from nion.swift.model import DocumentModel, DataItem, Image, PlugInManager, Region",
             "from nion.swift.Application import print_stack_all as _bt",
             "from nion.swift.Application import sample_stack_all as _pr",
             "import logging",
@@ -127,6 +127,7 @@ class ConsolePanel(Panel):
             "import numpy as numpy",
             "import uuid",
             "_document_model = _document_controller.document_model",
+            "get_api = PlugInManager.api_broker_fn"
             ]
         for l in lines:
             self.interpret_command(l)
