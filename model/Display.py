@@ -452,6 +452,8 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             factor = 1.0
             data_sample = self.item.preview_2d_data
         display_range = self.item.display_range  # may be None
+        if display_range is None:
+            return None
         histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=self.bins)[0]
         histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
         if histogram_max > 0:
