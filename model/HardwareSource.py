@@ -342,6 +342,8 @@ class HardwareSource(object):
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
         self.__acquire_thread.start()
+        self._test_handle_record_exception = None
+        self._test_handle_view_exception = None
 
     def close(self):
         # when overriding hardware source close, the acquisition loop may still be running
@@ -366,10 +368,13 @@ class HardwareSource(object):
                         self.__view_task_suspended = True
                     self.__record_task.execute()
                 except Exception as e:
-                    import traceback
-                    logging.debug("Record Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
+                    self.__record_task.abort()
+                    if self._test_handle_record_exception:
+                        self._test_handle_record_exception(e)
+                    else:
+                        import traceback
+                        logging.debug("Record Error: %s", e)
+                        traceback.print_exc()
                 if self.__record_task.is_finished:
                     self.__record_task = None
                     self.active_record_task_changed_event.fire(self.__record_task)
@@ -386,10 +391,13 @@ class HardwareSource(object):
                         self.__view_task_suspended = False
                     self.__view_task.execute()
                 except Exception as e:
-                    import traceback
-                    logging.debug("View Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
+                    self.__view_task.abort()
+                    if self._test_handle_view_exception:
+                        self._test_handle_view_exception(e)
+                    else:
+                        import traceback
+                        logging.debug("View Error: %s", e)
+                        traceback.print_exc()
                 if self.__view_task.is_finished:
                     self.__view_task = None
                     self.active_view_task_changed_event.fire(self.__view_task)
@@ -438,6 +446,7 @@ class HardwareSource(object):
     # be repeatedly called. in practice that means that subclasses MUST sleep (directly
     # or indirectly) unless the data is immediately available, which it shouldn't be on
     # a regular basis. it is an error for this function to return an empty list of data_elements.
+    # this method can throw exceptions, it will result in the acquisition loop being aborted.
     # must be thread safe
     def acquire_data_elements(self):
         raise NotImplementedError()
