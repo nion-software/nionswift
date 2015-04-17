@@ -344,7 +344,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def request_remove_data_item_because_operation_removed(self, region):
         """Notification from the data source, if any. Just pass it on."""
-        self.notify_listeners("request_remove_data_item_because_operation_removed", self)
+        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to data item
 
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
@@ -1333,7 +1333,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     # that informs the display which notifies the graphic which
     # notifies the operation which notifies this data item. ugh.
     def request_remove_data_item_because_operation_removed(self, operation):
-        self.notify_listeners("request_remove_data_item", self)
+        self.notify_listeners("request_remove_data_item", self)  # goes to document model
 
     def set_data_item_manager(self, data_item_manager):
         """Set the data item manager. May be called from thread."""

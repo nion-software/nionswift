@@ -199,6 +199,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         image_panel = document_controller.selected_display_panel
         image_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
+        self.assertTrue(line_profile_data_item in document_model.data_items)
         image_panel.display.graphic_selection.clear()
         image_panel.display.graphic_selection.add(0)
         # make sure assumptions are correct

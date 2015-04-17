@@ -38,7 +38,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
 
     def remove_region_graphic(self, region_graphic):
         # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)
+        self.notify_listeners("remove_region_because_graphic_removed", self)  # goes to operation
 
 
 class PointRegion(Region):

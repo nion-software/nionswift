@@ -894,31 +894,38 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_sobel(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "sobel-operation", prefix=_("Sobel Filter of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "sobel-operation", prefix=_("Sobel Filter of "), crop_region=crop_region)
 
     def processing_laplace(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "laplace-operation", prefix=_("Laplace Filter of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "laplace-operation", prefix=_("Laplace Filter of "), crop_region=crop_region)
 
     def processing_gaussian_blur(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "gaussian-blur-operation", prefix=_("Gaussian Blur of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "gaussian-blur-operation", prefix=_("Gaussian Blur of "), crop_region=crop_region)
 
     def processing_median_filter(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "median-filter-operation", prefix=_("Median Filter of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "median-filter-operation", prefix=_("Median Filter of "), crop_region=crop_region)
 
     def processing_uniform_filter(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "uniform-filter-operation", prefix=_("Uniform Filter of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "uniform-filter-operation", prefix=_("Uniform Filter of "), crop_region=crop_region)
 
     def processing_transpose_flip(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "transpose-flip-operation", prefix=_("Transpose/Flip of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "transpose-flip-operation", prefix=_("Transpose/Flip of "), crop_region=crop_region)
 
     def processing_resample(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "resample-operation", prefix=_("Resample of "))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "resample-operation", prefix=_("Resample of "), crop_region=crop_region)
 
     def processing_histogram(self):
         display_specifier = self.selected_display_specifier
@@ -962,11 +969,13 @@ class DocumentController(Observable.Broadcaster):
         return DataItem.DisplaySpecifier()
 
     def processing_projection(self):
-        buffered_data_source_specifier = self.selected_display_specifier.buffered_data_source_specifier
+        display_specifier = self.selected_display_specifier
+        buffered_data_source_specifier = display_specifier.buffered_data_source_specifier
         buffered_data_source = buffered_data_source_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
             operation = Operation.OperationItem("projection-operation")
-            return self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Projection of "))
+            crop_region = self.__get_crop_region(display_specifier)
+            return self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Projection of "), crop_region=crop_region)
         return DataItem.DisplaySpecifier()
 
     def processing_line_profile(self):
@@ -982,7 +991,8 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_invert(self):
         display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation", suffix=_(" Inverted"))
+        crop_region = self.__get_crop_region(display_specifier)
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation", suffix=_(" Inverted"), crop_region=crop_region)
 
     def processing_duplicate(self):
         data_item = self.selected_display_specifier.data_item

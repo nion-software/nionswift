@@ -224,7 +224,7 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
     def nudge(self, mapping, delta):
         raise NotImplementedError()
     def notify_remove_region_graphic(self):
-        self.notify_listeners("remove_region_graphic", self)
+        self.notify_listeners("remove_region_graphic", self)  # goes to region
     def label_position(self, mapping, font_metrics, padding):
         raise NotImplementedError()
 

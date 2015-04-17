@@ -393,6 +393,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
     def managed_object_context_changed(self):
         """ Override from ManagedObject. """
+        super(OperationItem, self).managed_object_context_changed()
         for region_connection_id in self.region_connections:
             def registered(region_connection_id, region):
                 self.__set_region(region_connection_id, region)
@@ -425,9 +426,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     def add_data_source(self, data_source):
         assert isinstance(data_source, DataItemDataSource) or isinstance(data_source, OperationItem)
         self.append_item("data_sources", data_source)
+        data_source.add_listener(self)  # for request_remove_data_item_because_operation_removed
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
+        data_source.remove_listener(self)
         self.remove_item("data_sources", data_source)
 
     def __data_source_inserted(self, name, before_index, data_source):
@@ -563,7 +566,11 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     # that informs the display which notifies the graphic which
     # notifies the operation which notifies this data item. ugh.
     def remove_region_because_graphic_removed(self, region):
-        self.notify_listeners("request_remove_data_item_because_operation_removed", self)
+        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
+
+    # this message comes from our own data sources. pass it on.
+    def request_remove_data_item_because_operation_removed(self, region):
+        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
 
     # get a property.
     def get_property(self, property_id, default_value=None):

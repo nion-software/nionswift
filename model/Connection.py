@@ -76,6 +76,7 @@ class PropertyConnection(Connection):
             self.__suppress = False
 
     def managed_object_context_changed(self):
+        super(PropertyConnection, self).managed_object_context_changed()
         """ Override from ManagedObject. """
         def register():
             if self.__source is not None and self.__target is not None:
