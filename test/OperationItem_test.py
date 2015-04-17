@@ -737,6 +737,22 @@ class TestOperationClass(unittest.TestCase):
         # check to make sure regions were removed
         self.assertEqual(len(display_specifier.buffered_data_source.regions), 0)
 
+    def test_crop_works_on_selected_region_without_exception(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        image_panel = document_controller.selected_display_panel
+        image_panel.set_displayed_data_item(data_item)
+        self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
+        crop_region = Region.RectRegion()
+        crop_region.center = (0.5, 0.5)
+        crop_region.size = (0.5, 1.0)
+        data_item.maybe_data_source.add_region(crop_region)
+        display_specifier.display.graphic_selection.set(0)
+        document_controller.processing_crop().data_item
+
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
         # set up the data items

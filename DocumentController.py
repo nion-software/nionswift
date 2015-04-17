@@ -930,7 +930,7 @@ class DocumentController(Observable.Broadcaster):
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
             crop_region = self.__get_crop_region(display_specifier)
-            bounds = crop_region.bounds if crop_region else (0.25,0.25), (0.5,0.5)
+            bounds = crop_region.bounds if crop_region else ((0.25,0.25), (0.5,0.5))
             operation = Operation.OperationItem("crop-operation")
             operation.set_property("bounds", bounds)
             operation.establish_associated_region("crop", buffered_data_source, crop_region)  # after setting operation properties
