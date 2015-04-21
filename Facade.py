@@ -401,14 +401,26 @@ class FacadeRecordTask(object):
         self.__thread.start()
 
     def close(self):
+        """Close the task.
+
+        This method must be called when the task is no longer needed.
+        """
         self.__thread.join()
         self.__data_and_metadata_list = None
 
     @property
     def is_finished(self):
+        """Return a boolean indicating whether the task is finished."""
         return not self.__thread.is_alive()
 
     def grab(self):
+        """Grab list of data/metadata from the task.
+
+        This method will wait until the task finishes.
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
         self.__thread.join()
         return self.__data_and_metadata_list
 
@@ -433,17 +445,42 @@ class FacadeViewTask(object):
         self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
 
     def close(self):
+        """Close the task.
+
+        This method must be called when the task is no longer needed.
+        """
         if not self.__was_playing:
             self.__hardware_source.stop_playing()
 
     def grab_immediate(self):
+        """Grab list of data/metadata from the task.
+
+        This method will return immediately if data is available.
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
         return self.grab_next_to_finish()
 
     def grab_next_to_finish(self):
+        """Grab list of data/metadata from the task.
+
+        This method will wait until the current frame completes.
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
         return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def grab_next_to_start(self):
+        """Grab list of data/metadata from the task.
+
+        This method will wait until the current frame completes and the next one finishes.
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
         data_elements = self.__hardware_source.get_next_data_elements_to_start()
         return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
@@ -472,6 +509,15 @@ class FacadeHardwareSource(object):
         self.__hardware_source.start_playing()
 
     def record(self, frame_parameters=None, channels_enabled=None):
+        """Record data and return a data_and_metadata object.
+
+        :param frame_parameters: The frame parameters for the record. Pass None for defaults.
+        :type frame_parameters: :py:class:`FrameParameters`
+        :param channels_enabled: The enabled channels for the record. Pass None for defaults.
+        :type channels_enabled: Array of booleans.
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(frame_parameters)
         if channels_enabled:
@@ -492,7 +538,7 @@ class FacadeHardwareSource(object):
 
         Callers should call close on the returned task when finished.
 
-        See :py:class:`ViewTask` for examples of how to use.
+        See :py:class:`RecordTask` for examples of how to use.
         """
         return FacadeRecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
