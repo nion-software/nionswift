@@ -403,6 +403,9 @@ class FacadeRecordTask(object):
     def close(self):
         """Close the task.
 
+        .. versionadded:: 1.0
+
+
         This method must be called when the task is no longer needed.
         """
         self.__thread.join()
@@ -410,11 +413,16 @@ class FacadeRecordTask(object):
 
     @property
     def is_finished(self):
-        """Return a boolean indicating whether the task is finished."""
+        """Return a boolean indicating whether the task is finished.
+
+        .. versionadded:: 1.0
+        """
         return not self.__thread.is_alive()
 
     def grab(self):
         """Grab list of data/metadata from the task.
+
+        .. versionadded:: 1.0
 
         This method will wait until the task finishes.
 
@@ -447,6 +455,8 @@ class FacadeViewTask(object):
     def close(self):
         """Close the task.
 
+        .. versionadded:: 1.0
+
         This method must be called when the task is no longer needed.
         """
         if not self.__was_playing:
@@ -454,6 +464,8 @@ class FacadeViewTask(object):
 
     def grab_immediate(self):
         """Grab list of data/metadata from the task.
+
+        .. versionadded:: 1.0
 
         This method will return immediately if data is available.
 
@@ -465,6 +477,8 @@ class FacadeViewTask(object):
     def grab_next_to_finish(self):
         """Grab list of data/metadata from the task.
 
+        .. versionadded:: 1.0
+
         This method will wait until the current frame completes.
 
         :return: The array of data and metadata items that were read.
@@ -475,6 +489,8 @@ class FacadeViewTask(object):
 
     def grab_next_to_start(self):
         """Grab list of data/metadata from the task.
+
+        .. versionadded:: 1.0
 
         This method will wait until the current frame completes and the next one finishes.
 
@@ -511,6 +527,8 @@ class FacadeHardwareSource(object):
     def record(self, frame_parameters=None, channels_enabled=None):
         """Record data and return a data_and_metadata object.
 
+        .. versionadded:: 1.0
+
         :param frame_parameters: The frame parameters for the record. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
@@ -529,6 +547,8 @@ class FacadeHardwareSource(object):
     def create_record_task(self, frame_parameters=None, channels_enabled=None):
         """Create a record task for this hardware source.
 
+        .. versionadded:: 1.0
+
         :param frame_parameters: The frame parameters for the record. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
@@ -544,6 +564,8 @@ class FacadeHardwareSource(object):
 
     def create_view_task(self, mode=None, frame_parameters=None, channels_enabled=None):
         """Create a view task for this hardware source.
+
+        .. versionadded:: 1.0
 
         :param frame_parameters: The frame parameters for the view. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
@@ -577,6 +599,134 @@ class FacadeInstrument(object):
         self.__instrument.values[property_name] = value
 
 
+class FacadeLibrary(object):
+
+    def __init__(self, document_model):
+        self.__document_model = document_model
+
+    @property
+    def _document_model(self):
+        return self.__document_model
+
+    def create_data_item(self, title=None):
+        """Create an empty data item in the library.
+
+        :param title: The title of the data item (optional).
+        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+
+        .. versionadded:: 1.0
+        """
+        data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
+        if title is not None:
+            data_item.title = title
+        self.__document_model.append_data_item(data_item)
+        return FacadeDataItem(data_item)
+
+    def create_data_item_from_data(self, data, title=None):
+        """Create a data item in the library from an ndarray.
+
+        For efficiency, this method will directly use the data object without copying it. This means that the data
+        should be considered to be owned by the library once this call is made. Changing the data outside of this API
+        will result in undefined behavior.
+
+        The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
+        writing to disk and keep using the data, create an empty data item and use the data item methods to modify
+        the data.
+
+        :param data: The data (ndarray).
+        :param title: The title of the data item (optional).
+        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+
+        .. versionadded:: 1.0
+        """
+        data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        intensity_calibration = Calibration.Calibration()
+        dimensional_calibrations = list()
+        for _ in data_shape_and_dtype[0]:
+            dimensional_calibrations.append(Calibration.Calibration())
+        metadata = dict()
+        timestamp = datetime.datetime.utcnow()
+        data_and_calibration = Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        return self.create_data_item_from_data_and_metadata(data_and_calibration, title)
+
+    def create_data_item_from_data_and_metadata(self, data_and_calibration, title=None):
+        """Create a data item in the library from a data and metadata object.
+
+        For efficiency, this method will directly use the data within the data_and_calibration object without copying
+        it. This means that the data should be considered to be owned by the library once this call is made. Changing
+        the data outside of this API will result in undefined behavior.
+
+        The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
+        writing to disk and keep using the data, create an empty data item and use the data item methods to modify
+        the data.
+
+        :param data_and_calibration: The data and calibration.
+        :param title: The title of the data item (optional).
+        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+
+        .. versionadded:: 1.0
+        """
+        data_item = DataItem.DataItem()
+        if title is not None:
+            data_item.title = title
+        buffered_data_source = DataItem.BufferedDataSource(data_and_calibration.data)
+        buffered_data_source.set_metadata(data_and_calibration.metadata)
+        buffered_data_source.set_intensity_calibration(data_and_calibration.intensity_calibration)
+        buffered_data_source.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
+        buffered_data_source.created = data_and_calibration.timestamp
+        data_item.append_data_source(buffered_data_source)
+        self.__document_model.append_data_item(data_item)
+        return FacadeDataItem(data_item)
+
+    def get_or_create_data_group(self, title):
+        """Get (or create) a data group.
+
+        :param title: The title of the data group.
+        :return: The new :py:class:`nion.swift.Facade.FacadeDataGroup` object.
+        :rtype: :py:class:`nion.swift.Facade.FacadeDataGroup`
+
+        .. versionadded:: 1.0
+        """
+        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
+
+    def data_ref_for_data_item(self, data_item):
+
+        class DataRef(object):
+
+            def __init__(self, document_model, data_item):
+                self.__document_model = document_model
+                self.__data_item = data_item
+
+            def __enter__(self):
+                self.__document_model.begin_data_item_transaction(self.__data_item._data_item)
+                self.__data_item._data_item.maybe_data_source.increment_data_ref_count()
+                return self
+
+            def __exit__(self, type, value, traceback):
+                self.__data_item._data_item.maybe_data_source.decrement_data_ref_count()
+                self.__document_model.end_data_item_transaction(self.__data_item._data_item)
+
+            @property
+            def data(self):
+                return self.__data_item.data
+
+            @data.setter
+            def data(self, data):
+                with self.__data_item._data_item.maybe_data_source.data_ref() as data_ref:
+                    data_ref.data = data
+
+            def __setitem__(self, key, value):
+                with self.__data_item._data_item.maybe_data_source.data_ref() as data_ref:
+                    data_ref.data[key] = value
+                    data_ref.data_updated()
+
+        return DataRef(self.__document_model, data_item)
+
+
 class FacadeDocumentController(object):
 
     def __init__(self, document_controller):
@@ -586,8 +736,9 @@ class FacadeDocumentController(object):
     def _document_controller(self):
         return self.__document_controller
 
-    def add_data(self, data, title=None):
-        return self.create_data_item_from_data(data, title)
+    @property
+    def library(self):
+        return FacadeLibrary(self.__document_controller.document_model)
 
     @property
     def target_display_panel(self):
@@ -601,10 +752,37 @@ class FacadeDocumentController(object):
     def target_data_item(self):
         return FacadeDataItem(self.__document_controller.selected_display_specifier.data_item)
 
+    def create_task_context_manager(self, title, task_type):
+        return self.__document_controller.create_task_context_manager(title, task_type)
+
+    def queue_task(self, fn):
+        self.__document_controller.queue_task(fn)
+
+    def add_data(self, data, title=None):
+        """Create a data item in the library from data.
+
+        .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use :py:meth:`nion.swift.Facade.FacadeLibrary.create_data_item_from_data` instead.
+        """
+        return self.create_data_item_from_data(data, title)
+
     def create_data_item_from_data(self, data, title=None):
+        """Create a data item in the library from data.
+
+        .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use library.create_data_item_from_data instead.
+        """
         return FacadeDataItem(self.__document_controller.add_data(data, title))
 
     def create_data_item_from_data_and_metadata(self, data_and_calibration, title=None):
+        """Create a data item in the library from the data and metadata.
+
+        .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use library.create_data_item_from_data_and_metadata instead.
+        """
         data_item = DataItem.DataItem()
         if title is not None:
             data_item.title = title
@@ -617,14 +795,14 @@ class FacadeDocumentController(object):
         self.__document_controller.document_model.append_data_item(data_item)
         return FacadeDataItem(data_item)
 
-    def create_task_context_manager(self, title, task_type):
-        return self.__document_controller.create_task_context_manager(title, task_type)
-
     def get_or_create_data_group(self, title):
-        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
+        """Get (or create) a data group.
 
-    def queue_task(self, fn):
-        self.__document_controller.queue_task(fn)
+        .. versionadded:: 1.0
+        .. deprecated:: 2.0
+           Use library.create_data_item_from_data instead.
+        """
+        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
     """
     data_item = document_controller.create_data_item_from_data(some_data)
@@ -743,19 +921,22 @@ class API_1(object):
         :param scale: The scale of the calibration.
         :param units: The units of the calibration as a string.
         :return: The calibration object.
+
+        Calibrated units and uncalibrated units have the following relationship:
+            :samp:`calibrated_value = offset + value * scale`
         """
         return Calibration.Calibration(offset, scale, units)
 
     def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
         """Create a data_and_metadata object from data.
 
-        .. versionadded:: 1.0
-
         :param data: an ndarray of data.
         :param intensity_calibration: An optional calibration object.
         :param dimensional_calibrations: An optional list of calibration objects.
         :param metadata: A dict of metadata.
         :param timestamp: A datetime object.
+
+        .. versionadded:: 1.0
         """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         if intensity_calibration is None:
