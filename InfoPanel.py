@@ -80,36 +80,36 @@ class InfoPanel(Panel.Panel):
         value_text = ""
         if data_and_calibration:
             data_shape = data_and_calibration.data_shape
-            if display_calibrated_values:
-                dimensional_calibrations = data_and_calibration.dimensional_calibrations
-                intensity_calibration = data_and_calibration.intensity_calibration
-            else:
-                dimensional_calibrations = [Calibration.Calibration() for i in xrange(0, len(pos))]
-                intensity_calibration = Calibration.Calibration()
-            if pos and len(pos) == 3:
-                # 3d image
-                # make sure the position is within the bounds of the image
-                if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
-                    position_text = u"{0}, {1}, {2}".format(
-                        dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2]),
-                        dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
-                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
-            if pos and len(pos) == 2:
-                # 2d image
-                # make sure the position is within the bounds of the image
-                if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
-                    position_text = u"{0}, {1}".format(
-                        dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
-                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
-            if pos and len(pos) == 1:
-                # 1d plot
-                # make sure the position is within the bounds of the line plot
-                if pos[0] >= 0 and pos[0] < data_shape[0]:
-                    position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
-                    value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
-            if pos:
+            if pos is not None:
+                if display_calibrated_values:
+                    dimensional_calibrations = data_and_calibration.dimensional_calibrations
+                    intensity_calibration = data_and_calibration.intensity_calibration
+                else:
+                    dimensional_calibrations = [Calibration.Calibration() for i in xrange(0, len(pos))]
+                    intensity_calibration = Calibration.Calibration()
+                if len(pos) == 3:
+                    # 3d image
+                    # make sure the position is within the bounds of the image
+                    if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
+                        position_text = u"{0}, {1}, {2}".format(
+                            dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2]),
+                            dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                        value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+                if len(pos) == 2:
+                    # 2d image
+                    # make sure the position is within the bounds of the image
+                    if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                        position_text = u"{0}, {1}".format(
+                            dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1]),
+                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                        value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+                if len(pos) == 1:
+                    # 1d plot
+                    # make sure the position is within the bounds of the line plot
+                    if pos[0] >= 0 and pos[0] < data_shape[0]:
+                        position_text = u"{0}".format(dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0]))
+                        value_text = get_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
                 self.__last_source = source
         if self.__last_source == source:
             def update_position_and_value(position_text, value_text):
