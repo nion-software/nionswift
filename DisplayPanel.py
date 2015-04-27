@@ -435,12 +435,12 @@ class DisplayPanel(object):
 
     # sets the data item that this panel displays
     # not thread safe
-    def set_displayed_data_item_and_display(self, display_specifier):
+    def __set_displayed_data_item_and_display(self, display_specifier):
         self.__set_display(display_specifier)
 
     # set the default display for the data item. just a simpler method to call.
     def set_displayed_data_item(self, data_item):
-        self.set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
+        self.__set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
 
     def replace_displayed_data_item_and_display(self, display_specifier):
         """
@@ -448,7 +448,7 @@ class DisplayPanel(object):
         in that it will recognize when it is receiving a live acquisition and automatically
         set up the live image panel controller.
         """
-        self.set_displayed_data_item_and_display(display_specifier)
+        self.__set_displayed_data_item_and_display(display_specifier)
 
     def set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -457,15 +457,7 @@ class DisplayPanel(object):
         self.__display_panel_controller = display_panel_controller
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
-        self.set_displayed_data_item_and_display(self.display_specifier)
-
-    @property
-    def buffered_data_source(self):
-        return self.__display_specifier.buffered_data_source
-
-    @property
-    def display(self):
-        return self.__display_specifier.display
+        self.__set_displayed_data_item_and_display(self.display_specifier)
 
     # not thread safe
     def __set_display(self, display_specifier):
@@ -487,7 +479,7 @@ class DisplayPanel(object):
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display_specifier.display:
-            display = self.display
+            display = self.__display_specifier.display
             self.__display_changed_event_listener = display.display_changed_event.listen(self.__display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
         self.__update_display_canvas(self.__display_specifier)

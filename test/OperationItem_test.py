@@ -759,8 +759,8 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         crop_region = Region.RectRegion()
         crop_region.center = (0.5, 0.5)
@@ -770,8 +770,8 @@ class TestOperationClass(unittest.TestCase):
         cropped_data_item = document_controller.processing_crop().data_item
         self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
         self.assertTrue(cropped_data_item in document_model.data_items)
-        image_panel.display.graphic_selection.clear()
-        image_panel.display.graphic_selection.add(0)
+        display_specifier.display.graphic_selection.clear()
+        display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(cropped_data_item.operation.data_sources[0].source_data_item, data_item)
         self.assertTrue(cropped_data_item in document_model.data_items)
@@ -781,7 +781,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(cropped_data_item in document_model.data_items)
         # clean up
-        image_panel.close()
+        display_panel.close()
 
     def test_remove_graphic_for_crop_combined_with_another_operation_removes_processed_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -789,8 +789,8 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         crop_region = Region.RectRegion()
         crop_region.center = (0.5, 0.5)
@@ -799,8 +799,8 @@ class TestOperationClass(unittest.TestCase):
         display_specifier.display.graphic_selection.set(0)
         projection_data_item = document_controller.processing_projection().data_item
         self.assertTrue(projection_data_item in document_model.data_items)
-        image_panel.display.graphic_selection.clear()
-        image_panel.display.graphic_selection.add(0)
+        display_specifier.display.graphic_selection.clear()
+        display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(projection_data_item.operation.data_sources[0].data_sources[0].source_data_item, data_item)
         self.assertTrue(projection_data_item in document_model.data_items)
@@ -810,7 +810,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(projection_data_item in document_model.data_items)
         # clean up
-        image_panel.close()
+        display_panel.close()
 
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()

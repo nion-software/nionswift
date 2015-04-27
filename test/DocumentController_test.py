@@ -71,17 +71,17 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_document_window())
         self.assertIsNone(weak_document_model())
 
-    def test_image_panel_releases_data_item(self):
+    def test_display_panel_releases_data_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
-        image_panel = DisplayPanel.DisplayPanel(document_controller)
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
-        image_panel.canvas_item.close()
-        image_panel.close()
+        display_panel.canvas_item.close()
+        display_panel.close()
         document_controller.close()
         document_controller = None
         data_item = None
@@ -154,32 +154,33 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         line_graphic = document_controller.add_line_region()
         # make sure assumptions are correct
-        self.assertEqual(len(image_panel.display.graphic_selection.indexes), 1)
-        self.assertTrue(0 in image_panel.display.graphic_selection.indexes)
+        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 1)
+        self.assertTrue(0 in display_specifier.display.graphic_selection.indexes)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
         self.assertEqual(display_specifier.display.drawn_graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
-        self.assertEqual(len(image_panel.display.graphic_selection.indexes), 0)
+        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         # clean up
-        image_panel.close()
+        display_panel.close()
 
     def test_remove_line_profile_does_not_remove_data_item_itself(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
-        image_panel.set_displayed_data_item(data_item)
-        image_panel.display.graphic_selection.clear()
-        image_panel.display.graphic_selection.add(0)
+        display_panel.set_displayed_data_item(data_item)
+        display_specifier.display.graphic_selection.clear()
+        display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
@@ -188,7 +189,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.remove_graphic()
         self.assertTrue(data_item in document_model.data_items)
         # clean up
-        image_panel.close()
+        display_panel.close()
 
     def test_remove_line_profile_removes_associated_child_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -196,12 +197,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
         self.assertTrue(line_profile_data_item in document_model.data_items)
-        image_panel.display.graphic_selection.clear()
-        image_panel.display.graphic_selection.add(0)
+        display_specifier.display.graphic_selection.clear()
+        display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
         self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
@@ -211,7 +212,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(line_profile_data_item in document_model.data_items)
         # clean up
-        image_panel.close()
+        display_panel.close()
 
     def test_document_model_closed_only_after_all_document_controllers_closed(self):
         document_model = DocumentModel.DocumentModel()
@@ -235,8 +236,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
         inverted_data_item = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
         inverted_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(inverted_data_item)
@@ -253,8 +254,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
         self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
@@ -269,8 +270,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         cropped_data_item = document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region).data_item
         cropped_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(cropped_data_item)
@@ -335,8 +336,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
         data_item_result = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
         document_model.remove_data_item(data_item_result)
@@ -347,8 +348,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float32))
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
 
     def test_processing_duplicate_with_region_does_copy(self):
@@ -359,8 +360,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
 
     def test_processing_duplicate_with_operation_copies_it_but_has_same_data_source(self):
@@ -372,8 +373,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(source_data_item._create_test_data_source())
         data_item.set_operation(invert_operation)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         data_item_dup = document_controller.processing_duplicate().data_item
         self.assertIsNotNone(data_item_dup.operation)
         self.assertNotEqual(data_item_dup.operation, data_item.operation)
