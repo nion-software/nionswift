@@ -294,8 +294,8 @@ class DisplayPanel(object):
                 super(ContentCanvasItem, self).close()
 
             def key_pressed(self, key):
-                if self.display_panel.display_canvas_item:
-                    return self.display_panel.display_canvas_item.key_pressed(key)
+                if self.display_panel.handle_key_pressed(key):
+                    return True
                 return super(ContentCanvasItem, self).key_pressed(key)
 
         self.__content_canvas_item = ContentCanvasItem(self)
@@ -444,11 +444,11 @@ class DisplayPanel(object):
 
     def replace_displayed_data_item_and_display(self, display_specifier):
         """
-        Replace the displayed data item. This method differs from set_display_data_item
-        in that it will recognize when it is receiving a live acquisition and automatically
-        set up the live image panel controller.
+        Replace the displayed data item. Return the previous display specifier.
         """
+        replaced_data_item = self.__display_specifier.data_item
         self.__set_displayed_data_item_and_display(display_specifier)
+        return replaced_data_item
 
     def set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -479,8 +479,14 @@ class DisplayPanel(object):
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
         if self.__display_specifier.display:
+            def display_changed():
+                # called when anything in the data item changes, including things like graphics or the data itself.
+                # thread safe.
+                display_specifier = copy.copy(self.__display_specifier)
+                if display_specifier.display:
+                    self.__update_display_canvas(display_specifier)
             display = self.__display_specifier.display
-            self.__display_changed_event_listener = display.display_changed_event.listen(self.__display_changed)
+            self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
         self.__update_display_canvas(self.__display_specifier)
 
@@ -512,16 +518,6 @@ class DisplayPanel(object):
     def __close_display_panel(self):
         if len(self.workspace_controller.display_panels) > 1:
             self.workspace_controller.remove_display_panel(self)
-
-    # this message comes from the display associated with this panel.
-    # the connection is established in __set_display via display.add_listener.
-    # this will be called when anything in the data item changes, including things
-    # like graphics or the data itself.
-    # thread safe.
-    def __display_changed(self):
-        display_specifier = copy.copy(self.__display_specifier)
-        if display_specifier.display:
-            self.__update_display_canvas(display_specifier)
 
     def __display_graphic_selection_changed(self, display, graphic_selection):
         # this message comes from the display when the graphic selection changes
@@ -666,18 +662,17 @@ class DisplayPanel(object):
         if self.__overlay_canvas_item:  # may be closed
             self.__overlay_canvas_item.selected = display_specifier.display is not None and selected
 
+    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
+    # doesn't handle it, gives the display controller a chance to handle it.
+    def handle_key_pressed(self, key):
+        if self.display_canvas_item and self.display_canvas_item.key_pressed(key):
+            return True
+        if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
+            return True
+        return False
+
     # ths message comes from the canvas item via the delegate.
     def image_panel_key_pressed(self, key):
-        #logging.debug("text=%s key=%s mod=%s", key.text, hex(key.key), key.modifiers)
-        # if key.text == "b" or key.text == "a":
-        #     if self.__image_panel_controller:
-        #         self.__image_panel_controller.close()
-        #         self.__image_panel_controller = None
-        #     elif key.text == "a":
-        #         self.__image_panel_controller = LiveDisplayPanelController(self)
-        #     elif key.text == "b":
-        #         self.__image_panel_controller = BrowserDisplayPanelController(self)
-        #     return True
         return DisplayPanelManager().key_pressed(self, key)
 
     def image_panel_mouse_clicked(self, image_position, modifiers):

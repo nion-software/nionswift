@@ -478,9 +478,8 @@ class WorkspaceController(object):
 
     def __replace_displayed_data_item(self, display_panel, data_item):
         """ Used in drag/drop support. """
-        self.document_controller.replaced_data_item = display_panel.display_specifier.data_item
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_panel.replace_displayed_data_item_and_display(display_specifier)
+        self.document_controller.replaced_data_item = display_panel.replace_displayed_data_item_and_display(display_specifier)
 
     def handle_drag_enter(self, display_panel, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
