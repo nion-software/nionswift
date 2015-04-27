@@ -88,7 +88,7 @@ _ = gettext.gettext
 # tbd
 
 
-class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     """
         An overlay for image panels to draw and handle focus, selection, and drop targets.
 
@@ -220,6 +220,11 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             return self.display_panel.handle_drop(mime_data, drop_region, x, y)
         return "ignore"
 
+    def key_pressed(self, key):
+        if self.display_panel.handle_key_pressed(key):
+            return True
+        return super(DisplayPanelOverlayCanvasItem, self).key_pressed(key)
+
 
 class BrowserDisplayPanelController(object):
     """
@@ -283,27 +288,10 @@ class DisplayPanel(object):
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
 
-        class ContentCanvasItem(CanvasItem.CanvasItemComposition):
-
-            def __init__(self, display_panel):
-                super(ContentCanvasItem, self).__init__()
-                self.display_panel = display_panel
-
-            def close(self):
-                self.display_panel = None
-                super(ContentCanvasItem, self).close()
-
-            def key_pressed(self, key):
-                if self.display_panel.handle_key_pressed(key):
-                    return True
-                return super(ContentCanvasItem, self).key_pressed(key)
-
-        self.__content_canvas_item = ContentCanvasItem(self)
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(self)
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.__overlay_canvas_item = DisplayPanelOverlayCanvasItem(self)
-        self.__content_canvas_item.add_canvas_item(self.__overlay_canvas_item)
         self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
         self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
         self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
@@ -346,7 +334,6 @@ class DisplayPanel(object):
         # release references
         self.workspace_controller = None
         self.__content_canvas_item = None
-        self.__overlay_canvas_item = None
         self.__header_canvas_item = None
 
     @property
@@ -410,23 +397,23 @@ class DisplayPanel(object):
     # to the data panel.
 
     def set_selected(self, selected):
-        if self.__overlay_canvas_item:  # may be closed
-            self.__overlay_canvas_item.selected = selected
+        if self.__content_canvas_item:  # may be closed
+            self.__content_canvas_item.selected = selected
 
     def _is_selected(self):
         """ Used for testing. """
-        return self.__overlay_canvas_item.selected
+        return self.__content_canvas_item.selected
 
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
-        self.__overlay_canvas_item.focused = focused
+        self.__content_canvas_item.focused = focused
         if focused:
             self.document_controller.selected_display_panel = self
             self.document_controller.notify_selected_display_specifier_changed(self.display_specifier)
 
     def _is_focused(self):
         """ Used for testing. """
-        return self.__overlay_canvas_item.focused
+        return self.__content_canvas_item.focused
 
     @property
     def display_specifier(self):
@@ -659,8 +646,8 @@ class DisplayPanel(object):
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
         selected = self.document_controller.selected_display_panel == self
-        if self.__overlay_canvas_item:  # may be closed
-            self.__overlay_canvas_item.selected = display_specifier.display is not None and selected
+        if self.__content_canvas_item:  # may be closed
+            self.__content_canvas_item.selected = display_specifier.display is not None and selected
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
