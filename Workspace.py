@@ -40,8 +40,10 @@ class WorkspaceController(object):
 
     def __init__(self, document_controller, workspace_id):
         self.__document_controller_weakref = weakref.ref(document_controller)
-        # this results in data_item_deleted messages
-        self.document_controller.document_model.add_listener(self)
+
+        document_model = self.document_controller.document_model
+
+        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(self.__data_item_deleted)
 
         self.ui = self.document_controller.ui
 
@@ -68,7 +70,7 @@ class WorkspaceController(object):
         root_widget.add(self.__content_column)
 
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding.container = self.document_controller.document_model
+        self.__filtered_data_items_binding.container = document_model
         self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
         self.__filtered_data_items_binding.sort_reverse = True
 
@@ -132,7 +134,8 @@ class WorkspaceController(object):
         self.filter_row = None
         self.image_row = None
         self.__channel_data_items = None
-        self.document_controller.document_model.remove_listener(self)
+        self.__data_item_deleted_event_listener.close()
+        self.__data_item_deleted_event_listener = None
 
     def periodic(self):
         # for each of the panels too
@@ -562,7 +565,7 @@ class WorkspaceController(object):
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
 
-    def data_item_deleted(self, data_item):
+    def __data_item_deleted(self, data_item):
         with self.__mutex:
             for channel_key in self.__channel_data_items.keys():
                 if self.__channel_data_items[channel_key] == data_item:

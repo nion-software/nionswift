@@ -608,6 +608,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__read()
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
         self.__library_storage.set_value(self, "version", 0)
+        self.data_item_deleted_event = Observable.Event()
 
     def __read(self):
         # first read the items
@@ -713,7 +714,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         if data_item.get_observer_count(self) == 0:  # ugh?
-            self.notify_listeners("data_item_deleted", data_item)
+            self.data_item_deleted_event.fire(data_item)
 
     def item_inserted(self, object, key, value, before_index):
         # called when a relationship in one of the items we're observing changes.

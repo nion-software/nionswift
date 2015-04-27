@@ -321,8 +321,8 @@ class DisplayPanel(object):
 
         self.document_controller.register_display_panel(self)
 
-        # this results in data_item_deleted messages
-        self.document_controller.document_model.add_listener(self)
+        document_model = self.document_controller.document_model
+        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(self.__data_item_deleted)
 
         self.__display_panel_controller = None
 
@@ -339,7 +339,8 @@ class DisplayPanel(object):
             self.display_canvas_item = None
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
         self.set_display_panel_controller(None)
-        self.document_controller.document_model.remove_listener(self)
+        self.__data_item_deleted_event_listener.close()
+        self.__data_item_deleted_event_listener = None
         self.document_controller.unregister_display_panel(self)
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
         # release references
@@ -492,7 +493,7 @@ class DisplayPanel(object):
         self.__update_display_canvas(self.__display_specifier)
 
     # this message comes from the document model.
-    def data_item_deleted(self, deleted_data_item):
+    def __data_item_deleted(self, deleted_data_item):
         data_item = self.display_specifier.data_item
         # if our item gets deleted, clear the selection
         if deleted_data_item == data_item:
