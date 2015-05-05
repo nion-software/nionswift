@@ -284,7 +284,7 @@ class BrowserDisplayPanelController(object):
         self.__display_panel.set_displayed_data_item(data_item)
 
 
-class DisplayPanel(object):
+class DataDisplayPanel(object):
 
     def __init__(self, document_controller):
 
@@ -300,20 +300,11 @@ class DisplayPanel(object):
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.__content_canvas_item.on_drag_enter = self.__handle_drag_enter
-        self.__content_canvas_item.on_drag_leave = self.__handle_drag_leave
-        self.__content_canvas_item.on_drag_move = self.__handle_drag_move
-        self.__content_canvas_item.on_drop = self.__handle_drop
-        self.__content_canvas_item.on_key_pressed = self.__handle_key_pressed
         self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
-        self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
-        self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
-        self.__header_canvas_item.on_close_clicked = lambda: self.__close_display_panel()
         self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
-        # MARK
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
@@ -321,20 +312,65 @@ class DisplayPanel(object):
         self.canvas_item.add_canvas_item(self.__content_canvas_item)
         self.canvas_item.add_canvas_item(self.__footer_canvas_item)
 
-        self.document_controller.register_display_panel(self)
+        def data_item_deleted(data_item):
+            # if our item gets deleted, clear the selection
+            if data_item == self.display_specifier.data_item:
+                self.__set_display(DataItem.DisplaySpecifier())
 
         document_model = self.document_controller.document_model
-        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(self.__data_item_deleted)
+        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
 
         self.__display_panel_controller = None
 
-        # MARK
         self.display_panel_id = None
 
         self.display_canvas_item = None
         self.__display_type = None
 
-    # MARK
+        self.on_key_pressed = None
+        self.on_mouse_clicked = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+
+        def drag_enter(mime_data):
+            if self.on_drag_enter:
+                return self.on_drag_enter(mime_data)
+            return "ignore"
+
+        def drag_leave(self):
+            if self.on_drag_leave:
+                return self.on_drag_leave()
+            return False
+
+        def drag_move(mime_data, x, y):
+            if self.on_drag_move:
+                return self.on_drag_move(mime_data, x, y)
+            return "ignore"
+
+        def drop(mime_data, region, x, y):
+            if self.on_drop:
+                return self.on_drop(mime_data, region, x, y)
+            return "ignore"
+
+        self.__content_canvas_item.on_drag_enter = drag_enter
+        self.__content_canvas_item.on_drag_leave = drag_leave
+        self.__content_canvas_item.on_drag_move = drag_move
+        self.__content_canvas_item.on_drop = drop
+        self.__content_canvas_item.on_key_pressed = self.__handle_key_pressed
+
+        self.on_focused = None
+        self.on_close = None
+
+        def close(self):
+            if self.on_close:
+                self.on_close()
+
+        self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
+        self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
+        self.__header_canvas_item.on_close_clicked = close
+
     def close(self):
         # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
         self.canvas_item = None
@@ -345,20 +381,23 @@ class DisplayPanel(object):
         self.set_display_panel_controller(None)
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
-        self.document_controller.unregister_display_panel(self)
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
         # release references
         self.__weak_document_controller = None
         self.__content_canvas_item = None
         self.__header_canvas_item = None
+        self.on_key_pressed = None
+        self.on_mouse_clicked = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_focused = None
+        self.on_close = None
 
     @property
     def document_controller(self):
         return self.__weak_document_controller()
-
-    @property
-    def workspace_controller(self):
-        return self.document_controller.workspace_controller
 
     @property
     def header_canvas_item(self):
@@ -384,7 +423,6 @@ class DisplayPanel(object):
 
     # save and restore the contents of the image panel
 
-    # MARK
     def save_contents(self):
         d = dict()
         if self.__display_panel_controller:
@@ -397,7 +435,6 @@ class DisplayPanel(object):
             d["data_item_uuid"] = str(data_item.uuid)
         return d
 
-    # MARK
     def restore_contents(self, d):
         display_panel_id = d.get("display_panel_id")
         if display_panel_id:
@@ -416,12 +453,10 @@ class DisplayPanel(object):
     # having focus. this can happen, for instance, when the user switches focus
     # to the data panel.
 
-    # MARK
     def set_selected(self, selected):
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.selected = selected
 
-    # MARK
     def _is_selected(self):
         """ Used for testing. """
         return self.__content_canvas_item.selected
@@ -429,16 +464,16 @@ class DisplayPanel(object):
     # this message comes from the canvas items via the on_focus_changed when their focus changes
     def set_focused(self, focused):
         self.__content_canvas_item.focused = focused
-        if focused:
-            self.document_controller.selected_display_panel = self
-            self.document_controller.notify_selected_display_specifier_changed(self.display_specifier)
+        if focused and self.on_focused:
+            self.on_focused()
 
     def _is_focused(self):
         """ Used for testing. """
         return self.__content_canvas_item.focused
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
-        DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
+        if self.on_mouse_clicked:
+            self.on_mouse_clicked(image_position, modifiers)
 
     def image_panel_get_font_metrics(self, font, text):
         return self.ui.get_font_metrics(font, text)
@@ -454,7 +489,6 @@ class DisplayPanel(object):
         self.__set_display(display_specifier)
 
     # set the default display for the data item. just a simpler method to call.
-    # MARK
     def set_displayed_data_item(self, data_item):
         self.__set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
 
@@ -498,13 +532,6 @@ class DisplayPanel(object):
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
         self.__update_display_canvas(self.__display_specifier)
 
-    # this message comes from the document model.
-    def __data_item_deleted(self, deleted_data_item):
-        data_item = self.display_specifier.data_item
-        # if our item gets deleted, clear the selection
-        if deleted_data_item == data_item:
-            self.__set_display(DataItem.DisplaySpecifier())
-
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __begin_drag(self):
         if self.__display_specifier.data_item is not None:
@@ -521,10 +548,6 @@ class DisplayPanel(object):
     def __sync_data_item(self):
         if self.__display_specifier.data_item is not None:
             self.document_controller.select_data_item_in_data_panel(self.__display_specifier.data_item)
-
-    def __close_display_panel(self):
-        if len(self.workspace_controller.display_panels) > 1:
-            self.workspace_controller.remove_display_panel(self)
 
     def __display_graphic_selection_changed(self, display, graphic_selection):
         # this message comes from the display when the graphic selection changes
@@ -663,9 +686,7 @@ class DisplayPanel(object):
                                                      display_specifier.display.graphic_selection)
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
-        selected = self.document_controller.selected_display_panel == self
-        if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.selected = display_specifier.display is not None and selected
+            self.__content_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -674,27 +695,112 @@ class DisplayPanel(object):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
-        return DisplayPanelManager().key_pressed(self, key)
-
-    def __handle_drag_enter(self, mime_data):
-        if self.workspace_controller:
-            return self.workspace_controller.handle_drag_enter(self, mime_data)
-        return "ignore"
-
-    def __handle_drag_leave(self):
-        if self.workspace_controller:
-            return self.workspace_controller.handle_drag_leave(self)
+        if self.on_key_pressed:
+            return self.on_key_pressed(key)
         return False
 
-    def __handle_drag_move(self, mime_data, x, y):
-        if self.workspace_controller:
-            return self.workspace_controller.handle_drag_move(self, mime_data, x, y)
-        return "ignore"
 
-    def __handle_drop(self, mime_data, region, x, y):
-        if self.workspace_controller:
-            return self.workspace_controller.handle_drop(self, mime_data, region, x, y)
-        return "ignore"
+class DisplayPanel(object):
+
+    def __init__(self, document_controller):
+
+        document_controller.register_display_panel(self)
+
+        def unregister_display_panel(weak_document_controller):
+            weak_document_controller().unregister_display_panel(self)
+
+        weak_document_controller = weakref.ref(document_controller)
+        self.__cleanup_fn = functools.partial(unregister_display_panel, weak_document_controller)
+
+        self.__data_display_panel = DataDisplayPanel(document_controller)
+
+        workspace_controller = document_controller.workspace_controller
+
+        def drag_enter(mime_data):
+            if workspace_controller:
+                return workspace_controller.handle_drag_enter(self, mime_data)
+            return "ignore"
+
+        def drag_leave(self):
+            if workspace_controller:
+                return workspace_controller.handle_drag_leave(self)
+            return False
+
+        def drag_move(mime_data, x, y):
+            if workspace_controller:
+                return workspace_controller.handle_drag_move(self, mime_data, x, y)
+            return "ignore"
+
+        def drop(mime_data, region, x, y):
+            if workspace_controller:
+                return workspace_controller.handle_drop(self, mime_data, region, x, y)
+            return "ignore"
+
+        def close(self):
+            if len(workspace_controller.display_panels) > 1:
+                workspace_controller.remove_display_panel(self)
+
+        def key_pressed(key):
+            return DisplayPanelManager().key_pressed(self, key)
+
+        def mouse_clicked(image_position, modifiers):
+            DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
+
+        def focused():
+            document_controller.selected_display_panel = self  # MARK
+            document_controller.notify_selected_display_specifier_changed(self.display_specifier)
+
+        self.__data_display_panel.on_key_pressed = key_pressed
+        self.__data_display_panel.on_mouse_clicked = mouse_clicked
+        self.__data_display_panel.on_drag_enter = drag_enter
+        self.__data_display_panel.on_drag_leave = drag_leave
+        self.__data_display_panel.on_drag_move = drag_move
+        self.__data_display_panel.on_drop = drop
+        self.__data_display_panel.on_focused = focused
+        self.__data_display_panel.on_close = close
+
+    def close(self):
+        self.__data_display_panel.close()
+        self.__data_display_panel = None
+        self.__cleanup_fn()
+        self.__cleanup_fn = None
+
+    @property
+    def canvas_item(self):
+        return self.__data_display_panel.canvas_item
+
+    @property
+    def display_canvas_item(self):
+        return self.__data_display_panel.display_canvas_item
+
+    @property
+    def display_panel_id(self):
+        return self.__data_display_panel.display_panel_id
+
+    @property
+    def display_specifier(self):
+        return self.__data_display_panel.display_specifier
+
+    def save_contents(self):
+        return self.__data_display_panel.save_contents()
+
+    def restore_contents(self, d):
+        self.__data_display_panel.restore_contents(d)
+
+    def set_selected(self, selected):
+        self.__data_display_panel.set_selected(selected)
+
+    def _is_selected(self):
+        return self.__data_display_panel._is_selected()
+
+    def set_focused(self, focused):
+        self.__data_display_panel.set_focused(focused)
+
+    def _is_focused(self):
+        return self.__data_display_panel._is_focused()
+
+    def set_displayed_data_item(self, data_item):
+        self.__data_display_panel.set_displayed_data_item(data_item)
 
 
 # image panel manager acts as a broker for significant events occurring

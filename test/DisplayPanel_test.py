@@ -97,11 +97,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         root_canvas_item = CanvasItem.RootCanvasItem(self.app.ui)
         root_canvas_item.add_canvas_item(container)
         # now take the weakref
-        image_panel_weak_ref = weakref.ref(display_panel)
+        display_panel_weak_ref = weakref.ref(display_panel)
         display_panel.canvas_item.close()
         display_panel.close()
         display_panel = None
-        self.assertIsNone(image_panel_weak_ref())
+        self.assertIsNone(display_panel_weak_ref())
         document_controller.close()
 
     # user deletes data item that is displayed. make sure we remove the display.
