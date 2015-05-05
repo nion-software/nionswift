@@ -802,6 +802,11 @@ class DisplayPanel(object):
     def set_displayed_data_item(self, data_item):
         self.__data_display_panel.set_displayed_data_item(data_item)
 
+    def perform_action(self, fn, *args, **keywords):
+        target = self.__data_display_panel
+        if hasattr(target, fn):
+            getattr(target, fn)(*args, **keywords)
+
 
 # image panel manager acts as a broker for significant events occurring
 # regarding image panels. listeners can attach themselves to this object

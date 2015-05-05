@@ -739,7 +739,7 @@ class Application(object):
         logging.info("Welcome to Nion Swift.")
         if create_new_document and len(document_model.data_items) > 0:
             document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
-            document_controller.selected_display_panel.display_canvas_item.set_fill_mode()
+            document_controller.selected_display_panel.perform_action("set_fill_mode")
 
     def get_recent_workspace_file_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
