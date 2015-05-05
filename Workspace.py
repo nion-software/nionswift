@@ -221,15 +221,12 @@ class WorkspaceController(object):
             return None
 
     def __create_display_panel(self):
-        display_panel = DisplayPanel.DisplayPanel(self.document_controller)
-        display_panel.title = _("Image")
-        return display_panel
+        return DisplayPanel.DisplayPanel(self.document_controller)
 
-    def get_display_panel(self, display_panel_id):
+    def display_data_item_in_display_panel(self, data_item, display_panel_id):
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
-                return display_panel
-        return None
+                display_panel.set_displayed_data_item(data_item)
 
     def _construct(self, desc, display_panels, lookup_data_item):
         selected_display_panel = None
