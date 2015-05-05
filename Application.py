@@ -63,6 +63,9 @@ class Application(object):
         self.__document_controllers = []
         self.__menu_handlers = []
 
+        self.__did_close_event_listeners = dict()
+        self.__create_new_event_listeners = dict()
+
         workspace_manager = Workspace.WorkspaceManager()
         workspace_manager.register_panel(SessionPanel.SessionPanel, "session-panel", _("Session"), ["left", "right"], "right", {"width": 320, "height": 80})
         workspace_manager.register_panel(DataPanel.DataPanel, "data-panel", _("Data Panel"), ["left", "right"], "left", {"width": 320, "height": 400})
@@ -81,9 +84,16 @@ class Application(object):
         Test.load_tests()  # after plug-ins are loaded
 
     def deinitialize(self):
+        self.__close()
         PlugInManager.unload_plug_ins()
         HardwareSource.HardwareSourceManager().close()
         self.ui.close()
+
+    def __close(self):
+        for did_close_event_listener in self.__did_close_event_listeners.values():
+            did_close_event_listener.close()
+        for create_new_event_listener in self.__create_new_event_listeners.values():
+            create_new_event_listener.close()
 
     def choose_workspace(self):
         documents_dir = self.ui.get_document_location()
@@ -767,8 +777,9 @@ class Application(object):
 
     def create_document_controller(self, document_model, workspace_id, data_panel_selection=None):
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
-        document_controller.add_listener(self)
-        self.register_document_controller(document_controller)
+        self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
+        self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)
+        self.__register_document_controller(document_controller)
         # attempt to set data item / group
         if data_panel_selection:
             display_panel = document_controller.selected_display_panel
@@ -777,20 +788,20 @@ class Application(object):
         document_controller.document_window.show()
         return document_controller
 
-    def document_controller_did_close(self, document_controller):
-        document_controller.remove_listener(self)
-        self.unregister_document_controller(document_controller)
+    def __document_controller_did_close(self, document_controller):
+        self.__did_close_event_listeners[document_controller].close()
+        del self.__did_close_event_listeners[document_controller]
+        self.__create_new_event_listeners[document_controller].close()
+        del self.__create_new_event_listeners[document_controller]
+        self.__document_controllers.remove(document_controller)
 
-    def register_document_controller(self, document_window):
+    def __register_document_controller(self, document_window):
         assert document_window not in self.__document_controllers
         self.__document_controllers.append(document_window)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
             menu_handler(document_window)
         return document_window
-
-    def unregister_document_controller(self, document_controller):
-        self.__document_controllers.remove(document_controller)
 
     def __get_document_controllers(self):
         return copy.copy(self.__document_controllers)

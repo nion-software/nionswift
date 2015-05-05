@@ -57,7 +57,15 @@ class DocumentController(Observable.Broadcaster):
     # the next method to be called will be initialize.
     def __init__(self, ui, document_model, workspace_id=None, app=None):
         super(DocumentController, self).__init__()
+
         self.ui = ui
+
+        self.task_created_event = Observable.Event()
+        self.selected_display_specifier_changed_event = Observable.Event()
+        self.cursor_changed_event = Observable.Event()
+        self.did_close_event = Observable.Event()
+        self.create_new_document_controller_event = Observable.Event()
+
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model = document_model
@@ -128,7 +136,8 @@ class DocumentController(Observable.Broadcaster):
         # to determine when to close it.
         self.document_model.remove_ref()
         self.document_model = None
-        self.notify_listeners("document_controller_did_close", self)
+        self.did_close_event.fire(self)
+        self.did_close_event = None
         self.ui.destroy_document_window(self)
 
     def about_to_show(self):
@@ -487,7 +496,7 @@ class DocumentController(Observable.Broadcaster):
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
     def notify_selected_display_specifier_changed(self, display_specifier):
-        self.notify_listeners("selected_display_specifier_changed", display_specifier)
+        self.selected_display_specifier_changed_event.fire(display_specifier)
 
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
@@ -521,7 +530,7 @@ class DocumentController(Observable.Broadcaster):
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
     def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
-        self.notify_listeners("cursor_changed", source, data_and_calibration, display_calibrated_values, pos)
+        self.cursor_changed_event.fire(source, data_and_calibration, display_calibrated_values, pos)
 
     @property
     def tool_mode(self):
@@ -539,7 +548,7 @@ class DocumentController(Observable.Broadcaster):
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.notify_listeners("create_document_controller", self.document_model, workspace_id, data_panel_selection)
+        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_panel_selection)
 
     def import_file(self):
         # present a loadfile dialog to the user
@@ -669,7 +678,7 @@ class DocumentController(Observable.Broadcaster):
     def create_task_context_manager(self, title, task_type, logging=True):
         task = Task.Task(title, task_type)
         task_context_manager = Task.TaskContextManager(self, task, logging)
-        self.notify_listeners("task_created", task)
+        self.task_created_event.fire(task)
         return task_context_manager
 
     def add_group(self):
@@ -1198,14 +1207,13 @@ class SelectedDisplayBinding(Observable.Broadcaster):
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
         self.selected_display_binding_changed_event = Observable.Event()
-        # connect self as listener. this will result in calls to selected_display_specifier_changed
-        self.document_controller.add_listener(self)
+        self.__selected_display_specifier_changed_event_listener = self.document_controller.selected_display_specifier_changed_event.listen(self.__selected_display_specifier_changed)
         # initialize with the existing value
-        self.selected_display_specifier_changed(document_controller.selected_display_specifier)
+        self.__selected_display_specifier_changed(document_controller.selected_display_specifier)
 
     def close(self):
-        # disconnect self as listener
-        self.document_controller.remove_listener(self)
+        self.__selected_display_specifier_changed_event_listener.close()
+        self.__selected_display_specifier_changed_event_listener = None
         # disconnect data item
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
@@ -1217,7 +1225,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
     def display_specifier(self):
         return self.__display_specifier
 
-    def selected_display_specifier_changed(self, display_specifier):
+    def __selected_display_specifier_changed(self, display_specifier):
         if self.__display_specifier != display_specifier:
             # disconnect listener from display
             if self.__display_changed_event_listener:

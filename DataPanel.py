@@ -1042,8 +1042,6 @@ class DataPanel(Panel.Panel):
 
         self.widget = self.splitter
 
-        # connect self as listener. this will result in calls to update_data_panel_selection
-        self.document_controller.add_listener(self)
         self.document_controller.weak_data_panel = weakref.ref(self)
 
         # restore selection
@@ -1071,7 +1069,6 @@ class DataPanel(Panel.Panel):
         self.data_grid_widget = None
         # disconnect self as listener
         self.document_controller.weak_data_panel = None
-        self.document_controller.remove_listener(self)
         # display items
         for display_item in self.__display_items:
             display_item.close()

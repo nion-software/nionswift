@@ -974,12 +974,10 @@ class DisplayPanelManager(Observable.Broadcaster):
             selected_display_panel.change_display_panel_content(d)
 
         dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
-
         display_type_menu.add_separator()
 
-        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
-
-        display_type_menu.add_separator()
+        # dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
+        # display_type_menu.add_separator()
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))

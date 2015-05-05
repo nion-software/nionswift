@@ -20,7 +20,7 @@ _ = gettext.gettext
     Task modules can register task viewer factory with the task manager.
 
     Tasks will request a new task controller from the document model.
-    
+
     A task section will get created and added to the task panel with some type of progress
     indicator and cancel button. The task section will display a task viewer if one is
     available for the task data.
@@ -28,7 +28,7 @@ _ = gettext.gettext
     While the task is running, it is free to call task controller methods from
     a thread to update the data. The task controller will take care of getting the
     data to the task viewer on the UI thread.
-    
+
     When the task finishes, it can optionally send final data. The last data available
     data will get permanently stored into the document.
 
@@ -43,7 +43,7 @@ class TaskPanel(Panel.Panel):
         super(TaskPanel, self).__init__(document_controller, panel_id, _("Tasks"))
 
         # connect to the document controller
-        self.document_controller.add_listener(self)
+        self.__task_created_event_listener = self.document_controller.task_created_event.listen(self.task_created)
 
         # the main column widget contains a stack group for each operation
         self.column = self.ui.create_column_widget(properties)  # TODO: put this in scroll area
@@ -66,7 +66,8 @@ class TaskPanel(Panel.Panel):
 
     def close(self):
         # disconnect to the document controller
-        self.document_controller.remove_listener(self)
+        self.__task_created_event_listener.close()
+        self.__task_created_event_listener = None
         # disconnect from tasks
         for task_section_controller in self.__task_section_controller_list:
             task_section_controller.task.remove_listener(self)

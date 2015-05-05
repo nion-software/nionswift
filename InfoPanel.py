@@ -54,11 +54,12 @@ class InfoPanel(Panel.Panel):
         self.widget = column
 
         # connect self as listener. this will result in calls to cursor_changed
-        self.document_controller.add_listener(self)
+        self.__cursor_changed_event_listener = self.document_controller.cursor_changed_event.listen(self.__cursor_changed)
 
     def close(self):
         # disconnect self as listener
-        self.document_controller.remove_listener(self)
+        self.__cursor_changed_event_listener.close()
+        self.__cursor_changed_event_listener = None
         self.clear_task("position_and_value")
         # finish closing
         super(InfoPanel, self).close()
@@ -67,7 +68,7 @@ class InfoPanel(Panel.Panel):
     # it is established using add_listener
     # the only way the cursor data can be cleared is if the source is the same as the last source
     # to display cursor data.
-    def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
+    def __cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
         def get_value_text(value, intensity_calibration):
             if value is not None:
                 return unicode(intensity_calibration.convert_to_calibrated_value_str(value))
