@@ -301,8 +301,8 @@ class BaseDisplayPanel(object):
             if self.on_close:
                 self.on_close()
 
-        self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
-        self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
+        self.__header_canvas_item.on_drag_pressed = lambda: self._begin_drag()
+        self.__header_canvas_item.on_sync_clicked = lambda: self._sync_data_item()
         self.__header_canvas_item.on_close_clicked = close
 
     def close(self):
@@ -395,6 +395,12 @@ class BaseDisplayPanel(object):
 
     # set the default display for the data item. just a simpler method to call.
     def set_displayed_data_item(self, data_item):
+        raise NotImplementedError()
+
+    def _begin_drag(self):
+        raise NotImplementedError()
+
+    def _sync_data_item(self):
         raise NotImplementedError()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
@@ -537,7 +543,7 @@ class DataDisplayPanel(BaseDisplayPanel):
         self.__update_display_canvas(self.__display_specifier)
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
-    def __begin_drag(self):
+    def _begin_drag(self):
         if self.__display_specifier.data_item is not None:
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(self.__display_specifier.data_item.uuid))
@@ -549,7 +555,7 @@ class DataDisplayPanel(BaseDisplayPanel):
                     self.document_controller.replaced_display_panel_content = None
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
 
-    def __sync_data_item(self):
+    def _sync_data_item(self):
         if self.__display_specifier.data_item is not None:
             self.document_controller.select_data_item_in_data_panel(self.__display_specifier.data_item)
 
@@ -807,6 +813,11 @@ class DisplayPanel(object):
     @property
     def display_canvas_item(self):
         return self.__data_display_panel.display_canvas_item
+
+    @property
+    def _content_for_test(self):
+        """Used for testing."""
+        return self.__data_display_panel
 
     @property
     def display_panel_id(self):
