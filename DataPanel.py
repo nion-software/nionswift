@@ -57,6 +57,12 @@ class DataPanelSelection(object):
     def filter_id(self):
         return self.__filter_id
 
+    def __eq__(self, other):
+        return self.__data_group == other.data_group and self.__data_item == other.data_item and self.__filter_id == other.filter_id
+
+    def __ne__(self, other):
+        return self.__data_group != other.data_group or self.__data_item != other.data_item or self.__filter_id != other.filter_id
+
     def __str__(self):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
@@ -801,7 +807,6 @@ class DataPanel(Panel.Panel):
         self.__selection = DataPanelSelection()
         self.__selected_data_items = list()
         self.__closing = False
-        self.__block1 = False
 
         class LibraryItemController(object):
 
@@ -851,12 +856,11 @@ class DataPanel(Panel.Panel):
         ui = document_controller.ui
 
         def library_widget_selection_changed(selected_indexes):
-            if not self.__block1:
-                index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
-                if index == 1:
-                    self.update_data_panel_selection(DataPanelSelection(filter_id="latest-session"))
-                else:
-                    self.update_data_panel_selection(DataPanelSelection())
+            index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
+            if index == 1:
+                self.update_data_panel_selection(DataPanelSelection(filter_id="latest-session"))
+            else:
+                self.update_data_panel_selection(DataPanelSelection())
 
         self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
@@ -864,13 +868,12 @@ class DataPanel(Panel.Panel):
         self.library_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
 
         def data_group_widget_selection_changed(selected_indexes):
-            if not self.__block1:
-                if len(selected_indexes) > 0:
-                    index, parent_row, parent_id = selected_indexes[0]
-                    data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
-                else:
-                    data_group = None
-                self.update_data_panel_selection(DataPanelSelection(data_group, None))
+            if len(selected_indexes) > 0:
+                index, parent_row, parent_id = selected_indexes[0]
+                data_group = self.data_group_model_controller.get_data_group(index, parent_row, parent_id)
+            else:
+                data_group = None
+            self.update_data_panel_selection(DataPanelSelection(data_group, None))
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
             if key.is_delete:
@@ -924,14 +927,13 @@ class DataPanel(Panel.Panel):
 
         # this message is received when the current item changes in the widget
         def selection_changed(display_items):
-            if not self.__block1:
-                data_item = display_items[0].data_item if len(display_items) == 1 else None
-                self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
-                if self.focused:
-                    self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
-                    self.__selected_data_items = [display_item.data_item for display_item in display_items]
-                    self.document_controller.set_selected_data_items(self.__selected_data_items)
-                self.save_state()
+            data_item = display_items[0].data_item if len(display_items) == 1 else None
+            self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
+            if self.focused:
+                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
+                self.__selected_data_items = [display_item.data_item for display_item in display_items]
+                self.document_controller.set_selected_data_items(self.__selected_data_items)
+            self.save_state()
 
         def display_item_double_clicked(display_item):
             data_item = display_item.data_item
@@ -1135,23 +1137,21 @@ class DataPanel(Panel.Panel):
     # restarting, and after adding an operation to a data item.
     # not thread safe.
     def update_data_panel_selection(self, data_panel_selection):
-        # block. why? so we don't get infinite loops.
-        saved_block1 = self.__block1
-        self.__block1 = True
         data_group = data_panel_selection.data_group
         data_item = data_panel_selection.data_item
         filter_id = data_panel_selection.filter_id
         # first select the right row in the library or data group widget
-        if data_group:
-            index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
-            self.library_widget.clear_current_row()
-            self.data_group_widget.set_current_row(index, parent_row, parent_id)
-        else:
-            self.data_group_widget.clear_current_row()
-            if filter_id == "latest-session":
-                self.library_widget.set_current_row(1, -1, 0)  # select the 'latest' group
+        if data_panel_selection != self.__selection:
+            if data_group:
+                index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
+                self.library_widget.clear_current_row()
+                self.data_group_widget.set_current_row(index, parent_row, parent_id)
             else:
-                self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
+                self.data_group_widget.clear_current_row()
+                if filter_id == "latest-session":
+                    self.library_widget.set_current_row(1, -1, 0)  # select the 'latest' group
+                else:
+                    self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
         # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
         # though this is already on the ui thread.
         self.document_controller.set_data_group_or_filter(data_group, filter_id)
@@ -1175,8 +1175,6 @@ class DataPanel(Panel.Panel):
         self.__selection = data_panel_selection
         # save the users selection
         self.save_state()
-        # unblock
-        self.__block1 = saved_block1
 
     def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
