@@ -806,7 +806,6 @@ class DataPanel(Panel.Panel):
         self.__focused = False
         self.__selection = DataPanelSelection()
         self.__selected_data_items = list()
-        self.__closing = False
 
         class LibraryItemController(object):
 
@@ -1048,7 +1047,6 @@ class DataPanel(Panel.Panel):
         self.update_data_panel_selection(DataPanelSelection(None, None))
 
     def close(self):
-        self.__closing = True
         del self.__binding.inserters[id(self)]
         del self.__binding.removers[id(self)]
         # binding should not be closed since it isn't created in this object
@@ -1090,13 +1088,12 @@ class DataPanel(Panel.Panel):
     @focused.setter
     def focused(self, focused):
         self.__focused = focused
-        if not self.__closing:
-            if focused:
-                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
-                self.document_controller.set_selected_data_items(self.__selected_data_items)
-            else:
-                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
-                self.document_controller.set_selected_data_items([])
+        if focused:
+            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
+            self.document_controller.set_selected_data_items(self.__selected_data_items)
+        else:
+            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
+            self.document_controller.set_selected_data_items([])
 
     @property
     def data_item(self):
