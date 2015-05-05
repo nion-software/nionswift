@@ -89,18 +89,18 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_panel_gets_destructed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel = DisplayPanel.DisplayPanel(document_controller)
         # add some extra refs for fun
-        canvas_item = image_panel.canvas_item
+        canvas_item = display_panel.canvas_item
         container = CanvasItem.SplitterCanvasItem()
         container.add_canvas_item(canvas_item)
         root_canvas_item = CanvasItem.RootCanvasItem(self.app.ui)
         root_canvas_item.add_canvas_item(container)
         # now take the weakref
-        image_panel_weak_ref = weakref.ref(image_panel)
-        image_panel.canvas_item.close()
-        image_panel.close()
-        image_panel = None
+        image_panel_weak_ref = weakref.ref(display_panel)
+        display_panel.canvas_item.close()
+        display_panel.close()
+        display_panel = None
         self.assertIsNone(image_panel_weak_ref())
         document_controller.close()
 

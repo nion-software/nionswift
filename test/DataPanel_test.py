@@ -66,12 +66,12 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        image_panel = DisplayPanel.DisplayPanel(document_controller)
-        image_panel.set_displayed_data_item(data_item1)
+        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))
         data_panel.periodic()
-        document_controller.selected_display_panel = image_panel
+        document_controller.selected_display_panel = display_panel
         # first delete a child of a data item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)
@@ -83,8 +83,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_list_controller.list_widget.on_selection_changed([2])
         data_panel.data_list_controller._delete_pressed([2])
         self.assertEqual(len(data_group.data_items), 2)
-        image_panel.canvas_item.close()
-        image_panel.close()
+        display_panel.canvas_item.close()
+        display_panel.close()
         document_controller.close()
 
     # make sure switching between two views containing data items from the same group

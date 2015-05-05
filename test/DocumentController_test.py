@@ -71,9 +71,48 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNone(weak_document_window())
         self.assertIsNone(weak_document_model())
 
+    def test_document_controller_releases_document_model(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        weak_document_model = weakref.ref(document_model)
+        document_controller.close()
+        document_controller = None
+        data_item = None
+        document_model = None
+        gc.collect()
+        self.assertIsNone(weak_document_model())
+
+    def test_document_controller_releases_workspace_controller(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        weak_workspace_controller = weakref.ref(document_controller.workspace_controller)
+        document_controller.close()
+        document_controller = None
+        data_item = None
+        document_model = None
+        gc.collect()
+        self.assertIsNone(weak_workspace_controller())
+
+    def test_document_controller_releases_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        document_model.append_data_item(data_item)
+        weak_data_item = weakref.ref(data_item)
+        document_controller.close()
+        document_controller = None
+        data_item = None
+        document_model = None
+        gc.collect()
+        self.assertIsNone(weak_data_item())
+
     def test_display_panel_releases_data_item(self):
         document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)

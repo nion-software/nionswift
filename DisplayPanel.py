@@ -279,10 +279,9 @@ class DisplayPanel(object):
 
     def __init__(self, document_controller):
 
-        self.document_controller = document_controller
-        self.ui = document_controller.ui
+        self.__weak_document_controller = weakref.ref(document_controller)
 
-        self.__weak_workspace = None
+        self.ui = document_controller.ui
 
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
@@ -332,17 +331,17 @@ class DisplayPanel(object):
         self.document_controller.unregister_display_panel(self)
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
         # release references
-        self.workspace_controller = None
+        self.__weak_document_controller = None
         self.__content_canvas_item = None
         self.__header_canvas_item = None
 
     @property
-    def workspace(self):
-        return self.__weak_workspace() if self.__weak_workspace else None
+    def document_controller(self):
+        return self.__weak_document_controller()
 
-    @workspace.setter
-    def workspace(self, workspace):
-        self.__weak_workspace = weakref.ref(workspace) if workspace else None
+    @property
+    def workspace_controller(self):
+        return self.document_controller.workspace_controller
 
     @property
     def header_canvas_item(self):

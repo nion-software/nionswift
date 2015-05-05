@@ -42,9 +42,9 @@ class Panel(object):
     def close(self):
         pass
 
-    def __get_document_controller(self):
+    @property
+    def document_controller(self):
         return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
 
     # not thread safe. always call from main thread.
     def periodic(self):

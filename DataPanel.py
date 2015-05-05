@@ -243,6 +243,11 @@ class DataListController(object):
             display_item_needs_update_listener.close()
         self.__display_item_needs_update_listeners = None
         self.__display_items = None
+        self.on_delete_display_items = None
+        self.on_selection_changed = None
+        self.on_display_item_double_clicked = None
+        self.on_focus_changed = None
+        self.on_context_menu_event = None
         self.list_model_controller.close()
         self.list_model_controller = None
 
@@ -451,6 +456,7 @@ class DataGridController(object):
         self.on_selection_changed = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
+        self.on_delete_display_items = None
         self.root_canvas_item.close()
 
     def periodic(self):
@@ -804,6 +810,7 @@ class DataPanel(Panel.Panel):
             def close(self):
                 del self.__binding.inserters[id(self)]
                 del self.__binding.removers[id(self)]
+                self.__binding.close()
 
         all_items_binding = document_controller.create_data_item_binding(None, None)
         all_items_controller = LibraryItemController(_("All"), all_items_binding)

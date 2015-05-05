@@ -230,10 +230,10 @@ class TestWorkspaceClass(unittest.TestCase):
         data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
         document_model.append_data_item(data_item1)
         document_model.append_data_item(data_item2)
-        image_panel = document_controller.workspace_controller.display_panels[0]
-        image_panel.set_displayed_data_item(data_item1)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        display_panel.set_displayed_data_item(data_item1)
         mime_data = MimeData(data_item2)
-        document_controller.workspace_controller.handle_drop(image_panel, mime_data, region, 160, 240)
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
         # check that the workspace_controller was updated

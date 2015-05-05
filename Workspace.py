@@ -111,6 +111,8 @@ class WorkspaceController(object):
         for message_box_widget in copy.copy(self.__message_boxes.values()):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
+        self.__filtered_data_items_binding.close()
+        self.__filtered_data_items_binding = None
         if self.__workspace:
             # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
@@ -303,8 +305,6 @@ class WorkspaceController(object):
         document_model = self.document_controller.document_model
         canvas_item, selected_display_panel = self._construct(self.__workspace.layout, display_panels, document_model.get_data_item_by_uuid)
         self.display_panels.extend(display_panels)
-        for display_panel in self.display_panels:
-            display_panel.workspace_controller = self
         self.__canvas_item.add_canvas_item(canvas_item)
         self.image_row.add(self.__canvas_item.canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
@@ -539,7 +539,6 @@ class WorkspaceController(object):
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
             new_display_panel = self.__create_display_panel()
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
-            new_display_panel.workspace_controller = self
             if data_item:
                 new_display_panel.set_displayed_data_item(data_item)
             container.insert_canvas_item(index + new_index_adj, new_display_panel.canvas_item)
