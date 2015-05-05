@@ -515,7 +515,7 @@ class DocumentController(Observable.Broadcaster):
     def selected_display_specifier(self):
         """Return the selected display specifier (data_item, data_source, display).
 
-        The selected display is the display that has keyboard focus in the data panel or an image panel.
+        The selected display is the display that has keyboard focus in the data panel or a display panel.
         """
         # first check focused data panel
         if self.weak_data_panel:

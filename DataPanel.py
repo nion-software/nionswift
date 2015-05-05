@@ -552,6 +552,67 @@ class DataGridWidget(object):
         self.root_canvas_item.close()
 
 
+class DataBrowserController(object):
+
+    def __init__(self, document_controller):
+        self.document_controller = document_controller
+        self.__focused = False
+        self.__selection = DataPanelSelection()
+        self.__selected_data_items = list()
+
+    @property
+    def focused(self):
+        return self.__focused
+
+    @focused.setter
+    def focused(self, focused):
+        if focused:
+            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
+            self.document_controller.set_selected_data_items(self.__selected_data_items)
+        else:
+            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
+            self.document_controller.set_selected_data_items([])
+        self.__focused = focused
+
+    @property
+    def selection(self):
+        return self.__selection
+
+    @selection.setter
+    def selection(self, selection):
+        self.__selection = selection
+
+    @property
+    def data_item(self):
+        return self.__selection.data_item
+
+    def selection_changed(self, display_items):
+        data_item = display_items[0].data_item if len(display_items) == 1 else None
+        self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
+        if self.__focused:
+            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
+            self.__selected_data_items = [display_item.data_item for display_item in display_items]
+            self.document_controller.set_selected_data_items(self.__selected_data_items)
+
+    def data_grid_context_menu_event(self, display_item, x, y, gx, gy):
+        data_item = display_item.data_item
+        container = self.document_controller.data_items_binding.container
+        container = DataGroup.get_data_item_container(container, data_item)
+        self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
+
+    def display_item_double_clicked(self, display_item):
+        data_item = display_item.data_item
+        self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
+
+    def delete_display_items(self, display_items):
+        for display_item in display_items:
+            data_item = display_item.data_item
+            container = self.document_controller.data_items_binding.container
+            container = DataGroup.get_data_item_container(container, data_item)
+            if container and data_item in container.data_items:
+                container.remove_data_item(data_item)
+
+
 class DataPanel(Panel.Panel):
 
     class LibraryModelController(object):
@@ -803,9 +864,7 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
-        self.__focused = False
-        self.__selection = DataPanelSelection()
-        self.__selected_data_items = list()
+        self.__data_browser_controller = DataBrowserController(document_controller)
 
         class LibraryItemController(object):
 
@@ -916,45 +975,18 @@ class DataPanel(Panel.Panel):
         master_widget.add(collections_section_widget)
         master_widget.add_stretch()
 
-        def delete_display_items(display_items):
-            for display_item in display_items:
-                data_item = display_item.data_item
-                container = self.document_controller.data_items_binding.container
-                container = DataGroup.get_data_item_container(container, data_item)
-                if container and data_item in container.data_items:
-                    container.remove_data_item(data_item)
-
-        # this message is received when the current item changes in the widget
-        def selection_changed(display_items):
-            data_item = display_items[0].data_item if len(display_items) == 1 else None
-            self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
-            if self.focused:
-                self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
-                self.__selected_data_items = [display_item.data_item for display_item in display_items]
-                self.document_controller.set_selected_data_items(self.__selected_data_items)
-
-        def display_item_double_clicked(display_item):
-            data_item = display_item.data_item
-            self.document_controller.new_window("data", DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id))
-
-        def data_grid_context_menu_event(display_item, x, y, gx, gy):
-            data_item = display_item.data_item
-            container = self.document_controller.data_items_binding.container
-            container = DataGroup.get_data_item_container(container, data_item)
-            self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
-
         self.data_list_controller = DataListController(document_controller.ui)
-        self.data_list_controller.on_selection_changed = selection_changed
-        self.data_list_controller.on_context_menu_event = data_grid_context_menu_event
-        self.data_list_controller.on_display_item_double_clicked = display_item_double_clicked
-        self.data_list_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
-        self.data_list_controller.on_delete_display_items = delete_display_items
+        self.data_list_controller.on_selection_changed = self.__data_browser_controller.selection_changed
+        self.data_list_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
+        self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
         self.data_grid_controller = DataGridController(document_controller.ui)
-        self.data_grid_controller.on_selection_changed = selection_changed
-        self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
-        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
-        self.data_grid_controller.on_delete_display_items = delete_display_items
+        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selection_changed
+        self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
         self.data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
 
@@ -1016,12 +1048,12 @@ class DataPanel(Panel.Panel):
             self.data_view_widget.current_index = index
             if index == 0:  # switching to data list?
                 selected_display_items = [self.__display_items[index] for index in self.data_list_controller.selected_indexes]
-                selection_changed(selected_display_items)
+                self.__data_browser_controller.selection_changed(selected_display_items)
                 list_icon_button.background_color = "#CCC"
                 grid_icon_button.background_color = None
             elif index == 1:  # switching to data grid?
                 selected_display_items = [self.__display_items[index] for index in self.data_grid_controller.selected_indexes]
-                selection_changed(selected_display_items)
+                self.__data_browser_controller.selection_changed(selected_display_items)
                 list_icon_button.background_color = None
                 grid_icon_button.background_color = "#CCC"
 
@@ -1083,21 +1115,15 @@ class DataPanel(Panel.Panel):
     # make sure the document controller knows what is selected so it can update the inspector.
     @property
     def focused(self):
-        return self.__focused
+        return self.__data_browser_controller.focused
 
     @focused.setter
     def focused(self, focused):
-        self.__focused = focused
-        if focused:
-            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
-            self.document_controller.set_selected_data_items(self.__selected_data_items)
-        else:
-            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
-            self.document_controller.set_selected_data_items([])
+        self.__data_browser_controller.focused = focused
 
     @property
     def data_item(self):
-        return self.__selection.data_item
+        return self.__data_browser_controller.data_item
 
     # if the data_panel_selection gets changed, the data group tree and data item list need
     # to be updated to reflect the new selection. care needs to be taken to not introduce
@@ -1110,7 +1136,7 @@ class DataPanel(Panel.Panel):
         data_item = data_panel_selection.data_item
         filter_id = data_panel_selection.filter_id
         # first select the right row in the library or data group widget
-        if data_panel_selection != self.__selection:
+        if data_panel_selection != self.__data_browser_controller.selection:
             if data_group:
                 index, parent_row, parent_id = self.data_group_model_controller.get_data_group_index(data_group)
                 self.library_widget.clear_current_row()
@@ -1129,7 +1155,6 @@ class DataPanel(Panel.Panel):
         # case). call periodic to actually sync the changes to the data browser ui.
         self.document_controller.periodic()
         # update the data item selection by determining the new index of the item, if any.
-        # TODO: updating the current selection is not done correctly here
 
         data_item_index = -1
         for index in range(len(self.__display_items)):
@@ -1141,7 +1166,7 @@ class DataPanel(Panel.Panel):
             self.data_list_controller.set_selected_index(data_item_index)
         else:
             self.data_grid_controller.set_selected_index(data_item_index)
-        self.__selection = data_panel_selection
+        self.__data_browser_controller.selection = data_panel_selection
 
     def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
