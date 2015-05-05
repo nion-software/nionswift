@@ -364,6 +364,7 @@ class DataGridController(object):
         on_display_item_double_clicked(display_item)
         on_focus_changed(focused)
         on_context_menu_event(display_item, x, y, gx, gy)
+        on_drag_started(mime_data, thumbnail_data)
 
     Display items should respond to these properties and methods and events:
         (method) close()
@@ -379,7 +380,6 @@ class DataGridController(object):
     def __init__(self, ui):
         super(DataGridController, self).__init__()
         self.ui = ui
-        self.root_canvas_item = CanvasItem.RootCanvasItem(ui)
         self.on_delete_display_items = None
 
         class GridCanvasItemDelegate(object):
@@ -426,8 +426,7 @@ class DataGridController(object):
         self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
-        self.root_canvas_item.add_canvas_item(self.scroll_group_canvas_item)
-        self.widget = self.root_canvas_item.canvas_widget
+        self.canvas_item = self.scroll_group_canvas_item
         self.selection = Selection.IndexedSelection()
         def selection_changed():
             self.selected_indexes = list(self.selection.indexes)
@@ -439,6 +438,7 @@ class DataGridController(object):
         self.on_selection_changed = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
+        self.on_drag_started = None
 
         # changed data items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
@@ -455,9 +455,9 @@ class DataGridController(object):
         self.__display_items = None
         self.on_selection_changed = None
         self.on_context_menu_event = None
+        self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_display_items = None
-        self.root_canvas_item.close()
 
     def periodic(self):
         # handle the 'changed' stuff
@@ -490,7 +490,8 @@ class DataGridController(object):
     def drag_started(self, index, x, y, modifiers):
         mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
         if mime_data and thumbnail_data is not None:
-            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+            if self.on_drag_started:
+                self.on_drag_started(mime_data, thumbnail_data)
 
     def __display_item_needs_update(self):
         with self.__changed_display_items_mutex:
@@ -520,6 +521,25 @@ class DataGridController(object):
         del self.__display_items[index]
         self.selection.insert_index(index)
         self.icon_view_canvas_item.update()
+
+
+class DataGridWidget(object):
+
+    def __init__(self, ui, data_grid_controller):
+        self.data_grid_controller = data_grid_controller
+        self.root_canvas_item = CanvasItem.RootCanvasItem(ui)
+        self.root_canvas_item.add_canvas_item(data_grid_controller.canvas_item)
+        self.widget = self.root_canvas_item.canvas_widget
+
+        def data_grid_drag_started(mime_data, thumbnail_data):
+            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+
+        data_grid_controller.on_drag_started = data_grid_drag_started
+
+    def close(self):
+        self.data_grid_controller.on_drag_started = None
+        self.data_grid_controller = None
+        self.root_canvas_item.close()
 
 
 class DataPanel(Panel.Panel):
@@ -933,6 +953,8 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller.on_focus_changed = self.__set_focused
         self.data_grid_controller.on_delete_display_items = delete_display_items
 
+        self.data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
+
         def data_item_inserted(data_item, before_index):
             display_item = DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
             self.__display_items.insert(before_index, display_item)
@@ -984,7 +1006,7 @@ class DataPanel(Panel.Panel):
 
         self.data_view_widget = ui.create_stack_widget()
         self.data_view_widget.add(self.data_list_controller.widget)
-        self.data_view_widget.add(self.data_grid_controller.widget)
+        self.data_view_widget.add(self.data_grid_widget.widget)
         self.data_view_widget.current_index = 0
 
         def tab_changed(index):
@@ -1042,6 +1064,8 @@ class DataPanel(Panel.Panel):
         self.data_list_controller = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
+        self.data_grid_widget.close()
+        self.data_grid_widget = None
         # disconnect self as listener
         self.document_controller.weak_data_panel = None
         self.document_controller.remove_listener(self)

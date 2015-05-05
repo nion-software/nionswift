@@ -9,11 +9,11 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift import DataPanel
 from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
-from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
 from nion.ui import CanvasItem
@@ -321,6 +321,9 @@ class BaseDisplayPanel(object):
         self.on_drop = None
         self.on_focused = None
         self.on_close = None
+
+    def periodic(self):
+        pass
 
     @property
     def document_controller(self):
@@ -713,6 +716,59 @@ class EmptyDisplayPanel(BaseDisplayPanel):
     def __init__(self, document_controller):
         super(EmptyDisplayPanel, self).__init__(document_controller)
 
+    def save_contents(self):
+        d = super(EmptyDisplayPanel, self).save_contents()
+        d["display-panel-type"] = "empty-display-panel"
+        return d
+
+
+class BrowserDisplayPanel(BaseDisplayPanel):
+
+    def __init__(self, document_controller):
+        super(BrowserDisplayPanel, self).__init__(document_controller)
+
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.ui)
+        # self.data_grid_controller.on_selection_changed = selection_changed
+        # self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
+        # self.data_grid_controller.on_focus_changed = self.__set_focused
+        # self.data_grid_controller.on_delete_display_items = delete_display_items
+
+        def data_item_inserted(data_item, before_index):
+            display_item = DataPanel.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
+            self.data_grid_controller.display_item_inserted(display_item, before_index)
+
+        def data_item_removed(index):
+            self.data_grid_controller.display_item_removed(index)
+
+        self.__binding = document_controller.filtered_data_items_binding
+        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+
+        dispatch_task_fn = self.document_controller.document_model.dispatch_task
+        self.__display_items = [DataPanel.DisplayItem(data_item, dispatch_task_fn, self.ui) for data_item in self.__binding.data_items]
+
+        self.data_grid_controller.set_display_items(self.__display_items)
+
+        self.content_canvas_item.add_canvas_item(self.data_grid_controller.canvas_item)
+
+    def close(self):
+        del self.__binding.inserters[id(self)]
+        del self.__binding.removers[id(self)]
+        self.data_grid_controller.close()
+        self.data_grid_controller = None
+        super(BrowserDisplayPanel, self).close()
+
+    def save_contents(self):
+        d = super(BrowserDisplayPanel, self).save_contents()
+        d["display-panel-type"] = "browser-display-panel"
+        return d
+
+    def periodic(self):
+        super(BrowserDisplayPanel, self).periodic()
+        if self.data_grid_controller:
+            self.data_grid_controller.periodic()
+
+
 
 class DisplayPanel(object):
 
@@ -730,6 +786,9 @@ class DisplayPanel(object):
         self.__data_display_panel = None
         self.__document_controller.unregister_display_panel(self)
         self.__weak_document_controller = None
+
+    def periodic(self):
+        self.__data_display_panel.periodic()
 
     @property
     def __document_controller(self):
@@ -910,11 +969,15 @@ class DisplayPanelManager(Observable.Broadcaster):
     def build_menu(self, display_type_menu, selected_display_panel):
         dynamic_live_actions = list()
 
-        def switch_to_empty_display_content():
-            d = {"type": "image", "display-panel-type": "empty-display-panel"}
+        def switch_to_display_content(display_panel_type):
+            d = {"type": "image", "display-panel-type": display_panel_type}
             selected_display_panel.change_display_panel_content(d)
 
-        dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), switch_to_empty_display_content))
+        dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
+
+        display_type_menu.add_separator()
+
+        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
 
         display_type_menu.add_separator()
 
@@ -926,3 +989,4 @@ class DisplayPanelManager(Observable.Broadcaster):
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
 DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
+# DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
