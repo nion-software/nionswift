@@ -275,7 +275,7 @@ class WorkspaceController(object):
             desc = { "type": "image" }
             if display_panel._is_selected():
                 desc["selected"] = True
-            display_panel.save_contents(desc)
+            desc.update(display_panel.save_contents())
             return desc
         return None
 
@@ -475,8 +475,8 @@ class WorkspaceController(object):
 
     def __replace_displayed_data_item(self, display_panel, data_item):
         """ Used in drag/drop support. """
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.document_controller.replaced_data_item = display_panel.replace_displayed_data_item_and_display(display_specifier)
+        self.document_controller.replaced_display_panel_content = display_panel.save_contents()
+        display_panel.set_displayed_data_item(data_item)
 
     def handle_drag_enter(self, display_panel, mime_data):
         if mime_data.has_format("text/data_item_uuid"):

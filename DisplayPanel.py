@@ -313,6 +313,7 @@ class DisplayPanel(object):
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
+        # MARK
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
@@ -327,11 +328,13 @@ class DisplayPanel(object):
 
         self.__display_panel_controller = None
 
+        # MARK
         self.display_panel_id = None
 
         self.display_canvas_item = None
         self.__display_type = None
 
+    # MARK
     def close(self):
         # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
         self.canvas_item = None
@@ -381,7 +384,9 @@ class DisplayPanel(object):
 
     # save and restore the contents of the image panel
 
-    def save_contents(self, d):
+    # MARK
+    def save_contents(self):
+        d = dict()
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
@@ -390,7 +395,9 @@ class DisplayPanel(object):
         data_item = self.display_specifier.data_item
         if data_item:
             d["data_item_uuid"] = str(data_item.uuid)
+        return d
 
+    # MARK
     def restore_contents(self, d):
         display_panel_id = d.get("display_panel_id")
         if display_panel_id:
@@ -409,10 +416,12 @@ class DisplayPanel(object):
     # having focus. this can happen, for instance, when the user switches focus
     # to the data panel.
 
+    # MARK
     def set_selected(self, selected):
         if self.__content_canvas_item:  # may be closed
             self.__content_canvas_item.selected = selected
 
+    # MARK
     def _is_selected(self):
         """ Used for testing. """
         return self.__content_canvas_item.selected
@@ -449,16 +458,9 @@ class DisplayPanel(object):
         self.__set_display(display_specifier)
 
     # set the default display for the data item. just a simpler method to call.
+    # MARK
     def set_displayed_data_item(self, data_item):
         self.__set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
-
-    def replace_displayed_data_item_and_display(self, display_specifier):
-        """
-        Replace the displayed data item. Return the previous display specifier.
-        """
-        replaced_data_item = self.__display_specifier.data_item
-        self.__set_displayed_data_item_and_display(display_specifier)
-        return replaced_data_item
 
     def set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -515,10 +517,9 @@ class DisplayPanel(object):
             root_canvas_item = self.canvas_item.root_container
             thumbnail_data = self.__display_specifier.display.get_processed_data("thumbnail")
             def drag_finished(action):
-                if action == "move" and self.document_controller.replaced_data_item is not None:
-                    display_specifier = DataItem.DisplaySpecifier.from_data_item(self.document_controller.replaced_data_item)
-                    self.__set_display(display_specifier)
-                    self.document_controller.replaced_data_item = None
+                if action == "move" and self.document_controller.replaced_display_panel_content is not None:
+                    self.restore_contents(self.document_controller.replaced_display_panel_content)
+                    self.document_controller.replaced_display_panel_content = None
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
 
     def __sync_data_item(self):

@@ -877,10 +877,10 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_replacing_display_actually_does_it(self):
         self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
-        self.display_panel.replace_displayed_data_item_and_display(self.display_specifier)
+        self.display_panel.set_displayed_data_item(self.data_item)
         data_item_1d = DataItem.DataItem(create_1d_data())
         self.document_model.append_data_item(data_item_1d)
-        self.display_panel.replace_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item_1d))
+        self.display_panel.set_displayed_data_item(data_item_1d)
         self.assertEqual(self.display_panel.display_specifier.data_item, data_item_1d)
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
@@ -898,7 +898,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(display_panel.drop_region, "left")
 
     def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
-        self.display_panel.replace_displayed_data_item_and_display(self.display_specifier)
+        self.display_panel.set_displayed_data_item(self.data_item)
         self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
 
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):

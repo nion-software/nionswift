@@ -74,7 +74,7 @@ class DocumentController(Observable.Broadcaster):
         self.__workspace_controller = None
         self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
-        self.replaced_data_item = None  # used to facilitate display panel functionality to exchange displays
+        self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
         self.weak_data_panel = None
         self.__tool_mode = "pointer"
