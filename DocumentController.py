@@ -104,7 +104,7 @@ class DocumentController(Observable.Broadcaster):
         if not self.document_window.has_event_loop:
             self.periodic()
         # menus
-        self.live_menu.on_about_to_show = None
+        self.display_type_menu.on_about_to_show = None
         self.view_menu.on_about_to_show = None
         self.window_menu.on_about_to_show = None
         self.file_menu = None
@@ -236,26 +236,19 @@ class DocumentController(Observable.Broadcaster):
 
         self.__dynamic_live_actions = []
 
-        def about_to_show_live_menu():
+        def about_to_show_display_type_menu():
             for dynamic_live_action in self.__dynamic_live_actions:
-                self.live_menu.remove_action(dynamic_live_action)
+                self.display_type_menu.remove_action(dynamic_live_action)
             self.__dynamic_live_actions = []
 
             selected_display_panel = self.selected_display_panel
             if not selected_display_panel:
                 return
 
-            def clear_display_controller():
-                d = {"type": "image"}
-                selected_display_panel.change_display_panel_content(d)
+            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self.display_type_menu, selected_display_panel))
 
-            action = self.live_menu.add_menu_item("None", clear_display_controller)
-            self.__dynamic_live_actions.append(action)
-
-            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self.live_menu, selected_display_panel))
-
-        self.live_menu = self.ui.create_sub_menu(self.document_window)
-        self.live_menu.on_about_to_show = about_to_show_live_menu
+        self.display_type_menu = self.ui.create_sub_menu(self.document_window)
+        self.display_type_menu.on_about_to_show = about_to_show_display_type_menu
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
@@ -280,7 +273,7 @@ class DocumentController(Observable.Broadcaster):
         self.view_menu.add_menu_item(_("Rename Workspace"), lambda: self.workspace_controller.rename_workspace())
         self.view_menu.add_menu_item(_("Remove Workspace"), lambda: self.workspace_controller.remove_workspace())
         self.view_menu.add_separator()
-        self.view_menu.add_sub_menu(_("Display Panel Type"), self.live_menu)
+        self.view_menu.add_sub_menu(_("Display Panel Type"), self.display_type_menu)
         self.view_menu.add_separator()
 
         self.__dynamic_view_actions = []

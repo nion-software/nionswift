@@ -235,55 +235,6 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return super(DisplayPanelOverlayCanvasItem, self).key_pressed(key)
 
 
-class BrowserDisplayPanelController(object):
-    """
-        Represents a controller for the content of an image panel.
-
-        Image panels have the ability to update their content spontaneously in response to
-        external events such as a selection in another panel changing, acquisition starting,
-        and more.
-    """
-    type = "browser"
-    display_name = _("Browser")
-
-    def __init__(self, display_panel):
-        self.type = BrowserDisplayPanelController.type
-        self.__display_panel = display_panel
-        self.__display_panel.document_controller.add_listener(self)
-        self.__display_panel.header_canvas_item.end_header_color = "#996633"
-        self.browser_data_item_changed(self.__display_panel.document_controller.browser_data_item)
-
-    def close(self):
-        self.__display_panel.document_controller.remove_listener(self)
-        self.__display_panel = None
-
-    @classmethod
-    def build_menu(self, live_menu, selected_display_panel):
-        return list()
-
-    @classmethod
-    def build_menu(self, live_menu, selected_display_panel):
-        def switch_to_live_controller():
-            d = dict()
-            display_panel_controller = self.make_new(BrowserDisplayPanelController.type, selected_display_panel, d)
-            selected_display_panel.set_display_panel_controller(display_panel_controller)
-        action = live_menu.add_menu_item(BrowserDisplayPanelController.display_name, switch_to_live_controller)
-        action.checked = False
-        return [action]
-
-    @classmethod
-    def make_new(self, controller_type, display_panel, d):
-        if controller_type == BrowserDisplayPanelController.type:
-            return BrowserDisplayPanelController(display_panel)
-        return None
-
-    def save(self, d):
-        pass
-
-    def browser_data_item_changed(self, data_item):
-        self.__display_panel.set_displayed_data_item(data_item)
-
-
 class BaseDisplayPanel(object):
 
     def __init__(self, document_controller):
@@ -881,7 +832,11 @@ class DisplayPanel(object):
         return self.__data_display_panel._is_focused()
 
     def set_displayed_data_item(self, data_item):
-        self.__data_display_panel.set_displayed_data_item(data_item)
+        if data_item is not None:
+            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
+        else:
+            d = {"type": "image"}
+        self.change_display_panel_content(d)
 
     def perform_action(self, fn, *args, **keywords):
         target = self.__data_display_panel
@@ -941,14 +896,22 @@ class DisplayPanelManager(Observable.Broadcaster):
                 return display_panel_controller
         return None
 
-    def build_menu(self, live_menu, selected_display_panel):
+    def build_menu(self, display_type_menu, selected_display_panel):
         dynamic_live_actions = list()
 
+        def switch_to_empty_display_content():
+            d = {"type": "image", "display-panel-type": "empty-display-panel"}
+            selected_display_panel.change_display_panel_content(d)
+
+        dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), switch_to_empty_display_content))
+
+        display_type_menu.add_separator()
+
         for factory in self.__display_controller_factories.values():
-            dynamic_live_actions.extend(factory.build_menu(live_menu, selected_display_panel))
+            dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
 
         return dynamic_live_actions
 
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
-DisplayPanelManager().register_display_panel_factory("toy-display-panel", EmptyDisplayPanel)
+DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
