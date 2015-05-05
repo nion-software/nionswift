@@ -402,11 +402,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.4, 0.4))
 
     def test_resize_nonsquare_rectangle(self):
-        self.display_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_region()
         # make sure items it is in the right place
@@ -426,11 +426,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (500, 500))
 
     def test_resize_nonsquare_ellipse(self):
-        self.display_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.display_canvas_item.update_layout((0, 0), (2000, 1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_region()
         # make sure items it is in the right place

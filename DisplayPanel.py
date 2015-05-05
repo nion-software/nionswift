@@ -717,8 +717,6 @@ class DisplayPanel(object):
         self.__canvas_item = CanvasItem.CanvasItemComposition()
         # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__canvas_item.wants_mouse_events = True
-        self.__canvas_item.focusable = True
-        self.__canvas_item.on_focus_changed = lambda focused: self.__data_display_panel.set_focused(focused)  # ugh
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
@@ -798,7 +796,9 @@ class DisplayPanel(object):
         self.__data_display_panel.restore_contents(d)
 
         self.__data_display_panel.set_selected(is_selected)
-        self.__data_display_panel.set_focused(is_focused)
+
+        if is_focused:
+            self.__data_display_panel.canvas_item.request_focus()
 
     @property
     def canvas_item(self):

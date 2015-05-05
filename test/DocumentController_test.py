@@ -413,6 +413,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         invert_operation = Operation.OperationItem("invert-operation")
         invert_operation.add_data_source(source_data_item._create_test_data_source())
         data_item.set_operation(invert_operation)
+        document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         data_item_dup = document_controller.processing_duplicate().data_item

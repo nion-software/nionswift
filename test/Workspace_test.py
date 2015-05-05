@@ -131,12 +131,10 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
-        if True:
-            data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
-            document_model.append_data_item(data_item1)
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
         document_controller.workspace_controller.change_workspace(workspace_2x1)
-        if True:
-            document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in first panel
@@ -146,6 +144,38 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
+
+    def test_changed_image_panel_focused_when_clicked(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        # click in right panel and change the display type
+        modifiers = Test.KeyboardModifiers()
+        root_canvas_item.canvas_widget.on_mouse_clicked(480, 240, modifiers)
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_focused())
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_selected())
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
+        document_controller.selected_display_panel.change_display_panel_content({"type": "image"})
+        # click in left panel, make sure focus/selected are right
+        root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
+        self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
+        self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
+        self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
+        # click in right panel, make sure focus/selected are right
+        root_canvas_item.canvas_widget.on_mouse_clicked(480, 240, modifiers)
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_focused())
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_selected())
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
 
     def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
         # setup
