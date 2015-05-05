@@ -28,11 +28,11 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
-        self.image_panel = self.document_controller.selected_display_panel
+        self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.document_model.append_data_item(self.data_item)
-        self.image_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_displayed_data_item(self.data_item)
 
     def tearDown(self):
         self.document_controller.close()
@@ -584,7 +584,7 @@ class TestOperationClass(unittest.TestCase):
         data_item_rgba2.set_operation(invert_operation)
         self.document_model.append_data_item(data_item_rgba2)
         data_item_rgba2.recompute_data()
-        self.image_panel.set_displayed_data_item(data_item_rgba2)
+        self.display_panel.set_displayed_data_item(data_item_rgba2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item_rgba2)
         rgba_copy_buffered_data_source = self.document_controller.processing_snapshot().buffered_data_source
         self.assertTrue(rgba_copy_buffered_data_source.has_data)
@@ -618,7 +618,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.buffered_data_source.dimensional_calibrations), 2)
         self.assertEqual(len(display_specifier2.buffered_data_source.dimensional_calibrations), 2)
         # take snapshot
-        self.image_panel.set_displayed_data_item(data_item2)
+        self.display_panel.set_displayed_data_item(data_item2)
         self.assertEqual(self.document_controller.selected_display_specifier.data_item, data_item2)
         buffered_data_source = self.document_controller.processing_snapshot().buffered_data_source
         # check calibrations
@@ -743,8 +743,8 @@ class TestOperationClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         crop_region = Region.RectRegion()
         crop_region.center = (0.5, 0.5)

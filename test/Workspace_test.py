@@ -278,8 +278,8 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         mime_data = MimeData(data_item3)
-        image_panel = document_controller.workspace_controller.display_panels[0]
-        document_controller.workspace_controller.handle_drop(image_panel, mime_data, "bottom", 160, 240)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "bottom", 160, 240)
         # check that there are now three image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 3)
         # check that the workspace_controller was updated
@@ -315,8 +315,8 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-        image_panel = document_controller.workspace_controller.display_panels[0]
-        document_controller.workspace_controller.remove_display_panel(image_panel)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        document_controller.workspace_controller.remove_display_panel(display_panel)
         # check that there is now one image panel
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
         # check that there is just one top level panel now
@@ -339,10 +339,10 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
-        image_panel = document_controller.workspace_controller.display_panels[1]
+        display_panel = document_controller.workspace_controller.display_panels[1]
         splits = root_canvas_item.canvas_items[0].splits
         #logging.debug(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]))
-        document_controller.workspace_controller.remove_display_panel(image_panel)
+        document_controller.workspace_controller.remove_display_panel(display_panel)
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
         # check that there is just one top level panel now

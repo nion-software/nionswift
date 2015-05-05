@@ -863,17 +863,17 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
-        image_panel = TestDisplayPanel()
+        display_panel = TestDisplayPanel()
         overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
-        overlay.on_drag_enter = image_panel.handle_drag_enter
-        overlay.on_drag_move = image_panel.handle_drag_move
-        overlay.on_drop = image_panel.handle_drop
+        overlay.on_drag_enter = display_panel.handle_drag_enter
+        overlay.on_drag_move = display_panel.handle_drag_move
+        overlay.on_drop = display_panel.handle_drop
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)
         overlay.drag_move(mime_data, int(width*0.5), int(height*0.5))
         overlay.drop(mime_data, int(width*0.5), int(height*0.5))
-        self.assertEqual(image_panel.drop_region, "middle")
+        self.assertEqual(display_panel.drop_region, "middle")
 
     def test_replacing_display_actually_does_it(self):
         self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
@@ -885,17 +885,17 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
-        image_panel = TestDisplayPanel()
+        display_panel = TestDisplayPanel()
         overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
-        overlay.on_drag_enter = image_panel.handle_drag_enter
-        overlay.on_drag_move = image_panel.handle_drag_move
-        overlay.on_drop = image_panel.handle_drop
+        overlay.on_drag_enter = display_panel.handle_drag_enter
+        overlay.on_drag_move = display_panel.handle_drag_move
+        overlay.on_drop = display_panel.handle_drop
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)
         overlay.drag_move(mime_data, int(width*0.05), int(height*0.5))
         overlay.drop(mime_data, int(width*0.05), int(height*0.5))
-        self.assertEqual(image_panel.drop_region, "left")
+        self.assertEqual(display_panel.drop_region, "left")
 
     def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
         self.display_panel.replace_displayed_data_item_and_display(self.display_specifier)

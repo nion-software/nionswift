@@ -1013,8 +1013,8 @@ class TestStorageClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.add_region(crop_region)
-        image_panel = document_controller.selected_display_panel
-        image_panel.set_displayed_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
         operation = Operation.OperationItem("invert-operation")
         document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
         document_model.close()

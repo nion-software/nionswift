@@ -717,12 +717,12 @@ class DisplayPanelManager(Observable.Broadcaster):
         self.__factories = dict()
 
     # events from the image panels
-    def key_pressed(self, image_panel, key):
-        self.notify_listeners("image_panel_key_pressed", image_panel, key)
+    def key_pressed(self, display_panel, key):
+        self.notify_listeners("image_panel_key_pressed", display_panel, key)
         return False
 
-    def mouse_clicked(self, image_panel, display_specifier, image_position, modifiers):
-        self.notify_listeners("image_panel_mouse_clicked", image_panel, display_specifier, image_position, modifiers)
+    def mouse_clicked(self, display_panel, display_specifier, image_position, modifiers):
+        self.notify_listeners("image_panel_mouse_clicked", display_panel, display_specifier, image_position, modifiers)
         return False
 
     def register_display_panel_controller_factory(self, factory_id, factory):
