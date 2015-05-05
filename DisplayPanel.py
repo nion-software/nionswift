@@ -284,7 +284,7 @@ class BrowserDisplayPanelController(object):
         self.__display_panel.set_displayed_data_item(data_item)
 
 
-class DataDisplayPanel(object):
+class BaseDisplayPanel(object):
 
     def __init__(self, document_controller):
 
@@ -292,9 +292,8 @@ class DataDisplayPanel(object):
 
         self.ui = document_controller.ui
 
-        self.__display_specifier = DataItem.DisplaySpecifier()
-        self.__display_changed_event_listener = None
-        self.__display_graphic_selection_changed_event_listener = None
+        self.canvas_item = CanvasItem.CanvasItemComposition()
+        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
@@ -305,27 +304,11 @@ class DataDisplayPanel(object):
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
-        self.canvas_item = CanvasItem.CanvasItemComposition()
-        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-
         self.canvas_item.add_canvas_item(self.__header_canvas_item)
         self.canvas_item.add_canvas_item(self.__content_canvas_item)
         self.canvas_item.add_canvas_item(self.__footer_canvas_item)
 
-        def data_item_deleted(data_item):
-            # if our item gets deleted, clear the selection
-            if data_item == self.display_specifier.data_item:
-                self.__set_display(DataItem.DisplaySpecifier())
-
-        document_model = self.document_controller.document_model
-        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
-
-        self.__display_panel_controller = None
-
         self.display_panel_id = None
-
-        self.display_canvas_item = None
-        self.__display_type = None
 
         self.on_key_pressed = None
         self.on_mouse_clicked = None
@@ -358,7 +341,7 @@ class DataDisplayPanel(object):
         self.__content_canvas_item.on_drag_leave = drag_leave
         self.__content_canvas_item.on_drag_move = drag_move
         self.__content_canvas_item.on_drop = drop
-        self.__content_canvas_item.on_key_pressed = self.__handle_key_pressed
+        self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
 
         self.on_focused = None
         self.on_close = None
@@ -374,14 +357,7 @@ class DataDisplayPanel(object):
     def close(self):
         # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
         self.canvas_item = None
-        if self.display_canvas_item:
-            self.display_canvas_item.about_to_close()
-            self.display_canvas_item = None
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
-        self.set_display_panel_controller(None)
-        self.__data_item_deleted_event_listener.close()
-        self.__data_item_deleted_event_listener = None
-        self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
         # release references
         self.__weak_document_controller = None
         self.__content_canvas_item = None
@@ -402,6 +378,10 @@ class DataDisplayPanel(object):
     @property
     def header_canvas_item(self):
         return self.__header_canvas_item
+
+    @property
+    def content_canvas_item(self):
+        return self.__content_canvas_item
 
     @property
     def footer_canvas_item(self):
@@ -425,30 +405,16 @@ class DataDisplayPanel(object):
 
     def save_contents(self):
         d = dict()
-        if self.__display_panel_controller:
-            d["controller_type"] = self.__display_panel_controller.type
-            self.__display_panel_controller.save(d)
         if self.display_panel_id:
             d["display_panel_id"] = str(self.display_panel_id)
-        data_item = self.display_specifier.data_item
-        if data_item:
-            d["data_item_uuid"] = str(data_item.uuid)
         return d
 
     def restore_contents(self, d):
         display_panel_id = d.get("display_panel_id")
         if display_panel_id:
             self.display_panel_id = display_panel_id
-        controller_type = d.get("controller_type")
-        self.__display_panel_controller = DisplayPanelManager().make_display_panel_controller(controller_type, self, d)
-        if not self.__display_panel_controller:
-            data_item_uuid_str = d.get("data_item_uuid")
-            if data_item_uuid_str:
-                data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
-                if data_item:
-                    self.set_displayed_data_item(data_item)
 
-    # handle selection. selection means that the image panel is the most recent
+    # handle selection. selection means that the display panel is the most recent
     # item to have focus within the workspace, although it can be selected without
     # having focus. this can happen, for instance, when the user switches focus
     # to the data panel.
@@ -470,6 +436,93 @@ class DataDisplayPanel(object):
     def _is_focused(self):
         """ Used for testing. """
         return self.__content_canvas_item.focused
+
+    @property
+    def display_specifier(self):
+        """Return the display specifier for the Display in this image panel."""
+        return DataItem.DisplaySpecifier()
+
+    # set the default display for the data item. just a simpler method to call.
+    def set_displayed_data_item(self, data_item):
+        raise NotImplementedError()
+
+    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
+    # doesn't handle it, gives the display controller a chance to handle it.
+    def _handle_key_pressed(self, key):
+        if self.on_key_pressed:
+            return self.on_key_pressed(key)
+        return False
+
+
+class DataDisplayPanel(BaseDisplayPanel):
+
+    def __init__(self, document_controller):
+
+        super(DataDisplayPanel, self).__init__(document_controller)
+
+        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__display_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
+
+        def data_item_deleted(data_item):
+            # if our item gets deleted, clear the selection
+            if data_item == self.display_specifier.data_item:
+                self.__set_display(DataItem.DisplaySpecifier())
+
+        document_model = self.document_controller.document_model
+        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
+
+        self.__display_panel_controller = None
+
+        self.display_canvas_item = None
+        self.__display_type = None
+
+    def close(self):
+        if self.display_canvas_item:
+            self.display_canvas_item.about_to_close()
+            self.display_canvas_item = None
+        self.set_display_panel_controller(None)
+        self.__data_item_deleted_event_listener.close()
+        self.__data_item_deleted_event_listener = None
+        self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
+        super(DataDisplayPanel, self).close()
+
+    # tasks can be added in two ways, queued or added
+    # queued tasks are guaranteed to be executed in the order queued.
+    # added tasks are only executed if not replaced before execution.
+    # added tasks do not guarantee execution order or execution at all.
+
+    def add_task(self, key, task):
+        self.document_controller.add_task(key + str(id(self)), task)
+
+    def clear_task(self, key):
+        self.document_controller.clear_task(key + str(id(self)))
+
+    def queue_task(self, task):
+        self.document_controller.queue_task(task)
+
+    # save and restore the contents of the image panel
+
+    def save_contents(self):
+        d = super(DataDisplayPanel, self).save_contents()
+        if self.__display_panel_controller:
+            d["controller_type"] = self.__display_panel_controller.type
+            self.__display_panel_controller.save(d)
+        data_item = self.display_specifier.data_item
+        if data_item:
+            d["data_item_uuid"] = str(data_item.uuid)
+        return d
+
+    def restore_contents(self, d):
+        super(DataDisplayPanel, self).restore_contents(d)
+        controller_type = d.get("controller_type")
+        self.__display_panel_controller = DisplayPanelManager().make_display_panel_controller(controller_type, self, d)
+        if not self.__display_panel_controller:
+            data_item_uuid_str = d.get("data_item_uuid")
+            if data_item_uuid_str:
+                data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
+                if data_item:
+                    self.set_displayed_data_item(data_item)
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
         if self.on_mouse_clicked:
@@ -561,8 +614,8 @@ class DataDisplayPanel(object):
     # clear any pending display update at the end
     # not thread safe
     def __update_display_canvas(self, display_specifier):
-        if self.__header_canvas_item:  # may be closed
-            self.__header_canvas_item.title = display_specifier.data_item.displayed_title if display_specifier.data_item else None
+        if self.header_canvas_item:  # may be closed
+            self.header_canvas_item.title = display_specifier.data_item.displayed_title if display_specifier.data_item else None
         display_type = None
         data_and_calibration = display_specifier.display.data_and_calibration if display_specifier.display else None
         if data_and_calibration:
@@ -572,7 +625,7 @@ class DataDisplayPanel(object):
                 display_type = "image"
         if display_type != self.__display_type:
             if self.display_canvas_item:
-                self.__content_canvas_item.remove_canvas_item(self.display_canvas_item)
+                self.content_canvas_item.remove_canvas_item(self.display_canvas_item)
                 self.display_canvas_item = None
 
             class DisplayCanvasItemDelegate(object):
@@ -656,14 +709,14 @@ class DataDisplayPanel(object):
 
             if display_type == "line_plot":
                 self.display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
-                self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
+                self.content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
             elif display_type == "image":
                 self.display_canvas_item = ImageCanvasItem.ImageCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
-                self.__content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
+                self.content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
                 self.display_canvas_item.set_fit_mode()
             self.__display_type = display_type
-            if self.__content_canvas_item:
-                self.__content_canvas_item.update()
+            if self.content_canvas_item:
+                self.content_canvas_item.update()
         display = display_specifier.display
         if display and self.display_canvas_item:  # may be closed
             if display_type == "image":
@@ -684,20 +737,18 @@ class DataDisplayPanel(object):
                                                               display.display_calibrated_values)
             self.__display_graphic_selection_changed(display_specifier.display,
                                                      display_specifier.display.graphic_selection)
-        if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.wants_mouse_events = self.display_canvas_item is None
-            self.__content_canvas_item.selected = display_specifier.display is not None and self._is_selected()
+        if self.content_canvas_item:  # may be closed
+            self.content_canvas_item.wants_mouse_events = self.display_canvas_item is None
+            self.content_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
-    def __handle_key_pressed(self, key):
+    def _handle_key_pressed(self, key):
         if self.display_canvas_item and self.display_canvas_item.key_pressed(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
-        if self.on_key_pressed:
-            return self.on_key_pressed(key)
-        return False
+        return super(DataDisplayPanel, self)._handle_key_pressed(key)
 
 
 class DisplayPanel(object):
