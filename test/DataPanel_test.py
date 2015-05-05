@@ -66,7 +66,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
-        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         display_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(data_item=data_item1))

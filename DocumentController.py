@@ -246,7 +246,8 @@ class DocumentController(Observable.Broadcaster):
                 return
 
             def clear_display_controller():
-                selected_display_panel.set_display_panel_controller(None)
+                d = {"type": "image"}
+                selected_display_panel.change_display_panel_content(d)
 
             action = self.live_menu.add_menu_item("None", clear_display_controller)
             self.__dynamic_live_actions.append(action)
@@ -279,7 +280,7 @@ class DocumentController(Observable.Broadcaster):
         self.view_menu.add_menu_item(_("Rename Workspace"), lambda: self.workspace_controller.rename_workspace())
         self.view_menu.add_menu_item(_("Remove Workspace"), lambda: self.workspace_controller.remove_workspace())
         self.view_menu.add_separator()
-        self.view_menu.add_sub_menu(_("Live"), self.live_menu)
+        self.view_menu.add_sub_menu(_("Display Panel Type"), self.live_menu)
         self.view_menu.add_separator()
 
         self.__dynamic_view_actions = []

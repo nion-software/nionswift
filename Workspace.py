@@ -221,8 +221,8 @@ class WorkspaceController(object):
             traceback.print_stack()
             return None
 
-    def __create_display_panel(self):
-        return DisplayPanel.DisplayPanel(self.document_controller)
+    def __create_display_panel(self, d):
+        return DisplayPanel.DisplayPanel(self.document_controller, d)
 
     def display_data_item_in_display_panel(self, data_item, display_panel_id):
         for display_panel in self.display_panels:
@@ -245,15 +245,16 @@ class WorkspaceController(object):
                     container.splits = splits
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
-            display_panel = self.__create_display_panel()
+            display_panel = self.__create_display_panel(desc)
             display_panels.append(display_panel)
             if desc.get("selected", False):
                 selected_display_panel = display_panel
-            display_panel.restore_contents(desc)
             item = display_panel.canvas_item
         if container:
             children = desc.get("children", list())
             for child_desc in children:
+                # if child_desc is None:
+                #     child_desc = {"type": "image"}
                 child_canvas_item, child_selected_display_panel = self._construct(child_desc, display_panels, lookup_data_item)
                 container.add_canvas_item(child_canvas_item)
                 selected_display_panel = child_selected_display_panel if child_selected_display_panel else selected_display_panel
@@ -536,7 +537,7 @@ class WorkspaceController(object):
             # modify the existing splitter
             old_split = container.splits[index]
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
-            new_display_panel = self.__create_display_panel()
+            new_display_panel = self.__create_display_panel(dict())
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
             if data_item:
                 new_display_panel.set_displayed_data_item(data_item)

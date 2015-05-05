@@ -322,7 +322,7 @@ class BaseDisplayPanel(object):
                 return self.on_drag_enter(mime_data)
             return "ignore"
 
-        def drag_leave(self):
+        def drag_leave():
             if self.on_drag_leave:
                 return self.on_drag_leave()
             return False
@@ -481,7 +481,7 @@ class DataDisplayPanel(BaseDisplayPanel):
         if self.display_canvas_item:
             self.display_canvas_item.about_to_close()
             self.display_canvas_item = None
-        self.set_display_panel_controller(None)
+        self.__set_display_panel_controller(None)
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
@@ -545,7 +545,7 @@ class DataDisplayPanel(BaseDisplayPanel):
     def set_displayed_data_item(self, data_item):
         self.__set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
 
-    def set_display_panel_controller(self, display_panel_controller):
+    def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
             self.__display_panel_controller.close()
             self.__display_panel_controller = None
@@ -751,19 +751,53 @@ class DataDisplayPanel(BaseDisplayPanel):
         return super(DataDisplayPanel, self)._handle_key_pressed(key)
 
 
-class DisplayPanel(object):
+class EmptyDisplayPanel(BaseDisplayPanel):
 
     def __init__(self, document_controller):
+        super(EmptyDisplayPanel, self).__init__(document_controller)
 
+
+class DisplayPanel(object):
+
+    def __init__(self, document_controller, d):
+        self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
+        self.__data_display_panel = None
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__canvas_item.wants_mouse_events = True
+        self.__canvas_item.focusable = True
+        self.__canvas_item.on_focus_changed = lambda focused: self.__data_display_panel.set_focused(focused)  # ugh
+        self.__change_display_panel_content(document_controller, d)
 
-        def unregister_display_panel(weak_document_controller):
-            weak_document_controller().unregister_display_panel(self)
+    def close(self):
+        self.__data_display_panel.close()
+        self.__data_display_panel = None
+        self.__document_controller.unregister_display_panel(self)
+        self.__weak_document_controller = None
 
-        weak_document_controller = weakref.ref(document_controller)
-        self.__cleanup_fn = functools.partial(unregister_display_panel, weak_document_controller)
+    @property
+    def __document_controller(self):
+        return self.__weak_document_controller()
 
-        self.__data_display_panel = DataDisplayPanel(document_controller)
+    def change_display_panel_content(self, d):
+        assert self.__document_controller is not None
+        self.__change_display_panel_content(self.__document_controller, d)
+
+    def __change_display_panel_content(self, document_controller, d):
+        is_selected = False
+        is_focused = False
+
+        if self.__data_display_panel:
+            is_selected = self._is_selected()
+            is_focused = self._is_focused()
+            canvas_item = self.__data_display_panel.canvas_item
+            self.__data_display_panel.close()
+            self.__canvas_item.remove_canvas_item(canvas_item)
+
+        self.__data_display_panel = DisplayPanelManager().make_display_panel(document_controller, d)
+        self.__canvas_item.insert_canvas_item(0, self.__data_display_panel.canvas_item)
+        self.__canvas_item.refresh_layout(True)
 
         workspace_controller = document_controller.workspace_controller
 
@@ -772,7 +806,7 @@ class DisplayPanel(object):
                 return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
 
-        def drag_leave(self):
+        def drag_leave():
             if workspace_controller:
                 return workspace_controller.handle_drag_leave(self)
             return False
@@ -810,15 +844,14 @@ class DisplayPanel(object):
         self.__data_display_panel.on_focused = focused
         self.__data_display_panel.on_close = close
 
-    def close(self):
-        self.__data_display_panel.close()
-        self.__data_display_panel = None
-        self.__cleanup_fn()
-        self.__cleanup_fn = None
+        self.__data_display_panel.restore_contents(d)
+
+        self.__data_display_panel.set_selected(is_selected)
+        self.__data_display_panel.set_focused(is_focused)
 
     @property
     def canvas_item(self):
-        return self.__data_display_panel.canvas_item
+        return self.__canvas_item
 
     @property
     def display_canvas_item(self):
@@ -834,9 +867,6 @@ class DisplayPanel(object):
 
     def save_contents(self):
         return self.__data_display_panel.save_contents()
-
-    def restore_contents(self, d):
-        self.__data_display_panel.restore_contents(d)
 
     def set_selected(self, selected):
         self.__data_display_panel.set_selected(selected)
@@ -870,7 +900,8 @@ class DisplayPanelManager(Observable.Broadcaster):
     def __init__(self):
         super(DisplayPanelManager, self).__init__()
         self.__display_panel_controllers = dict()  # maps controller_type to make_fn
-        self.__factories = dict()
+        self.__display_controller_factories = dict()
+        self.__display_panel_factories = dict()
 
     # events from the image panels
     def key_pressed(self, display_panel, key):
@@ -881,16 +912,30 @@ class DisplayPanelManager(Observable.Broadcaster):
         self.notify_listeners("image_panel_mouse_clicked", display_panel, display_specifier, image_position, modifiers)
         return False
 
+    def register_display_panel_factory(self, factory_id, factory):
+        assert factory_id not in self.__display_panel_factories
+        self.__display_panel_factories[factory_id] = factory
+
+    def unregister_display_panel_factory(self, factory_id):
+        assert factory_id in self.__display_panel_factories
+        del self.__display_panel_factories[factory_id]
+
+    def make_display_panel(self, document_controller, d):
+        display_panel_type = d.get("display-panel-type", "data-display-panel")
+        if not display_panel_type in self.__display_panel_factories:
+            display_panel_type = "data-display-panel"
+        return self.__display_panel_factories.get(display_panel_type)(document_controller)
+
     def register_display_panel_controller_factory(self, factory_id, factory):
-        assert factory_id not in self.__factories
-        self.__factories[factory_id] = factory
+        assert factory_id not in self.__display_controller_factories
+        self.__display_controller_factories[factory_id] = factory
 
     def unregister_display_panel_controller_factory(self, factory_id):
-        assert factory_id in self.__factories
-        del self.__factories[factory_id]
+        assert factory_id in self.__display_controller_factories
+        del self.__display_controller_factories[factory_id]
 
     def make_display_panel_controller(self, controller_type, display_panel, d):
-        for factory in self.__factories.values():
+        for factory in self.__display_controller_factories.values():
             display_panel_controller = factory.make_new(controller_type, display_panel, d)
             if display_panel_controller:
                 return display_panel_controller
@@ -899,7 +944,11 @@ class DisplayPanelManager(Observable.Broadcaster):
     def build_menu(self, live_menu, selected_display_panel):
         dynamic_live_actions = list()
 
-        for factory in self.__factories.values():
+        for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(live_menu, selected_display_panel))
 
         return dynamic_live_actions
+
+
+DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
+DisplayPanelManager().register_display_panel_factory("toy-display-panel", EmptyDisplayPanel)

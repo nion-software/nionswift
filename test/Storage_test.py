@@ -80,7 +80,7 @@ class TestStorageClass(unittest.TestCase):
         data_group.append_data_item(data_item2b)
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
-        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         document_controller.selected_display_panel = display_panel
         display_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)

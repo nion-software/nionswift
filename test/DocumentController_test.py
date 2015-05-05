@@ -116,7 +116,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
-        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         display_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
         document_controller.close()

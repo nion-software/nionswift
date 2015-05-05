@@ -89,7 +89,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_panel_gets_destructed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = DisplayPanel.DisplayPanel(document_controller)
+        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         # add some extra refs for fun
         canvas_item = display_panel.canvas_item
         container = CanvasItem.SplitterCanvasItem()
