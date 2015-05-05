@@ -864,7 +864,10 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
         width, height = 640, 480
         image_panel = TestDisplayPanel()
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(image_panel)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
+        overlay.on_drag_enter = image_panel.handle_drag_enter
+        overlay.on_drag_move = image_panel.handle_drag_move
+        overlay.on_drop = image_panel.handle_drop
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)
@@ -883,7 +886,10 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
         image_panel = TestDisplayPanel()
-        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem(image_panel)
+        overlay = DisplayPanel.DisplayPanelOverlayCanvasItem()
+        overlay.on_drag_enter = image_panel.handle_drag_enter
+        overlay.on_drag_move = image_panel.handle_drag_move
+        overlay.on_drop = image_panel.handle_drop
         overlay.update_layout((0, 0), (height, width))
         mime_data = None
         overlay.drag_enter(mime_data)

@@ -96,19 +96,27 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         The focused property here is just a flag to indicate whether to draw the focus ring.
     """
 
-    def __init__(self, display_panel):
+    def __init__(self):
         super(DisplayPanelOverlayCanvasItem, self).__init__()
         self.wants_drag_events = True
-        self.display_panel = display_panel
         self.__dropping = False
         self.__drop_region = "none"
         self.__focused = False
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#3876D6"  # TODO: platform dependent
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_key_pressed = None
 
     def close(self):
-        self.display_panel = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_key_pressed = None
         super(DisplayPanelOverlayCanvasItem, self).close()
 
     @property
@@ -182,20 +190,20 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     def drag_enter(self, mime_data):
         self.__dropping = True
         self.__set_drop_region("none")
-        if self.display_panel:
-            return self.display_panel.handle_drag_enter(mime_data)
+        if self.on_drag_enter:
+            self.on_drag_enter(mime_data)
         return "ignore"
 
     def drag_leave(self):
         self.__dropping = False
         self.__set_drop_region("none")
-        if self.display_panel:
-            self.display_panel.handle_drag_leave()
+        if self.on_drag_leave:
+            self.on_drag_leave()
         return False
 
     def drag_move(self, mime_data, x, y):
-        if self.display_panel:
-            result = self.display_panel.handle_drag_move(mime_data, x, y)
+        if self.on_drag_move:
+            result = self.on_drag_move(mime_data, x, y)
             if result != "ignore":
                 canvas_size = Geometry.IntSize.make(self.canvas_size)
                 if x < int(canvas_size.width * 0.10):
@@ -216,13 +224,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         drop_region = self.__drop_region
         self.__dropping = False
         self.__set_drop_region("none")
-        if self.display_panel:
-            return self.display_panel.handle_drop(mime_data, drop_region, x, y)
+        if self.on_drop:
+            return self.on_drop(mime_data, drop_region, x, y)
         return "ignore"
 
     def key_pressed(self, key):
-        if self.display_panel.handle_key_pressed(key):
-            return True
+        if self.on_key_pressed:
+            if self.on_key_pressed(key):
+                return True
         return super(DisplayPanelOverlayCanvasItem, self).key_pressed(key)
 
 
@@ -287,10 +296,15 @@ class DisplayPanel(object):
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
 
-        self.__content_canvas_item = DisplayPanelOverlayCanvasItem(self)
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.__content_canvas_item.on_drag_enter = self.__handle_drag_enter
+        self.__content_canvas_item.on_drag_leave = self.__handle_drag_leave
+        self.__content_canvas_item.on_drag_move = self.__handle_drag_move
+        self.__content_canvas_item.on_drop = self.__handle_drop
+        self.__content_canvas_item.on_key_pressed = self.__handle_key_pressed
         self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
         self.__header_canvas_item.on_drag_pressed = lambda: self.__begin_drag()
         self.__header_canvas_item.on_sync_clicked = lambda: self.__sync_data_item()
@@ -414,6 +428,16 @@ class DisplayPanel(object):
         """ Used for testing. """
         return self.__content_canvas_item.focused
 
+    # ths message comes from the canvas item via the delegate.
+    def image_panel_key_pressed(self, key):
+        return DisplayPanelManager().key_pressed(self, key)
+
+    def image_panel_mouse_clicked(self, image_position, modifiers):
+        DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
+
+    def image_panel_get_font_metrics(self, font, text):
+        return self.ui.get_font_metrics(font, text)
+
     @property
     def display_specifier(self):
         """Return the display specifier for the Display in this image panel."""
@@ -532,6 +556,7 @@ class DisplayPanel(object):
                 self.display_canvas_item = None
 
             class DisplayCanvasItemDelegate(object):
+
                 def __init__(self, display_panel):
                     self.__display_panel = display_panel
 
@@ -650,39 +675,29 @@ class DisplayPanel(object):
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
-    def handle_key_pressed(self, key):
+    def __handle_key_pressed(self, key):
         if self.display_canvas_item and self.display_canvas_item.key_pressed(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
         return False
 
-    # ths message comes from the canvas item via the delegate.
-    def image_panel_key_pressed(self, key):
-        return DisplayPanelManager().key_pressed(self, key)
-
-    def image_panel_mouse_clicked(self, image_position, modifiers):
-        DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
-
-    def image_panel_get_font_metrics(self, font, text):
-        return self.ui.get_font_metrics(font, text)
-
-    def handle_drag_enter(self, mime_data):
+    def __handle_drag_enter(self, mime_data):
         if self.workspace_controller:
             return self.workspace_controller.handle_drag_enter(self, mime_data)
         return "ignore"
 
-    def handle_drag_leave(self):
+    def __handle_drag_leave(self):
         if self.workspace_controller:
             return self.workspace_controller.handle_drag_leave(self)
         return False
 
-    def handle_drag_move(self, mime_data, x, y):
+    def __handle_drag_move(self, mime_data, x, y):
         if self.workspace_controller:
             return self.workspace_controller.handle_drag_move(self, mime_data, x, y)
         return "ignore"
 
-    def handle_drop(self, mime_data, region, x, y):
+    def __handle_drop(self, mime_data, region, x, y):
         if self.workspace_controller:
             return self.workspace_controller.handle_drop(self, mime_data, region, x, y)
         return "ignore"
