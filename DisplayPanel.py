@@ -437,10 +437,6 @@ class DisplayPanel(object):
         """ Used for testing. """
         return self.__content_canvas_item.focused
 
-    # ths message comes from the canvas item via the delegate.
-    def image_panel_key_pressed(self, key):
-        return DisplayPanelManager().key_pressed(self, key)
-
     def image_panel_mouse_clicked(self, image_position, modifiers):
         DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
 
@@ -623,9 +619,6 @@ class DisplayPanel(object):
                     self.__display_panel.set_displayed_data_item(None)
                     return False
 
-                def key_pressed(self, key):
-                    return self.__display_panel.image_panel_key_pressed(key)
-
                 def cursor_changed(self, source, pos):
                     display = self.__display_panel.display_specifier.display
                     data_and_calibration = display.data_and_calibration if display else None
@@ -681,7 +674,7 @@ class DisplayPanel(object):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
-        return False
+        return DisplayPanelManager().key_pressed(self, key)
 
     def __handle_drag_enter(self, mime_data):
         if self.workspace_controller:

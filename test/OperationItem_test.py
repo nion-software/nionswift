@@ -768,6 +768,7 @@ class TestOperationClass(unittest.TestCase):
         data_item.maybe_data_source.add_region(crop_region)
         display_specifier.display.graphic_selection.set(0)
         cropped_data_item = document_controller.processing_crop().data_item
+        document_controller.periodic()  # TODO: remove need to let the inspector catch up
         self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
         self.assertTrue(cropped_data_item in document_model.data_items)
         display_specifier.display.graphic_selection.clear()
@@ -781,7 +782,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(cropped_data_item in document_model.data_items)
         # clean up
-        display_panel.close()
+        document_controller.close()
 
     def test_remove_graphic_for_crop_combined_with_another_operation_removes_processed_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -798,6 +799,7 @@ class TestOperationClass(unittest.TestCase):
         data_item.maybe_data_source.add_region(crop_region)
         display_specifier.display.graphic_selection.set(0)
         projection_data_item = document_controller.processing_projection().data_item
+        document_controller.periodic()  # TODO: remove need to let the inspector catch up
         self.assertTrue(projection_data_item in document_model.data_items)
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
@@ -810,7 +812,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(projection_data_item in document_model.data_items)
         # clean up
-        display_panel.close()
+        document_controller.close()
 
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()

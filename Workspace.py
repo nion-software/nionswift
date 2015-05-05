@@ -116,9 +116,10 @@ class WorkspaceController(object):
         if self.__workspace:
             # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
-        for display_panel in self.display_panels:
-            display_panel.close()
+        display_panels = copy.copy(self.display_panels)
         self.display_panels = []
+        for display_panel in display_panels:
+            display_panel.close()
         if self.__canvas_item:
             self.__canvas_item.close()
             self.__canvas_item = None
@@ -285,9 +286,10 @@ class WorkspaceController(object):
         if self.__workspace:
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
         # remove existing layout and canvas item
-        for display_panel in self.display_panels:
-            display_panel.close()
+        display_panels = copy.copy(self.display_panels)
         self.display_panels = []
+        for display_panel in display_panels:
+            display_panel.close()
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
         if self.__canvas_item:
@@ -550,7 +552,6 @@ class WorkspaceController(object):
         container = display_panel.canvas_item.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             if len(container.canvas_items) > 0:
-                index = container.canvas_items.index(display_panel.canvas_item)
                 container.remove_canvas_item(display_panel.canvas_item)
                 self.display_panels.remove(display_panel)
                 if len(container.canvas_items) == 1:

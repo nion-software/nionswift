@@ -233,7 +233,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         end_mouse_tracking()
         mouse_clicked(image_position, modifiers)
         delete_key_pressed()
-        key_pressed(key)
         cursor_changed(source, pos)
         update_display_properties(display_properties)
     """
@@ -622,7 +621,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     self.__display_frame_rate_id = None
                 return True
-        return self.delegate.key_pressed(key)
+        return False
 
     def __get_image_size(self):
         if self.__data_and_calibration:

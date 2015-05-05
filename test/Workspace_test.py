@@ -236,9 +236,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
-        # check that the workspace_controller was updated
-        self.assertEqual(document_controller.workspace_controller.display_panels[0].workspace_controller, document_controller.workspace_controller)
-        self.assertEqual(document_controller.workspace_controller.display_panels[1].workspace_controller, document_controller.workspace_controller)
         # check that the sizes were updated
         if region == "left" or region == "right":
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.width, 320)
@@ -282,10 +279,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.handle_drop(display_panel, mime_data, "bottom", 160, 240)
         # check that there are now three image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 3)
-        # check that the workspace_controller was updated
-        self.assertEqual(document_controller.workspace_controller.display_panels[0].workspace_controller, document_controller.workspace_controller)
-        self.assertEqual(document_controller.workspace_controller.display_panels[1].workspace_controller, document_controller.workspace_controller)
-        self.assertEqual(document_controller.workspace_controller.display_panels[2].workspace_controller, document_controller.workspace_controller)
         # check that there are still two top level image panels
         self.assertTrue(isinstance(root_canvas_item.canvas_items[0], CanvasItem.SplitterCanvasItem))
         self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items), 2)

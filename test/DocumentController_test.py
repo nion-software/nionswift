@@ -119,12 +119,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel = DisplayPanel.DisplayPanel(document_controller)
         display_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
-        display_panel.canvas_item.close()
-        display_panel.close()
         document_controller.close()
         document_controller = None
         data_item = None
         document_model = None
+        display_panel = None
         gc.collect()
         self.assertIsNone(weak_data_item())
 
@@ -206,7 +205,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
         self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
         # clean up
-        display_panel.close()
+        document_controller.close()
 
     def test_remove_line_profile_does_not_remove_data_item_itself(self):
         document_model = DocumentModel.DocumentModel()
@@ -217,6 +216,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
+        document_controller.periodic()  # TODO: remove need to let the inspector catch up
         display_panel.set_displayed_data_item(data_item)
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
@@ -228,7 +228,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.remove_graphic()
         self.assertTrue(data_item in document_model.data_items)
         # clean up
-        display_panel.close()
+        document_controller.close()
 
     def test_remove_line_profile_removes_associated_child_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -239,6 +239,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
+        document_controller.periodic()  # TODO: remove need to let the inspector catch up
         self.assertTrue(line_profile_data_item in document_model.data_items)
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
@@ -251,7 +252,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(line_profile_data_item in document_model.data_items)
         # clean up
-        display_panel.close()
+        document_controller.close()
 
     def test_document_model_closed_only_after_all_document_controllers_closed(self):
         document_model = DocumentModel.DocumentModel()
