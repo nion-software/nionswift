@@ -730,7 +730,7 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         self.data_grid_controller = DataPanel.DataGridController(document_controller.ui)
         # self.data_grid_controller.on_selection_changed = selection_changed
         # self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
-        # self.data_grid_controller.on_focus_changed = self.__set_focused
+        # self.data_grid_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
         # self.data_grid_controller.on_delete_display_items = delete_display_items
 
         def data_item_inserted(data_item, before_index):

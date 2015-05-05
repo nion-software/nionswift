@@ -44,15 +44,19 @@ class DataPanelSelection(object):
         self.__data_group = data_group
         self.__data_item = data_item
         self.__filter_id = filter_id
-    def __get_data_group(self):
+
+    @property
+    def data_group(self):
         return self.__data_group
-    data_group = property(__get_data_group)
-    def __get_data_item(self):
+
+    @property
+    def data_item(self):
         return self.__data_item
-    data_item = property(__get_data_item)
-    def __get_filter_id(self):
+
+    @property
+    def filter_id(self):
         return self.__filter_id
-    filter_id = property(__get_filter_id)
+
     def __str__(self):
         return "(%s,%s)" % (str(self.data_group), str(self.data_item))
 
@@ -637,9 +641,9 @@ class DataPanel(Panel.Panel):
                 logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
                 self.log(child.id, indent + "  ")
 
-        def __get_document_controller(self):
+        @property
+        def document_controller(self):
             return self.__document_controller_weakref()
-        document_controller = property(__get_document_controller)
 
         # these two methods support the 'count' display for data groups. they count up
         # the data items that are children of the container (which can be a data group
@@ -857,7 +861,7 @@ class DataPanel(Panel.Panel):
         self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
         self.library_widget.on_selection_changed = library_widget_selection_changed
-        self.library_widget.on_focus_changed = self.__set_focused
+        self.library_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
 
         def data_group_widget_selection_changed(selected_indexes):
             if not self.__block1:
@@ -881,7 +885,7 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.item_model_controller = self.data_group_model_controller.item_model_controller
         self.data_group_widget.on_selection_changed = data_group_widget_selection_changed
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
-        self.data_group_widget.on_focus_changed = self.__set_focused
+        self.data_group_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
 
         library_label_row = ui.create_row_widget()
         library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
@@ -927,7 +931,6 @@ class DataPanel(Panel.Panel):
                     self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
                     self.__selected_data_items = [display_item.data_item for display_item in display_items]
                     self.document_controller.set_selected_data_items(self.__selected_data_items)
-                self.document_controller.set_browser_data_item(data_item)
                 self.save_state()
 
         def display_item_double_clicked(display_item):
@@ -944,13 +947,13 @@ class DataPanel(Panel.Panel):
         self.data_list_controller.on_selection_changed = selection_changed
         self.data_list_controller.on_context_menu_event = data_grid_context_menu_event
         self.data_list_controller.on_display_item_double_clicked = display_item_double_clicked
-        self.data_list_controller.on_focus_changed = self.__set_focused
+        self.data_list_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
         self.data_list_controller.on_delete_display_items = delete_display_items
 
         self.data_grid_controller = DataGridController(document_controller.ui)
         self.data_grid_controller.on_selection_changed = selection_changed
         self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
-        self.data_grid_controller.on_focus_changed = self.__set_focused
+        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
         self.data_grid_controller.on_delete_display_items = delete_display_items
 
         self.data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
@@ -1109,9 +1112,12 @@ class DataPanel(Panel.Panel):
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
     # make sure the document controller knows what is selected so it can update the inspector.
-    def __get_focused(self):
+    @property
+    def focused(self):
         return self.__focused
-    def __set_focused(self, focused):
+
+    @focused.setter
+    def focused(self, focused):
         self.__focused = focused
         if not self.__closing:
             if focused:
@@ -1120,8 +1126,6 @@ class DataPanel(Panel.Panel):
             else:
                 self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
                 self.document_controller.set_selected_data_items([])
-            self.document_controller.set_browser_data_item(self.__selection.data_item)
-    focused = property(__get_focused, __set_focused)
 
     @property
     def data_item(self):

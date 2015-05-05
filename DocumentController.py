@@ -81,7 +81,6 @@ class DocumentController(Observable.Broadcaster):
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         self.__selected_data_items = list()  # this will be updated by the data panel when one or more data items are selected
-        self.__browser_data_item = None
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -451,12 +450,14 @@ class DocumentController(Observable.Broadcaster):
         if self.__data_items_binding is not None:
             self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
-    def __get_display_filter(self):
+    @property
+    def display_filter(self):
         return self.__filtered_data_items_binding.filter
-    def __set_display_filter(self, display_filter):
+
+    @display_filter.setter
+    def display_filter(self, display_filter):
         if self.__filtered_data_items_binding is not None:  # during close
             self.__filtered_data_items_binding.filter = display_filter
-    display_filter = property(__get_display_filter, __set_display_filter)
 
     def register_display_panel(self, display_panel):
         pass
@@ -491,15 +492,6 @@ class DocumentController(Observable.Broadcaster):
     def set_selected_data_items(self, selected_data_items):
         self.__selected_data_items = selected_data_items
 
-    def __get_browser_data_item(self):
-        return self.__browser_data_item
-    browser_data_item = property(__get_browser_data_item)
-
-    def set_browser_data_item(self, browser_data_item):
-        assert browser_data_item is None or isinstance(browser_data_item, DataItem.DataItem)
-        self.__browser_data_item = browser_data_item
-        self.notify_listeners("browser_data_item_changed", browser_data_item)
-
     def select_data_item_in_data_panel(self, data_item):
         """
             Select the data item in the data panel. Use the existing group and existing
@@ -531,9 +523,12 @@ class DocumentController(Observable.Broadcaster):
     def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
         self.notify_listeners("cursor_changed", source, data_and_calibration, display_calibrated_values, pos)
 
-    def __get_tool_mode(self):
+    @property
+    def tool_mode(self):
         return self.__tool_mode
-    def __set_tool_mode(self, tool_mode):
+
+    @tool_mode.setter
+    def tool_mode(self, tool_mode):
         self.__tool_mode = tool_mode
         if self.__tool_mode == "crop":  # hack until interactive crop tool is implemented
             self.processing_crop()
@@ -541,7 +536,6 @@ class DocumentController(Observable.Broadcaster):
         elif self.__tool_mode == "line-profile":  # hack until interactive crop tool is implemented
             self.processing_line_profile()
             self.__tool_mode = "pointer"
-    tool_mode = property(__get_tool_mode, __set_tool_mode)
 
     def new_window(self, workspace_id, data_panel_selection=None):
         # hack to work around Application <-> DocumentController interdependency.
@@ -1047,9 +1041,9 @@ class DocumentController(Observable.Broadcaster):
             self.console.insert_lines(lines)
         weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
 
-    def __get_data_item_vars(self):
+    @property
+    def data_item_vars(self):
         return self.__data_item_vars
-    data_item_vars = property(__get_data_item_vars)
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary
