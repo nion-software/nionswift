@@ -933,7 +933,6 @@ class DataPanel(Panel.Panel):
                 self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
                 self.__selected_data_items = [display_item.data_item for display_item in display_items]
                 self.document_controller.set_selected_data_items(self.__selected_data_items)
-            self.save_state()
 
         def display_item_double_clicked(display_item):
             data_item = display_item.data_item
@@ -1046,8 +1045,7 @@ class DataPanel(Panel.Panel):
 
         self.document_controller.weak_data_panel = weakref.ref(self)
 
-        # restore selection
-        self.restore_state()
+        self.update_data_panel_selection(DataPanelSelection(None, None))
 
     def close(self):
         self.__closing = True
@@ -1082,32 +1080,6 @@ class DataPanel(Panel.Panel):
         super(DataPanel, self).periodic()
         self.data_list_controller.periodic()
         self.data_grid_controller.periodic()
-
-    def restore_state(self):
-        data_group_uuid_str = self.ui.get_persistent_string("selected_data_group")
-        data_item_uuid_str = self.ui.get_persistent_string("selected_data_item")
-        filter_id = self.ui.get_persistent_string("selected_filter_id")
-        data_group_uuid = uuid.UUID(data_group_uuid_str) if data_group_uuid_str else None
-        data_item_uuid = uuid.UUID(data_item_uuid_str) if data_item_uuid_str else None
-        data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
-        data_item = self.document_controller.document_model.get_data_item_by_uuid(data_item_uuid)
-        self.update_data_panel_selection(DataPanelSelection(data_group, data_item, filter_id))
-
-    def save_state(self):
-        if not self.__closing:
-            data_panel_selection = self.__selection
-            if data_panel_selection.data_group:
-                self.ui.set_persistent_string("selected_data_group", str(data_panel_selection.data_group.uuid))
-            else:
-                self.ui.remove_persistent_key("selected_data_group")
-            if data_panel_selection.data_item:
-                self.ui.set_persistent_string("selected_data_item", str(data_panel_selection.data_item.uuid))
-            else:
-                self.ui.remove_persistent_key("selected_data_item")
-            if data_panel_selection.filter_id:
-                self.ui.set_persistent_string("selected_filter_id", str(data_panel_selection.filter_id))
-            else:
-                self.ui.remove_persistent_key("selected_filter_id")
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
     # make sure the document controller knows what is selected so it can update the inspector.
@@ -1173,8 +1145,6 @@ class DataPanel(Panel.Panel):
         else:
             self.data_grid_controller.set_selected_index(data_item_index)
         self.__selection = data_panel_selection
-        # save the users selection
-        self.save_state()
 
     def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
