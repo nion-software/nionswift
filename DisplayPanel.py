@@ -297,7 +297,7 @@ class BaseDisplayPanel(object):
         self.on_focused = None
         self.on_close = None
 
-        def close(self):
+        def close():
             if self.on_close:
                 self.on_close()
 
@@ -835,7 +835,7 @@ class DisplayPanel(object):
                 return workspace_controller.handle_drop(self, mime_data, region, x, y)
             return "ignore"
 
-        def close(self):
+        def close():
             if len(workspace_controller.display_panels) > 1:
                 workspace_controller.remove_display_panel(self)
 

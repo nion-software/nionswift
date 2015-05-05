@@ -53,6 +53,11 @@ class TestWorkspaceClass(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def simulate_click(self, canvas_item, p, modifiers=None):
+        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        canvas_item.mouse_pressed(p[1], p[0], modifiers)
+        canvas_item.mouse_released(p[1], p[0], modifiers)
+
     def simulate_drag(self, canvas_item, p1, p2, modifiers=None):
         modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
         canvas_item.mouse_pressed(p1[1], p1[0], modifiers)
@@ -380,6 +385,22 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace_controller.display_panels[1].display_specifier.data_item, data_item3)
         # check that the splits are the same at the top level
         self.assertEqual(root_canvas_item.canvas_items[0].splits, splits)
+
+    def test_close_button_in_header_works(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+        # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
+        self.simulate_click(document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item, (12, 308))
 
     def test_dragging_header_to_swap_works(self):
         document_model = DocumentModel.DocumentModel()
