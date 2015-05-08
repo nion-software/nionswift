@@ -558,8 +558,9 @@ class DataBrowserController(object):
         self.document_controller = document_controller
         self.__focused = False
         self.__selection = DataPanelSelection()
-        self.__selected_data_items = list()
+        self.__selected_display_items = list()
         self.selection_changed_event = Observable.Event()
+        self.selected_data_items_changed_event = Observable.Event()
 
     def close(self):
         pass
@@ -572,10 +573,8 @@ class DataBrowserController(object):
     def focused(self, focused):
         if focused:
             self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__selection.data_item))
-            self.document_controller.set_selected_data_items(self.__selected_data_items)
         else:
             self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
-            self.document_controller.set_selected_data_items([])
         self.__focused = focused
 
     @property
@@ -584,26 +583,46 @@ class DataBrowserController(object):
 
     @selection.setter
     def selection(self, selection):
+
         if selection != self.__selection:
+
+            # store the selection so we know when it changes
             self.__selection = selection
+
             # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
             # though this is already on the ui thread.
             self.document_controller.set_data_group_or_filter(selection.data_group, selection.filter_id)  # MARK. consolidate to one object.
+
+            # when the data group or filter is changed (prior to this handler being called), it will generate a new
+            # list of items to be displayed in the data browser and that new list will be queued in case it is called on
+            # a background thread (it isn't in this case). call periodic to actually sync the changes to the data
+            # browser ui.
+            self.document_controller.periodic()
+
             self.selection_changed_event.fire(selection)
+
+    @property
+    def selected_data_items(self):
+        return [display_item.data_item for display_item in self.__selected_display_items] if self.__focused else list()
 
     @property
     def data_item(self):
         return self.__selection.data_item
 
-    def selection_changed(self, display_items):
-        # when the selection is changed in the ui, call this method to synchronize
-        # this method will trigger the SelectedDisplayBinding to update.
-        data_item = display_items[0].data_item if len(display_items) == 1 else None
-        self.__selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
+    def selected_display_items_changed(self, display_items):
+        # when the selection is changed in the ui, call this method to synchronize.
+        # it will trigger the SelectedDisplayBinding to update.
+
+        if len(display_items) == 1:
+            data_item = display_items[0].data_item
+            self.selection = DataPanelSelection(self.__selection.data_group, data_item, self.__selection.filter_id)
+        else:
+            data_item = None
+
         if self.__focused:
             self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
-            self.__selected_data_items = [display_item.data_item for display_item in display_items]
-            self.document_controller.set_selected_data_items(self.__selected_data_items)  # MARK. Document controller should ask this object for selected data items
+
+        self.__selected_display_items = copy.copy(display_items)
 
     def data_grid_context_menu_event(self, display_item, x, y, gx, gy):
         data_item = display_item.data_item
@@ -875,7 +894,7 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
-        self.__data_browser_controller = DataBrowserController(document_controller)
+        self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
         class LibraryItemController(object):
@@ -988,14 +1007,14 @@ class DataPanel(Panel.Panel):
         master_widget.add_stretch()
 
         self.data_list_controller = DataListController(document_controller.ui)
-        self.data_list_controller.on_selection_changed = self.__data_browser_controller.selection_changed
+        self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
         self.data_grid_controller = DataGridController(document_controller.ui)
-        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selection_changed
+        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
@@ -1060,12 +1079,12 @@ class DataPanel(Panel.Panel):
             self.data_view_widget.current_index = index
             if index == 0:  # switching to data list?
                 selected_display_items = [self.__display_items[index] for index in self.data_list_controller.selected_indexes]
-                self.__data_browser_controller.selection_changed(selected_display_items)
+                self.__data_browser_controller.selected_display_items_changed(selected_display_items)
                 list_icon_button.background_color = "#CCC"
                 grid_icon_button.background_color = None
             elif index == 1:  # switching to data grid?
                 selected_display_items = [self.__display_items[index] for index in self.data_grid_controller.selected_indexes]
-                self.__data_browser_controller.selection_changed(selected_display_items)
+                self.__data_browser_controller.selected_display_items_changed(selected_display_items)
                 list_icon_button.background_color = None
                 grid_icon_button.background_color = "#CCC"
 
@@ -1117,8 +1136,6 @@ class DataPanel(Panel.Panel):
         self.__display_items = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
-        self.__data_browser_controller.close()
-        self.__data_browser_controller = None
         # finish closing
         super(DataPanel, self).close()
 
@@ -1166,12 +1183,6 @@ class DataPanel(Panel.Panel):
                     self.library_widget.set_current_row(1, -1, 0)  # select the 'latest' group
                 else:
                     self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
-
-            # when the data group or filter is changed (prior to this handler being called), it will generate a new
-            # list of items to be displayed in the data browser and that new list will be queued in case it is called on
-            # a background thread (it isn't in this case). call periodic to actually sync the changes to the data
-            # browser ui.
-            self.document_controller.periodic()
 
             # update the data item selection by determining the new index of the item, if any.
             data_item_index = -1

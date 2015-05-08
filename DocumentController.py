@@ -88,7 +88,6 @@ class DocumentController(Observable.Broadcaster):
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
-        self.__selected_data_items = list()  # this will be updated by the data panel when one or more data items are selected
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
@@ -99,6 +98,8 @@ class DocumentController(Observable.Broadcaster):
         self.__last_display_filter = None
 
         self.filter_controller = FilterPanel.FilterController(self)
+
+        self.__data_browser_controller = DataPanel.DataBrowserController(self)
 
         self.console = None
         self.create_menus()
@@ -132,6 +133,8 @@ class DocumentController(Observable.Broadcaster):
         self.filter_controller = None
         self.__data_items_binding.close()
         self.__data_items_binding = None
+        self.__data_browser_controller.close()
+        self.__data_browser_controller = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -400,21 +403,25 @@ class DocumentController(Observable.Broadcaster):
         #t3 = time.time()
         #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
 
-    def __get_workspace_controller(self):
+    @property
+    def workspace_controller(self):
         return self.__workspace_controller
-    workspace_controller = property(__get_workspace_controller)
 
-    def __get_workspace(self):
+    @property
+    def workspace(self):
         return self.__workspace_controller
-    workspace = property(__get_workspace)
 
-    def __get_data_items_binding(self):
+    @property
+    def data_items_binding(self):
         return self.__data_items_binding
-    data_items_binding = property(__get_data_items_binding)
 
-    def __get_filtered_data_items_binding(self):
+    @property
+    def filtered_data_items_binding(self):
         return self.__filtered_data_items_binding
-    filtered_data_items_binding = property(__get_filtered_data_items_binding)
+
+    @property
+    def data_browser_controller(self):
+        return self.__data_browser_controller
 
     def update_data_item_binding(self, binding, data_group, filter_id):
 
@@ -498,9 +505,6 @@ class DocumentController(Observable.Broadcaster):
     def notify_selected_display_specifier_changed(self, display_specifier):
         self.selected_display_specifier_changed_event.fire(display_specifier)
 
-    def set_selected_data_items(self, selected_data_items):
-        self.__selected_data_items = selected_data_items
-
     def select_data_item_in_data_panel(self, data_item):
         """
             Select the data item in the data panel. Use the existing group and existing
@@ -583,7 +587,7 @@ class DocumentController(Observable.Broadcaster):
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
     def export_files(self):
-        selected_data_items = copy.copy(self.__selected_data_items)
+        selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
         if len(selected_data_items) > 1:
 
             class ExportDialog(Dialog.OkCancelDialog):
@@ -880,7 +884,7 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "auto-correlate-operation", prefix=_("Auto Correlate of "), crop_region=crop_region)
 
     def processing_cross_correlate(self):
-        selected_data_items = self.__selected_data_items
+        selected_data_items = self.__data_browser_controller.selected_data_items
         if len(selected_data_items) == 2:
             display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
             display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])

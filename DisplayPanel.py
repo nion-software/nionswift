@@ -727,11 +727,14 @@ class BrowserDisplayPanel(BaseDisplayPanel):
     def __init__(self, document_controller):
         super(BrowserDisplayPanel, self).__init__(document_controller)
 
+        self.__data_browser_controller = document_controller.data_browser_controller
+        self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
+
         self.data_grid_controller = DataPanel.DataGridController(document_controller.ui)
-        # self.data_grid_controller.on_selection_changed = selection_changed
-        # self.data_grid_controller.on_context_menu_event = data_grid_context_menu_event
-        # self.data_grid_controller.on_focus_changed = lambda focused: setattr(self, "focused", focused)
-        # self.data_grid_controller.on_delete_display_items = delete_display_items
+        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
         def data_item_inserted(data_item, before_index):
             display_item = DataPanel.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
@@ -756,6 +759,11 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         del self.__binding.removers[id(self)]
         self.data_grid_controller.close()
         self.data_grid_controller = None
+        for display_item in self.__display_items:
+            display_item.close()
+        self.__display_items = None
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
         super(BrowserDisplayPanel, self).close()
 
     def save_contents(self):
@@ -767,6 +775,18 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         super(BrowserDisplayPanel, self).periodic()
         if self.data_grid_controller:
             self.data_grid_controller.periodic()
+
+    def __data_panel_selection_changed(self, data_panel_selection):
+            data_item = data_panel_selection.data_item
+
+            # update the data item selection by determining the new index of the item, if any.
+            data_item_index = -1
+            for index in range(len(self.__display_items)):
+                if data_item == self.__display_items[index].data_item:
+                    data_item_index = index
+                    break
+
+            self.data_grid_controller.set_selected_index(data_item_index)
 
 
 
@@ -976,8 +996,8 @@ class DisplayPanelManager(Observable.Broadcaster):
         dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
         display_type_menu.add_separator()
 
-        # dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
-        # display_type_menu.add_separator()
+        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
+        display_type_menu.add_separator()
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
@@ -987,4 +1007,4 @@ class DisplayPanelManager(Observable.Broadcaster):
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
 DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
-# DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
+DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
