@@ -727,6 +727,8 @@ class BrowserDisplayPanel(BaseDisplayPanel):
     def __init__(self, document_controller):
         super(BrowserDisplayPanel, self).__init__(document_controller)
 
+        self.__display_items = list()
+
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
@@ -738,19 +740,20 @@ class BrowserDisplayPanel(BaseDisplayPanel):
 
         def data_item_inserted(data_item, before_index):
             display_item = DataPanel.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
+            self.__display_items.insert(before_index, display_item)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
         def data_item_removed(index):
             self.data_grid_controller.display_item_removed(index)
+            self.__display_items[index].close()
+            del self.__display_items[index]
 
         self.__binding = document_controller.filtered_data_items_binding
         self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
         self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
 
-        dispatch_task_fn = self.document_controller.document_model.dispatch_task
-        self.__display_items = [DataPanel.DisplayItem(data_item, dispatch_task_fn, self.ui) for data_item in self.__binding.data_items]
-
-        self.data_grid_controller.set_display_items(self.__display_items)
+        for index, data_item in enumerate(self.__binding.data_items):
+            data_item_inserted(data_item, index)
 
         self.content_canvas_item.add_canvas_item(self.data_grid_controller.canvas_item)
 

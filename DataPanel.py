@@ -145,7 +145,6 @@ class DataListController(object):
         close()
         periodic()
         set_selected_index(index)
-        set_display_items(display_items) - used to initialize the data items, ui thread
         display_item_inserted(display_item, before_index) - ui thread
         display_item_removed(index) - ui thread
 
@@ -169,6 +168,10 @@ class DataListController(object):
 
     def __init__(self, ui):
         self.ui = ui
+
+        self.__display_items = list()
+        self.__display_item_needs_update_listeners = list()
+
         self.list_model_controller = self.ui.create_list_model_controller(["display"])
         self.list_model_controller.on_item_mime_data = self.__item_mime_data
         self.list_model_controller.supported_drop_actions = self.list_model_controller.DRAG | self.list_model_controller.DROP
@@ -268,12 +271,6 @@ class DataListController(object):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
 
-    # call this method to initialize the display items
-    # not thread safe
-    def set_display_items(self, display_items):
-        self.__display_items = copy.copy(display_items)
-        self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
-
     # call this method to insert a display item
     # not thread safe
     def display_item_inserted(self, display_item, before_index):
@@ -335,7 +332,6 @@ class DataGridController(object):
         close()
         periodic()
         set_selected_index(index)
-        set_display_items(display_items) - used to initialize the data items, ui thread
         display_item_inserted(display_item, before_index) - ui thread
         display_item_removed(index) - ui thread
 
@@ -362,6 +358,9 @@ class DataGridController(object):
         super(DataGridController, self).__init__()
         self.ui = ui
         self.on_delete_display_items = None
+
+        self.__display_items = list()
+        self.__display_item_needs_update_listeners = list()
 
         class GridCanvasItemDelegate(object):
             def __init__(self, data_grid_controller):
@@ -478,12 +477,6 @@ class DataGridController(object):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
 
-    # call this method to initialize the display items
-    # not thread safe
-    def set_display_items(self, display_items):
-        self.__display_items = copy.copy(display_items)
-        self.__display_item_needs_update_listeners = [display_item.needs_update_event.listen(self.__display_item_needs_update) for display_item in self.__display_items]
-
     # call this method to insert a display item
     # not thread safe
     def display_item_inserted(self, display_item, before_index):
@@ -535,6 +528,7 @@ class DataBrowserController(object):
         self.filter_changed_event = Observable.Event()
         self.selection_changed_event = Observable.Event()
         self.selected_data_items_changed_event = Observable.Event()
+        self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
 
     def close(self):
         pass
@@ -1017,12 +1011,14 @@ class DataPanel(Panel.Panel):
         self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
         self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
 
-        self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
+        self.__display_items = list()
 
-        dispatch_task_fn = self.document_controller.document_model.dispatch_task
-        self.__display_items = [DisplayItem(data_item, dispatch_task_fn, self.ui) for data_item in self.__binding.data_items]
-        self.data_list_controller.set_display_items(self.__display_items)
-        self.data_grid_controller.set_display_items(self.__display_items)
+        self.__binding = document_controller.filtered_data_items_binding
+        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+
+        for index, data_item in enumerate(self.__binding.data_items):
+            data_item_inserted(data_item, index)
 
         self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
         self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
