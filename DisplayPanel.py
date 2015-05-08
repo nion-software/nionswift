@@ -995,8 +995,8 @@ class DisplayPanelManager(Observable.Broadcaster):
         dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
         display_type_menu.add_separator()
 
-        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
-        display_type_menu.add_separator()
+        # dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
+        # display_type_menu.add_separator()
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
@@ -1006,4 +1006,4 @@ class DisplayPanelManager(Observable.Broadcaster):
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
 DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
-DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
+# DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
