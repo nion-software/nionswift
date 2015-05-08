@@ -139,6 +139,22 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__selected = selected
             self.update()
 
+    @property
+    def selected_style(self):
+        return self.__selected_style
+
+    @selected_style.setter
+    def selected_style(self, selected_style):
+        self.__selected_style = selected_style
+
+    @property
+    def focused_style(self):
+        return self.__focused_style
+
+    @focused_style.setter
+    def focused_style(self, focused_style):
+        self.__focused_style = focused_style
+
     def __set_drop_region(self, drop_region):
         if self.__drop_region != drop_region:
             self.__drop_region = drop_region
@@ -153,39 +169,33 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_height = self.canvas_size[0]
 
         if self.__drop_region != "none":
-
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            if self.__drop_region == "left":
-                drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
-            elif self.__drop_region == "right":
-                drawing_context.rect(int(canvas_width * 0.90), 0, int(canvas_width - canvas_width * 0.90), canvas_height)
-            elif self.__drop_region == "top":
-                drawing_context.rect(0, 0, canvas_width, int(canvas_height * 0.10))
-            elif self.__drop_region == "bottom":
-                drawing_context.rect(0, int(canvas_height * 0.90), canvas_width, int(canvas_height - canvas_height * 0.90))
-            else:
-                drawing_context.rect(0, 0, canvas_width, canvas_height)
-            drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-            drawing_context.fill()
-
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                if self.__drop_region == "left":
+                    drawing_context.rect(0, 0, int(canvas_width * 0.10), canvas_height)
+                elif self.__drop_region == "right":
+                    drawing_context.rect(int(canvas_width * 0.90), 0, int(canvas_width - canvas_width * 0.90), canvas_height)
+                elif self.__drop_region == "top":
+                    drawing_context.rect(0, 0, canvas_width, int(canvas_height * 0.10))
+                elif self.__drop_region == "bottom":
+                    drawing_context.rect(0, int(canvas_height * 0.90), canvas_width, int(canvas_height - canvas_height * 0.90))
+                else:
+                    drawing_context.rect(0, 0, canvas_width, canvas_height)
+                drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                drawing_context.fill()
 
         if self.selected:
 
             stroke_style = self.__focused_style if self.focused else self.__selected_style
 
-            drawing_context.save()
-
-            drawing_context.begin_path()
-            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
-            drawing_context.line_join = "miter"
-            drawing_context.stroke_style = stroke_style
-            drawing_context.line_width = 4.0
-            drawing_context.stroke()
-
-            drawing_context.restore()
+            if stroke_style:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
+                    drawing_context.line_join = "miter"
+                    drawing_context.stroke_style = stroke_style
+                    drawing_context.line_width = 4.0
+                    drawing_context.stroke()
 
     def drag_enter(self, mime_data):
         self.__dropping = True
@@ -726,6 +736,10 @@ class BrowserDisplayPanel(BaseDisplayPanel):
 
     def __init__(self, document_controller):
         super(BrowserDisplayPanel, self).__init__(document_controller)
+
+        self.header_canvas_item.end_header_color = "#FDFD96"
+        self.content_canvas_item.focused_style = None
+        self.content_canvas_item.selected_style = None
 
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
