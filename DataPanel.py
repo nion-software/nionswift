@@ -167,7 +167,7 @@ class DataListController(object):
         (method) drag_started(x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, ui):
+    def __init__(self, ui, selection):
         super(DataListController, self).__init__()
         self.ui = ui
         self.on_delete_display_items = None
@@ -195,6 +195,9 @@ class DataListController(object):
             def set_selection(self, index):
                 self.__data_list_controller.selection.set(index)
 
+            def set_selection_multiple(self, indexes):
+                self.__data_list_controller.selection.set_multiple(indexes)
+
             def on_context_menu_event(self, index, x, y, gx, gy):
                 self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
 
@@ -220,7 +223,7 @@ class DataListController(object):
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
         self.canvas_item = self.scroll_group_canvas_item
-        self.selection = Selection.IndexedSelection()
+        self.selection = selection
         def selection_changed():
             self.selected_indexes = list(self.selection.indexes)
             if self.on_selection_changed:
@@ -361,7 +364,7 @@ class DataGridController(object):
         (method) drag_started(x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, ui):
+    def __init__(self, ui, selection):
         super(DataGridController, self).__init__()
         self.ui = ui
         self.on_delete_display_items = None
@@ -392,6 +395,9 @@ class DataGridController(object):
             def set_selection(self, index):
                 self.__data_grid_controller.selection.set(index)
 
+            def set_selection_multiple(self, indexes):
+                self.__data_grid_controller.selection.set_multiple(indexes)
+
             def on_context_menu_event(self, index, x, y, gx, gy):
                 self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
 
@@ -414,7 +420,7 @@ class DataGridController(object):
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
         self.canvas_item = self.scroll_group_canvas_item
-        self.selection = Selection.IndexedSelection()
+        self.selection = selection
         def selection_changed():
             self.selected_indexes = list(self.selection.indexes)
             if self.on_selection_changed:
@@ -551,6 +557,7 @@ class DataBrowserController(object):
         self.__data_item = None
         self.__filter_id = None
         self.__selected_display_items = list()
+        self.selection = Selection.IndexedSelection()
         self.filter_changed_event = Observable.Event()
         self.selection_changed_event = Observable.Event()
         self.selected_data_items_changed_event = Observable.Event()
@@ -1020,16 +1027,17 @@ class DataPanel(Panel.Panel):
         master_widget.add(collections_section_widget)
         master_widget.add_stretch()
 
-        self.data_list_controller = DataListController(document_controller.ui)
+        self.data_list_controller = DataListController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        self.data_grid_controller = DataGridController(document_controller.ui)
+        self.data_grid_controller = DataGridController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 

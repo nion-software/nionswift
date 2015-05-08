@@ -732,11 +732,17 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
-        self.data_grid_controller = DataPanel.DataGridController(document_controller.ui)
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+
+        def data_list_drag_started(mime_data, thumbnail_data):
+            self.data_grid_controller.canvas_item.root_container.canvas_widget.drag(mime_data, thumbnail_data)
+
+        self.data_grid_controller.on_drag_started = data_list_drag_started
 
         def data_item_inserted(data_item, before_index):
             display_item = DataPanel.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
@@ -995,8 +1001,8 @@ class DisplayPanelManager(Observable.Broadcaster):
         dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
         display_type_menu.add_separator()
 
-        # dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
-        # display_type_menu.add_separator()
+        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
+        display_type_menu.add_separator()
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
@@ -1006,4 +1012,4 @@ class DisplayPanelManager(Observable.Broadcaster):
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
 DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
-# DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
+DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
