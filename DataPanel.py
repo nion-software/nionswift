@@ -217,6 +217,7 @@ class DataListController(object):
                 self.on_focus_changed(focused)
         self.__list_canvas_item.on_focus_changed = focus_changed
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
+        self.scroll_area_canvas_item.auto_resize_contents = True
         self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -413,6 +414,7 @@ class DataGridController(object):
                 self.on_focus_changed(focused)
         self.icon_view_canvas_item.on_focus_changed = icon_view_canvas_item_focus_changed
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
+        self.scroll_area_canvas_item.auto_resize_contents = True
         self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
         self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
