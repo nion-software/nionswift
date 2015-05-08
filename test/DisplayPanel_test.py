@@ -921,6 +921,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
+    def test_perform_action_gets_dispatched_to_image_canvas_item(self):
+        self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fit")
+        self.display_panel.perform_action("set_fill_mode")
+        self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fill")
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

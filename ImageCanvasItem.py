@@ -736,6 +736,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__last_image_norm_center = (0.5, 0.5)
         self.__update_image_canvas_size()
 
+    @property
+    def image_canvas_mode(self):
+        return self.__image_canvas_mode
+
     def zoom_in(self):
         self.__update_image_canvas_zoom(self.__last_image_zoom * 1.05)
 

@@ -423,6 +423,9 @@ class BaseDisplayPanel(object):
             return self.on_key_pressed(key)
         return False
 
+    def perform_action(self, fn, *args, **keywords):
+        pass
+
 
 class DataDisplayPanel(BaseDisplayPanel):
 
@@ -720,6 +723,11 @@ class DataDisplayPanel(BaseDisplayPanel):
             return True
         return super(DataDisplayPanel, self)._handle_key_pressed(key)
 
+    def perform_action(self, fn, *args, **keywords):
+        target = self.display_canvas_item
+        if hasattr(target, fn):
+            getattr(target, fn)(*args, **keywords)
+
 
 class EmptyDisplayPanel(BaseDisplayPanel):
 
@@ -951,9 +959,8 @@ class DisplayPanel(object):
         self.change_display_panel_content(d)
 
     def perform_action(self, fn, *args, **keywords):
-        target = self.__data_display_panel
-        if hasattr(target, fn):
-            getattr(target, fn)(*args, **keywords)
+        if self.__data_display_panel:
+            self.__data_display_panel.perform_action(fn, *args, **keywords)
 
 
 # image panel manager acts as a broker for significant events occurring
