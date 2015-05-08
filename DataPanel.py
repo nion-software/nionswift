@@ -210,7 +210,7 @@ class DataListController(object):
             def paint_item(self, drawing_context, index, rect, is_selected):
                 self.__data_list_controller.paint_item(drawing_context, index, rect, is_selected)
 
-        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self))
+        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
         def focus_changed(focused):
             self.__list_canvas_item.update()
             if self.on_focus_changed:
@@ -228,7 +228,6 @@ class DataListController(object):
             self.selected_indexes = list(self.selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index] for index in list(self.selection.indexes)])
-            self.__list_canvas_item.update()
         self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
@@ -407,7 +406,7 @@ class DataGridController(object):
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_grid_controller.drag_started(index, x, y, modifiers)
 
-        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self))
+        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection)
         def icon_view_canvas_item_focus_changed(focused):
             self.icon_view_canvas_item.update()
             if self.on_focus_changed:
@@ -425,7 +424,6 @@ class DataGridController(object):
             self.selected_indexes = list(self.selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index] for index in list(self.selection.indexes)])
-            self.icon_view_canvas_item.update()
         self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
