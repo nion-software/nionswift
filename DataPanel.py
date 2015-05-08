@@ -529,7 +529,7 @@ class DataGridController(object):
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
-        self.selection.insert_index(index)
+        self.selection.remove_index(index)
         self.icon_view_canvas_item.update()
 
 
