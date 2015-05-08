@@ -84,7 +84,6 @@ class DocumentController(Observable.Broadcaster):
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
-        self.weak_data_panel = None
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
@@ -511,9 +510,7 @@ class DocumentController(Observable.Broadcaster):
             filter if data item appears. Otherwise, remove filter and see if it appears.
             Otherwise switch to Library group.
         """
-        data_panel = self.find_dock_widget("data-panel").panel
-        if data_panel is not None:
-            data_panel.update_data_panel_selection(data_item=data_item)
+        self.__data_browser_controller.set_data_browser_selection(data_item=data_item)
 
     @property
     def selected_display_specifier(self):
@@ -521,11 +518,10 @@ class DocumentController(Observable.Broadcaster):
 
         The selected display is the display that has keyboard focus in the data panel or a display panel.
         """
-        # first check focused data panel
-        if self.weak_data_panel:
-            data_panel = self.weak_data_panel()
-            if data_panel and data_panel.focused:
-                return DataItem.DisplaySpecifier.from_data_item(data_panel.data_item)
+        # first check for the [focused] data browser
+        data_item = self.__data_browser_controller.data_item
+        if data_item:
+            return DataItem.DisplaySpecifier.from_data_item(data_item)
         # if not found, check for focused or selected image panel
         if self.selected_display_panel:
             return self.selected_display_panel.display_specifier
