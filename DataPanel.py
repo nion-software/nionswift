@@ -1060,10 +1060,6 @@ class DataPanel(Panel.Panel):
 
         self.__display_items = list()
 
-        self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
-
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)
 

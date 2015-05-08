@@ -727,8 +727,6 @@ class BrowserDisplayPanel(BaseDisplayPanel):
     def __init__(self, document_controller):
         super(BrowserDisplayPanel, self).__init__(document_controller)
 
-        self.__display_items = list()
-
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
@@ -757,6 +755,8 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         self.__binding = document_controller.filtered_data_items_binding
         self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
         self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+
+        self.__display_items = list()
 
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)
@@ -792,7 +792,10 @@ class BrowserDisplayPanel(BaseDisplayPanel):
             if data_item == self.__display_items[index].data_item:
                 data_item_index = index
                 break
-        self.data_grid_controller.set_selected_index(data_item_index)
+        if data_item_index >= 0:
+            self.data_grid_controller.set_selected_index(data_item_index)
+        else:
+            self.data_grid_controller.selection.clear()
 
 
 class DisplayPanel(object):
