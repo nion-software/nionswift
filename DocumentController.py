@@ -513,7 +513,7 @@ class DocumentController(Observable.Broadcaster):
         """
         data_panel = self.find_dock_widget("data-panel").panel
         if data_panel is not None:
-            data_panel.update_data_panel_selection(DataPanel.DataPanelSelection(None, data_item, "all"))
+            data_panel.update_data_panel_selection(data_item=data_item)
 
     @property
     def selected_display_specifier(self):
@@ -550,9 +550,9 @@ class DocumentController(Observable.Broadcaster):
             self.processing_line_profile()
             self.__tool_mode = "pointer"
 
-    def new_window(self, workspace_id, data_panel_selection=None):
+    def new_window(self, workspace_id, data_item=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_panel_selection)
+        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
 
     def import_file(self):
         # present a loadfile dialog to the user
@@ -1179,7 +1179,7 @@ class DocumentController(Observable.Broadcaster):
             def show_source():
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
             def show_in_new_window():
-                self.new_window("data", DataPanel.DataPanelSelection(container, data_item))
+                self.new_window("data", data_item=data_item)
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
             if len(data_item.ordered_data_item_data_sources) == 1:
                 # TODO: show_source should handle multiple data sources

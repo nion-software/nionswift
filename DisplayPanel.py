@@ -776,18 +776,14 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         if self.data_grid_controller:
             self.data_grid_controller.periodic()
 
-    def __data_panel_selection_changed(self, data_panel_selection):
-            data_item = data_panel_selection.data_item
-
+    def __data_panel_selection_changed(self, data_group, data_item, filter_id):
             # update the data item selection by determining the new index of the item, if any.
             data_item_index = -1
             for index in range(len(self.__display_items)):
                 if data_item == self.__display_items[index].data_item:
                     data_item_index = index
                     break
-
             self.data_grid_controller.set_selected_index(data_item_index)
-
 
 
 class DisplayPanel(object):
