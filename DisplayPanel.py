@@ -668,6 +668,15 @@ class DataDisplayPanel(BaseDisplayPanel):
                     self.__display_panel.set_displayed_data_item(None)
                     return False
 
+                def enter_key_pressed(self):
+                    if display_type == "image":
+                        buffered_data_source = self.__display_panel.display_specifier.buffered_data_source
+                        display = self.__display_panel.display_specifier.display
+                        if display:
+                            display.display_limits = buffered_data_source.data_range
+                        return True
+                    return False
+
                 def cursor_changed(self, source, pos):
                     display = self.__display_panel.display_specifier.display
                     data_and_calibration = display.data_and_calibration if display else None

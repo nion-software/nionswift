@@ -926,6 +926,21 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.perform_action("set_fill_mode")
         self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fill")
 
+    def test_enter_key_recalculates_display_limits(self):
+        self.assertIsNone(self.display_specifier.display.display_limits)
+        modifiers = Test.KeyboardModifiers()
+        # focus and enter key
+        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
+        with self.data_item.maybe_data_source.data_ref() as dr:
+            dr.master_data[0,0] = 16
+            dr.data_updated()
+        self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        self.assertEqual(self.display_specifier.display.display_limits, (0, 16))
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

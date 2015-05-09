@@ -233,6 +233,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         end_mouse_tracking()
         mouse_clicked(image_position, modifiers)
         delete_key_pressed()
+        enter_key_pressed()
         cursor_changed(source, pos)
         update_display_properties(display_properties)
     """
@@ -562,6 +563,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # only handle keys if we're directly embedded in an image panel
         if key.is_delete:
             self.delegate.delete_key_pressed()
+            return True
+        if key.is_enter_or_return:
+            self.delegate.enter_key_pressed()
             return True
         if self.__data_and_calibration:
             if self.__graphic_selection.has_selection():
