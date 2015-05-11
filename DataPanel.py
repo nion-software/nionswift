@@ -1074,7 +1074,8 @@ class DataPanel(Panel.Panel):
         list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
         grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
 
-        list_icon_button.background_color = "#CCC"
+        list_icon_button.checked = True
+        grid_icon_button.checked = False
 
         self.buttons_canvas_item.add_canvas_item(list_icon_button)
         self.buttons_canvas_item.add_canvas_item(grid_icon_button)
@@ -1103,13 +1104,13 @@ class DataPanel(Panel.Panel):
             if index == 0:  # switching to data list?
                 selected_display_items = [self.__display_items[index] for index in self.data_list_controller.selected_indexes]
                 self.__data_browser_controller.selected_display_items_changed(selected_display_items)
-                list_icon_button.background_color = "#CCC"
-                grid_icon_button.background_color = None
+                list_icon_button.checked = True
+                grid_icon_button.checked = False
             elif index == 1:  # switching to data grid?
                 selected_display_items = [self.__display_items[index] for index in self.data_grid_controller.selected_indexes]
                 self.__data_browser_controller.selected_display_items_changed(selected_display_items)
-                list_icon_button.background_color = None
-                grid_icon_button.background_color = "#CCC"
+                list_icon_button.checked = False
+                grid_icon_button.checked = True
 
         list_icon_button.on_button_clicked = lambda: tab_changed(0)
         grid_icon_button.on_button_clicked = lambda: tab_changed(1)
