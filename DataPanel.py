@@ -1074,9 +1074,6 @@ class DataPanel(Panel.Panel):
         list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
         grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
 
-        list_icon_button.checked = True
-        grid_icon_button.checked = False
-
         self.buttons_canvas_item.add_canvas_item(list_icon_button)
         self.buttons_canvas_item.add_canvas_item(grid_icon_button)
 
@@ -1099,21 +1096,9 @@ class DataPanel(Panel.Panel):
         self.data_view_widget.add(self.data_grid_widget.widget)
         self.data_view_widget.current_index = 0
 
-        def tab_changed(index):
-            self.data_view_widget.current_index = index
-            if index == 0:  # switching to data list?
-                selected_display_items = [self.__display_items[index] for index in self.data_list_controller.selected_indexes]
-                self.__data_browser_controller.selected_display_items_changed(selected_display_items)
-                list_icon_button.checked = True
-                grid_icon_button.checked = False
-            elif index == 1:  # switching to data grid?
-                selected_display_items = [self.__display_items[index] for index in self.data_grid_controller.selected_indexes]
-                self.__data_browser_controller.selected_display_items_changed(selected_display_items)
-                list_icon_button.checked = False
-                grid_icon_button.checked = True
-
-        list_icon_button.on_button_clicked = lambda: tab_changed(0)
-        grid_icon_button.on_button_clicked = lambda: tab_changed(1)
+        self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, grid_icon_button])
+        self.__view_button_group.current_index = 0
+        self.__view_button_group.on_current_index_changed = lambda index: setattr(self.data_view_widget, "current_index", index)
 
         slave_widget = ui.create_column_widget()
         slave_widget.add(self.data_view_widget)
@@ -1158,6 +1143,9 @@ class DataPanel(Panel.Panel):
         self.__filter_changed_event_listener = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
+        # button group
+        self.__view_button_group.close()
+        self.__view_button_group = None
         # finish closing
         super(DataPanel, self).close()
 
