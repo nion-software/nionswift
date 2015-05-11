@@ -926,6 +926,14 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
         self.assertEqual(self.display_specifier.display.display_limits, (0, 16))
 
+    def test_dragging_to_add_line_profile_makes_desired_line_profile(self):
+        self.document_controller.tool_mode = "line-profile"
+        self.simulate_drag((100,125), (200,250))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "line-region")
+        self.assertEqual(region.start, (0.1, 0.125))
+        self.assertEqual(region.end, (0.2, 0.25))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -689,6 +689,21 @@ class DataDisplayPanel(BaseDisplayPanel):
                     for key, value in display_properties.iteritems():
                         setattr(self.__display_panel.display_specifier.display, key, value)
 
+                def create_line_profile(self, pos):
+                    pos = list(pos)
+                    display = self.__display_panel.display_specifier.display
+                    if display:
+                        display.graphic_selection.clear()
+                        operation = Operation.OperationItem("line-profile-operation")
+                        operation.set_property("start", pos)  # requires a tuple
+                        operation.set_property("end", pos)  # requires a tuple
+                        region = operation.establish_associated_region("line", display_specifier.buffered_data_source)  # after setting operation properties
+                        self.__display_panel.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
+                        region.start = pos
+                        region.end = pos
+                        return region.graphic
+                    return None
+
             if display_type == "line_plot":
                 self.display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(self.ui.get_font_metrics, DisplayCanvasItemDelegate(self))
                 self.content_canvas_item.insert_canvas_item(0, self.display_canvas_item)
