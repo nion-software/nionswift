@@ -53,20 +53,6 @@ class TestWorkspaceClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def simulate_click(self, canvas_item, p, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
-        canvas_item.mouse_pressed(p[1], p[0], modifiers)
-        canvas_item.mouse_released(p[1], p[0], modifiers)
-
-    def simulate_drag(self, canvas_item, p1, p2, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
-        canvas_item.mouse_pressed(p1[1], p1[0], modifiers)
-        canvas_item.mouse_position_changed(p1[1], p1[0], modifiers)
-        midp = Geometry.midpoint(p1, p2)
-        canvas_item.mouse_position_changed(midp[1], midp[0], modifiers)
-        canvas_item.mouse_position_changed(p2[1], p2[0], modifiers)
-        canvas_item.mouse_released(p2[1], p2[0], modifiers)
-
     def test_basic_change_layout_results_in_correct_image_panel_count(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
@@ -400,7 +386,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
-        self.simulate_click(document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item, (12, 308))
+        document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
 
     def test_dragging_header_to_swap_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -416,7 +402,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
-        self.simulate_drag(document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item, (12, 12), (480, 240))
+        document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_drag((12, 12), (480, 240))
 
 
 if __name__ == '__main__':
