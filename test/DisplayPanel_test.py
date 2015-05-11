@@ -926,6 +926,48 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
         self.assertEqual(self.display_specifier.display.display_limits, (0, 16))
 
+    def test_dragging_to_add_point_makes_desired_point(self):
+        self.document_controller.tool_mode = "point"
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "point-region")
+        self.assertAlmostEqual(region.position[0], 0.2)
+        self.assertAlmostEqual(region.position[1], 0.25)
+
+    def test_dragging_to_add_rectangle_makes_desired_rectangle(self):
+        self.document_controller.tool_mode = "rectangle"
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "rectangle-region")
+        self.assertAlmostEqual(region.bounds[0][0], 0.1)
+        self.assertAlmostEqual(region.bounds[0][1], 0.125)
+        self.assertAlmostEqual(region.bounds[1][0], 0.15)
+        self.assertAlmostEqual(region.bounds[1][1], 0.075)
+
+    def test_dragging_to_add_ellipse_makes_desired_ellipse(self):
+        self.document_controller.tool_mode = "ellipse"
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "ellipse-region")
+        self.assertAlmostEqual(region.bounds[0][0], 0.1)
+        self.assertAlmostEqual(region.bounds[0][1], 0.125)
+        self.assertAlmostEqual(region.bounds[1][0], 0.15)
+        self.assertAlmostEqual(region.bounds[1][1], 0.075)
+
+    def test_dragging_to_add_line_makes_desired_line(self):
+        self.document_controller.tool_mode = "line"
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "line-region")
+        self.assertAlmostEqual(region.start[0], 0.1)
+        self.assertAlmostEqual(region.start[1], 0.125)
+        self.assertAlmostEqual(region.end[0], 0.2)
+        self.assertAlmostEqual(region.end[1], 0.25)
+
     def test_dragging_to_add_line_profile_makes_desired_line_profile(self):
         self.document_controller.tool_mode = "line-profile"
         self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
@@ -936,17 +978,6 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.start[1], 0.125)
         self.assertAlmostEqual(region.end[0], 0.2)
         self.assertAlmostEqual(region.end[1], 0.25)
-
-    def test_dragging_to_add_crop_makes_desired_crop(self):
-        self.document_controller.tool_mode = "rectangle"
-        self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
-        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
-        region = self.display_specifier.buffered_data_source.regions[0]
-        self.assertEqual(region.type, "rectangle-region")
-        self.assertAlmostEqual(region.bounds[0][0], 0.1)
-        self.assertAlmostEqual(region.bounds[0][1], 0.125)
-        self.assertAlmostEqual(region.bounds[1][0], 0.15)
-        self.assertAlmostEqual(region.bounds[1][1], 0.075)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

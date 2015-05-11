@@ -704,6 +704,49 @@ class DataDisplayPanel(BaseDisplayPanel):
                         return graphic
                     return None
 
+                def create_ellipse(self, pos):
+                    bounds = tuple(pos), (0, 0)
+                    display = self.__display_panel.display_specifier.display
+                    buffered_data_source = display_specifier.buffered_data_source
+                    if display and buffered_data_source:
+                        display.graphic_selection.clear()
+                        region = Region.EllipseRegion()
+                        region.bounds = bounds
+                        buffered_data_source.add_region(region)
+                        graphic = region.graphic
+                        display.graphic_selection.set(display.drawn_graphics.index(graphic))
+                        return graphic
+                    return None
+
+                def create_line(self, pos):
+                    pos = tuple(pos)
+                    display = self.__display_panel.display_specifier.display
+                    buffered_data_source = display_specifier.buffered_data_source
+                    if display and buffered_data_source:
+                        display.graphic_selection.clear()
+                        region = Region.LineRegion()
+                        region.start = pos
+                        region.end = pos
+                        buffered_data_source.add_region(region)
+                        graphic = region.graphic
+                        display.graphic_selection.set(display.drawn_graphics.index(graphic))
+                        return graphic
+                    return None
+
+                def create_point(self, pos):
+                    pos = tuple(pos)
+                    display = self.__display_panel.display_specifier.display
+                    buffered_data_source = display_specifier.buffered_data_source
+                    if display and buffered_data_source:
+                        display.graphic_selection.clear()
+                        region = Region.PointRegion()
+                        region.position = pos
+                        buffered_data_source.add_region(region)
+                        graphic = region.graphic
+                        display.graphic_selection.set(display.drawn_graphics.index(graphic))
+                        return graphic
+                    return None
+
                 def create_line_profile(self, pos):
                     pos = tuple(pos)
                     display = self.__display_panel.display_specifier.display
