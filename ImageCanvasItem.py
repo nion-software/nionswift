@@ -472,6 +472,28 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     break
             if not self.__graphic_drag_items and not modifiers.shift:
                 self.delegate.clear_selection()
+        elif self.delegate.tool_mode == "crop":
+            widget_mapping = self.__get_mouse_mapping()
+            pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
+            graphic = self.delegate.create_crop(pos)
+            self.delegate.add_index_to_selection(self.__graphics.index(graphic))
+            if graphic:
+                # setup drag
+                start_drag_pos = Geometry.IntPoint(y=y, x=x)
+                selection_indexes = self.__graphic_selection.indexes
+                assert len(selection_indexes) == 1
+                self.graphic_drag_item_was_selected = True
+                # keep track of general drag information
+                self.__graphic_drag_start_pos = start_drag_pos
+                self.__graphic_drag_changed = False
+                # keep track of info for the specific item that was clicked
+                self.__graphic_drag_item = graphic
+                self.__graphic_drag_part = "bottom-right"
+                # keep track of drag information for each item in the set
+                self.__graphic_drag_indexes = selection_indexes
+                self.__graphic_drag_items.append(graphic)
+                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "line-profile":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))

@@ -932,8 +932,21 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
         region = self.display_specifier.buffered_data_source.regions[0]
         self.assertEqual(region.type, "line-region")
-        self.assertEqual(region.start, (0.1, 0.125))
-        self.assertEqual(region.end, (0.2, 0.25))
+        self.assertAlmostEqual(region.start[0], 0.1)
+        self.assertAlmostEqual(region.start[1], 0.125)
+        self.assertAlmostEqual(region.end[0], 0.2)
+        self.assertAlmostEqual(region.end[1], 0.25)
+
+    def test_dragging_to_add_crop_makes_desired_crop(self):
+        self.document_controller.tool_mode = "crop"
+        self.simulate_drag((100,125), (250,200))
+        self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
+        region = self.display_specifier.buffered_data_source.regions[0]
+        self.assertEqual(region.type, "rectangle-region")
+        self.assertAlmostEqual(region.bounds[0][0], 0.1)
+        self.assertAlmostEqual(region.bounds[0][1], 0.125)
+        self.assertAlmostEqual(region.bounds[1][0], 0.15)
+        self.assertAlmostEqual(region.bounds[1][1], 0.075)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

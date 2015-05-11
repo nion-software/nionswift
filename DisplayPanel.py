@@ -689,8 +689,21 @@ class DataDisplayPanel(BaseDisplayPanel):
                     for key, value in display_properties.iteritems():
                         setattr(self.__display_panel.display_specifier.display, key, value)
 
+                def create_crop(self, pos):
+                    bounds = tuple(pos), (0, 0)
+                    display = self.__display_panel.display_specifier.display
+                    if display:
+                        display.graphic_selection.clear()
+                        operation = Operation.OperationItem("crop-operation")
+                        operation.set_property("bounds", bounds)  # in tuple form
+                        region = operation.establish_associated_region("crop", display_specifier.buffered_data_source)  # after setting operation properties
+                        self.__display_panel.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Crop of "))
+                        region.bounds = bounds
+                        return region.graphic
+                    return None
+
                 def create_line_profile(self, pos):
-                    pos = list(pos)
+                    pos = tuple(pos)
                     display = self.__display_panel.display_specifier.display
                     if display:
                         display.graphic_selection.clear()

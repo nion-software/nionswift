@@ -539,9 +539,6 @@ class DocumentController(Observable.Broadcaster):
     @tool_mode.setter
     def tool_mode(self, tool_mode):
         self.__tool_mode = tool_mode
-        if self.__tool_mode == "crop":  # hack until interactive crop tool is implemented
-            self.processing_crop()
-            self.__tool_mode = "pointer"
 
     def new_window(self, workspace_id, data_item=None):
         # hack to work around Application <-> DocumentController interdependency.
