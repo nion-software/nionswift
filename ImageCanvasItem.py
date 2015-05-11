@@ -472,10 +472,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     break
             if not self.__graphic_drag_items and not modifiers.shift:
                 self.delegate.clear_selection()
-        elif self.delegate.tool_mode == "crop":
+        elif self.delegate.tool_mode == "rectangle":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
-            graphic = self.delegate.create_crop(pos)
+            graphic = self.delegate.create_rectangle(pos)
             self.delegate.add_index_to_selection(self.__graphics.index(graphic))
             if graphic:
                 # setup drag

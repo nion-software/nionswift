@@ -928,7 +928,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_dragging_to_add_line_profile_makes_desired_line_profile(self):
         self.document_controller.tool_mode = "line-profile"
-        self.simulate_drag((100,125), (200,250))
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
         self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
         region = self.display_specifier.buffered_data_source.regions[0]
         self.assertEqual(region.type, "line-region")
@@ -938,8 +938,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.end[1], 0.25)
 
     def test_dragging_to_add_crop_makes_desired_crop(self):
-        self.document_controller.tool_mode = "crop"
-        self.simulate_drag((100,125), (250,200))
+        self.document_controller.tool_mode = "rectangle"
+        self.display_panel.display_canvas_item.simulate_drag((100,125), (250,200))
         self.assertEqual(len(self.display_specifier.buffered_data_source.regions), 1)
         region = self.display_specifier.buffered_data_source.regions[0]
         self.assertEqual(region.type, "rectangle-region")

@@ -31,10 +31,10 @@ class ToolbarPanel(Panel.Panel):
         hand_tool_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/hand_icon.png")
         hand_tool_button.on_clicked = lambda: setattr(document_controller, "tool_mode", "hand")
 
-        crop_tool_button = self.ui.create_push_button_widget()
-        crop_tool_button.tool_tip = _("Crop Tool")
-        crop_tool_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/crop_icon.png")
-        crop_tool_button.on_clicked = lambda: setattr(document_controller, "tool_mode", "crop")
+        rectangle_tool_button = self.ui.create_push_button_widget()
+        rectangle_tool_button.tool_tip = _("Crop Tool")
+        rectangle_tool_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/crop_icon.png")
+        rectangle_tool_button.on_clicked = lambda: setattr(document_controller, "tool_mode", "rectangle")
 
         line_profile_tool_button = self.ui.create_push_button_widget()
         line_profile_tool_button.tool_tip = _("Line Profile Tool")
@@ -84,7 +84,7 @@ class ToolbarPanel(Panel.Panel):
         tool_group_widget = self.ui.create_row_widget()
         tool_group_widget.add(pointer_tool_button)
         tool_group_widget.add(hand_tool_button)
-        tool_group_widget.add(crop_tool_button)
+        tool_group_widget.add(rectangle_tool_button)
         tool_group_widget.add(line_profile_tool_button)
         tool_group_widget.add(interval_tool_button)
 

@@ -16,6 +16,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
+from nion.swift.model import Region
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Observable
@@ -689,17 +690,18 @@ class DataDisplayPanel(BaseDisplayPanel):
                     for key, value in display_properties.iteritems():
                         setattr(self.__display_panel.display_specifier.display, key, value)
 
-                def create_crop(self, pos):
+                def create_rectangle(self, pos):
                     bounds = tuple(pos), (0, 0)
                     display = self.__display_panel.display_specifier.display
-                    if display:
+                    buffered_data_source = display_specifier.buffered_data_source
+                    if display and buffered_data_source:
                         display.graphic_selection.clear()
-                        operation = Operation.OperationItem("crop-operation")
-                        operation.set_property("bounds", bounds)  # in tuple form
-                        region = operation.establish_associated_region("crop", display_specifier.buffered_data_source)  # after setting operation properties
-                        self.__display_panel.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Crop of "))
+                        region = Region.RectRegion()
                         region.bounds = bounds
-                        return region.graphic
+                        buffered_data_source.add_region(region)
+                        graphic = region.graphic
+                        display.graphic_selection.set(display.drawn_graphics.index(graphic))
+                        return graphic
                     return None
 
                 def create_line_profile(self, pos):
