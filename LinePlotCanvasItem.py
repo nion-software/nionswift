@@ -138,6 +138,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__data_and_calibration = None
         self.__y_min = None
         self.__y_max = None
+        self.__y_style = None
         self.__left_channel = None
         self.__right_channel = None
         self.__display_calibrated_values = False
@@ -162,6 +163,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__data_and_calibration = data_and_calibration
             self.__y_min = display_properties["y_min"]
             self.__y_max = display_properties["y_max"]
+            self.__y_style = display_properties["y_style"]
             self.__left_channel = display_properties["left_channel"]
             self.__right_channel = display_properties["right_channel"]
             self.__display_calibrated_values = display_calibrated_values
@@ -175,6 +177,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__data_and_calibration = None
             self.__y_min = None
             self.__y_max = None
+            self.__y_style = None
             self.__left_channel = None
             self.__right_channel = None
             self.__display_calibrated_values = False
@@ -224,6 +227,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             data_and_calibration = self.__data_and_calibration
             y_min = self.__y_min
             y_max = self.__y_max
+            y_style = self.__y_style
             left_channel = self.__left_channel
             right_channel = self.__right_channel
             display_calibrated_values = self.__display_calibrated_values
@@ -250,7 +254,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     return data
 
                 data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
-                                                                  dimensional_calibration, intensity_calibration)
+                                                                  dimensional_calibration, intensity_calibration, y_style)
             else:
                 data_info = LineGraphCanvasItem.LineGraphDataInfo()
 
@@ -488,22 +492,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_drawn_data_min = y_properties.drawn_data_min
-        self.__tracking_start_drawn_data_max = y_properties.drawn_data_max
-        self.__tracking_start_drawn_data_per_pixel = self.__data_info.get_drawn_data_per_pixel(plot_height)
         self.__tracking_start_calibrated_data_min = y_properties.calibrated_data_min
         self.__tracking_start_calibrated_data_max = y_properties.calibrated_data_max
+        self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
         plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
         if 0.0 >= self.__tracking_start_calibrated_data_min and 0.0 <= self.__tracking_start_calibrated_data_max:
             calibrated_unit_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / (plot_rect.height - 1)
             origin_offset_pixels = (0.0 - self.__tracking_start_calibrated_data_min) / calibrated_unit_per_pixel
-            origin_offset_data = self.__tracking_start_drawn_data_min + origin_offset_pixels * self.__tracking_start_drawn_data_per_pixel
+            calibrated_origin = self.__tracking_start_calibrated_data_min + origin_offset_pixels * self.__tracking_start_calibrated_data_per_pixel
             self.__tracking_start_origin_y = origin_offset_pixels
-            self.__tracking_start_origin_data = origin_offset_data
+            self.__tracking_start_calibrated_origin = calibrated_origin
         else:
             self.__tracking_start_origin_y = 0  # the distance the origin is up from the bottom
-            self.__tracking_start_origin_data = self.__tracking_start_drawn_data_min
+            self.__tracking_start_calibrated_origin = self.__tracking_start_calibrated_data_min
 
     def continue_tracking(self, pos, modifiers):
         if self.__tracking_selections:
@@ -538,19 +540,23 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
                 plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
                 origin_y = plot_rect.bottom - 1 - self.__tracking_start_origin_y  # pixel position of y-origin
-                data_offset = self.__tracking_start_drawn_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
+                calibrated_offset = self.__tracking_start_calibrated_data_per_pixel * (origin_y - self.__tracking_start_pos.y)
                 pixel_offset = origin_y - pos.y
                 pixel_offset = max(pixel_offset, 1) if origin_y > self.__tracking_start_pos.y else min(pixel_offset, -1)
-                new_drawn_data_per_pixel = data_offset / pixel_offset
-                data_min = self.__tracking_start_origin_data - new_drawn_data_per_pixel * self.__tracking_start_origin_y
-                data_max = self.__tracking_start_origin_data + new_drawn_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                self.delegate.update_display_properties({"y_min": data_min, "y_max": data_max})
+                new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
+                calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
+                calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
+                uncalibrated_data_min = self.__data_info.uncalibrate_y(calibrated_data_min)
+                uncalibrated_data_max = self.__data_info.uncalibrate_y(calibrated_data_max)
+                self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
-                data_min = self.__tracking_start_drawn_data_min + self.__tracking_start_drawn_data_per_pixel * delta.y
-                data_max = self.__tracking_start_drawn_data_max + self.__tracking_start_drawn_data_per_pixel * delta.y
-                self.delegate.update_display_properties({"y_min": data_min, "y_max": data_max})
+                calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
+                calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
+                uncalibrated_data_min = self.__data_info.uncalibrate_y(calibrated_data_min)
+                uncalibrated_data_max = self.__data_info.uncalibrate_y(calibrated_data_max)
+                self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                 return True
         return False
 

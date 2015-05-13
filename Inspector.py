@@ -536,9 +536,27 @@ class LinePlotInspectorSection(InspectorSection):
         self.channels_row.add(self.channels_right)
         self.channels_row.add_stretch()
 
+        class LogCheckedToCheckStateConverter(object):
+            """ Convert between bool and checked/unchecked strings. """
+
+            def convert(self, value):
+                """ Convert bool to checked or unchecked string """
+                return "checked" if value == "log" else "unchecked"
+
+            def convert_back(self, value):
+                """ Convert checked or unchecked string to bool """
+                return "log" if value == "checked" else "linear"
+
+        self.style_row = self.ui.create_row_widget()
+        self.style_y_log = self.ui.create_check_box_widget(_("Log Scale (Y)"))
+        self.style_y_log.bind_check_state(Binding.PropertyBinding(display, "y_style", converter=LogCheckedToCheckStateConverter()))
+        self.style_row.add(self.style_y_log)
+        self.style_row.add_stretch()
+
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
+        self.add_widget_to_content(self.style_row)
 
 
 class SliceInspectorSection(InspectorSection):

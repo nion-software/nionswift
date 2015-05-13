@@ -31,14 +31,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
 
         for data_in, data_out in test_ranges:
             data_min, data_max = data_in
-            expected_drawn_data_min, expected_drawn_data_max = data_out
+            expected_uncalibrated_data_min, expected_uncalibrated_data_max = data_out
             data = numpy.zeros((16, 16), dtype=numpy.float64)
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
             data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, None, None)
-            self.assertEqual(data_info.y_properties.drawn_data_min, expected_drawn_data_min)
-            self.assertEqual(data_info.y_properties.drawn_data_max, expected_drawn_data_max)
+            self.assertEqual(data_info.y_properties.uncalibrated_data_min, expected_uncalibrated_data_min)
+            self.assertEqual(data_info.y_properties.uncalibrated_data_max, expected_uncalibrated_data_max)
 
 
 if __name__ == '__main__':

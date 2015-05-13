@@ -30,9 +30,10 @@ class LineGraphDataInfo(object):
 
     """ LineGraphDataInfo is used to pass data, drawing limits, and calibrations to various canvas items. """
 
-    def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None):
+    def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None):
         # these items are considered to be input items
         self.__data_fn = data_fn
+        self.__uncalibrated_data = None
         self.__data = None
         self.data_min = data_min
         self.data_max = data_max
@@ -40,46 +41,56 @@ class LineGraphDataInfo(object):
         self.data_right = data_right
         self.spatial_calibration = spatial_calibration
         self.intensity_calibration = intensity_calibration
+        self.data_style = data_style if data_style else "linear"
         # these items are considered to be output items
         self.__x_axis_valid = False
         self.__y_axis_valid = False
         # y-axis
-        self.__drawn_data_min = None
-        self.__drawn_data_max = None
-        self.__drawn_data_range = None
         self.__y_tick_precision = None
-        self.__y_tick_division = None
         self.__y_tick_values = None
+        self.__uncalibrated_data_min = None
+        self.__uncalibrated_data_max = None
         self.__calibrated_data_min = None
         self.__calibrated_data_max = None
         # x-axis
         self.__drawn_left_channel = None
         self.__drawn_right_channel = None
         self.__x_tick_precision = None
-        self.__x_tick_division = None
         self.__x_tick_values = None
 
     @property
-    def data(self):
-        if self.__data is None and self.__data_fn:
-            import threading
-            if threading.current_thread().getName() == "MainThread":
-                import traceback
-                # traceback.print_stack()
-            self.__data = self.__data_fn()
-        return self.__data
+    def uncalibrated_data(self):
+        if self.__uncalibrated_data is None and self.__data_fn:
+            self.__uncalibrated_data = self.__data_fn()
+        return self.__uncalibrated_data
 
-    def get_drawn_data_per_pixel(self, plot_height):
-        y_properties = self.y_properties
-        return float(y_properties.drawn_data_range) / plot_height
+    @property
+    def data(self):
+        if self.__data is None:
+            uncalibrated_data = self.__data_fn()
+            if uncalibrated_data is not None:
+                calibration = self.intensity_calibration
+                if calibration:
+                    if self.data_style == "log":
+                        self.__data = numpy.log10(numpy.maximum(calibration.offset + calibration.scale * uncalibrated_data, 0.0) + numpy.nextafter(0,1))
+                    else:
+                        self.__data = calibration.offset + calibration.scale * uncalibrated_data
+                else:
+                    if self.data_style == "log":
+                        self.__data = numpy.log10(numpy.maximum(uncalibrated_data, 0.0) + numpy.nextafter(0,1))
+                    else:
+                        self.__data = uncalibrated_data
+        return self.__data
 
     def __prepare_y_axis(self):
 
         """
         Calculate various parameters relating to the y-axis.
 
-        The specific parameters calculated from this method are: drawn_data_min, drawn_data_max, drawn_data_range,
-        y_tick_precision, y_tick_division, y_tick_values, calibrated_data_min, calibrated_data_max.
+        The specific parameters calculated from this method are:
+            y_tick_precision, y_tick_values
+            calibrated_data_min, calibrated_data_max
+            calibrated_data_min, calibrated_data_max
         """
 
         if not self.__y_axis_valid:
@@ -89,18 +100,23 @@ class LineGraphDataInfo(object):
             min_specified = self.data_min is not None
             max_specified = self.data_max is not None
             if self.data.shape[0] > 0:
-                raw_data_min = self.data_min if min_specified else numpy.amin(self.data)
-                raw_data_max = self.data_max if max_specified else numpy.amax(self.data)
+                raw_data_min = self.data_min if min_specified else numpy.amin(self.uncalibrated_data)
+                raw_data_max = self.data_max if max_specified else numpy.amax(self.uncalibrated_data)
             else:
                 raw_data_min = 0.0
                 raw_data_max = 0.0
 
-            if math.isnan(raw_data_min) or math.isnan(raw_data_max) or math.isinf(raw_data_min) or math.isinf(raw_data_max):
-                raw_data_min = 0.0
-                raw_data_max = 0.0
+            calibrated_data_min = calibration.convert_to_calibrated_value(raw_data_min) if calibration else raw_data_min
+            calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max) if calibration else raw_data_max
 
-            calibrated_data_min = calibration.convert_to_calibrated_value(raw_data_min) if calibration is not None else raw_data_min
-            calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max) if calibration is not None else raw_data_max
+            if self.data_style == "log":
+                calibrated_data_min = math.log10(max(calibrated_data_min, 0.0) + numpy.nextafter(0,1))
+                calibrated_data_max = math.log10(max(calibrated_data_max, 0.0) + numpy.nextafter(0,1))
+
+            if math.isnan(calibrated_data_min) or math.isnan(calibrated_data_max) or math.isinf(calibrated_data_min) or math.isinf(calibrated_data_max):
+                calibrated_data_min = 0.0
+                calibrated_data_max = 0.0
+
             calibrated_data_min, calibrated_data_max = min(calibrated_data_min, calibrated_data_max), max(calibrated_data_min, calibrated_data_max)
             calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
             calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
@@ -108,21 +124,27 @@ class LineGraphDataInfo(object):
             graph_minimum, graph_maximum, tick_values, division, precision = Geometry.make_pretty_range(calibrated_data_min, calibrated_data_max)
 
             if min_specified:
-                self.__drawn_data_min = raw_data_min
+                self.__calibrated_data_min = calibrated_data_min
             else:
-                self.__drawn_data_min = calibration.convert_from_calibrated_value(graph_minimum) if calibration else graph_minimum
+                self.__calibrated_data_min = graph_minimum if calibration else graph_minimum
             if max_specified:
-                self.__drawn_data_max = raw_data_max
+                self.__calibrated_data_max = calibrated_data_max
             else:
-                self.__drawn_data_max = calibration.convert_from_calibrated_value(graph_maximum) if calibration else graph_maximum
-            self.__drawn_data_range = self.__drawn_data_max - self.__drawn_data_min
+                self.__calibrated_data_max = graph_maximum if calibration else graph_maximum
 
             self.__y_tick_precision = precision
-            self.__y_tick_division = division
             self.__y_tick_values = tick_values
 
-            self.__calibrated_data_min = calibration.convert_to_calibrated_value(self.__drawn_data_min) if calibration else self.__drawn_data_min
-            self.__calibrated_data_max = calibration.convert_to_calibrated_value(self.__drawn_data_max) if calibration else self.__drawn_data_max
+            if self.data_style == "log":
+                self.__uncalibrated_data_min = math.pow(10, self.__calibrated_data_min)
+                self.__uncalibrated_data_max = math.pow(10, self.__calibrated_data_max)
+            else:
+                self.__uncalibrated_data_min = self.__calibrated_data_min
+                self.__uncalibrated_data_max = self.__calibrated_data_max
+
+            if calibration:
+                self.__uncalibrated_data_min = calibration.convert_from_calibrated_value(self.__uncalibrated_data_min)
+                self.__uncalibrated_data_max = calibration.convert_from_calibrated_value(self.__uncalibrated_data_max)
 
             self.__y_axis_valid = True
 
@@ -130,16 +152,20 @@ class LineGraphDataInfo(object):
 
         """ Calculate the y-axis items dependent on the plot height. """
 
-        calibration = self.intensity_calibration
-
         y_properties = self.y_properties
+
+        calibrated_data_min = y_properties.calibrated_data_min
+        calibrated_data_max = y_properties.calibrated_data_max
+        calibrated_data_range = calibrated_data_max - calibrated_data_min
 
         y_ticks = list()
         for tick_value in y_properties.y_tick_values:
+            data_tick = tick_value
+            tick_value = math.pow(10.0, tick_value) if self.data_style == "log" else tick_value
             label = (u"{0:0." + u"{0:d}".format(y_properties.y_tick_precision) + "f}").format(tick_value)
-            data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
-            if y_properties.drawn_data_range != 0.0:
-                y_tick = plot_height - plot_height * (data_tick - y_properties.drawn_data_min) / y_properties.drawn_data_range
+            # data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
+            if calibrated_data_range != 0.0:
+                y_tick = plot_height - plot_height * (data_tick - calibrated_data_min) / calibrated_data_range
             else:
                 y_tick = plot_height - plot_height * 0.5
             if y_tick >= 0 and y_tick <= plot_height:
@@ -151,12 +177,26 @@ class LineGraphDataInfo(object):
     def y_properties(self):
         if self.__data_fn is None:
             return None
-        y_properties = collections.namedtuple("YProperties", ["drawn_data_min", "drawn_data_max", "drawn_data_range",
-            "y_tick_precision", "y_tick_division", "y_tick_values", "calibrated_data_min", "calibrated_data_max"])
+        y_properties = collections.namedtuple("YProperties",
+                                              ["y_tick_precision", "y_tick_values", "calibrated_data_min",
+                                                  "calibrated_data_max", "uncalibrated_data_min",
+                                                  "uncalibrated_data_max"])
         self.__prepare_y_axis()
-        return y_properties(self.__drawn_data_min, self.__drawn_data_max, self.__drawn_data_range,
-                            self.__y_tick_precision, self.__y_tick_division, self.__y_tick_values,
-                            self.__calibrated_data_min, self.__calibrated_data_max)
+        return y_properties(self.__y_tick_precision, self.__y_tick_values, self.__calibrated_data_min,
+                            self.__calibrated_data_max, self.__uncalibrated_data_min, self.__uncalibrated_data_max)
+
+    def uncalibrate_y(self, uncalibrated_y_value):
+        calibration = self.intensity_calibration
+        if self.data_style == "log":
+            if calibration:
+                return calibration.convert_from_calibrated_value(math.pow(10, uncalibrated_y_value))
+            else:
+                return math.pow(10, uncalibrated_y_value)
+        else:
+            if calibration:
+                return calibration.convert_from_calibrated_value(uncalibrated_y_value)
+            else:
+                return uncalibrated_y_value
 
     def __prepare_x_axis(self):
 
@@ -164,7 +204,7 @@ class LineGraphDataInfo(object):
         Calculate various parameters relating to the x-axis.
 
         The specific parameters calculated from this method are: drawn_left_channel, drawn_right_channel,
-        x_tick_precision, x_tick_division, x_tick_values.
+        x_tick_precision, x_tick_values.
         """
 
         if not self.__x_axis_valid:
@@ -192,7 +232,6 @@ class LineGraphDataInfo(object):
                 self.__drawn_right_channel = calibration.convert_from_calibrated_value(graph_right) if calibration else graph_right
 
             self.__x_tick_precision = precision
-            self.__x_tick_division = division
             self.__x_tick_values = tick_values
 
             self.__x_axis_valid = True
@@ -222,10 +261,10 @@ class LineGraphDataInfo(object):
             return None
         x_properties = collections.namedtuple("XProperties",
                                               ["drawn_left_channel", "drawn_right_channel", "x_tick_precision",
-                                                  "x_tick_division", "x_tick_values"])
+                                                  "x_tick_values"])
         self.__prepare_x_axis()
         return x_properties(self.__drawn_left_channel, self.__drawn_right_channel, self.__x_tick_precision,
-                            self.__x_tick_division, self.__x_tick_values)
+                            self.__x_tick_values)
 
 
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -296,16 +335,16 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
-            drawing_context.fill_style = self.background_color
-            drawing_context.fill()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
+                drawing_context.fill_style = self.background_color
+                drawing_context.fill()
 
             # extract the data we need for drawing y-axis
-            drawn_data_min = y_properties.drawn_data_min
-            drawn_data_range = y_properties.drawn_data_range
+            calibrated_data_min = y_properties.calibrated_data_min
+            calibrated_data_max = y_properties.calibrated_data_max
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
             y_ticks = data_info.calculate_y_ticks(plot_height)
 
             # extract the data we need for drawing x-axis
@@ -315,64 +354,61 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
             # draw the horizontal grid lines
             if self.draw_grid:
-                drawing_context.save()
-                for y, _ in y_ticks:
+                with drawing_context.saver():
+                    for y, _ in y_ticks:
+                        drawing_context.begin_path()
+                        drawing_context.move_to(plot_origin_x, y)
+                        drawing_context.line_to(plot_origin_x + plot_width, y)
+                        drawing_context.line_width = 1
+                        drawing_context.stroke_style = '#DDD'
+                        drawing_context.stroke()
+
+            # draw the vertical grid lines
+            with drawing_context.saver():
+                for x, _ in x_ticks:
                     drawing_context.begin_path()
-                    drawing_context.move_to(plot_origin_x, y)
-                    drawing_context.line_to(plot_origin_x + plot_width, y)
+                    if self.draw_grid:
+                        drawing_context.move_to(x, plot_origin_y)
+                        drawing_context.line_to(x, plot_origin_y + plot_height)
                     drawing_context.line_width = 1
                     drawing_context.stroke_style = '#DDD'
                     drawing_context.stroke()
-                drawing_context.restore()
-
-            # draw the vertical grid lines
-            drawing_context.save()
-            for x, _ in x_ticks:
-                drawing_context.begin_path()
-                if self.draw_grid:
-                    drawing_context.move_to(x, plot_origin_y)
-                    drawing_context.line_to(x, plot_origin_y + plot_height)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#DDD'
-                drawing_context.stroke()
-            drawing_context.restore()
 
             # draw the line plot itself
-            drawing_context.save()
-            drawing_context.begin_path()
-            if drawn_data_range != 0.0:
-                baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - drawn_data_min) / drawn_data_range)
-                baseline = min(plot_origin_y + plot_height, baseline)
-                baseline = max(plot_origin_y, baseline)
-                # rebin so that data_width corresponds to plot width
-                binned_length = int(data_info.data.shape[0] * plot_width / data_width)
-                binned_data = Image.rebin_1d(data_info.data, binned_length, self.__retained_rebin_1d)
-                binned_left = int(data_left * plot_width / data_width)
-                # draw the plot
-                for i in xrange(0, plot_width):
-                    px = plot_origin_x + i
-                    binned_index = binned_left + i
-                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
-                    # plot_origin_y is the TOP of the drawing
-                    # py extends DOWNWARDS
-                    py = plot_origin_y + plot_height - (plot_height * (data_value - drawn_data_min) / drawn_data_range)
-                    py = max(plot_origin_y, py)
-                    py = min(plot_origin_y + plot_height, py)
-                    drawing_context.move_to(px, baseline)
-                    drawing_context.line_to(px, py)
-            else:
-                drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
-                drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-            drawing_context.line_width = 1.0
-            drawing_context.stroke_style = '#1E90FF'  # dodger blue
-            drawing_context.stroke()
-            if self.draw_frame:
+            with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
-            drawing_context.line_width = 1
-            drawing_context.stroke_style = '#888'
-            drawing_context.stroke()
-            drawing_context.restore()
+                if calibrated_data_range != 0.0:
+                    baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
+                    baseline = min(plot_origin_y + plot_height, baseline)
+                    baseline = max(plot_origin_y, baseline)
+                    # rebin so that data_width corresponds to plot width
+                    binned_length = int(data_info.data.shape[0] * plot_width / data_width)
+                    binned_data = Image.rebin_1d(data_info.data, binned_length, self.__retained_rebin_1d)
+                    binned_left = int(data_left * plot_width / data_width)
+                    # draw the plot
+                    for i in xrange(0, plot_width):
+                        px = plot_origin_x + i
+                        binned_index = binned_left + i
+                        data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
+                        # plot_origin_y is the TOP of the drawing
+                        # py extends DOWNWARDS
+                        py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                        py = max(plot_origin_y, py)
+                        py = min(plot_origin_y + plot_height, py)
+                        drawing_context.move_to(px, baseline)
+                        drawing_context.line_to(px, py)
+                else:
+                    drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
+                    drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
+                drawing_context.line_width = 1.0
+                drawing_context.stroke_style = '#1E90FF'  # dodger blue
+                drawing_context.stroke()
+                if self.draw_frame:
+                    drawing_context.begin_path()
+                    drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
+                drawing_context.line_width = 1
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
 
 
 def draw_marker(ctx, p, fill=None, stroke=None):
@@ -432,46 +468,45 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 right_text = region.right_text
                 middle_text = region.middle_text
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
-                drawing_context.save()
-                drawing_context.begin_path()
-                last_x = None
-                for region_channel in region_channels:
-                    x = convert_coordinate_to_pixel(region_channel)
-                    drawing_context.move_to(x, plot_origin_y)
-                    drawing_context.line_to(x, plot_origin_y + plot_height)
-                    drawing_context.line_width = 1
-                    drawing_context.stroke_style = '#F00'
-                    if not region_selected:
-                        drawing_context.line_dash = 2
-                    drawing_context.stroke()
-                    if last_x is not None:
-                        mid_x = (last_x + x) * 0.5
-                        drawing_context.move_to(last_x, level)
-                        drawing_context.line_to(mid_x - 3, level)
-                        drawing_context.move_to(mid_x + 3, level)
-                        drawing_context.line_to(x - 3, level)
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    last_x = None
+                    for region_channel in region_channels:
+                        x = convert_coordinate_to_pixel(region_channel)
+                        drawing_context.move_to(x, plot_origin_y)
+                        drawing_context.line_to(x, plot_origin_y + plot_height)
+                        drawing_context.line_width = 1
+                        drawing_context.stroke_style = '#F00'
+                        if not region_selected:
+                            drawing_context.line_dash = 2
                         drawing_context.stroke()
-                        drawing_context.line_dash = 0
-                        if region_selected:
-                            draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
-                            drawing_context.fill_style = '#F00'
-                            drawing_context.font = "{0:d}px".format(self.font_size)
-                            if middle_text:
-                                drawing_context.text_align = "center"
-                                drawing_context.text_baseline = "bottom"
-                                drawing_context.fill_text(middle_text, mid_x, level - 6)
-                            if left_text:
-                                drawing_context.text_align = "right"
-                                drawing_context.text_baseline = "center"
-                                drawing_context.fill_text(left_text, last_x - 4, level)
-                            if right_text:
-                                drawing_context.text_align = "left"
-                                drawing_context.text_baseline = "center"
-                                drawing_context.fill_text(right_text, x + 4, level)
-                        else:
-                            draw_marker(drawing_context, (level, mid_x), stroke='#F00')
-                    last_x = x
-                drawing_context.restore()
+                        if last_x is not None:
+                            mid_x = (last_x + x) * 0.5
+                            drawing_context.move_to(last_x, level)
+                            drawing_context.line_to(mid_x - 3, level)
+                            drawing_context.move_to(mid_x + 3, level)
+                            drawing_context.line_to(x - 3, level)
+                            drawing_context.stroke()
+                            drawing_context.line_dash = 0
+                            if region_selected:
+                                draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
+                                drawing_context.fill_style = '#F00'
+                                drawing_context.font = "{0:d}px".format(self.font_size)
+                                if middle_text:
+                                    drawing_context.text_align = "center"
+                                    drawing_context.text_baseline = "bottom"
+                                    drawing_context.fill_text(middle_text, mid_x, level - 6)
+                                if left_text:
+                                    drawing_context.text_align = "right"
+                                    drawing_context.text_baseline = "center"
+                                    drawing_context.fill_text(left_text, last_x - 4, level)
+                                if right_text:
+                                    drawing_context.text_align = "left"
+                                    drawing_context.text_baseline = "center"
+                                    drawing_context.fill_text(right_text, x + 4, level)
+                            else:
+                                draw_marker(drawing_context, (level, mid_x), stroke='#F00')
+                        last_x = x
 
 
 class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):

@@ -786,7 +786,7 @@ class DataDisplayPanel(BaseDisplayPanel):
                                                                             timestamp)
                 self.display_canvas_item.update_display_state(preview_data_and_calibration)
             elif display_type == "line_plot":
-                display_properties = {"y_min": display.y_min, "y_max": display.y_max,
+                display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
                     "left_channel": display.left_channel, "right_channel": display.right_channel}
                 self.display_canvas_item.update_display_state(data_and_calibration, display_properties,
                                                               display.display_calibrated_values)

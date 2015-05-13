@@ -116,6 +116,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
         self.define_property("y_min", changed=self.__property_changed)
         self.define_property("y_max", changed=self.__property_changed)
+        self.define_property("y_style", "linear", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("slice_center", 0, changed=self.__slice_interval_changed)
